@@ -55,7 +55,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 		logger.Info("Found .env file", zap.String("file", viper.ConfigFileUsed()))
 	}
 
-	return Config{
+	cfg := Config{
 		DB_URL:           viper.GetString("db_url"),
 		FOOTBALL_API_KEY: viper.GetString("football_api_key"),
 		RAPID_API_KEY:    viper.GetString("rapid_api_key"),
@@ -66,4 +66,6 @@ func InitConfig(logger *otelzap.Logger) Config {
 		ENVIRONMENT:      viper.GetString("environment"),
 		JWT_SECRET:       viper.GetString("jwt_secret"),
 	}
+
+	return cfg
 }
