@@ -14,7 +14,7 @@
     "test": "yarn workspaces run test",
     "lint": "yarn workspaces run lint",
     "clean": "yarn workspaces run clean",
-    "dev": "concurrently --kill-others-on-fail --prefix-colors \"cyan,magenta,yellow,green\" --names \"API,MOBILE,WORKERS,ADMIN\" \"yarn dev:api\" \"yarn dev:mobile\"",
+    "dev": "concurrently --kill-others-on-fail --prefix-colors \"red,blue\" --names \"BACKEND,FRONTEND\" --raw \"cd services/api && go run main.go\" \"cd apps/mobile && npx expo start\"",
     "dev:api": "cd services/api && go run main.go",
     "dev:mobile": "yarn workspace fucci start",
     "dev:workers": "cd services/workers && go run main.go",
@@ -23,7 +23,10 @@
     "mobile:android": "yarn workspace fucci android",
     "mobile:ios": "yarn workspace fucci ios",
     "mobile:web": "yarn workspace fucci web",
-    "mobile:start": "yarn workspace fucci start"
+    "mobile:start": "yarn workspace fucci start",
+    "deploy:backend": "cd services/api && go build && flyctl deploy --remote-only",
+    "deploy:mobile": "yarn workspace fucci build:android && yarn workspace fucci build:ios",
+    "clear:cache": "redis-cli FLUSHALL"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
