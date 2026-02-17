@@ -82,6 +82,7 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 
 // getMatchNews handles GET /api/news/football/match
 // Fetches match-specific news for both teams playing
+// Query params: homeTeam, awayTeam, matchId, matchStatus, matchEndTime (ISO8601, optional for completed matches)
 func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -89,6 +90,8 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 	homeTeam := r.URL.Query().Get("homeTeam")
 	awayTeam := r.URL.Query().Get("awayTeam")
 	matchID := r.URL.Query().Get("matchId")
+	matchStatus := r.URL.Query().Get("matchStatus")
+	matchEndTimeStr := r.URL.Query().Get("matchEndTime")
 
 	// Validate required parameters
 	if homeTeam == "" || awayTeam == "" || matchID == "" {
@@ -96,8 +99,18 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate cache key based on match ID
-	cacheKey := news.GenerateMatchCacheKey(matchID)
+	// Parse matchEndTime for completed matches (optional - nil if not provided or invalid)
+	var matchEndTime *time.Time
+	if matchEndTimeStr != "" {
+		if t, err := time.Parse(time.RFC3339, matchEndTimeStr); err == nil {
+			matchEndTime = &t
+		} else if t, err := time.Parse("2006-01-02T15:04:05Z", matchEndTimeStr); err == nil {
+			matchEndTime = &t
+		}
+	}
+
+	// Generate cache key based on match ID, status, and end time
+	cacheKey := news.GenerateMatchCacheKey(matchID, matchStatus, matchEndTimeStr)
 
 	// Try to get from cache first
 	var cachedResponse news.MatchNewsAPIResponse
@@ -122,7 +135,7 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 	// Fetch match news (combined query for both teams)
 	// Default limit to 10 articles
 	limit := 10
-	matchResp, err := newsClient.FetchMatchNews(homeTeam, awayTeam, limit)
+	matchResp, err := newsClient.FetchMatchNews(homeTeam, awayTeam, limit, matchStatus, matchEndTime)
 	if err != nil {
 		log.Printf("Failed to fetch match news from RapidAPI: %v", err)
 

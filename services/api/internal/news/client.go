@@ -77,6 +77,7 @@ func (c *Client) FetchNews(opts FetchNewsOptions) (*RapidAPIResponse, error) {
 
 	// Make the request with timeout
 	client := &http.Client{Timeout: c.timeout}
+	log.Println("REQUEST", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch news: %w", err)
@@ -114,14 +115,14 @@ type TodayAndHistoryResponse struct {
 func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
 	// Default options
 	defaultOpts := FetchNewsOptions{
-		Country: "US",
-		Lang:    "en",
-		Limit:   5, // Limit to 5 articles per section
+		// Country: "US",
+		Lang:  "en",
+		Limit: 5, // Limit to 5 articles per section
 	}
 
 	// Fetch today's news
 	todayOpts := defaultOpts
-	todayOpts.Query = "today's world football"
+	todayOpts.Query = "FIFA Football News"
 	todayOpts.TimePublished = "1d" // Valid values: anytime, 1h, 1d, 7d, 1m, 1y
 
 	todayResp, err := c.FetchNews(todayOpts)
@@ -133,7 +134,7 @@ func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
 
 	// Fetch historical news
 	historyOpts := defaultOpts
-	historyOpts.Query = "World Football History"
+	historyOpts.Query = "World FIFA Football History"
 	historyOpts.TimePublished = "anytime"
 
 	historyResp, err := c.FetchNews(historyOpts)
@@ -152,19 +153,59 @@ func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
 	}, nil
 }
 
-// FetchMatchNews fetches news for a specific match (both teams)
-// Makes a single API call with combined query like "Chelsea FC and Liverpool FC"
-func (c *Client) FetchMatchNews(homeTeam, awayTeam string, limit int) (*RapidAPIResponse, error) {
+// MatchStatusCompleted returns true if the match has finished (FT, AET, PEN, etc.)
+func MatchStatusCompleted(status string) bool {
+	switch status {
+	case "FT", "AET", "PEN", "AWD", "WO", "CANC", "ABD", "PST":
+		return true
+	default:
+		return false
+	}
+}
+
+// FetchMatchNews fetches news for a specific match (both teams).
+// Time filtering:
+// - Not started / ongoing: fetches articles from past 1 day
+// - Completed: fetches articles from past 7 days, then filters to only those published after match end
+func (c *Client) FetchMatchNews(homeTeam, awayTeam string, limit int, matchStatus string, matchEndTime *time.Time) (*RapidAPIResponse, error) {
 	// Build combined query: "Team A and Team B"
 	query := fmt.Sprintf("%s and %s", homeTeam, awayTeam)
 
+	timePublished := "1d"
+	if MatchStatusCompleted(matchStatus) {
+		timePublished = "7d"
+	}
+
 	opts := FetchNewsOptions{
 		Query:         query,
-		TimePublished: "1d", // Today's news only
+		TimePublished: timePublished,
 		Limit:         limit,
 		Country:       "US",
 		Lang:          "en",
 	}
 
-	return c.FetchNews(opts)
+	resp, err := c.FetchNews(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// For completed matches, filter to only articles published after match end
+	if MatchStatusCompleted(matchStatus) && matchEndTime != nil {
+		filtered := make([]RapidAPIArticle, 0, len(resp.Data))
+		for _, article := range resp.Data {
+			pubTime, err := time.Parse(time.RFC3339, article.PublishedDatetimeUTC)
+			if err != nil {
+				pubTime, err = time.Parse("2006-01-02T15:04:05Z", article.PublishedDatetimeUTC)
+				if err != nil {
+					continue // Skip articles with unparseable timestamps
+				}
+			}
+			if !pubTime.Before(*matchEndTime) {
+				filtered = append(filtered, article)
+			}
+		}
+		resp.Data = filtered
+	}
+
+	return resp, nil
 }

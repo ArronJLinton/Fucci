@@ -9,26 +9,37 @@ import type {MatchNewsAPIResponse} from '../types/news';
  * @param homeTeam - Name of the home team
  * @param awayTeam - Name of the away team
  * @param matchId - Match ID for caching
+ * @param matchStatus - Match status (e.g. NS, 1H, FT) for time filtering
+ * @param matchEndTime - ISO8601 string of match end time (for completed matches)
  * @returns Object containing articles, loading state, error, and refresh function
  */
 export function useMatchNews(
   homeTeam: string,
   awayTeam: string,
   matchId: string,
+  matchStatus: string,
+  matchEndTime: string,
 ) {
   const queryClient = useQueryClient();
 
   const {data, isLoading, error, refetch, isRefetching} =
     useQuery<MatchNewsAPIResponse>({
-      queryKey: ['news', 'match', matchId, homeTeam, awayTeam],
+      queryKey: ['news', 'match', matchId, homeTeam, awayTeam, matchStatus, matchEndTime],
       queryFn: async (): Promise<MatchNewsAPIResponse> => {
         try {
           console.log('[useMatchNews] Fetching match news...', {
             homeTeam,
             awayTeam,
             matchId,
+            matchStatus,
           });
-          const result = await fetchMatchNews(homeTeam, awayTeam, matchId);
+          const result = await fetchMatchNews(
+            homeTeam,
+            awayTeam,
+            matchId,
+            matchStatus,
+            matchEndTime,
+          );
           return result;
         } catch (err) {
           console.error('[useMatchNews] Error fetching match news:', err);

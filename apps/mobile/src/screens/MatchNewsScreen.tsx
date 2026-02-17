@@ -20,14 +20,32 @@ interface MatchNewsScreenProps {
   match: Match;
 }
 
+// Completed match statuses (FT, AET, PEN, etc.)
+const COMPLETED_STATUSES = ['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'];
+
+function isMatchCompleted(statusShort: string): boolean {
+  return COMPLETED_STATUSES.includes(statusShort);
+}
+
+// Estimate match end time: kickoff + 105 min (90 min + 15 min half-time)
+function getMatchEndTimeISO(fixtureDate: string): string {
+  const kickoff = new Date(fixtureDate);
+  kickoff.setMinutes(kickoff.getMinutes() + 105);
+  return kickoff.toISOString();
+}
+
 const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
   const navigation = useNavigation<NavigationProp>();
   const homeTeam = match.teams.home.name;
   const awayTeam = match.teams.away.name;
   const matchId = match.fixture.id.toString();
+  const matchStatus = match.fixture.status.short;
+  const matchEndTime = isMatchCompleted(matchStatus)
+    ? getMatchEndTimeISO(match.fixture.date)
+    : '';
 
   const {articles, loading, error, refresh, refreshing, invalidateCache} =
-    useMatchNews(homeTeam, awayTeam, matchId);
+    useMatchNews(homeTeam, awayTeam, matchId, matchStatus, matchEndTime);
 
   const handleRefresh = () => {
     // Invalidate cache to mark as stale and trigger refetch

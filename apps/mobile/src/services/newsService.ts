@@ -48,6 +48,8 @@ export const fetchFootballNews = async (): Promise<NewsAPIResponse> => {
  * @param homeTeam - Name of the home team
  * @param awayTeam - Name of the away team
  * @param matchId - Match ID for caching
+ * @param matchStatus - Match status (e.g. NS, 1H, FT) - used for time filtering
+ * @param matchEndTime - ISO8601 string of match end time (for completed matches only)
  * @returns Promise resolving to MatchNewsAPIResponse
  * @throws Error if the API request fails
  */
@@ -55,12 +57,18 @@ export const fetchMatchNews = async (
   homeTeam: string,
   awayTeam: string,
   matchId: string,
+  matchStatus: string,
+  matchEndTime: string,
 ): Promise<MatchNewsAPIResponse> => {
   const params = new URLSearchParams({
     homeTeam,
     awayTeam,
     matchId,
+    matchStatus,
   });
+  if (matchEndTime) {
+    params.append('matchEndTime', matchEndTime);
+  }
   const url = `${apiConfig.baseURL}/news/football/match?${params.toString()}`;
 
   try {
