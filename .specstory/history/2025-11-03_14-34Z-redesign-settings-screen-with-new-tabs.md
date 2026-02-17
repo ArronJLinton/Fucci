@@ -195,7 +195,7 @@ Redesigning the settings screen with tabs matching the image style:
 
 <tool-use data-tool-type="write" data-tool-name="write">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **write** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 735, lines removed: 455
@@ -204,14 +204,14 @@ Lines added: 735, lines removed: 455
 @@ -7,458 +7,738 @@
     ScrollView,
     Alert,
-- } from &#39;react-native&#39;;
-- import {useNavigation} from &#39;@react-navigation/native&#39;;
-- import {Ionicons} from &#39;@expo/vector-icons&#39;;
-- import {User} from &#39;../types/auth&#39;;
-- import {isAuthenticated, getStoredUser, logout} from &#39;../services/authService&#39;;
-- import RegisterForm from &#39;../components/RegisterForm&#39;;
-- import LoginForm from &#39;../components/LoginForm&#39;;
-- import TeamManagerApplicationForm from &#39;../components/TeamManagerApplicationForm&#39;;
+- } from 'react-native';
+- import {useNavigation} from '@react-navigation/native';
+- import {Ionicons} from '@expo/vector-icons';
+- import {User} from '../types/auth';
+- import {isAuthenticated, getStoredUser, logout} from '../services/authService';
+- import RegisterForm from '../components/RegisterForm';
+- import LoginForm from '../components/LoginForm';
+- import TeamManagerApplicationForm from '../components/TeamManagerApplicationForm';
 - 
 - const SettingsScreen: React.FC = () =&gt; {
 -   const navigation = useNavigation();
@@ -226,19 +226,19 @@ Lines added: 735, lines removed: 455
 -     loadUserStatus();
 -   }, []);
 +   Switch,
-+ } from &#39;react-native&#39;;
-+ import {useNavigation} from &#39;@react-navigation/native&#39;;
-+ import {createMaterialTopTabNavigator} from &#39;@react-navigation/material-top-tabs&#39;;
-+ import {Ionicons} from &#39;@expo/vector-icons&#39;;
-+ import {User} from &#39;../types/auth&#39;;
++ } from 'react-native';
++ import {useNavigation} from '@react-navigation/native';
++ import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
++ import {Ionicons} from '@expo/vector-icons';
++ import {User} from '../types/auth';
 + import {
 +   isAuthenticated,
 +   getStoredUser,
 +   logout,
-+ } from &#39;../services/authService&#39;;
-+ import RegisterForm from &#39;../components/RegisterForm&#39;;
-+ import LoginForm from &#39;../components/LoginForm&#39;;
-+ import TeamManagerApplicationForm from &#39;../components/TeamManagerApplicationForm&#39;;
++ } from '../services/authService';
++ import RegisterForm from '../components/RegisterForm';
++ import LoginForm from '../components/LoginForm';
++ import TeamManagerApplicationForm from '../components/TeamManagerApplicationForm';
 + 
 + const Tab = createMaterialTopTabNavigator();
 + const TabNavigator = Tab.Navigator as any;
@@ -256,7 +256,7 @@ Lines added: 735, lines removed: 455
 -         setUser(userData);
 -       }
 -     } catch (error) {
--       console.error(&#39;Error loading user status:&#39;, error);
+-       console.error('Error loading user status:', error);
 -     } finally {
 -       setIsLoading(false);
 -     }
@@ -273,11 +273,11 @@ Lines added: 735, lines removed: 455
 -   };
 - 
 -   const handleLogout = () =&gt; {
--     Alert.alert(&#39;Logout&#39;, &#39;Are you sure you want to logout?&#39;, [
--       {text: &#39;Cancel&#39;, style: &#39;cancel&#39;},
+-     Alert.alert('Logout', 'Are you sure you want to logout?', [
+-       {text: 'Cancel', style: 'cancel'},
 -       {
--         text: &#39;Logout&#39;,
--         style: &#39;destructive&#39;,
+-         text: 'Logout',
+-         style: 'destructive',
 -         onPress: async () =&gt; {
 -           await logout();
 -           setUser(null);
@@ -290,8 +290,8 @@ Lines added: 735, lines removed: 455
 -   const handleTeamManagerApplicationSuccess = () =&gt; {
 -     setShowTeamManagerForm(false);
 -     Alert.alert(
--       &#39;Success&#39;,
--       &#39;Your application has been submitted. You will be notified when it is reviewed.&#39;,
+-       'Success',
+-       'Your application has been submitted. You will be notified when it is reviewed.',
 -     );
 -   };
 - 
@@ -302,7 +302,7 @@ Lines added: 735, lines removed: 455
 -           &lt;TouchableOpacity
 -             onPress={() =&gt; setShowRegister(false)}
 -             style={styles.backButton}&gt;
--             &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
+-             &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 -           &lt;/TouchableOpacity&gt;
 -           &lt;Text style={styles.headerTitle}&gt;Create Account&lt;/Text&gt;
 -           &lt;View style={styles.backButton} /&gt;
@@ -322,7 +322,7 @@ Lines added: 735, lines removed: 455
 -           &lt;TouchableOpacity
 -             onPress={() =&gt; setShowLogin(false)}
 -             style={styles.backButton}&gt;
--             &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
+-             &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 -           &lt;/TouchableOpacity&gt;
 -           &lt;Text style={styles.headerTitle}&gt;Login&lt;/Text&gt;
 -           &lt;View style={styles.backButton} /&gt;
@@ -346,7 +346,7 @@ Lines added: 735, lines removed: 455
 -           &lt;TouchableOpacity
 -             onPress={() =&gt; setShowTeamManagerForm(false)}
 -             style={styles.backButton}&gt;
--             &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
+-             &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 -           &lt;/TouchableOpacity&gt;
 -           &lt;Text style={styles.headerTitle}&gt;Team Manager Application&lt;/Text&gt;
 -           &lt;View style={styles.backButton} /&gt;
@@ -365,7 +365,7 @@ Lines added: 735, lines removed: 455
 -         &lt;TouchableOpacity
 -           onPress={() =&gt; navigation.goBack()}
 -           style={styles.backButton}&gt;
--           &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
+-           &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -         &lt;Text style={styles.headerTitle}&gt;Settings&lt;/Text&gt;
 -         &lt;View style={styles.backButton} /&gt;
@@ -396,7 +396,7 @@ Lines added: 735, lines removed: 455
 -                     &lt;/Text&gt;
 -                     &lt;Text style={styles.userEmail}&gt;{user.email}&lt;/Text&gt;
 -                     &lt;Text style={styles.userRole}&gt;
--                       Role:{&#39; &#39;}
+-                       Role:{' '}
 -                       {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
 -                     &lt;/Text&gt;
 -                   &lt;/View&gt;
@@ -404,7 +404,7 @@ Lines added: 735, lines removed: 455
 -                 &lt;TouchableOpacity
 -                   style={styles.logoutButton}
 -                   onPress={handleLogout}&gt;
--                   &lt;Ionicons name=&quot;log-out-outline&quot; size={20} color=&quot;#e74c3c&quot; /&gt;
+-                   &lt;Ionicons name="log-out-outline" size={20} color="#e74c3c" /&gt;
 -                   &lt;Text style={styles.logoutText}&gt;Logout&lt;/Text&gt;
 -                 &lt;/TouchableOpacity&gt;
 -               &lt;/View&gt;
@@ -419,9 +419,9 @@ Lines added: 735, lines removed: 455
 -                   onPress={() =&gt; setShowRegister(true)}&gt;
 -                   &lt;View style={styles.optionIcon}&gt;
 -                     &lt;Ionicons
--                       name=&quot;person-add-outline&quot;
+-                       name="person-add-outline"
 -                       size={24}
--                       color=&quot;#007AFF&quot;
+-                       color="#007AFF"
 -                     /&gt;
 -                   &lt;/View&gt;
 -                   &lt;View style={styles.optionContent}&gt;
@@ -430,7 +430,7 @@ Lines added: 735, lines removed: 455
 -                       Sign up to access team management features
 -                     &lt;/Text&gt;
 -                   &lt;/View&gt;
--                   &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-                   &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -                 &lt;/TouchableOpacity&gt;
 -               &lt;/View&gt;
 -             )}
@@ -439,13 +439,13 @@ Lines added: 735, lines removed: 455
 -             {isAuthenticatedState &amp;&amp; (
 -               &lt;View style={styles.section}&gt;
 -                 &lt;Text style={styles.sectionTitle}&gt;Team Management&lt;/Text&gt;
--                 {user?.role === &#39;team_manager&#39; ? (
+-                 {user?.role === 'team_manager' ? (
 -                   &lt;&gt;
 -                     &lt;View style={styles.infoCard}&gt;
 -                       &lt;Ionicons
--                         name=&quot;checkmark-circle&quot;
+-                         name="checkmark-circle"
 -                         size={24}
--                         color=&quot;#27ae60&quot;
+-                         color="#27ae60"
 -                       /&gt;
 -                       &lt;View style={styles.infoContent}&gt;
 -                         &lt;Text style={styles.infoTitle}&gt;
@@ -459,13 +459,13 @@ Lines added: 735, lines removed: 455
 -                     &lt;TouchableOpacity
 -                       style={styles.optionButton}
 -                       onPress={() =&gt; {
--                         (navigation as any).navigate(&#39;TeamManagement&#39;);
+-                         (navigation as any).navigate('TeamManagement');
 -                       }}&gt;
 -                       &lt;View style={styles.optionIcon}&gt;
 -                         &lt;Ionicons
--                           name=&quot;people-outline&quot;
+-                           name="people-outline"
 -                           size={24}
--                           color=&quot;#007AFF&quot;
+-                           color="#007AFF"
 -                         /&gt;
 -                       &lt;/View&gt;
 -                       &lt;View style={styles.optionContent}&gt;
@@ -474,7 +474,7 @@ Lines added: 735, lines removed: 455
 -                           Create and manage your teams
 -                         &lt;/Text&gt;
 -                       &lt;/View&gt;
--                       &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-                       &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -                     &lt;/TouchableOpacity&gt;
 -                   &lt;/&gt;
 -                 ) : (
@@ -483,9 +483,9 @@ Lines added: 735, lines removed: 455
 -                     onPress={() =&gt; setShowTeamManagerForm(true)}&gt;
 -                     &lt;View style={styles.optionIcon}&gt;
 -                       &lt;Ionicons
--                         name=&quot;people-outline&quot;
+-                         name="people-outline"
 -                         size={24}
--                         color=&quot;#007AFF&quot;
+-                         color="#007AFF"
 -                       /&gt;
 -                     &lt;/View&gt;
 -                     &lt;View style={styles.optionContent}&gt;
@@ -496,7 +496,7 @@ Lines added: 735, lines removed: 455
 -                         Submit an application to manage teams and players
 -                       &lt;/Text&gt;
 -                     &lt;/View&gt;
--                     &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-                     &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -                   &lt;/TouchableOpacity&gt;
 -                 )}
 -               &lt;/View&gt;
@@ -511,40 +511,40 @@ Lines added: 735, lines removed: 455
 - const styles = StyleSheet.create({
 -   container: {
 -     flex: 1,
--     backgroundColor: &#39;#fff&#39;,
+-     backgroundColor: '#fff',
 -   },
 -   header: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;space-between&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     justifyContent: 'space-between',
 -     padding: 16,
 -     borderBottomWidth: 1,
--     borderBottomColor: &#39;#e0e0e0&#39;,
--     backgroundColor: &#39;#fff&#39;,
+-     borderBottomColor: '#e0e0e0',
+-     backgroundColor: '#fff',
 -   },
 -   backButton: {
 -     width: 40,
 -     height: 40,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;center&#39;,
+-     alignItems: 'center',
+-     justifyContent: 'center',
 -   },
 -   headerTitle: {
 -     fontSize: 18,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#333&#39;,
+-     fontWeight: '600',
+-     color: '#333',
 -   },
 -   content: {
 -     flex: 1,
 -   },
 -   centerContainer: {
 -     flex: 1,
--     justifyContent: &#39;center&#39;,
--     alignItems: &#39;center&#39;,
+-     justifyContent: 'center',
+-     alignItems: 'center',
 -     padding: 32,
 -   },
 -   loadingText: {
 -     fontSize: 16,
--     color: &#39;#666&#39;,
+-     color: '#666',
 -   },
 -   section: {
 -     marginTop: 24,
@@ -552,16 +552,16 @@ Lines added: 735, lines removed: 455
 -   },
 -   sectionTitle: {
 -     fontSize: 14,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#999&#39;,
--     textTransform: &#39;uppercase&#39;,
+-     fontWeight: '600',
+-     color: '#999',
+-     textTransform: 'uppercase',
 -     marginBottom: 12,
 -     letterSpacing: 0.5,
 -   },
 -   userCard: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     backgroundColor: &#39;#f8f9fa&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     backgroundColor: '#f8f9fa',
 -     borderRadius: 12,
 -     padding: 16,
 -     marginBottom: 12,
@@ -570,61 +570,61 @@ Lines added: 735, lines removed: 455
 -     width: 56,
 -     height: 56,
 -     borderRadius: 28,
--     backgroundColor: &#39;#007AFF&#39;,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;center&#39;,
+-     backgroundColor: '#007AFF',
+-     alignItems: 'center',
+-     justifyContent: 'center',
 -     marginRight: 12,
 -   },
 -   avatarText: {
 -     fontSize: 20,
--     fontWeight: &#39;700&#39;,
--     color: &#39;#fff&#39;,
+-     fontWeight: '700',
+-     color: '#fff',
 -   },
 -   userInfo: {
 -     flex: 1,
 -   },
 -   userName: {
 -     fontSize: 18,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#333&#39;,
+-     fontWeight: '600',
+-     color: '#333',
 -     marginBottom: 4,
 -   },
 -   userEmail: {
 -     fontSize: 14,
--     color: &#39;#666&#39;,
+-     color: '#666',
 -     marginBottom: 4,
 -   },
 -   userRole: {
 -     fontSize: 12,
--     color: &#39;#999&#39;,
--     textTransform: &#39;capitalize&#39;,
+-     color: '#999',
+-     textTransform: 'capitalize',
 -   },
 -   logoutButton: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;center&#39;,
--     backgroundColor: &#39;#fff&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     justifyContent: 'center',
+-     backgroundColor: '#fff',
 -     borderWidth: 1,
--     borderColor: &#39;#e74c3c&#39;,
+-     borderColor: '#e74c3c',
 -     borderRadius: 8,
 -     padding: 12,
 -     gap: 8,
 -   },
 -   logoutText: {
 -     fontSize: 16,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#e74c3c&#39;,
+-     fontWeight: '600',
+-     color: '#e74c3c',
 -   },
 -   optionButton: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     backgroundColor: &#39;#fff&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     backgroundColor: '#fff',
 -     borderRadius: 12,
 -     padding: 16,
 -     marginBottom: 12,
 -     borderWidth: 1,
--     borderColor: &#39;#e0e0e0&#39;,
--     shadowColor: &#39;#000&#39;,
+-     borderColor: '#e0e0e0',
+-     shadowColor: '#000',
 -     shadowOffset: {width: 0, height: 1},
 -     shadowOpacity: 0.05,
 -     shadowRadius: 2,
@@ -634,9 +634,9 @@ Lines added: 735, lines removed: 455
 -     width: 48,
 -     height: 48,
 -     borderRadius: 24,
--     backgroundColor: &#39;#E3F2FD&#39;,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;center&#39;,
+-     backgroundColor: '#E3F2FD',
+-     alignItems: 'center',
+-     justifyContent: 'center',
 -     marginRight: 12,
 -   },
 -   optionContent: {
@@ -644,23 +644,23 @@ Lines added: 735, lines removed: 455
 -   },
 -   optionTitle: {
 -     fontSize: 16,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#333&#39;,
+-     fontWeight: '600',
+-     color: '#333',
 -     marginBottom: 4,
 -   },
 -   optionDescription: {
 -     fontSize: 14,
--     color: &#39;#666&#39;,
+-     color: '#666',
 -     lineHeight: 20,
 -   },
 -   infoCard: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     backgroundColor: &#39;#f0f9f4&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     backgroundColor: '#f0f9f4',
 -     borderRadius: 12,
 -     padding: 16,
 -     borderWidth: 1,
--     borderColor: &#39;#27ae60&#39;,
+-     borderColor: '#27ae60',
 -   },
 -   infoContent: {
 -     flex: 1,
@@ -668,24 +668,24 @@ Lines added: 735, lines removed: 455
 -   },
 -   infoTitle: {
 -     fontSize: 16,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#27ae60&#39;,
+-     fontWeight: '600',
+-     color: '#27ae60',
 -     marginBottom: 4,
 -   },
 -   infoDescription: {
 -     fontSize: 14,
--     color: &#39;#666&#39;,
+-     color: '#666',
 -   },
 - });
 - 
 - export default SettingsScreen;
 - 
 + type TabType =
-+   | &#39;login/create account&#39;
-+   | &#39;team manager&#39;
-+   | &#39;language&#39;
-+   | &#39;Following&#39;
-+   | &#39;General&#39;;
++   | 'login/create account'
++   | 'team manager'
++   | 'language'
++   | 'Following'
++   | 'General';
 + 
 + const SettingsScreen: React.FC&lt;SettingsScreenProps&gt; = () =&gt; {
 +   const navigation = useNavigation();
@@ -716,7 +716,7 @@ Lines added: 735, lines removed: 455
 +         setUser(userData);
 +       }
 +     } catch (error) {
-+       console.error(&#39;Error loading user status:&#39;, error);
++       console.error('Error loading user status:', error);
 +     } finally {
 +       setIsLoading(false);
 +     }
@@ -733,11 +733,11 @@ Lines added: 735, lines removed: 455
 +   };
 + 
 +   const handleLogout = () =&gt; {
-+     Alert.alert(&#39;Logout&#39;, &#39;Are you sure you want to logout?&#39;, [
-+       {text: &#39;Cancel&#39;, style: &#39;cancel&#39;},
++     Alert.alert('Logout', 'Are you sure you want to logout?', [
++       {text: 'Cancel', style: 'cancel'},
 +       {
-+         text: &#39;Logout&#39;,
-+         style: &#39;destructive&#39;,
++         text: 'Logout',
++         style: 'destructive',
 +         onPress: async () =&gt; {
 +           await logout();
 +           setUser(null);
@@ -750,8 +750,8 @@ Lines added: 735, lines removed: 455
 +   const handleTeamManagerApplicationSuccess = () =&gt; {
 +     setShowTeamManagerForm(false);
 +     Alert.alert(
-+       &#39;Success&#39;,
-+       &#39;Your application has been submitted. You will be notified when it is reviewed.&#39;,
++       'Success',
++       'Your application has been submitted. You will be notified when it is reviewed.',
 +     );
 +   };
 + 
@@ -766,25 +766,25 @@ Lines added: 735, lines removed: 455
 +               style={styles.settingRow}
 +               onPress={() =&gt; setShowRegister(true)}&gt;
 +               &lt;Ionicons
-+                 name=&quot;person-add-outline&quot;
++                 name="person-add-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Create Account&lt;/Text&gt;
-+               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +             &lt;/TouchableOpacity&gt;
 +             &lt;TouchableOpacity
 +               style={styles.settingRow}
 +               onPress={() =&gt; setShowLogin(true)}&gt;
 +               &lt;Ionicons
-+                 name=&quot;log-in-outline&quot;
++                 name="log-in-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Login&lt;/Text&gt;
-+               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +             &lt;/TouchableOpacity&gt;
 +           &lt;/View&gt;
 +         &lt;/&gt;
@@ -811,101 +811,101 @@ Lines added: 735, lines removed: 455
 +               style={styles.settingRow}
 +               onPress={handleLogout}&gt;
 +               &lt;Ionicons
-+                 name=&quot;log-out-outline&quot;
++                 name="log-out-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Logout&lt;/Text&gt;
-+               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +             &lt;/TouchableOpacity&gt;
 +           &lt;/View&gt;
 +           &lt;View style={styles.section}&gt;
 +             &lt;Text style={styles.sectionTitle}&gt;Security&lt;/Text&gt;
 +             &lt;View style={styles.settingRow}&gt;
 +               &lt;Ionicons
-+                 name=&quot;finger-print-outline&quot;
++                 name="finger-print-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Require biometric&lt;/Text&gt;
 +               &lt;Switch
 +                 value={requireBiometric}
 +                 onValueChange={setRequireBiometric}
-+                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                 thumbColor=&quot;#fff&quot;
++                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                 thumbColor="#fff"
 +               /&gt;
 +             &lt;/View&gt;
 +             &lt;TouchableOpacity style={styles.settingRow}&gt;
 +               &lt;Ionicons
-+                 name=&quot;create-outline&quot;
++                 name="create-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Change passcode&lt;/Text&gt;
-+               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +             &lt;/TouchableOpacity&gt;
 +           &lt;/View&gt;
 +           &lt;View style={styles.section}&gt;
 +             &lt;Text style={styles.sectionTitle}&gt;Two-Factor Authentication&lt;/Text&gt;
 +             &lt;View style={styles.settingRow}&gt;
 +               &lt;Ionicons
-+                 name=&quot;shield-outline&quot;
++                 name="shield-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Enable 2FA&lt;/Text&gt;
 +               &lt;Switch
 +                 value={enable2FA}
 +                 onValueChange={setEnable2FA}
-+                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                 thumbColor=&quot;#fff&quot;
++                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                 thumbColor="#fff"
 +               /&gt;
 +             &lt;/View&gt;
 +             &lt;TouchableOpacity style={styles.settingRow}&gt;
 +               &lt;Ionicons
-+                 name=&quot;document-text-outline&quot;
++                 name="document-text-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Manage backup codes&lt;/Text&gt;
-+               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +             &lt;/TouchableOpacity&gt;
 +           &lt;/View&gt;
 +           &lt;View style={styles.section}&gt;
 +             &lt;Text style={styles.sectionTitle}&gt;Login Alerts&lt;/Text&gt;
 +             &lt;View style={styles.settingRow}&gt;
 +               &lt;Ionicons
-+                 name=&quot;mail-outline&quot;
++                 name="mail-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Send email alerts&lt;/Text&gt;
 +               &lt;Switch
 +                 value={sendEmailAlerts}
 +                 onValueChange={setSendEmailAlerts}
-+                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                 thumbColor=&quot;#fff&quot;
++                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                 thumbColor="#fff"
 +               /&gt;
 +             &lt;/View&gt;
 +             &lt;View style={styles.settingRow}&gt;
 +               &lt;Ionicons
-+                 name=&quot;notifications-outline&quot;
++                 name="notifications-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Send push notification&lt;/Text&gt;
 +               &lt;Switch
 +                 value={sendPushNotifications}
 +                 onValueChange={setSendPushNotifications}
-+                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                 thumbColor=&quot;#fff&quot;
++                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                 thumbColor="#fff"
 +               /&gt;
 +             &lt;/View&gt;
 +           &lt;/View&gt;
@@ -920,13 +920,13 @@ Lines added: 735, lines removed: 455
 +       {isAuthenticatedState ? (
 +         &lt;View style={styles.section}&gt;
 +           &lt;Text style={styles.sectionTitle}&gt;Team Management&lt;/Text&gt;
-+           {user?.role === &#39;team_manager&#39; ? (
++           {user?.role === 'team_manager' ? (
 +             &lt;&gt;
 +               &lt;View style={styles.infoCard}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;checkmark-circle&quot;
++                   name="checkmark-circle"
 +                   size={24}
-+                   color=&quot;#34c759&quot;
++                   color="#34c759"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;View style={styles.infoContent}&gt;
@@ -939,16 +939,16 @@ Lines added: 735, lines removed: 455
 +               &lt;TouchableOpacity
 +                 style={styles.settingRow}
 +                 onPress={() =&gt; {
-+                   (navigation as any).navigate(&#39;TeamManagement&#39;);
++                   (navigation as any).navigate('TeamManagement');
 +                 }}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;people-outline&quot;
++                   name="people-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Manage Teams&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/&gt;
 +           ) : (
@@ -956,13 +956,13 @@ Lines added: 735, lines removed: 455
 +               style={styles.settingRow}
 +               onPress={() =&gt; setShowTeamManagerForm(true)}&gt;
 +               &lt;Ionicons
-+                 name=&quot;people-outline&quot;
++                 name="people-outline"
 +                 size={24}
-+                 color=&quot;#333&quot;
++                 color="#333"
 +                 style={styles.settingIcon}
 +               /&gt;
 +               &lt;Text style={styles.settingText}&gt;Apply to be a Team Manager&lt;/Text&gt;
-+               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +             &lt;/TouchableOpacity&gt;
 +           )}
 +         &lt;/View&gt;
@@ -983,26 +983,26 @@ Lines added: 735, lines removed: 455
 +         &lt;Text style={styles.sectionTitle}&gt;Language&lt;/Text&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;language-outline&quot;
++             name="language-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;English&lt;/Text&gt;
-+           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +       &lt;/View&gt;
 +       &lt;View style={styles.section}&gt;
 +         &lt;Text style={styles.sectionTitle}&gt;Region&lt;/Text&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;globe-outline&quot;
++             name="globe-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;United States&lt;/Text&gt;
-+           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +       &lt;/View&gt;
 +     &lt;/ScrollView&gt;
@@ -1015,32 +1015,32 @@ Lines added: 735, lines removed: 455
 +         &lt;Text style={styles.sectionTitle}&gt;Notifications&lt;/Text&gt;
 +         &lt;View style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;notifications-outline&quot;
++             name="notifications-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;Follow notifications&lt;/Text&gt;
 +           &lt;Switch
 +             value={sendPushNotifications}
 +             onValueChange={setSendPushNotifications}
-+             trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+             thumbColor=&quot;#fff&quot;
++             trackColor={{false: '#d3d3d3', true: '#34c759'}}
++             thumbColor="#fff"
 +           /&gt;
 +         &lt;/View&gt;
 +         &lt;View style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;mail-outline&quot;
++             name="mail-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;Email notifications&lt;/Text&gt;
 +           &lt;Switch
 +             value={sendEmailAlerts}
 +             onValueChange={setSendEmailAlerts}
-+             trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+             thumbColor=&quot;#fff&quot;
++             trackColor={{false: '#d3d3d3', true: '#34c759'}}
++             thumbColor="#fff"
 +           /&gt;
 +         &lt;/View&gt;
 +       &lt;/View&gt;
@@ -1048,13 +1048,13 @@ Lines added: 735, lines removed: 455
 +         &lt;Text style={styles.sectionTitle}&gt;Following&lt;/Text&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;people-outline&quot;
++             name="people-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;Manage following&lt;/Text&gt;
-+           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +       &lt;/View&gt;
 +     &lt;/ScrollView&gt;
@@ -1067,35 +1067,35 @@ Lines added: 735, lines removed: 455
 +         &lt;Text style={styles.sectionTitle}&gt;Appearance&lt;/Text&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;color-palette-outline&quot;
++             name="color-palette-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;Theme&lt;/Text&gt;
-+           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +       &lt;/View&gt;
 +       &lt;View style={styles.section}&gt;
 +         &lt;Text style={styles.sectionTitle}&gt;Storage&lt;/Text&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;trash-outline&quot;
++             name="trash-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;Clear cache&lt;/Text&gt;
-+           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +       &lt;/View&gt;
 +       &lt;View style={styles.section}&gt;
 +         &lt;Text style={styles.sectionTitle}&gt;About&lt;/Text&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;information-circle-outline&quot;
++             name="information-circle-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;App version&lt;/Text&gt;
@@ -1103,13 +1103,13 @@ Lines added: 735, lines removed: 455
 +         &lt;/TouchableOpacity&gt;
 +         &lt;TouchableOpacity style={styles.settingRow}&gt;
 +           &lt;Ionicons
-+             name=&quot;help-circle-outline&quot;
++             name="help-circle-outline"
 +             size={24}
-+             color=&quot;#333&quot;
++             color="#333"
 +             style={styles.settingIcon}
 +           /&gt;
 +           &lt;Text style={styles.settingText}&gt;Help &amp; Support&lt;/Text&gt;
-+           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +       &lt;/View&gt;
 +     &lt;/ScrollView&gt;
@@ -1122,7 +1122,7 @@ Lines added: 735, lines removed: 455
 +           &lt;TouchableOpacity
 +             onPress={() =&gt; setShowRegister(false)}
 +             style={styles.backButton}&gt;
-+             &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
++             &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 +           &lt;/TouchableOpacity&gt;
 +           &lt;Text style={styles.headerTitle}&gt;Create Account&lt;/Text&gt;
 +           &lt;View style={styles.backButton} /&gt;
@@ -1142,7 +1142,7 @@ Lines added: 735, lines removed: 455
 +           &lt;TouchableOpacity
 +             onPress={() =&gt; setShowLogin(false)}
 +             style={styles.backButton}&gt;
-+             &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
++             &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 +           &lt;/TouchableOpacity&gt;
 +           &lt;Text style={styles.headerTitle}&gt;Login&lt;/Text&gt;
 +           &lt;View style={styles.backButton} /&gt;
@@ -1166,7 +1166,7 @@ Lines added: 735, lines removed: 455
 +           &lt;TouchableOpacity
 +             onPress={() =&gt; setShowTeamManagerForm(false)}
 +             style={styles.backButton}&gt;
-+             &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
++             &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 +           &lt;/TouchableOpacity&gt;
 +           &lt;Text style={styles.headerTitle}&gt;Team Manager Application&lt;/Text&gt;
 +           &lt;View style={styles.backButton} /&gt;
@@ -1185,7 +1185,7 @@ Lines added: 735, lines removed: 455
 +         &lt;TouchableOpacity
 +           onPress={() =&gt; navigation.goBack()}
 +           style={styles.backButton}&gt;
-+           &lt;Ionicons name=&quot;arrow-back&quot; size={24} color=&quot;#333&quot; /&gt;
++           &lt;Ionicons name="arrow-back" size={24} color="#333" /&gt;
 +         &lt;/TouchableOpacity&gt;
 +         &lt;Text style={styles.headerTitle}&gt;Settings&lt;/Text&gt;
 +         &lt;View style={styles.backButton} /&gt;
@@ -1198,57 +1198,57 @@ Lines added: 735, lines removed: 455
 +             paddingHorizontal: 8,
 +           },
 +           tabBarStyle: {
-+             backgroundColor: &#39;#fff&#39;,
++             backgroundColor: '#fff',
 +             borderBottomWidth: 1,
-+             borderBottomColor: &#39;#e0e0e0&#39;,
++             borderBottomColor: '#e0e0e0',
 +           },
 +           tabBarIndicatorStyle: {
-+             backgroundColor: &#39;#007AFF&#39;,
++             backgroundColor: '#007AFF',
 +             height: 2,
 +           },
-+           tabBarActiveTintColor: &#39;#007AFF&#39;,
-+           tabBarInactiveTintColor: &#39;#666&#39;,
-+           tabBarPressColor: &#39;#E3F2FD&#39;,
++           tabBarActiveTintColor: '#007AFF',
++           tabBarInactiveTintColor: '#666',
++           tabBarPressColor: '#E3F2FD',
 +           tabBarPressOpacity: 0.8,
 +           tabBarLabelStyle: {
 +             fontSize: 13,
-+             fontWeight: &#39;600&#39;,
-+             textTransform: &#39;capitalize&#39;,
++             fontWeight: '600',
++             textTransform: 'capitalize',
 +           },
 +         }}&gt;
 +         &lt;TabScreen
-+           name=&quot;login/create account&quot;
++           name="login/create account"
 +           component={LoginCreateAccountTab}
 +           options={{
-+             tabBarLabel: &#39;Login/Create Account&#39;,
++             tabBarLabel: 'Login/Create Account',
 +           }}
 +         /&gt;
 +         &lt;TabScreen
-+           name=&quot;team manager&quot;
++           name="team manager"
 +           component={TeamManagerTab}
 +           options={{
-+             tabBarLabel: &#39;Team Manager&#39;,
++             tabBarLabel: 'Team Manager',
 +           }}
 +         /&gt;
 +         &lt;TabScreen
-+           name=&quot;language&quot;
++           name="language"
 +           component={LanguageTab}
 +           options={{
-+             tabBarLabel: &#39;Language&#39;,
++             tabBarLabel: 'Language',
 +           }}
 +         /&gt;
 +         &lt;TabScreen
-+           name=&quot;Following&quot;
++           name="Following"
 +           component={FollowingTab}
 +           options={{
-+             tabBarLabel: &#39;Following&#39;,
++             tabBarLabel: 'Following',
 +           }}
 +         /&gt;
 +         &lt;TabScreen
-+           name=&quot;General&quot;
++           name="General"
 +           component={GeneralTab}
 +           options={{
-+             tabBarLabel: &#39;General&#39;,
++             tabBarLabel: 'General',
 +           }}
 +         /&gt;
 +       &lt;/TabNavigator&gt;
@@ -1259,31 +1259,31 @@ Lines added: 735, lines removed: 455
 + const styles = StyleSheet.create({
 +   container: {
 +     flex: 1,
-+     backgroundColor: &#39;#fff&#39;,
++     backgroundColor: '#fff',
 +   },
 +   header: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
-+     justifyContent: &#39;space-between&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
++     justifyContent: 'space-between',
 +     padding: 16,
 +     borderBottomWidth: 1,
-+     borderBottomColor: &#39;#e0e0e0&#39;,
-+     backgroundColor: &#39;#fff&#39;,
++     borderBottomColor: '#e0e0e0',
++     backgroundColor: '#fff',
 +   },
 +   backButton: {
 +     width: 40,
 +     height: 40,
-+     alignItems: &#39;center&#39;,
-+     justifyContent: &#39;center&#39;,
++     alignItems: 'center',
++     justifyContent: 'center',
 +   },
 +   headerTitle: {
 +     fontSize: 18,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#333&#39;,
++     fontWeight: '600',
++     color: '#333',
 +   },
 +   tabContent: {
 +     flex: 1,
-+     backgroundColor: &#39;#fff&#39;,
++     backgroundColor: '#fff',
 +   },
 +   section: {
 +     paddingHorizontal: 16,
@@ -1292,19 +1292,19 @@ Lines added: 735, lines removed: 455
 +   },
 +   sectionTitle: {
 +     fontSize: 13,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#999&#39;,
-+     textTransform: &#39;uppercase&#39;,
++     fontWeight: '600',
++     color: '#999',
++     textTransform: 'uppercase',
 +     marginBottom: 12,
 +     letterSpacing: 0.5,
 +   },
 +   settingRow: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
 +     paddingVertical: 12,
 +     paddingHorizontal: 4,
 +     borderBottomWidth: StyleSheet.hairlineWidth,
-+     borderBottomColor: &#39;#e0e0e0&#39;,
++     borderBottomColor: '#e0e0e0',
 +   },
 +   settingIcon: {
 +     marginRight: 12,
@@ -1313,83 +1313,83 @@ Lines added: 735, lines removed: 455
 +   settingText: {
 +     flex: 1,
 +     fontSize: 16,
-+     color: &#39;#333&#39;,
-+     fontWeight: &#39;400&#39;,
++     color: '#333',
++     fontWeight: '400',
 +   },
 +   settingValue: {
 +     fontSize: 16,
-+     color: &#39;#999&#39;,
++     color: '#999',
 +     marginRight: 8,
 +   },
 +   userInfoRow: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
 +     paddingVertical: 16,
 +     paddingHorizontal: 4,
 +     marginBottom: 8,
 +     borderBottomWidth: StyleSheet.hairlineWidth,
-+     borderBottomColor: &#39;#e0e0e0&#39;,
++     borderBottomColor: '#e0e0e0',
 +   },
 +   avatarPlaceholder: {
 +     width: 48,
 +     height: 48,
 +     borderRadius: 24,
-+     backgroundColor: &#39;#007AFF&#39;,
-+     alignItems: &#39;center&#39;,
-+     justifyContent: &#39;center&#39;,
++     backgroundColor: '#007AFF',
++     alignItems: 'center',
++     justifyContent: 'center',
 +     marginRight: 12,
 +   },
 +   avatarText: {
 +     fontSize: 18,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#fff&#39;,
++     fontWeight: '600',
++     color: '#fff',
 +   },
 +   userInfo: {
 +     flex: 1,
 +   },
 +   userName: {
 +     fontSize: 16,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#333&#39;,
++     fontWeight: '600',
++     color: '#333',
 +     marginBottom: 4,
 +   },
 +   userEmail: {
 +     fontSize: 14,
-+     color: &#39;#666&#39;,
++     color: '#666',
 +   },
 +   infoCard: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
-+     backgroundColor: &#39;#f0f9f4&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
++     backgroundColor: '#f0f9f4',
 +     borderRadius: 8,
 +     padding: 12,
 +     marginBottom: 12,
 +     borderWidth: 1,
-+     borderColor: &#39;#34c759&#39;,
++     borderColor: '#34c759',
 +   },
 +   infoContent: {
 +     flex: 1,
 +   },
 +   infoTitle: {
 +     fontSize: 16,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#34c759&#39;,
++     fontWeight: '600',
++     color: '#34c759',
 +     marginBottom: 4,
 +   },
 +   infoDescription: {
 +     fontSize: 14,
-+     color: &#39;#666&#39;,
++     color: '#666',
 +   },
 +   emptyState: {
 +     flex: 1,
-+     justifyContent: &#39;center&#39;,
-+     alignItems: &#39;center&#39;,
++     justifyContent: 'center',
++     alignItems: 'center',
 +     padding: 32,
 +   },
 +   emptyStateText: {
 +     fontSize: 16,
-+     color: &#39;#666&#39;,
-+     textAlign: &#39;center&#39;,
++     color: '#666',
++     textAlign: 'center',
 +   },
 + });
 + 
@@ -1464,7 +1464,7 @@ Updating to use the render function pattern for consistency:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 15, lines removed: 15
@@ -1472,50 +1472,50 @@ Lines added: 15, lines removed: 15
 ```diff
 @@ -566,37 +566,37 @@
           &lt;TabScreen
-            name=&quot;login/create account&quot;
+            name="login/create account"
 -           component={LoginCreateAccountTab}
             options={{
-              tabBarLabel: &#39;Login/Create Account&#39;,
+              tabBarLabel: 'Login/Create Account',
 -           }}
 -         /&gt;
 +           }}&gt;
 +           {() =&gt; &lt;LoginCreateAccountTab /&gt;}
 +         &lt;/TabScreen&gt;
           &lt;TabScreen
-            name=&quot;team manager&quot;
+            name="team manager"
 -           component={TeamManagerTab}
             options={{
-              tabBarLabel: &#39;Team Manager&#39;,
+              tabBarLabel: 'Team Manager',
 -           }}
 -         /&gt;
 +           }}&gt;
 +           {() =&gt; &lt;TeamManagerTab /&gt;}
 +         &lt;/TabScreen&gt;
           &lt;TabScreen
-            name=&quot;language&quot;
+            name="language"
 -           component={LanguageTab}
             options={{
-              tabBarLabel: &#39;Language&#39;,
+              tabBarLabel: 'Language',
 -           }}
 -         /&gt;
 +           }}&gt;
 +           {() =&gt; &lt;LanguageTab /&gt;}
 +         &lt;/TabScreen&gt;
           &lt;TabScreen
-            name=&quot;Following&quot;
+            name="Following"
 -           component={FollowingTab}
             options={{
-              tabBarLabel: &#39;Following&#39;,
+              tabBarLabel: 'Following',
 -           }}
 -         /&gt;
 +           }}&gt;
 +           {() =&gt; &lt;FollowingTab /&gt;}
 +         &lt;/TabScreen&gt;
           &lt;TabScreen
-            name=&quot;General&quot;
+            name="General"
 -           component={GeneralTab}
             options={{
-              tabBarLabel: &#39;General&#39;,
+              tabBarLabel: 'General',
 -           }}
 -         /&gt;
 +           }}&gt;
@@ -1542,7 +1542,7 @@ Removing the unused type and checking for lint errors:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 1, lines removed: 10
@@ -1554,11 +1554,11 @@ Lines added: 1, lines removed: 10
 - interface SettingsScreenProps {}
 - 
 - type TabType =
--   | &#39;login/create account&#39;
--   | &#39;team manager&#39;
--   | &#39;language&#39;
--   | &#39;Following&#39;
--   | &#39;General&#39;;
+-   | 'login/create account'
+-   | 'team manager'
+-   | 'language'
+-   | 'Following'
+-   | 'General';
 - 
 - const SettingsScreen: React.FC&lt;SettingsScreenProps&gt; = () =&gt; {
 + const SettingsScreen: React.FC = () =&gt; {
@@ -1666,18 +1666,18 @@ Removing the tab navigation and consolidating all options into a single scrollab
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: undefined, lines removed: 1
 
 ```diff
 @@ -10,5 +10,4 @@
-  } from &#39;react-native&#39;;
-  import {useNavigation} from &#39;@react-navigation/native&#39;;
-- import {createMaterialTopTabNavigator} from &#39;@react-navigation/material-top-tabs&#39;;
-  import {Ionicons} from &#39;@expo/vector-icons&#39;;
-  import {User} from &#39;../types/auth&#39;;
+  } from 'react-native';
+  import {useNavigation} from '@react-navigation/native';
+- import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
+  import {Ionicons} from '@expo/vector-icons';
+  import {User} from '../types/auth';
 ```
 
 **Chunk 2**
@@ -1685,8 +1685,8 @@ Lines added: undefined, lines removed: 4
 
 ```diff
 @@ -17,8 +16,4 @@
-  import LoginForm from &#39;../components/LoginForm&#39;;
-  import TeamManagerApplicationForm from &#39;../components/TeamManagerApplicationForm&#39;;
+  import LoginForm from '../components/LoginForm';
+  import TeamManagerApplicationForm from '../components/TeamManagerApplicationForm';
 - 
 - const Tab = createMaterialTopTabNavigator();
 - const TabNavigator = Tab.Navigator as any;
@@ -1703,7 +1703,7 @@ Lines added: undefined, lines removed: 4
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: undefined, lines removed: 357
@@ -1724,25 +1724,25 @@ Lines added: undefined, lines removed: 357
 -               style={styles.settingRow}
 -               onPress={() =&gt; setShowRegister(true)}&gt;
 -               &lt;Ionicons
--                 name=&quot;person-add-outline&quot;
+-                 name="person-add-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Create Account&lt;/Text&gt;
--               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -             &lt;/TouchableOpacity&gt;
 -             &lt;TouchableOpacity
 -               style={styles.settingRow}
 -               onPress={() =&gt; setShowLogin(true)}&gt;
 -               &lt;Ionicons
--                 name=&quot;log-in-outline&quot;
+-                 name="log-in-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Login&lt;/Text&gt;
--               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -             &lt;/TouchableOpacity&gt;
 -           &lt;/View&gt;
 -         &lt;/&gt;
@@ -1766,101 +1766,101 @@ Lines added: undefined, lines removed: 357
 -             &lt;/View&gt;
 -             &lt;TouchableOpacity style={styles.settingRow} onPress={handleLogout}&gt;
 -               &lt;Ionicons
--                 name=&quot;log-out-outline&quot;
+-                 name="log-out-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Logout&lt;/Text&gt;
--               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -             &lt;/TouchableOpacity&gt;
 -           &lt;/View&gt;
 -           &lt;View style={styles.section}&gt;
 -             &lt;Text style={styles.sectionTitle}&gt;Security&lt;/Text&gt;
 -             &lt;View style={styles.settingRow}&gt;
 -               &lt;Ionicons
--                 name=&quot;finger-print-outline&quot;
+-                 name="finger-print-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Require biometric&lt;/Text&gt;
 -               &lt;Switch
 -                 value={requireBiometric}
 -                 onValueChange={setRequireBiometric}
--                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
--                 thumbColor=&quot;#fff&quot;
+-                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
+-                 thumbColor="#fff"
 -               /&gt;
 -             &lt;/View&gt;
 -             &lt;TouchableOpacity style={styles.settingRow}&gt;
 -               &lt;Ionicons
--                 name=&quot;create-outline&quot;
+-                 name="create-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Change passcode&lt;/Text&gt;
--               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -             &lt;/TouchableOpacity&gt;
 -           &lt;/View&gt;
 -           &lt;View style={styles.section}&gt;
 -             &lt;Text style={styles.sectionTitle}&gt;Two-Factor Authentication&lt;/Text&gt;
 -             &lt;View style={styles.settingRow}&gt;
 -               &lt;Ionicons
--                 name=&quot;shield-outline&quot;
+-                 name="shield-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Enable 2FA&lt;/Text&gt;
 -               &lt;Switch
 -                 value={enable2FA}
 -                 onValueChange={setEnable2FA}
--                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
--                 thumbColor=&quot;#fff&quot;
+-                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
+-                 thumbColor="#fff"
 -               /&gt;
 -             &lt;/View&gt;
 -             &lt;TouchableOpacity style={styles.settingRow}&gt;
 -               &lt;Ionicons
--                 name=&quot;document-text-outline&quot;
+-                 name="document-text-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Manage backup codes&lt;/Text&gt;
--               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -             &lt;/TouchableOpacity&gt;
 -           &lt;/View&gt;
 -           &lt;View style={styles.section}&gt;
 -             &lt;Text style={styles.sectionTitle}&gt;Login Alerts&lt;/Text&gt;
 -             &lt;View style={styles.settingRow}&gt;
 -               &lt;Ionicons
--                 name=&quot;mail-outline&quot;
+-                 name="mail-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Send email alerts&lt;/Text&gt;
 -               &lt;Switch
 -                 value={sendEmailAlerts}
 -                 onValueChange={setSendEmailAlerts}
--                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
--                 thumbColor=&quot;#fff&quot;
+-                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
+-                 thumbColor="#fff"
 -               /&gt;
 -             &lt;/View&gt;
 -             &lt;View style={styles.settingRow}&gt;
 -               &lt;Ionicons
--                 name=&quot;notifications-outline&quot;
+-                 name="notifications-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Send push notification&lt;/Text&gt;
 -               &lt;Switch
 -                 value={sendPushNotifications}
 -                 onValueChange={setSendPushNotifications}
--                 trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
--                 thumbColor=&quot;#fff&quot;
+-                 trackColor={{false: '#d3d3d3', true: '#34c759'}}
+-                 thumbColor="#fff"
 -               /&gt;
 -             &lt;/View&gt;
 -           &lt;/View&gt;
@@ -1875,13 +1875,13 @@ Lines added: undefined, lines removed: 357
 -       {isAuthenticatedState ? (
 -         &lt;View style={styles.section}&gt;
 -           &lt;Text style={styles.sectionTitle}&gt;Team Management&lt;/Text&gt;
--           {user?.role === &#39;team_manager&#39; ? (
+-           {user?.role === 'team_manager' ? (
 -             &lt;&gt;
 -               &lt;View style={styles.infoCard}&gt;
 -                 &lt;Ionicons
--                   name=&quot;checkmark-circle&quot;
+-                   name="checkmark-circle"
 -                   size={24}
--                   color=&quot;#34c759&quot;
+-                   color="#34c759"
 -                   style={styles.settingIcon}
 -                 /&gt;
 -                 &lt;View style={styles.infoContent}&gt;
@@ -1894,16 +1894,16 @@ Lines added: undefined, lines removed: 357
 -               &lt;TouchableOpacity
 -                 style={styles.settingRow}
 -                 onPress={() =&gt; {
--                   (navigation as any).navigate(&#39;TeamManagement&#39;);
+-                   (navigation as any).navigate('TeamManagement');
 -                 }}&gt;
 -                 &lt;Ionicons
--                   name=&quot;people-outline&quot;
+-                   name="people-outline"
 -                   size={24}
--                   color=&quot;#333&quot;
+-                   color="#333"
 -                   style={styles.settingIcon}
 -                 /&gt;
 -                 &lt;Text style={styles.settingText}&gt;Manage Teams&lt;/Text&gt;
--                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -               &lt;/TouchableOpacity&gt;
 -             &lt;/&gt;
 -           ) : (
@@ -1911,13 +1911,13 @@ Lines added: undefined, lines removed: 357
 -               style={styles.settingRow}
 -               onPress={() =&gt; setShowTeamManagerForm(true)}&gt;
 -               &lt;Ionicons
--                 name=&quot;people-outline&quot;
+-                 name="people-outline"
 -                 size={24}
--                 color=&quot;#333&quot;
+-                 color="#333"
 -                 style={styles.settingIcon}
 -               /&gt;
 -               &lt;Text style={styles.settingText}&gt;Apply to be a Team Manager&lt;/Text&gt;
--               &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-               &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -             &lt;/TouchableOpacity&gt;
 -           )}
 -         &lt;/View&gt;
@@ -1938,26 +1938,26 @@ Lines added: undefined, lines removed: 357
 -         &lt;Text style={styles.sectionTitle}&gt;Language&lt;/Text&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;language-outline&quot;
+-             name="language-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;English&lt;/Text&gt;
--           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -       &lt;/View&gt;
 -       &lt;View style={styles.section}&gt;
 -         &lt;Text style={styles.sectionTitle}&gt;Region&lt;/Text&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;globe-outline&quot;
+-             name="globe-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;United States&lt;/Text&gt;
--           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -       &lt;/View&gt;
 -     &lt;/ScrollView&gt;
@@ -1970,32 +1970,32 @@ Lines added: undefined, lines removed: 357
 -         &lt;Text style={styles.sectionTitle}&gt;Notifications&lt;/Text&gt;
 -         &lt;View style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;notifications-outline&quot;
+-             name="notifications-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;Follow notifications&lt;/Text&gt;
 -           &lt;Switch
 -             value={sendPushNotifications}
 -             onValueChange={setSendPushNotifications}
--             trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
--             thumbColor=&quot;#fff&quot;
+-             trackColor={{false: '#d3d3d3', true: '#34c759'}}
+-             thumbColor="#fff"
 -           /&gt;
 -         &lt;/View&gt;
 -         &lt;View style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;mail-outline&quot;
+-             name="mail-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;Email notifications&lt;/Text&gt;
 -           &lt;Switch
 -             value={sendEmailAlerts}
 -             onValueChange={setSendEmailAlerts}
--             trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
--             thumbColor=&quot;#fff&quot;
+-             trackColor={{false: '#d3d3d3', true: '#34c759'}}
+-             thumbColor="#fff"
 -           /&gt;
 -         &lt;/View&gt;
 -       &lt;/View&gt;
@@ -2003,13 +2003,13 @@ Lines added: undefined, lines removed: 357
 -         &lt;Text style={styles.sectionTitle}&gt;Following&lt;/Text&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;people-outline&quot;
+-             name="people-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;Manage following&lt;/Text&gt;
--           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -       &lt;/View&gt;
 -     &lt;/ScrollView&gt;
@@ -2022,35 +2022,35 @@ Lines added: undefined, lines removed: 357
 -         &lt;Text style={styles.sectionTitle}&gt;Appearance&lt;/Text&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;color-palette-outline&quot;
+-             name="color-palette-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;Theme&lt;/Text&gt;
--           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -       &lt;/View&gt;
 -       &lt;View style={styles.section}&gt;
 -         &lt;Text style={styles.sectionTitle}&gt;Storage&lt;/Text&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;trash-outline&quot;
+-             name="trash-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;Clear cache&lt;/Text&gt;
--           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -       &lt;/View&gt;
 -       &lt;View style={styles.section}&gt;
 -         &lt;Text style={styles.sectionTitle}&gt;About&lt;/Text&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;information-circle-outline&quot;
+-             name="information-circle-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;App version&lt;/Text&gt;
@@ -2058,13 +2058,13 @@ Lines added: undefined, lines removed: 357
 -         &lt;/TouchableOpacity&gt;
 -         &lt;TouchableOpacity style={styles.settingRow}&gt;
 -           &lt;Ionicons
--             name=&quot;help-circle-outline&quot;
+-             name="help-circle-outline"
 -             size={24}
--             color=&quot;#333&quot;
+-             color="#333"
 -             style={styles.settingIcon}
 -           /&gt;
 -           &lt;Text style={styles.settingText}&gt;Help &amp; Support&lt;/Text&gt;
--           &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
+-           &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 -         &lt;/TouchableOpacity&gt;
 -       &lt;/View&gt;
 -     &lt;/ScrollView&gt;
@@ -2081,7 +2081,7 @@ Lines added: undefined, lines removed: 357
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 493, lines removed: 204
@@ -2097,56 +2097,56 @@ Lines added: 493, lines removed: 204
 -             paddingHorizontal: 8,
 -           },
 -           tabBarStyle: {
--             backgroundColor: &#39;#fff&#39;,
+-             backgroundColor: '#fff',
 -             borderBottomWidth: 1,
--             borderBottomColor: &#39;#e0e0e0&#39;,
+-             borderBottomColor: '#e0e0e0',
 -           },
 -           tabBarIndicatorStyle: {
--             backgroundColor: &#39;#007AFF&#39;,
+-             backgroundColor: '#007AFF',
 -             height: 2,
 -           },
--           tabBarActiveTintColor: &#39;#007AFF&#39;,
--           tabBarInactiveTintColor: &#39;#666&#39;,
--           tabBarPressColor: &#39;#E3F2FD&#39;,
+-           tabBarActiveTintColor: '#007AFF',
+-           tabBarInactiveTintColor: '#666',
+-           tabBarPressColor: '#E3F2FD',
 -           tabBarPressOpacity: 0.8,
 -           tabBarLabelStyle: {
 -             fontSize: 13,
--             fontWeight: &#39;600&#39;,
--             textTransform: &#39;capitalize&#39;,
+-             fontWeight: '600',
+-             textTransform: 'capitalize',
 -           },
 -         }}&gt;
 -         &lt;TabScreen
--           name=&quot;login/create account&quot;
+-           name="login/create account"
 -           options={{
--             tabBarLabel: &#39;Login/Create Account&#39;,
+-             tabBarLabel: 'Login/Create Account',
 -           }}&gt;
 -           {() =&gt; &lt;LoginCreateAccountTab /&gt;}
 -         &lt;/TabScreen&gt;
 -         &lt;TabScreen
--           name=&quot;team manager&quot;
+-           name="team manager"
 -           options={{
--             tabBarLabel: &#39;Team Manager&#39;,
+-             tabBarLabel: 'Team Manager',
 -           }}&gt;
 -           {() =&gt; &lt;TeamManagerTab /&gt;}
 -         &lt;/TabScreen&gt;
 -         &lt;TabScreen
--           name=&quot;language&quot;
+-           name="language"
 -           options={{
--             tabBarLabel: &#39;Language&#39;,
+-             tabBarLabel: 'Language',
 -           }}&gt;
 -           {() =&gt; &lt;LanguageTab /&gt;}
 -         &lt;/TabScreen&gt;
 -         &lt;TabScreen
--           name=&quot;Following&quot;
+-           name="Following"
 -           options={{
--             tabBarLabel: &#39;Following&#39;,
+-             tabBarLabel: 'Following',
 -           }}&gt;
 -           {() =&gt; &lt;FollowingTab /&gt;}
 -         &lt;/TabScreen&gt;
 -         &lt;TabScreen
--           name=&quot;General&quot;
+-           name="General"
 -           options={{
--             tabBarLabel: &#39;General&#39;,
+-             tabBarLabel: 'General',
 -           }}&gt;
 -           {() =&gt; &lt;GeneralTab /&gt;}
 -         &lt;/TabScreen&gt;
@@ -2158,31 +2158,31 @@ Lines added: 493, lines removed: 204
 - const styles = StyleSheet.create({
 -   container: {
 -     flex: 1,
--     backgroundColor: &#39;#fff&#39;,
+-     backgroundColor: '#fff',
 -   },
 -   header: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;space-between&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     justifyContent: 'space-between',
 -     padding: 16,
 -     borderBottomWidth: 1,
--     borderBottomColor: &#39;#e0e0e0&#39;,
--     backgroundColor: &#39;#fff&#39;,
+-     borderBottomColor: '#e0e0e0',
+-     backgroundColor: '#fff',
 -   },
 -   backButton: {
 -     width: 40,
 -     height: 40,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;center&#39;,
+-     alignItems: 'center',
+-     justifyContent: 'center',
 -   },
 -   headerTitle: {
 -     fontSize: 18,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#333&#39;,
+-     fontWeight: '600',
+-     color: '#333',
 -   },
 -   tabContent: {
 -     flex: 1,
--     backgroundColor: &#39;#fff&#39;,
+-     backgroundColor: '#fff',
 -   },
 -   section: {
 -     paddingHorizontal: 16,
@@ -2191,19 +2191,19 @@ Lines added: 493, lines removed: 204
 -   },
 -   sectionTitle: {
 -     fontSize: 13,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#999&#39;,
--     textTransform: &#39;uppercase&#39;,
+-     fontWeight: '600',
+-     color: '#999',
+-     textTransform: 'uppercase',
 -     marginBottom: 12,
 -     letterSpacing: 0.5,
 -   },
 -   settingRow: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
 -     paddingVertical: 12,
 -     paddingHorizontal: 4,
 -     borderBottomWidth: StyleSheet.hairlineWidth,
--     borderBottomColor: &#39;#e0e0e0&#39;,
+-     borderBottomColor: '#e0e0e0',
 -   },
 -   settingIcon: {
 -     marginRight: 12,
@@ -2212,83 +2212,83 @@ Lines added: 493, lines removed: 204
 -   settingText: {
 -     flex: 1,
 -     fontSize: 16,
--     color: &#39;#333&#39;,
--     fontWeight: &#39;400&#39;,
+-     color: '#333',
+-     fontWeight: '400',
 -   },
 -   settingValue: {
 -     fontSize: 16,
--     color: &#39;#999&#39;,
+-     color: '#999',
 -     marginRight: 8,
 -   },
 -   userInfoRow: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
 -     paddingVertical: 16,
 -     paddingHorizontal: 4,
 -     marginBottom: 8,
 -     borderBottomWidth: StyleSheet.hairlineWidth,
--     borderBottomColor: &#39;#e0e0e0&#39;,
+-     borderBottomColor: '#e0e0e0',
 -   },
 -   avatarPlaceholder: {
 -     width: 48,
 -     height: 48,
 -     borderRadius: 24,
--     backgroundColor: &#39;#007AFF&#39;,
--     alignItems: &#39;center&#39;,
--     justifyContent: &#39;center&#39;,
+-     backgroundColor: '#007AFF',
+-     alignItems: 'center',
+-     justifyContent: 'center',
 -     marginRight: 12,
 -   },
 -   avatarText: {
 -     fontSize: 18,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#fff&#39;,
+-     fontWeight: '600',
+-     color: '#fff',
 -   },
 -   userInfo: {
 -     flex: 1,
 -   },
 -   userName: {
 -     fontSize: 16,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#333&#39;,
+-     fontWeight: '600',
+-     color: '#333',
 -     marginBottom: 4,
 -   },
 -   userEmail: {
 -     fontSize: 14,
--     color: &#39;#666&#39;,
+-     color: '#666',
 -   },
 -   infoCard: {
--     flexDirection: &#39;row&#39;,
--     alignItems: &#39;center&#39;,
--     backgroundColor: &#39;#f0f9f4&#39;,
+-     flexDirection: 'row',
+-     alignItems: 'center',
+-     backgroundColor: '#f0f9f4',
 -     borderRadius: 8,
 -     padding: 12,
 -     marginBottom: 12,
 -     borderWidth: 1,
--     borderColor: &#39;#34c759&#39;,
+-     borderColor: '#34c759',
 -   },
 -   infoContent: {
 -     flex: 1,
 -   },
 -   infoTitle: {
 -     fontSize: 16,
--     fontWeight: &#39;600&#39;,
--     color: &#39;#34c759&#39;,
+-     fontWeight: '600',
+-     color: '#34c759',
 -     marginBottom: 4,
 -   },
 -   infoDescription: {
 -     fontSize: 14,
--     color: &#39;#666&#39;,
+-     color: '#666',
 -   },
 -   emptyState: {
 -     flex: 1,
--     justifyContent: &#39;center&#39;,
--     alignItems: &#39;center&#39;,
+-     justifyContent: 'center',
+-     alignItems: 'center',
 -     padding: 32,
 -   },
 -   emptyStateText: {
 -     fontSize: 16,
--     color: &#39;#666&#39;,
--     textAlign: &#39;center&#39;,
+-     color: '#666',
+-     textAlign: 'center',
 -   },
 - });
 - 
@@ -2309,25 +2309,25 @@ Lines added: 493, lines removed: 204
 +                   style={styles.settingRow}
 +                   onPress={() =&gt; setShowRegister(true)}&gt;
 +                   &lt;Ionicons
-+                     name=&quot;person-add-outline&quot;
++                     name="person-add-outline"
 +                     size={24}
-+                     color=&quot;#333&quot;
++                     color="#333"
 +                     style={styles.settingIcon}
 +                   /&gt;
 +                   &lt;Text style={styles.settingText}&gt;Create Account&lt;/Text&gt;
-+                   &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                   &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                 &lt;/TouchableOpacity&gt;
 +                 &lt;TouchableOpacity
 +                   style={styles.settingRow}
 +                   onPress={() =&gt; setShowLogin(true)}&gt;
 +                   &lt;Ionicons
-+                     name=&quot;log-in-outline&quot;
++                     name="log-in-outline"
 +                     size={24}
-+                     color=&quot;#333&quot;
++                     color="#333"
 +                     style={styles.settingIcon}
 +                   /&gt;
 +                   &lt;Text style={styles.settingText}&gt;Login&lt;/Text&gt;
-+                   &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                   &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                 &lt;/TouchableOpacity&gt;
 +               &lt;/View&gt;
 +             ) : (
@@ -2353,41 +2353,41 @@ Lines added: 493, lines removed: 204
 +                     style={styles.settingRow}
 +                     onPress={handleLogout}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;log-out-outline&quot;
++                       name="log-out-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;Logout&lt;/Text&gt;
-+                     &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                     &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                   &lt;/TouchableOpacity&gt;
 +                 &lt;/View&gt;
 +                 &lt;View style={styles.section}&gt;
 +                   &lt;Text style={styles.sectionTitle}&gt;Security&lt;/Text&gt;
 +                   &lt;View style={styles.settingRow}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;finger-print-outline&quot;
++                       name="finger-print-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;Require biometric&lt;/Text&gt;
 +                     &lt;Switch
 +                       value={requireBiometric}
 +                       onValueChange={setRequireBiometric}
-+                       trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                       thumbColor=&quot;#fff&quot;
++                       trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                       thumbColor="#fff"
 +                     /&gt;
 +                   &lt;/View&gt;
 +                   &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;create-outline&quot;
++                       name="create-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;Change passcode&lt;/Text&gt;
-+                     &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                     &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                   &lt;/TouchableOpacity&gt;
 +                 &lt;/View&gt;
 +                 &lt;View style={styles.section}&gt;
@@ -2396,52 +2396,52 @@ Lines added: 493, lines removed: 204
 +                   &lt;/Text&gt;
 +                   &lt;View style={styles.settingRow}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;shield-outline&quot;
++                       name="shield-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;Enable 2FA&lt;/Text&gt;
 +                     &lt;Switch
 +                       value={enable2FA}
 +                       onValueChange={setEnable2FA}
-+                       trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                       thumbColor=&quot;#fff&quot;
++                       trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                       thumbColor="#fff"
 +                     /&gt;
 +                   &lt;/View&gt;
 +                   &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;document-text-outline&quot;
++                       name="document-text-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;Manage backup codes&lt;/Text&gt;
-+                     &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                     &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                   &lt;/TouchableOpacity&gt;
 +                 &lt;/View&gt;
 +                 &lt;View style={styles.section}&gt;
 +                   &lt;Text style={styles.sectionTitle}&gt;Login Alerts&lt;/Text&gt;
 +                   &lt;View style={styles.settingRow}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;mail-outline&quot;
++                       name="mail-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;Send email alerts&lt;/Text&gt;
 +                     &lt;Switch
 +                       value={sendEmailAlerts}
 +                       onValueChange={setSendEmailAlerts}
-+                       trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                       thumbColor=&quot;#fff&quot;
++                       trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                       thumbColor="#fff"
 +                     /&gt;
 +                   &lt;/View&gt;
 +                   &lt;View style={styles.settingRow}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;notifications-outline&quot;
++                       name="notifications-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;
@@ -2450,8 +2450,8 @@ Lines added: 493, lines removed: 204
 +                     &lt;Switch
 +                       value={sendPushNotifications}
 +                       onValueChange={setSendPushNotifications}
-+                       trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                       thumbColor=&quot;#fff&quot;
++                       trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                       thumbColor="#fff"
 +                     /&gt;
 +                   &lt;/View&gt;
 +                 &lt;/View&gt;
@@ -2462,13 +2462,13 @@ Lines added: 493, lines removed: 204
 +             &lt;View style={styles.section}&gt;
 +               &lt;Text style={styles.sectionTitle}&gt;Team Manager&lt;/Text&gt;
 +               {isAuthenticatedState ? (
-+                 user?.role === &#39;team_manager&#39; ? (
++                 user?.role === 'team_manager' ? (
 +                   &lt;&gt;
 +                     &lt;View style={styles.infoCard}&gt;
 +                       &lt;Ionicons
-+                         name=&quot;checkmark-circle&quot;
++                         name="checkmark-circle"
 +                         size={24}
-+                         color=&quot;#34c759&quot;
++                         color="#34c759"
 +                         style={styles.settingIcon}
 +                       /&gt;
 +                       &lt;View style={styles.infoContent}&gt;
@@ -2481,16 +2481,16 @@ Lines added: 493, lines removed: 204
 +                     &lt;TouchableOpacity
 +                       style={styles.settingRow}
 +                       onPress={() =&gt; {
-+                         (navigation as any).navigate(&#39;TeamManagement&#39;);
++                         (navigation as any).navigate('TeamManagement');
 +                       }}&gt;
 +                       &lt;Ionicons
-+                         name=&quot;people-outline&quot;
++                         name="people-outline"
 +                         size={24}
-+                         color=&quot;#333&quot;
++                         color="#333"
 +                         style={styles.settingIcon}
 +                       /&gt;
 +                       &lt;Text style={styles.settingText}&gt;Manage Teams&lt;/Text&gt;
-+                       &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                       &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                     &lt;/TouchableOpacity&gt;
 +                   &lt;/&gt;
 +                 ) : (
@@ -2498,15 +2498,15 @@ Lines added: 493, lines removed: 204
 +                     style={styles.settingRow}
 +                     onPress={() =&gt; setShowTeamManagerForm(true)}&gt;
 +                     &lt;Ionicons
-+                       name=&quot;people-outline&quot;
++                       name="people-outline"
 +                       size={24}
-+                       color=&quot;#333&quot;
++                       color="#333"
 +                       style={styles.settingIcon}
 +                     /&gt;
 +                     &lt;Text style={styles.settingText}&gt;
 +                       Apply to be a Team Manager
 +                     &lt;/Text&gt;
-+                     &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                     &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +                   &lt;/TouchableOpacity&gt;
 +                 )
 +               ) : (
@@ -2523,26 +2523,26 @@ Lines added: 493, lines removed: 204
 +               &lt;Text style={styles.sectionTitle}&gt;Language&lt;/Text&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;language-outline&quot;
++                   name="language-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;English&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/View&gt;
 +             &lt;View style={styles.section}&gt;
 +               &lt;Text style={styles.sectionTitle}&gt;Region&lt;/Text&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;globe-outline&quot;
++                   name="globe-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;United States&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/View&gt;
 + 
@@ -2551,43 +2551,43 @@ Lines added: 493, lines removed: 204
 +               &lt;Text style={styles.sectionTitle}&gt;Following&lt;/Text&gt;
 +               &lt;View style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;notifications-outline&quot;
++                   name="notifications-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Follow notifications&lt;/Text&gt;
 +                 &lt;Switch
 +                   value={sendPushNotifications}
 +                   onValueChange={setSendPushNotifications}
-+                   trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                   thumbColor=&quot;#fff&quot;
++                   trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                   thumbColor="#fff"
 +                 /&gt;
 +               &lt;/View&gt;
 +               &lt;View style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;mail-outline&quot;
++                   name="mail-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Email notifications&lt;/Text&gt;
 +                 &lt;Switch
 +                   value={sendEmailAlerts}
 +                   onValueChange={setSendEmailAlerts}
-+                   trackColor={{false: &#39;#d3d3d3&#39;, true: &#39;#34c759&#39;}}
-+                   thumbColor=&quot;#fff&quot;
++                   trackColor={{false: '#d3d3d3', true: '#34c759'}}
++                   thumbColor="#fff"
 +                 /&gt;
 +               &lt;/View&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;people-outline&quot;
++                   name="people-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Manage following&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/View&gt;
 + 
@@ -2596,35 +2596,35 @@ Lines added: 493, lines removed: 204
 +               &lt;Text style={styles.sectionTitle}&gt;General&lt;/Text&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;color-palette-outline&quot;
++                   name="color-palette-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Theme&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/View&gt;
 +             &lt;View style={styles.section}&gt;
 +               &lt;Text style={styles.sectionTitle}&gt;Storage&lt;/Text&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;trash-outline&quot;
++                   name="trash-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Clear cache&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/View&gt;
 +             &lt;View style={styles.section}&gt;
 +               &lt;Text style={styles.sectionTitle}&gt;About&lt;/Text&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;information-circle-outline&quot;
++                   name="information-circle-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;App version&lt;/Text&gt;
@@ -2632,13 +2632,13 @@ Lines added: 493, lines removed: 204
 +               &lt;/TouchableOpacity&gt;
 +               &lt;TouchableOpacity style={styles.settingRow}&gt;
 +                 &lt;Ionicons
-+                   name=&quot;help-circle-outline&quot;
++                   name="help-circle-outline"
 +                   size={24}
-+                   color=&quot;#333&quot;
++                   color="#333"
 +                   style={styles.settingIcon}
 +                 /&gt;
 +                 &lt;Text style={styles.settingText}&gt;Help &amp; Support&lt;/Text&gt;
-+                 &lt;Ionicons name=&quot;chevron-forward&quot; size={20} color=&quot;#ccc&quot; /&gt;
++                 &lt;Ionicons name="chevron-forward" size={20} color="#ccc" /&gt;
 +               &lt;/TouchableOpacity&gt;
 +             &lt;/View&gt;
 +           &lt;/&gt;
@@ -2651,31 +2651,31 @@ Lines added: 493, lines removed: 204
 + const styles = StyleSheet.create({
 +   container: {
 +     flex: 1,
-+     backgroundColor: &#39;#fff&#39;,
++     backgroundColor: '#fff',
 +   },
 +   header: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
-+     justifyContent: &#39;space-between&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
++     justifyContent: 'space-between',
 +     padding: 16,
 +     borderBottomWidth: 1,
-+     borderBottomColor: &#39;#e0e0e0&#39;,
-+     backgroundColor: &#39;#fff&#39;,
++     borderBottomColor: '#e0e0e0',
++     backgroundColor: '#fff',
 +   },
 +   backButton: {
 +     width: 40,
 +     height: 40,
-+     alignItems: &#39;center&#39;,
-+     justifyContent: &#39;center&#39;,
++     alignItems: 'center',
++     justifyContent: 'center',
 +   },
 +   headerTitle: {
 +     fontSize: 18,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#333&#39;,
++     fontWeight: '600',
++     color: '#333',
 +   },
 +   tabContent: {
 +     flex: 1,
-+     backgroundColor: &#39;#fff&#39;,
++     backgroundColor: '#fff',
 +   },
 +   section: {
 +     paddingHorizontal: 16,
@@ -2684,19 +2684,19 @@ Lines added: 493, lines removed: 204
 +   },
 +   sectionTitle: {
 +     fontSize: 13,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#999&#39;,
-+     textTransform: &#39;uppercase&#39;,
++     fontWeight: '600',
++     color: '#999',
++     textTransform: 'uppercase',
 +     marginBottom: 12,
 +     letterSpacing: 0.5,
 +   },
 +   settingRow: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
 +     paddingVertical: 12,
 +     paddingHorizontal: 4,
 +     borderBottomWidth: StyleSheet.hairlineWidth,
-+     borderBottomColor: &#39;#e0e0e0&#39;,
++     borderBottomColor: '#e0e0e0',
 +   },
 +   settingIcon: {
 +     marginRight: 12,
@@ -2705,83 +2705,83 @@ Lines added: 493, lines removed: 204
 +   settingText: {
 +     flex: 1,
 +     fontSize: 16,
-+     color: &#39;#333&#39;,
-+     fontWeight: &#39;400&#39;,
++     color: '#333',
++     fontWeight: '400',
 +   },
 +   settingValue: {
 +     fontSize: 16,
-+     color: &#39;#999&#39;,
++     color: '#999',
 +     marginRight: 8,
 +   },
 +   userInfoRow: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
 +     paddingVertical: 16,
 +     paddingHorizontal: 4,
 +     marginBottom: 8,
 +     borderBottomWidth: StyleSheet.hairlineWidth,
-+     borderBottomColor: &#39;#e0e0e0&#39;,
++     borderBottomColor: '#e0e0e0',
 +   },
 +   avatarPlaceholder: {
 +     width: 48,
 +     height: 48,
 +     borderRadius: 24,
-+     backgroundColor: &#39;#007AFF&#39;,
-+     alignItems: &#39;center&#39;,
-+     justifyContent: &#39;center&#39;,
++     backgroundColor: '#007AFF',
++     alignItems: 'center',
++     justifyContent: 'center',
 +     marginRight: 12,
 +   },
 +   avatarText: {
 +     fontSize: 18,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#fff&#39;,
++     fontWeight: '600',
++     color: '#fff',
 +   },
 +   userInfo: {
 +     flex: 1,
 +   },
 +   userName: {
 +     fontSize: 16,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#333&#39;,
++     fontWeight: '600',
++     color: '#333',
 +     marginBottom: 4,
 +   },
 +   userEmail: {
 +     fontSize: 14,
-+     color: &#39;#666&#39;,
++     color: '#666',
 +   },
 +   infoCard: {
-+     flexDirection: &#39;row&#39;,
-+     alignItems: &#39;center&#39;,
-+     backgroundColor: &#39;#f0f9f4&#39;,
++     flexDirection: 'row',
++     alignItems: 'center',
++     backgroundColor: '#f0f9f4',
 +     borderRadius: 8,
 +     padding: 12,
 +     marginBottom: 12,
 +     borderWidth: 1,
-+     borderColor: &#39;#34c759&#39;,
++     borderColor: '#34c759',
 +   },
 +   infoContent: {
 +     flex: 1,
 +   },
 +   infoTitle: {
 +     fontSize: 16,
-+     fontWeight: &#39;600&#39;,
-+     color: &#39;#34c759&#39;,
++     fontWeight: '600',
++     color: '#34c759',
 +     marginBottom: 4,
 +   },
 +   infoDescription: {
 +     fontSize: 14,
-+     color: &#39;#666&#39;,
++     color: '#666',
 +   },
 +   emptyState: {
 +     flex: 1,
-+     justifyContent: &#39;center&#39;,
-+     alignItems: &#39;center&#39;,
++     justifyContent: 'center',
++     alignItems: 'center',
 +     padding: 32,
 +   },
 +   emptyStateText: {
 +     fontSize: 16,
-+     color: &#39;#666&#39;,
-+     textAlign: &#39;center&#39;,
++     color: '#666',
++     textAlign: 'center',
 +   },
 + });
 + 
@@ -2797,29 +2797,29 @@ Lines added: 493, lines removed: 204
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 11, lines removed: 1
 
 ```diff
 @@ -540,8 +540,18 @@
-      color: &#39;#333&#39;,
+      color: '#333',
     },
 -   tabContent: {
 +   content: {
       flex: 1,
-      backgroundColor: &#39;#fff&#39;,
+      backgroundColor: '#fff',
     },
 +   centerContainer: {
 +     flex: 1,
-+     justifyContent: &#39;center&#39;,
-+     alignItems: &#39;center&#39;,
++     justifyContent: 'center',
++     alignItems: 'center',
 +     padding: 32,
 +   },
 +   loadingText: {
 +     fontSize: 16,
-+     color: &#39;#666&#39;,
++     color: '#666',
 +   },
     section: {
       paddingHorizontal: 16,
@@ -2842,7 +2842,7 @@ Fixing the Team Manager empty state display and checking for lint errors:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 8, lines removed: 2
@@ -2855,12 +2855,12 @@ Lines added: 8, lines removed: 2
 -                   &lt;Text style={styles.emptyStateText}&gt;
 +                 &lt;View style={styles.settingRow}&gt;
 +                   &lt;Ionicons
-+                     name=&quot;people-outline&quot;
++                     name="people-outline"
 +                     size={24}
-+                     color=&quot;#999&quot;
++                     color="#999"
 +                     style={styles.settingIcon}
 +                   /&gt;
-+                   &lt;Text style={[styles.settingText, {color: &#39;#999&#39;}]}&gt;
++                   &lt;Text style={[styles.settingText, {color: '#999'}]}&gt;
                       Please login to access team management features
                     &lt;/Text&gt;
 ```
@@ -2899,25 +2899,25 @@ Removing unused empty state styles:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: undefined, lines removed: 11
 
 ```diff
 @@ -655,15 +655,4 @@
-      color: &#39;#666&#39;,
+      color: '#666',
     },
 -   emptyState: {
 -     flex: 1,
--     justifyContent: &#39;center&#39;,
--     alignItems: &#39;center&#39;,
+-     justifyContent: 'center',
+-     alignItems: 'center',
 -     padding: 32,
 -   },
 -   emptyStateText: {
 -     fontSize: 16,
--     color: &#39;#666&#39;,
--     textAlign: &#39;center&#39;,
+-     color: '#666',
+-     textAlign: 'center',
 -   },
   });
   
@@ -2995,7 +2995,7 @@ Updating the section title to "Logout" when logged in and removing the "Create A
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 1, lines removed: 1
@@ -3091,7 +3091,7 @@ Updating the conditions to prevent showing the Register or Login forms when the 
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 1, lines removed: 1
@@ -3170,7 +3170,7 @@ Adding a useEffect to reset the form states when the user becomes authenticated:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 8, lines removed: undefined
@@ -3335,7 +3335,7 @@ Adding Zustand to package.json, then creating the user store:
 
 <tool-use data-tool-type="generic" data-tool-name="list_dir">
 <details>
-            <summary>Tool use: **list_directory** • Listed directory undefined • **0** results</summary>
+            <summary>Tool use: **list_dir** • Listed directory, 0 results</summary>
         
 No results found
 </details>
@@ -3345,20 +3345,20 @@ No results found
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/package.json</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/package.json</summary>
 
 **Chunk 1**
 Lines added: 2, lines removed: 1
 
 ```diff
 @@ -42,5 +42,6 @@
-      &quot;react-native-safe-area-context&quot;: &quot;~5.6.0&quot;,
-      &quot;react-native-screens&quot;: &quot;~4.16.0&quot;,
--     &quot;react-native-webview&quot;: &quot;13.15.0&quot;
-+     &quot;react-native-webview&quot;: &quot;13.15.0&quot;,
-+     &quot;zustand&quot;: &quot;^5.0.2&quot;
+      "react-native-safe-area-context": "~5.6.0",
+      "react-native-screens": "~4.16.0",
+-     "react-native-webview": "13.15.0"
++     "react-native-webview": "13.15.0",
++     "zustand": "^5.0.2"
     },
-    &quot;devDependencies&quot;: {
+    "devDependencies": {
 ```
 
 </details>
@@ -3378,7 +3378,7 @@ Creating the Zustand user store:
 
 <tool-use data-tool-type="write" data-tool-name="write">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/stores/userStore.ts</summary>
+<details><summary>Tool use: **write** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/stores/userStore.ts</summary>
 
 **Chunk 1**
 Lines added: 147, lines removed: 1
@@ -3386,12 +3386,12 @@ Lines added: 147, lines removed: 1
 ```diff
 @@ -1,1 +1,147 @@
 - 
-+ import {create} from &#39;zustand&#39;;
++ import {create} from 'zustand';
 + import {
 +   User,
 +   LoginRequest,
 +   RegisterRequest,
-+ } from &#39;../types/auth&#39;;
++ } from '../types/auth';
 + import {
 +   login as loginApi,
 +   register as registerApi,
@@ -3399,7 +3399,7 @@ Lines added: 147, lines removed: 1
 +   isAuthenticated as checkAuth,
 +   getStoredUser,
 +   getAuthToken,
-+ } from &#39;../services/authService&#39;;
++ } from '../services/authService';
 + 
 + interface UserState {
 +   user: User | null;
@@ -3434,11 +3434,11 @@ Lines added: 147, lines removed: 1
 +           error: null,
 +         });
 +       } else {
-+         throw new Error(&#39;Invalid login response&#39;);
++         throw new Error('Invalid login response');
 +       }
 +     } catch (error) {
 +       const errorMessage =
-+         error instanceof Error ? error.message : &#39;Login failed&#39;;
++         error instanceof Error ? error.message : 'Login failed';
 +       set({
 +         isAuthenticated: false,
 +         user: null,
@@ -3460,7 +3460,7 @@ Lines added: 147, lines removed: 1
 +       });
 +     } catch (error) {
 +       const errorMessage =
-+         error instanceof Error ? error.message : &#39;Registration failed&#39;;
++         error instanceof Error ? error.message : 'Registration failed';
 +       set({
 +         isLoading: false,
 +         error: errorMessage,
@@ -3481,7 +3481,7 @@ Lines added: 147, lines removed: 1
 +       });
 +     } catch (error) {
 +       const errorMessage =
-+         error instanceof Error ? error.message : &#39;Logout failed&#39;;
++         error instanceof Error ? error.message : 'Logout failed';
 +       set({
 +         isLoading: false,
 +         error: errorMessage,
@@ -3519,7 +3519,7 @@ Lines added: 147, lines removed: 1
 +         });
 +       }
 +     } catch (error) {
-+       console.error(&#39;Error checking auth status:&#39;, error);
++       console.error('Error checking auth status:', error);
 +       set({
 +         user: null,
 +         isAuthenticated: false,
@@ -3569,20 +3569,20 @@ Updating SettingsScreen to use the Zustand store:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 1, lines removed: 2
 
 ```diff
 @@ -11,6 +11,5 @@
-  import {useNavigation} from &#39;@react-navigation/native&#39;;
-  import {Ionicons} from &#39;@expo/vector-icons&#39;;
-- import {User} from &#39;../types/auth&#39;;
-- import {isAuthenticated, getStoredUser, logout} from &#39;../services/authService&#39;;
-+ import {useUserStore} from &#39;../stores/userStore&#39;;
-  import RegisterForm from &#39;../components/RegisterForm&#39;;
-  import LoginForm from &#39;../components/LoginForm&#39;;
+  import {useNavigation} from '@react-navigation/native';
+  import {Ionicons} from '@expo/vector-icons';
+- import {User} from '../types/auth';
+- import {isAuthenticated, getStoredUser, logout} from '../services/authService';
++ import {useUserStore} from '../stores/userStore';
+  import RegisterForm from '../components/RegisterForm';
+  import LoginForm from '../components/LoginForm';
 ```
 
 **Chunk 2**
@@ -3616,7 +3616,7 @@ Lines added: 9, lines removed: 3
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 2, lines removed: 2
@@ -3660,7 +3660,7 @@ Lines added: 19, lines removed: 21
 +       await register(data);
 +       setShowRegister(false);
       } catch (error) {
--       console.error(&#39;Error loading user status:&#39;, error);
+-       console.error('Error loading user status:', error);
 -     } finally {
 -       setIsLoading(false);
 -     }
@@ -3669,7 +3669,7 @@ Lines added: 19, lines removed: 21
 -   const handleRegisterSuccess = async () =&gt; {
 -     setShowRegister(false);
 -     await loadUserStatus();
-+       console.error(&#39;Registration error:&#39;, error);
++       console.error('Registration error:', error);
 +     }
     };
   
@@ -3681,7 +3681,7 @@ Lines added: 19, lines removed: 21
 +       await login(data);
 +       setShowLogin(false);
 +     } catch (error) {
-+       console.error(&#39;Login error:&#39;, error);
++       console.error('Login error:', error);
 +     }
     };
   
@@ -3742,7 +3742,7 @@ Updating handlers to match the form callbacks:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 5, lines removed: 19
@@ -3762,7 +3762,7 @@ Lines added: 5, lines removed: 19
 -       await register(data);
 -       setShowRegister(false);
 -     } catch (error) {
--       console.error(&#39;Registration error:&#39;, error);
+-       console.error('Registration error:', error);
 -     }
 +   const handleRegisterSuccess = async () =&gt; {
 +     setShowRegister(false);
@@ -3775,7 +3775,7 @@ Lines added: 5, lines removed: 19
 +   const handleLoginSuccess = async () =&gt; {
       setShowLogin(false);
 -     } catch (error) {
--       console.error(&#39;Login error:&#39;, error);
+-       console.error('Login error:', error);
 -     }
 +     await checkAuthStatus();
     };
@@ -3824,7 +3824,7 @@ Fixing the useEffect dependency issue:
 
 <tool-use data-tool-type="write" data-tool-name="search_replace">
 
-<details><summary>Tool use: **code_edit** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
+<details><summary>Tool use: **search_replace** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/SettingsScreen.tsx</summary>
 
 **Chunk 1**
 Lines added: 2, lines removed: 1
