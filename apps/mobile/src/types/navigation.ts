@@ -15,6 +15,7 @@ export type RootStackParamList = {
   News: {
     match: Match;
   };
+  NewsFeed: undefined;
   NewsWebView: {
     url: string;
   };

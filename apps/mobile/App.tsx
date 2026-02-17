@@ -58,6 +58,16 @@ const HomeStack = () => {
           headerTintColor: '#007AFF',
         }}
       />
+      <StackScreen
+        name="NewsWebView"
+        component={NewsWebViewScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
+      />
     </StackNavigator>
   );
 };
@@ -66,7 +76,7 @@ const NewsStack = () => {
   return (
     <StackNavigator>
       <StackScreen
-        name="News"
+        name="NewsFeed"
         component={NewsScreen}
         options={{
           headerShown: false,

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fucci",
     "slug": "fucci",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,6 +24,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.magistridev.fucci",
+      "versionCode": 2,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
@@ -41,9 +42,10 @@
       ]
     ],
     "extra": {
-      "API_BASE_URL": "https://fucci-api.fly.dev/v1/api",
+      // "API_BASE_URL": "https://fucci-api.fly.dev/v1/api",
+      "API_BASE_URL": "http://localhost:8080/v1/api",
       "APP_NAME": "Fucci",
-      "APP_VERSION": "1.0.0",
+      "APP_VERSION": "1.0.1",
       "NODE_ENV": "production",
       "DEBUG": "false",
       "eas": {
