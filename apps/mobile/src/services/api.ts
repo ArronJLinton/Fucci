@@ -68,7 +68,6 @@ const makeApiRequest = async (
 ) => {
   const url = `${apiConfig.baseURL}${endpoint}`;
   try {
-    console.log('FETCHING FROM URL: ', url);
     const response = await fetch(url, {
       method,
       redirect: 'follow',

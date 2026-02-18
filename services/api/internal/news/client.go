@@ -77,7 +77,6 @@ func (c *Client) FetchNews(opts FetchNewsOptions) (*RapidAPIResponse, error) {
 
 	// Make the request with timeout
 	client := &http.Client{Timeout: c.timeout}
-	log.Println("REQUEST", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch news: %w", err)
