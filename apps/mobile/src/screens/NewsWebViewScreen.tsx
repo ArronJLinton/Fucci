@@ -9,7 +9,6 @@ import {WebView} from 'react-native-webview';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NavigationProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
-import {SafeAreaView} from 'react-native-safe-area-context';
 import type {RootStackParamList} from '../types/navigation';
 
 type NewsWebViewRouteProp = RouteProp<RootStackParamList, 'NewsWebView'>;
@@ -27,7 +26,25 @@ const NewsWebViewScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      )}
+
+      <WebView
+        source={{uri: url}}
+        style={styles.webview}
+        onLoadStart={() => setIsLoading(true)}
+        onLoadEnd={() => setIsLoading(false)}
+        startInLoadingState={true}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        allowsInlineMediaPlayback={true}
+        mediaPlaybackRequiresUserAction={false}
+      />
+
+      <View style={styles.headerSafeArea}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.closeButton}
@@ -36,25 +53,7 @@ const NewsWebViewScreen: React.FC = () => {
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
         </View>
-
-        {isLoading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-          </View>
-        )}
-
-        <WebView
-          source={{uri: url}}
-          style={styles.webview}
-          onLoadStart={() => setIsLoading(true)}
-          onLoadEnd={() => setIsLoading(false)}
-          startInLoadingState={true}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          allowsInlineMediaPlayback={true}
-          mediaPlaybackRequiresUserAction={false}
-        />
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -64,25 +63,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  safeArea: {
+  webview: {
     flex: 1,
+  },
+  headerSafeArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   closeButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#f0f0f0',
-  },
-  webview: {
-    flex: 1,
   },
   loadingContainer: {
     position: 'absolute',
