@@ -26,7 +26,7 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			// Check if cached response has the new format (todayArticles/historyArticles)
 			// If it only has the old format (articles), skip cache and fetch fresh data
-			if len(cachedResponse.TodayArticles) == 0 && len(cachedResponse.HistoryArticles) == 0 && len(cachedResponse.TodayArticles) > 0 {
+			if len(cachedResponse.TodayArticles) == 0 && len(cachedResponse.HistoryArticles) == 0 {
 				log.Printf("Cache has old format, bypassing cache to fetch fresh data\n")
 				exists = false // Force fresh fetch
 			} else {
