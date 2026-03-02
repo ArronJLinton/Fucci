@@ -32,7 +32,6 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 			} else {
 				// Return cached response with new format
 				cachedResponse.Cached = true
-				cachedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
 				respondWithJSON(w, http.StatusOK, cachedResponse)
 				return
 			}
@@ -51,7 +50,6 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 		// If we have cached data, return it even if stale
 		if exists {
 			cachedResponse.Cached = true
-			cachedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
 			respondWithJSON(w, http.StatusServiceUnavailable, cachedResponse)
 			return
 		}
@@ -69,7 +67,8 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache the response for 15 minutes
+	// Cache the response for 15 minutes (store the original cached timestamp)
+	transformedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
 	err = c.Cache.Set(ctx, cacheKey, transformedResponse, cache.NewsTTL)
 	if err != nil {
 		log.Printf("Cache set error: %v\n", err)
@@ -122,7 +121,6 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			// Return cached response
 			cachedResponse.Cached = true
-			cachedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
 			respondWithJSON(w, http.StatusOK, cachedResponse)
 			return
 		}
@@ -142,7 +140,6 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		// If we have cached data, return it even if stale
 		if exists {
 			cachedResponse.Cached = true
-			cachedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
 			respondWithJSON(w, http.StatusServiceUnavailable, cachedResponse)
 			return
 		}
@@ -160,7 +157,8 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache the response for 15 minutes
+	// Cache the response for 15 minutes (store the original cached timestamp)
+	transformedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
 	err = c.Cache.Set(ctx, cacheKey, transformedResponse, cache.NewsTTL)
 	if err != nil {
 		log.Printf("Cache set error: %v\n", err)
