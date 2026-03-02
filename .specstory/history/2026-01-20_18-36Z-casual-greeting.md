@@ -10186,3 +10186,486 @@ Makese sense. Let's commit.
 
 ---
 
+_**Agent (model default, mode Agent)**_
+
+<think><details><summary>Thought Process</summary>
+
+The user wants to commit the changes. I'll need to stage the modified files and create a commit. Let me first check what files have been changed for the match news time filtering feature.
+</details></think>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="shell" data-tool-name="run_terminal_command_v2">
+<details><summary>Tool use: **run_terminal_command_v2** • Run command: cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci && git status</summary>
+
+```bash
+cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci && git status
+```
+
+```
+On branch fetch-news
+Changes not staged for commit:
+  (use "git add &lt;file&gt;..." to update what will be committed)
+  (use "git restore &lt;file&gt;..." to discard changes in working directory)
+	modified:   .specstory/history/2025-10-22_18-49Z-setup-workspaces-for-project.md
+	modified:   .specstory/history/2025-10-23_03-30Z-error-during-runtime.md
+	modified:   .specstory/history/2025-10-27_21-46Z-resolve-merge-conflict-issue.md
+	modified:   .specstory/history/2025-10-27_22-04Z-resolve-merge-conflicts-in-project.md
+	modified:   .specstory/history/2025-10-27_22-09Z-resolve-merge-conflicts-in-project.md
+	modified:   .specstory/history/2025-11-03_14-34Z-redesign-settings-screen-with-new-tabs.md
+	modified:   .specstory/history/2025-11-20_02-42Z-troubleshooting-expo-deployment-error.md
+	modified:   .specstory/history/2025-11-20_14-08Z-where-does-constants-get-its-value.md
+	modified:   .specstory/history/2025-11-20_23-58Z-fucci-news-feature-prd-overview.md
+	modified:   apps/mobile/App.tsx
+	modified:   apps/mobile/app.json
+	modified:   apps/mobile/package.json
+	modified:   apps/mobile/src/hooks/useMatchNews.ts
+	modified:   apps/mobile/src/screens/LineupScreen.tsx
+	modified:   apps/mobile/src/screens/MatchNewsScreen.tsx
+	modified:   apps/mobile/src/services/api.ts
+	modified:   apps/mobile/src/services/newsService.ts
+	modified:   apps/mobile/src/types/navigation.ts
+	modified:   package.json
+	modified:   services/api/internal/api/futbol.go
+	modified:   services/api/internal/api/news.go
+	modified:   services/api/internal/config/config.go
+	modified:   services/api/internal/news/cache.go
+	modified:   services/api/internal/news/client.go
+
+Untracked files:
+  (use "git add &lt;file&gt;..." to include in what will be committed)
+	.specstory/history/2025-12-17_15-06Z-android-deployment-process.md
+	.specstory/history/2026-01-20_18-36Z-casual-greeting.md
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+```
+</details>
+</tool-use>
+
+---
+
+<think><details><summary>Thought Process</summary>
+
+There are many modified files. Some are from our recent work (match news time filtering, NewsFeed rename, NewsWebView fix, config loading). Others might be pre-existing (specstory history, app.json, etc.). I'll stage only the files relevant to the match news time filtering feature and related changes we made in this session:
+
+Match news time filtering:
+- services/api/internal/api/news.go
+- services/api/internal/news/cache.go
+- services/api/internal/news/client.go
+- apps/mobile/src/hooks/useMatchNews.ts
+- apps/mobile/src/screens/MatchNewsScreen.tsx
+- apps/mobile/src/services/newsService.ts
+
+From earlier in the session we also did:
+- NewsFeed rename (App.tsx, types/navigation.ts)
+- NewsWebView in HomeStack (App.tsx)
+- Config loading (services/api/internal/config/config.go)
+
+The user said "Let's commit" - they probably want to commit the match news work. I'll include all the relevant changes we made. Let me stage the key files and avoid .specstory which seems like auto-generated history. I'll also avoid files that might be unrelated (LineupScreen, app.json, package.json, api.ts, futbol.go) - those could be from other work.
+
+Actually, the user said "Let's commit" - they might want to commit everything, or just the match news feature. I'll focus on the match news time filtering feature files to keep the commit focused. I can include:
+- services/api/internal/api/news.go
+- services/api/internal/news/cache.go
+- services/api/internal/news/client.go
+- apps/mobile/src/hooks/useMatchNews.ts
+- apps/mobile/src/screens/MatchNewsScreen.tsx
+- apps/mobile/src/services/newsService.ts
+
+That's a clean, focused commit for the match news time filtering. I won't include the config, App.tsx, navigation types, etc. unless the user wants a broader commit. The user said "Let's commit" in the context of our match news discussion, so I'll commit just those files.
+</details></think>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="shell" data-tool-name="run_terminal_command_v2">
+<details><summary>Tool use: **run_terminal_command_v2** • Run command: cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci && git add services/api/internal/api/news.go services/api/internal/news/cache.go services/api/internal/news/client.go apps/mobile/src/hooks/useMatchNews.ts apps/mobile/src/screens/MatchNewsScreen.tsx apps/mobile/src/services/newsService.ts</summary>
+
+```bash
+cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci && git add services/api/internal/api/news.go services/api/internal/news/cache.go services/api/internal/news/client.go apps/mobile/src/hooks/useMatchNews.ts apps/mobile/src/screens/MatchNewsScreen.tsx apps/mobile/src/services/newsService.ts
+```
+</details>
+</tool-use>
+
+---
+
+<think><details><summary>Thought Process</summary>
+
+Now I'll commit with a descriptive message. I need git_write permission for the commit.
+</details></think>
+
+---
+
+
+
+
+
+---
+
+<tool-use data-tool-type="shell" data-tool-name="run_terminal_command_v2">
+<details><summary>Tool use: **run_terminal_command_v2** • Run command: cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci && git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "feat: match news time filtering by match status
+
+- Not started/ongoing: fetch news from past 1 day
+- Completed: fetch from past 7 days, filter to articles published after match end
+- Backend: FetchMatchNews accepts matchStatus and matchEndTime, post-filters for FT/AET/PEN
+- Cache key includes status and endTime for separate caching
+- Frontend: passes matchStatus and matchEndTime from fixture data (kickoff + 105 min for completed)"</summary>
+
+```bash
+cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci && git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "feat: match news time filtering by match status
+
+- Not started/ongoing: fetch news from past 1 day
+- Completed: fetch from past 7 days, filter to articles published after match end
+- Backend: FetchMatchNews accepts matchStatus and matchEndTime, post-filters for FT/AET/PEN
+- Cache key includes status and endTime for separate caching
+- Frontend: passes matchStatus and matchEndTime from fixture data (kickoff + 105 min for completed)"
+```
+
+```
+[fetch-news ce29ddee] feat: match news time filtering by match status
+ 6 files changed, 112 insertions(+), 20 deletions(-)
+
+```
+</details>
+</tool-use>
+
+---
+
+<think><details><summary>Thought Process</summary>
+
+The commit was successful. I'll let the user know.
+</details></think>
+
+---
+
+
+Commit completed:
+
+```
+feat: match news time filtering by match status
+
+6 files changed, 112 insertions(+), 20 deletions(-)
+```
+
+---
+
+_**User**_
+
+Next play, when a news article is renderd with the web view, I want to remove teh white space above the article component.
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/NewsWebViewScreen.tsx</summary>
+
+</details>
+</tool-use>
+
+---
+
+<think><details><summary>Thought Process</summary>
+**Analyzing whitespace issues**
+
+I'm noticing that the whitespace above the article is probably due to a combination of a safe area at the top and a custom header taking up vertical space. It seems they want the webview content to start just below the notch, but the screenshot shows some inconsistencies. The explicit mention of "white space above the article component" suggests there might be a white header inside the webview. The whitespace could be the result of a top margin in the ESPN page, but it might also be related to our header area.
+**Proposing layout adjustments**
+
+They want to "remove white space above the article component." The simplest approach here would be to remove the border and background, set the header to position absolute, or place the WebView behind it. I might need to ask for clarification, but since they want action, I think a good step is to make the header overlay with absolute positioning at the top. Plus, I can set the SafeArea edges to top and bottom, ensuring the WebView takes up the full screen. Since they liked the close button, it sounds reasonable to suggest these code changes.
+**Suggesting layout changes**
+
+I’m thinking about how to change the layout with a proposed code snippet. I’ll structure it like this: A container View holds the WebView and a SafeAreaView for the header. The header needs to be positioned absolutely at the top with a semi-transparent background, which would help remove the blank space above and allow the WebView to fill the screen. The user didn’t explicitly ask for code changes, but since they are in a development flow and haven't repeated that request, it seems reasonable to offer this snippet and explain how it would work.
+**Describing approach for layout change**
+
+I see that the instructions now call for minimal verbosity, and the user is looking for specific changes. I think it’s best to describe my approach concisely along with a code snippet rather than automatically edit the code. I would modify the NewsWebViewScreen so that the WebView fills the full height, with the header overlaying on top. I’ll show the updated JSX and styles to make it clear how to implement these changes effectively.</details></think>
+
+---
+
+You’re seeing that gap because the `SafeAreaView` + `header` sit **above** the `WebView`, so the web content starts *below* your custom header.
+
+To remove that white space while keeping the close button, make the `WebView` full‑screen and overlay the header on top:
+
+### 1. Render `WebView` first, then overlay header
+
+Replace the return of `NewsWebViewScreen` with:
+
+```tsx
+return (
+  <View style={styles.container}>
+    {isLoading && (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    )}
+
+    <WebView
+      source={{uri: url}}
+      style={styles.webview}
+      onLoadStart={() => setIsLoading(true)}
+      onLoadEnd={() => setIsLoading(false)}
+      startInLoadingState={true}
+      javaScriptEnabled={true}
+      domStorageEnabled={true}
+      allowsInlineMediaPlayback={true}
+      mediaPlaybackRequiresUserAction={false}
+    />
+
+    <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={handleClose}
+          accessibilityLabel="Close news view">
+          <Ionicons name="close" size={24} color="#333" />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  </View>
+);
+```
+
+### 2. Adjust styles to overlay the header
+
+Update/add these styles:
+
+```tsx
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  webview: {
+    flex: 1,
+  },
+  headerSafeArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    zIndex: 1,
+  },
+});
+```
+
+This keeps the close button in the safe area, but the `WebView` content now starts flush at the very top behind it, removing the extra white strip above the article.
+
+---
+
+_**User**_
+
+Okay, let's move forward with this implementation.
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+<think><details><summary>Thought Process</summary>
+**Planning news edit**
+
+I need to edit the NewsWebViewScreen according to my plan. I’ll use ApplyPatch since I’ve already read the file, which makes this easier. I'm thinking about implementing an overlay approach for this task. Once I do that, I think I'm done! Well, I might not need to conduct tests this time. I just want to keep everything concise, so I’m keeping my focus sharp on the essentials.</details></think>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2">
+
+<details><summary>Tool use: **edit_file_v2** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/NewsWebViewScreen.tsx</summary>
+
+</details>
+
+</tool-use>
+
+---
+
+The `NewsWebViewScreen` now renders the `WebView` full-screen and overlays the close button header on top, so the article content starts right at the top with no extra white space above it.
+
+---
+
+_**User**_
+
+@apps/mobile/src/screens/NewsWebViewScreen.tsx:48-57 position this section at the top of the screen.
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+<think><details><summary>Thought Process</summary>
+**Adjusting header overlay position**
+
+I need to adjust the header overlay position because the user wants it at the very top. Right now, the headerSafeArea is set to an absolute top of 0, but there’s some shifting caused by the ESPN header. The user is asking to have the close button positioned even higher, potentially overlapping with the status bar area. It's possible there might be padding or margin affecting this which I need to check again.
+**Reassessing header position**
+
+The screenshot still shows the header slightly lower than expected. I’m considering whether to remove the SafeAreaView to use just a View with a top margin from insets. The user wants the header at the very top, so I might need to adjust the headerSafeArea style to include a zIndex and set alignItems to 'flex-end'. It seems they might be referring to the top position in the webview related to the ESPN page, wanting the close button at the very top-right, potentially within the status bar area.
+**Reconsidering header overlay**
+
+I'm thinking we could switch from SafeAreaView to an absolute View set at top: 0, which would overlap slightly with the status bar. However, iOS best practices suggest respecting the safe area. The user wants a specific look, referring to lines 48-57 in our overlay header, which should already have top: 0. There seems to be a vertical gap above the close button, likely due to the SafeArea top inset. The user might be looking for the header to align with the ESPN content, rather than sitting above it.
+**Revising header setup**
+
+I’m considering not using SafeAreaView or Insets, allowing the webview to fill the entire screen, including the safe area, while positioning the header a bit lower. The user’s request is specific: “position this section at the top of the screen.” So, I can change the headerSafeArea to justifyContent: 'flex-start' and potentially move the SafeAreaView outside the container with an absolute position at the top. I might also need to add zIndex to make sure the overlay appears above other content. Reducing padding and margins could help position the close button higher. Given the user's feedback, I think it may be best to remove SafeAreaView entirely and use a View with an absolute position instead.
+**Adjusting header positioning**
+
+I need to ensure the header is flush with the top of the screen while considering the status bar overlay. I might keep a small top margin using StatusBar.currentHeight on Android, but since the app is in Expo, that might be tricky. The user wants the header pinned just below the status bar, which is already set to top: 0. So, I'll focus on a clearer edit by updating the headerSafeArea with an absolute position and adding zIndex. 
+
+Replacing SafeAreaView with a plain View will allow me to achieve what's needed, removing any extra insets for a better visual alignment. Let’s go ahead and handle those updates!</details></think>
+
+---
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2">
+
+<details><summary>Tool use: **edit_file_v2** • Edit file: /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile/src/screens/NewsWebViewScreen.tsx</summary>
+
+</details>
+
+</tool-use>
+
+---
+
+That header section is now an absolutely positioned `View` pinned to `top: 0, left: 0, right: 0`, so the close button bar sits at the very top of the screen above the web content.
+
+---
+
+_**User**_
+
+Perfect. Let's commit.
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+
+
+---
+
+_**User**_
+
+@services/api/internal/news/client.go:115-116 For the FetchTodayAndHistoryNews api call,l are we caching the results ?
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+Object literal may only specify known properties, and 'cacheTime' does not exist in type 'OmitKeyof<QueryObserverOptions<unknown, Error, unknown, unknown, readonly unknown[], never>, "suspense" | "queryKey", "strictly">'.
+```
+Fix it, verify, and then give a concise explanation. @apps/mobile/src/config/queryClient.ts:14-17 
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+
+
+---
+
+_**User**_
+
+Hello
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+
+
+---
+
+_**User**_
+
+@apps/mobile/src/screens/NewsWebViewScreen.tsx:66-74 This screen overlays the close button header with absolute positioning at top: 0 but no safe-area handling. On devices with a notch/status bar, the button can end up under the status bar and be hard to tap. Consider reintroducing SafeAreaView from react-native-safe-area-context or padding the header using useSafeAreaInsets().
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+
+
+---
+
+_**User**_
+
+Hello
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+Hi again. What would you like to tackle next—fixing the `queryClient` cacheTime error, adjusting the `NewsWebViewScreen` safe area, or something else?
+
+---
+
+_**User**_
+
+Question - should the @.specstory/ folder be committed to the git history ?
+
+---
+
+_**Agent (model default, mode Agent)**_
+
+<think><details><summary>Thought Process</summary>
+**Explaining .specstory folder**
+
+The user wants to know about the .specstory folder being committed. I need to provide a concise explanation without any edits. I might check the .gitignore, but it seems unnecessary. My best guess is that it shouldn’t be committed, as it likely contains generated transcripts meant for tooling. I could suggest adding it to the .gitignore and mention the trade-offs involved. Keeping it brief is essential for clarity!</details></think>
+
+---
+
+Short answer: **probably not**.
+
+### Why it usually should NOT be committed
+
+- **Generated artifacts**: `.specstory/` holds AI session histories and tooling logs, not source code.
+- **Churny / noisy diffs**: It changes frequently and will clutter PRs and `git status`.
+- **Machine‑specific context**: These files describe how you worked, not how the app works; they aren’t needed to build, run, or test the project.
+
+### When you *might* commit it
+
+- If your team explicitly wants:
+  - A permanent, searchable log of AI-assisted changes, and
+  - Everyone agrees that PRs including these files are acceptable.
+
+### Practical recommendation
+
+- **Default:** Add `.specstory/` to `.gitignore` so it’s not tracked.
+- If you’re unsure for this repo, align with whatever the main branch currently does; if it’s already committed there, keep following that pattern until you consciously decide to change it.
+
+---
+
