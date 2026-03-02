@@ -27,7 +27,6 @@ const NewsScreen: React.FC<NewsScreenProps> = ({match}) => {
     historyArticles,
     loading,
     error,
-    refresh,
     refreshing,
     invalidateCache,
   } = useNews();
