@@ -12,9 +12,6 @@ export type RootStackParamList = {
   Table: {
     match: Match;
   };
-  News: {
-    match: Match;
-  };
   NewsFeed: undefined;
   NewsWebView: {
     url: string;
