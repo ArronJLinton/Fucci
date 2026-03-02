@@ -9,11 +9,13 @@ import {WebView} from 'react-native-webview';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NavigationProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {RootStackParamList} from '../types/navigation';
 
 type NewsWebViewRouteProp = RouteProp<RootStackParamList, 'NewsWebView'>;
 
 const NewsWebViewScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute<NewsWebViewRouteProp>();
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, 'NewsWebView'>>();
@@ -44,7 +46,7 @@ const NewsWebViewScreen: React.FC = () => {
         mediaPlaybackRequiresUserAction={false}
       />
 
-      <View style={styles.headerSafeArea}>
+      <View style={[styles.headerSafeArea, {paddingTop: insets.top}]}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.closeButton}
