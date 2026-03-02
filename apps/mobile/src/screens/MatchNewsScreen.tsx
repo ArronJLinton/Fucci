@@ -21,7 +21,16 @@ interface MatchNewsScreenProps {
 }
 
 // Completed match statuses (FT, AET, PEN, etc.)
-const COMPLETED_STATUSES = ['FT', 'AET', 'PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'];
+const COMPLETED_STATUSES = [
+  'FT',
+  'AET',
+  'PEN',
+  'AWD',
+  'WO',
+  'CANC',
+  'ABD',
+  'PST',
+];
 
 function isMatchCompleted(statusShort: string): boolean {
   return COMPLETED_STATUSES.includes(statusShort);
@@ -44,8 +53,13 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
     ? getMatchEndTimeISO(match.fixture.date)
     : '';
 
-  const {articles, loading, error, refresh, refreshing, invalidateCache} =
-    useMatchNews(homeTeam, awayTeam, matchId, matchStatus, matchEndTime);
+  const {articles, loading, error, refreshing, invalidateCache} = useMatchNews(
+    homeTeam,
+    awayTeam,
+    matchId,
+    matchStatus,
+    matchEndTime,
+  );
 
   const handleRefresh = () => {
     // Invalidate cache to mark as stale and trigger refetch
