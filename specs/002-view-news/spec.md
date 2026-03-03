@@ -147,8 +147,8 @@ Football fans can view recent and historic football news on the home screen to s
 
 ### Backend Endpoint
 
-- **Path:** `GET /api/v1/news/football`
-- **Response:** JSON with articles array, cached flag, cachedAt timestamp
+- **Path:** `GET /v1/api/news/football`
+- **Response:** JSON with todayArticles, historyArticles, cached flag, cachedAt timestamp
 
 ### Frontend Components
 
