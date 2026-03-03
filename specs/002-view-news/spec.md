@@ -2,6 +2,7 @@
 
 **Feature Branch**: `002-view-news`  
 **Created**: 2024-11-20  
+**Last revised**: 2026-02  
 **Status**: Draft  
 **Input**: PRD v1.0 - View News Feature
 
