@@ -97,7 +97,10 @@ components:
         cachedAt:
           type: string
           format: date-time
-          description: ISO 8601 timestamp when data was cached (only present if cached is true)
+          description: |
+            ISO 8601 timestamp. When cached is true, when the data was stored in cache.
+            When cached is false, when this response was stored for future cache use.
+            May be present in both cases.
           example: "2024-11-20T10:30:00Z"
 
     NewsArticle:
