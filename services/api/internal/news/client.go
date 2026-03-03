@@ -55,15 +55,28 @@ type FetchNewsOptions struct {
 	Lang          string
 }
 
+// buildParams returns url.Values with only non-empty entries from pairs, plus limit when > 0.
+func buildParams(pairs map[string]string, limit int) url.Values {
+	params := url.Values{}
+	for k, v := range pairs {
+		if v != "" {
+			params.Add(k, v)
+		}
+	}
+	if limit > 0 {
+		params.Add("limit", fmt.Sprintf("%d", limit))
+	}
+	return params
+}
+
 // FetchNews fetches football news from RapidAPI with custom options
 func (c *Client) FetchNews(opts FetchNewsOptions) (*RapidAPIResponse, error) {
-	// Build query parameters
-	params := url.Values{}
-	params.Add("query", opts.Query)
-	params.Add("limit", fmt.Sprintf("%d", opts.Limit))
-	params.Add("time_published", opts.TimePublished)
-	params.Add("country", opts.Country)
-	params.Add("lang", opts.Lang)
+	params := buildParams(map[string]string{
+		"query":          opts.Query,
+		"time_published": opts.TimePublished,
+		"country":        opts.Country,
+		"lang":           opts.Lang,
+	}, opts.Limit)
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", c.baseURL+"?"+params.Encode(), nil)
