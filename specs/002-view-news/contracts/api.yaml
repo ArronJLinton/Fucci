@@ -31,7 +31,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NewsResponse'
               example:
-                articles:
+                todayArticles:
                   - id: "abc123"
                     title: "Premier League Match Results"
                     snippet: "Manchester United defeats Liverpool 2-1 in thrilling match"
@@ -48,6 +48,15 @@ paths:
                     sourceName: "BBC Sport"
                     publishedAt: "2024-11-20T08:15:00Z"
                     relativeTime: "4 hours ago"
+                historyArticles:
+                  - id: "ghi789"
+                    title: "World Cup History"
+                    snippet: "Looking back at classic moments"
+                    imageUrl: "https://example.com/image3.jpg"
+                    sourceUrl: "https://example.com/article3"
+                    sourceName: "FIFA"
+                    publishedAt: "2024-11-18T14:00:00Z"
+                    relativeTime: "2 days ago"
                 cached: false
                 cachedAt: "2024-11-20T12:30:00Z"
         '500':
@@ -65,7 +74,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NewsResponse'
               example:
-                articles:
+                todayArticles:
                   - id: "abc123"
                     title: "Premier League Match Results"
                     snippet: "Manchester United defeats Liverpool 2-1 in thrilling match"
@@ -74,6 +83,7 @@ paths:
                     sourceName: "ESPN"
                     publishedAt: "2024-11-20T10:30:00Z"
                     relativeTime: "2 hours ago"
+                historyArticles: []
                 cached: true
                 cachedAt: "2024-11-20T10:30:00Z"
 
@@ -82,12 +92,18 @@ components:
     NewsResponse:
       type: object
       required:
-        - articles
+        - todayArticles
+        - historyArticles
         - cached
       properties:
-        articles:
+        todayArticles:
           type: array
-          description: Array of news articles
+          description: Recent football news (e.g. last 24h)
+          items:
+            $ref: '#/components/schemas/NewsArticle'
+        historyArticles:
+          type: array
+          description: Historical football news
           items:
             $ref: '#/components/schemas/NewsArticle'
         cached:
