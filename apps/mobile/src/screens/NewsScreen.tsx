@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState, useCallback} from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import type {NewsArticle} from '../types/news';
 
 const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const {
     todayArticles,
     historyArticles,
@@ -26,7 +27,12 @@ const NewsScreen: React.FC = () => {
     invalidateCache,
   } = useNews();
 
+  const handleImageError = useCallback((articleId: string) => {
+    setFailedImageIds(prev => new Set(prev).add(articleId));
+  }, []);
+
   const handleRefresh = () => {
+    setFailedImageIds(new Set());
     // Invalidate cache to mark as stale and trigger refetch
     // This respects React Query's caching strategy while ensuring fresh data
     invalidateCache();
@@ -37,21 +43,22 @@ const NewsScreen: React.FC = () => {
   };
 
   const renderImage = (article: NewsArticle) => {
-    if (article.imageUrl) {
-      return (
-        <Image
-          source={{uri: article.imageUrl}}
-          style={styles.newsImage}
-          resizeMode="cover"
-        />
-      );
-    }
-
-    // Placeholder icon
-    return (
+    const showPlaceholder = !article.imageUrl || failedImageIds.has(article.id);
+    const placeholder = (
       <View style={[styles.newsImage, styles.placeholderImage]}>
         <Ionicons name="football-outline" size={32} color="#999" />
       </View>
+    );
+    if (showPlaceholder) {
+      return placeholder;
+    }
+    return (
+      <Image
+        source={{uri: article.imageUrl}}
+        style={styles.newsImage}
+        resizeMode="cover"
+        onError={() => handleImageError(article.id)}
+      />
     );
   };
 
