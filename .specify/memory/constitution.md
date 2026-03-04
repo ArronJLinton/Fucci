@@ -130,6 +130,9 @@ The following gates MUST pass before deployment:
 
 - Semantic versioning (MAJOR.MINOR.PATCH)
 - Automated deployment pipelines
+- **Mobile distribution**: Automated builds and distribution for the mobile app:
+  - **iOS**: Automatic deploy to TestFlight (or equivalent testing channel) on release triggers (e.g. tag or branch), so testers receive builds without manual upload.
+  - **Android**: Optional automatic distribution to an internal testing track (e.g. Google Play internal testing or EAS internal distribution).
 - Feature flags for gradual rollouts
 - Rollback procedures documented and tested
 - Monitoring and alerting for production issues
