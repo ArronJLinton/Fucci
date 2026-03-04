@@ -122,25 +122,23 @@ type TodayAndHistoryResponse struct {
 	HistoryResponse *RapidAPIResponse
 }
 
-// FetchTodayAndHistoryNews fetches both today's news and historical news
-// Returns separate responses for today and history
+// FetchTodayAndHistoryNews fetches both today's news and historical news.
+// Returns partial success (empty slice for a failed section) when at least one request succeeds.
+// Returns an error only when both today and history requests fail, so the handler can return 5xx and avoid caching an empty payload.
 func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
-	// Default options
 	defaultOpts := FetchNewsOptions{
-		// Country: "US",
 		Lang:  "en",
-		Limit: 5, // Limit to 5 articles per section
+		Limit: 5,
 	}
 
 	// Fetch today's news
 	todayOpts := defaultOpts
 	todayOpts.Query = "FIFA Football News"
-	todayOpts.TimePublished = "1d" // Valid values: anytime, 1h, 1d, 7d, 1m, 1y
+	todayOpts.TimePublished = "1d"
 
-	todayResp, err := c.FetchNews(todayOpts)
-	if err != nil {
-		log.Printf("Failed to fetch today's news: %v", err)
-		// Continue with history even if today fails
+	todayResp, todayErr := c.FetchNews(todayOpts)
+	if todayErr != nil {
+		log.Printf("Failed to fetch today's news: %v", todayErr)
 		todayResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
 	}
 
@@ -149,14 +147,15 @@ func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
 	historyOpts.Query = "World FIFA Football History"
 	historyOpts.TimePublished = "anytime"
 
-	historyResp, err := c.FetchNews(historyOpts)
-	if err != nil {
-		log.Printf("Failed to fetch historical news: %v", err)
-		// If history fails but today succeeded, return today's results with empty history
-		if todayResp == nil {
-			todayResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
-		}
+	historyResp, historyErr := c.FetchNews(historyOpts)
+	if historyErr != nil {
+		log.Printf("Failed to fetch historical news: %v", historyErr)
 		historyResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
+	}
+
+	// If both failed, return error so handler can return 5xx and not cache empty response
+	if todayErr != nil && historyErr != nil {
+		return nil, fmt.Errorf("today and history news fetch failed: today=%v, history=%w", todayErr, historyErr)
 	}
 
 	return &TodayAndHistoryResponse{
