@@ -55,8 +55,7 @@ func TransformRapidAPIResponse(rapidAPIResp *RapidAPIResponse) (*NewsAPIResponse
 
 	return &NewsAPIResponse{
 		TodayArticles: articles,
-		// HistoryArticles: []NewsArticle{l},
-		Cached: false,
+		Cached:        false,
 	}, nil
 }
 
