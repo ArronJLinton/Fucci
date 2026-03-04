@@ -37,11 +37,18 @@ type Client struct {
 	timeout time.Duration
 }
 
+const defaultNewsBaseURL = "https://real-time-news-data.p.rapidapi.com/search"
+
 // NewClient creates a new RapidAPI news client
 func NewClient(apiKey string) *Client {
+	return NewClientWithBaseURL(apiKey, defaultNewsBaseURL)
+}
+
+// NewClientWithBaseURL creates a client with a custom base URL (e.g. for tests).
+func NewClientWithBaseURL(apiKey, baseURL string) *Client {
 	return &Client{
 		apiKey:  apiKey,
-		baseURL: "https://real-time-news-data.p.rapidapi.com/search",
+		baseURL: baseURL,
 		timeout: 10 * time.Second,
 	}
 }

@@ -32,8 +32,11 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 		exists = false // no usable cached data for fallback
 	}
 
-	// Create news client
+	// Create news client (optional custom base URL for tests)
 	newsClient := news.NewClient(c.RapidAPIKey)
+	if c.NewsBaseURL != "" {
+		newsClient = news.NewClientWithBaseURL(c.RapidAPIKey, c.NewsBaseURL)
+	}
 
 	// Fetch both today's news and historical news from RapidAPI
 	todayAndHistoryResp, err := newsClient.FetchTodayAndHistoryNews()
@@ -121,8 +124,11 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		exists = false // no usable cached data for fallback
 	}
 
-	// Create news client
+	// Create news client (optional custom base URL for tests)
 	newsClient := news.NewClient(c.RapidAPIKey)
+	if c.NewsBaseURL != "" {
+		newsClient = news.NewClientWithBaseURL(c.RapidAPIKey, c.NewsBaseURL)
+	}
 
 	// Fetch match news (combined query for both teams)
 	// Default limit to 10 articles

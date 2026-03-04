@@ -25,6 +25,7 @@ type Config struct {
 	RapidAPIKey        string
 	Cache              cache.CacheInterface
 	APIFootballBaseURL string
+	NewsBaseURL        string // optional; when set, news client uses this (e.g. for tests)
 	OpenAIKey          string
 	OpenAIBaseURL      string
 	AIPromptGenerator  *ai.PromptGenerator
