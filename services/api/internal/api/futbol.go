@@ -25,7 +25,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	date := queryParams.Get("date")
 	leagueID := queryParams.Get("league_id")
-
+	log.Printf("League ID: %s\n", leagueID)
 	if date == "" {
 		log.Printf("ERROR: date parameter is missing")
 		respondWithError(w, http.StatusBadRequest, "date parameter is required")
@@ -66,17 +66,19 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	}
 	// If not in cache or error occurred, fetch from API
 	// Build URL with optional league filter
-	url := fmt.Sprintf("https://api-football-v1.p.rapidapi.com/v3/fixtures?date=%s", date)
+	url := fmt.Sprintf("https://api-football-v1.p.rapidapi.com/v3/fixtures?&date=%s", date)
 	if leagueID != "" {
 		// When filtering by league, RapidAPI requires a season parameter
 		// Extract year from date to determine season
-		dateTime, err := time.Parse("2006-01-02", date)
+		// dateTime, err := time.Parse("2006-01-02", date)
 		if err != nil {
 			log.Printf("ERROR: Invalid date format: %s\n", date)
 			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
 			return
 		}
-		season := dateTime.Year()
+		// FIXME: Need to dynamically set the season year
+		// season := dateTime.Year()
+		season := 2025
 		url = fmt.Sprintf("%s&league=%s&season=%d", url, leagueID, season)
 		log.Printf("URL: %s\n", url)
 		log.Printf("Filtering matches by league_id: %s, season: %d\n", leagueID, season)

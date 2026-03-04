@@ -12,7 +12,7 @@ import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs
 import type {RootStackParamList} from '../types/navigation';
 // import StoryScreen from './StoryScreen';
 import LineupScreen from './LineupScreen';
-import NewsScreen from './NewsScreen';
+import MatchNewsScreen from './MatchNewsScreen';
 // import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
 
@@ -131,7 +131,7 @@ const MatchDetailsScreen = () => {
           options={{
             tabBarLabel: 'News',
           }}>
-          {() => <NewsScreen match={match} />}
+          {() => <MatchNewsScreen match={match} />}
         </TabScreen>
         {/* <TabScreen
           name="Debate"

@@ -1,0 +1,188 @@
+openapi: 3.0.3
+info:
+  title: Fucci News API
+  description: API endpoints for fetching football news articles
+  version: 1.0.0
+  contact:
+    name: Fucci API Support
+
+servers:
+  - url: https://api.fucci.app/v1
+    description: Production server
+  - url: http://localhost:8080/v1
+    description: Local development server
+
+paths:
+  /api/news/football:
+    get:
+      summary: Get football news articles
+      description: |
+        Fetches up to 10 recent football news articles from RapidAPI Real-Time News Data.
+        Articles are cached for 15 minutes to minimize API calls.
+        Returns cached data if available, otherwise fetches fresh data from RapidAPI.
+      operationId: getFootballNews
+      tags:
+        - News
+      responses:
+        '200':
+          description: Successfully retrieved news articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+              example:
+                todayArticles:
+                  - id: "abc123"
+                    title: "Premier League Match Results"
+                    snippet: "Manchester United defeats Liverpool 2-1 in thrilling match"
+                    imageUrl: "https://example.com/image.jpg"
+                    sourceUrl: "https://example.com/article"
+                    sourceName: "ESPN"
+                    publishedAt: "2024-11-20T10:30:00Z"
+                    relativeTime: "2 hours ago"
+                  - id: "def456"
+                    title: "Champions League Updates"
+                    snippet: "Real Madrid advances to quarterfinals"
+                    imageUrl: "https://example.com/image2.jpg"
+                    sourceUrl: "https://example.com/article2"
+                    sourceName: "BBC Sport"
+                    publishedAt: "2024-11-20T08:15:00Z"
+                    relativeTime: "4 hours ago"
+                historyArticles:
+                  - id: "ghi789"
+                    title: "World Cup History"
+                    snippet: "Looking back at classic moments"
+                    imageUrl: "https://example.com/image3.jpg"
+                    sourceUrl: "https://example.com/article3"
+                    sourceName: "FIFA"
+                    publishedAt: "2024-11-18T14:00:00Z"
+                    relativeTime: "2 days ago"
+                cached: false
+                cachedAt: "2024-11-20T12:30:00Z"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Failed to fetch news from external API"
+        '503':
+          description: Service unavailable (API error, but cached data returned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+              example:
+                todayArticles:
+                  - id: "abc123"
+                    title: "Premier League Match Results"
+                    snippet: "Manchester United defeats Liverpool 2-1 in thrilling match"
+                    imageUrl: "https://example.com/image.jpg"
+                    sourceUrl: "https://example.com/article"
+                    sourceName: "ESPN"
+                    publishedAt: "2024-11-20T10:30:00Z"
+                    relativeTime: "2 hours ago"
+                historyArticles: []
+                cached: true
+                cachedAt: "2024-11-20T10:30:00Z"
+
+components:
+  schemas:
+    NewsResponse:
+      type: object
+      required:
+        - todayArticles
+        - historyArticles
+        - cached
+      properties:
+        todayArticles:
+          type: array
+          description: Recent football news (e.g. last 24h)
+          items:
+            $ref: '#/components/schemas/NewsArticle'
+        historyArticles:
+          type: array
+          description: Historical football news
+          items:
+            $ref: '#/components/schemas/NewsArticle'
+        cached:
+          type: boolean
+          description: Whether the response is from cache
+          example: false
+        cachedAt:
+          type: string
+          format: date-time
+          description: |
+            ISO 8601 timestamp. When cached is true, when the data was stored in cache.
+            When cached is false, when this response was stored for future cache use.
+            May be present in both cases.
+          example: "2024-11-20T10:30:00Z"
+
+    NewsArticle:
+      type: object
+      required:
+        - id
+        - title
+        - sourceUrl
+        - sourceName
+        - publishedAt
+        - relativeTime
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the article (generated from URL hash)
+          example: "abc123"
+        title:
+          type: string
+          description: Article headline
+          example: "Premier League Match Results"
+        snippet:
+          type: string
+          description: Article preview text (optional)
+          example: "Manchester United defeats Liverpool 2-1 in thrilling match"
+        imageUrl:
+          type: string
+          format: uri
+          description: Article thumbnail image URL (optional)
+          example: "https://example.com/image.jpg"
+        sourceUrl:
+          type: string
+          format: uri
+          description: Full article URL
+          example: "https://example.com/article"
+        sourceName:
+          type: string
+          description: Publication/source name
+          example: "ESPN"
+        publishedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of publication
+          example: "2024-11-20T10:30:00Z"
+        relativeTime:
+          type: string
+          description: Human-readable relative time (e.g., "2 hours ago", "1 day ago")
+          example: "2 hours ago"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Failed to fetch news from external API"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authenticated requests (not required for news endpoint)
+
+tags:
+  - name: News
+    description: Football news articles endpoints
+

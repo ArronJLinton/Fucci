@@ -1,4 +1,4 @@
-import React, {useState, useCallback} from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -11,28 +11,57 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
+import type {Match} from '../types/match';
 import type {NavigationProp} from '../types/navigation';
-import {useNews} from '../hooks/useNews';
+import {useMatchNews} from '../hooks/useMatchNews';
 import type {NewsArticle} from '../types/news';
 
-const NewsScreen: React.FC = () => {
-  const navigation = useNavigation<NavigationProp>();
-  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const {
-    todayArticles,
-    historyArticles,
-    loading,
-    error,
-    refreshing,
-    invalidateCache,
-  } = useNews();
+interface MatchNewsScreenProps {
+  match: Match;
+}
 
-  const handleImageError = useCallback((articleId: string) => {
-    setFailedImageIds(prev => new Set(prev).add(articleId));
-  }, []);
+// Completed match statuses (FT, AET, PEN, etc.)
+const COMPLETED_STATUSES = [
+  'FT',
+  'AET',
+  'PEN',
+  'AWD',
+  'WO',
+  'CANC',
+  'ABD',
+  'PST',
+];
+
+function isMatchCompleted(statusShort: string): boolean {
+  return COMPLETED_STATUSES.includes(statusShort);
+}
+
+// Estimate match end time: kickoff + 105 min (90 min + 15 min half-time)
+function getMatchEndTimeISO(fixtureDate: string): string {
+  const kickoff = new Date(fixtureDate);
+  kickoff.setMinutes(kickoff.getMinutes() + 105);
+  return kickoff.toISOString();
+}
+
+const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
+  const navigation = useNavigation<NavigationProp>();
+  const homeTeam = match.teams.home.name;
+  const awayTeam = match.teams.away.name;
+  const matchId = match.fixture.id.toString();
+  const matchStatus = match.fixture.status.short;
+  const matchEndTime = isMatchCompleted(matchStatus)
+    ? getMatchEndTimeISO(match.fixture.date)
+    : '';
+
+  const {articles, loading, error, refreshing, invalidateCache} = useMatchNews(
+    homeTeam,
+    awayTeam,
+    matchId,
+    matchStatus,
+    matchEndTime,
+  );
 
   const handleRefresh = () => {
-    setFailedImageIds(new Set());
     // Invalidate cache to mark as stale and trigger refetch
     // This respects React Query's caching strategy while ensuring fresh data
     invalidateCache();
@@ -43,29 +72,25 @@ const NewsScreen: React.FC = () => {
   };
 
   const renderImage = (article: NewsArticle) => {
-    const showPlaceholder = !article.imageUrl || failedImageIds.has(article.id);
-    const placeholder = (
+    if (article.imageUrl) {
+      return (
+        <Image
+          source={{uri: article.imageUrl}}
+          style={styles.newsImage}
+          resizeMode="cover"
+        />
+      );
+    }
+
+    // Placeholder icon
+    return (
       <View style={[styles.newsImage, styles.placeholderImage]}>
         <Ionicons name="football-outline" size={32} color="#999" />
       </View>
     );
-    if (showPlaceholder) {
-      return placeholder;
-    }
-    return (
-      <Image
-        source={{uri: article.imageUrl}}
-        style={styles.newsImage}
-        resizeMode="cover"
-        onError={() => handleImageError(article.id)}
-      />
-    );
   };
 
-  const todayArticlesToShow = todayArticles.slice(0, 5);
-  const historyArticlesToShow = historyArticles.slice(0, 5);
-  const hasArticles =
-    todayArticlesToShow.length > 0 || historyArticlesToShow.length > 0;
+  const hasArticles = articles.length > 0;
 
   if (loading && !hasArticles) {
     return (
@@ -95,7 +120,9 @@ const NewsScreen: React.FC = () => {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="newspaper-outline" size={48} color="#999" />
-        <Text style={styles.noDataText}>No news available right now</Text>
+        <Text style={styles.noDataText}>
+          No news available for {homeTeam} vs {awayTeam}
+        </Text>
         <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
           <Ionicons
             name="refresh"
@@ -120,61 +147,31 @@ const NewsScreen: React.FC = () => {
         />
       }>
       <View style={styles.newsContainer}>
-        {/* Today's News Section */}
-        {todayArticlesToShow.length > 0 && (
-          <>
-            <View style={[styles.sectionHeader, styles.firstSectionHeader]}>
-              <Text style={styles.sectionTitle}>Today's News</Text>
+        {/* Match News Section */}
+        <View style={[styles.sectionHeader, styles.firstSectionHeader]}>
+          <Text style={styles.sectionTitle}>
+            {homeTeam} vs {awayTeam}
+          </Text>
+        </View>
+        {articles.map((item: NewsArticle) => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.newsItem}
+            onPress={() => handleNewsItemPress(item.sourceUrl)}
+            activeOpacity={0.7}>
+            <View style={styles.newsContent}>
+              <Text style={styles.newsTitle} numberOfLines={3}>
+                {item.title}
+              </Text>
+              <View style={styles.meta}>
+                <Text style={styles.newsPublisher}>{item.sourceName}</Text>
+                <Text style={styles.separator}>•</Text>
+                <Text style={styles.time}>{item.relativeTime}</Text>
+              </View>
             </View>
-            {todayArticlesToShow.map((item: NewsArticle) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.newsItem}
-                onPress={() => handleNewsItemPress(item.sourceUrl)}
-                activeOpacity={0.7}>
-                <View style={styles.newsContent}>
-                  <Text style={styles.newsTitle} numberOfLines={3}>
-                    {item.title}
-                  </Text>
-                  <View style={styles.meta}>
-                    <Text style={styles.newsPublisher}>{item.sourceName}</Text>
-                    <Text style={styles.separator}>•</Text>
-                    <Text style={styles.time}>{item.relativeTime}</Text>
-                  </View>
-                </View>
-                {renderImage(item)}
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-
-        {/* World Football History Section */}
-        {historyArticlesToShow.length > 0 && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>World Football History</Text>
-            </View>
-            {historyArticlesToShow.map((item: NewsArticle) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.newsItem}
-                onPress={() => handleNewsItemPress(item.sourceUrl)}
-                activeOpacity={0.7}>
-                <View style={styles.newsContent}>
-                  <Text style={styles.newsTitle} numberOfLines={3}>
-                    {item.title}
-                  </Text>
-                  <View style={styles.meta}>
-                    <Text style={styles.newsPublisher}>{item.sourceName}</Text>
-                    <Text style={styles.separator}>•</Text>
-                    <Text style={styles.time}>{item.relativeTime}</Text>
-                  </View>
-                </View>
-                {renderImage(item)}
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
+            {renderImage(item)}
+          </TouchableOpacity>
+        ))}
       </View>
     </ScrollView>
   );
@@ -257,31 +254,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
-  placeholderTitle: {
-    fontSize: 10,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
-    fontWeight: '500',
-    paddingHorizontal: 4,
-  },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
   newsContainer: {
     padding: 16,
   },
@@ -346,4 +318,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NewsScreen;
+export default MatchNewsScreen;

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
@@ -10,11 +9,13 @@ import {WebView} from 'react-native-webview';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NavigationProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {RootStackParamList} from '../types/navigation';
 
 type NewsWebViewRouteProp = RouteProp<RootStackParamList, 'NewsWebView'>;
 
 const NewsWebViewScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute<NewsWebViewRouteProp>();
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, 'NewsWebView'>>();
@@ -26,16 +27,7 @@ const NewsWebViewScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={handleClose}
-          accessibilityLabel="Close news view">
-          <Ionicons name="close" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
-
+    <View style={styles.container}>
       {isLoading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
@@ -53,7 +45,18 @@ const NewsWebViewScreen: React.FC = () => {
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
       />
-    </SafeAreaView>
+
+      <View style={[styles.headerSafeArea, {paddingTop: insets.top}]}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={handleClose}
+            accessibilityLabel="Close news view">
+            <Ionicons name="close" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
   );
 };
 
@@ -62,23 +65,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  webview: {
+    flex: 1,
+  },
+  headerSafeArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   closeButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#f0f0f0',
-  },
-  webview: {
-    flex: 1,
   },
   loadingContainer: {
     position: 'absolute',

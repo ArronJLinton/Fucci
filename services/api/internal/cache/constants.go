@@ -10,7 +10,7 @@ const (
 	LeagueTableTTL = 12 * time.Hour
 	LineupTTL      = 12 * time.Hour
 	StandingsTTL   = 6 * time.Hour
-	NewsTTL        = 30 * time.Minute
+	NewsTTL        = 15 * time.Minute // News feed cache TTL (matches frontend React Query gcTime/cache time)
 	DefaultTTL     = 1 * time.Hour
 )
 

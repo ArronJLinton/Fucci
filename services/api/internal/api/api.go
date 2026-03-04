@@ -25,6 +25,7 @@ type Config struct {
 	RapidAPIKey        string
 	Cache              cache.CacheInterface
 	APIFootballBaseURL string
+	NewsBaseURL        string // optional; when set, news client uses this (e.g. for tests)
 	OpenAIKey          string
 	OpenAIBaseURL      string
 	AIPromptGenerator  *ai.PromptGenerator
@@ -73,6 +74,11 @@ func New(c Config) http.Handler {
 
 	googleRouter := chi.NewRouter()
 	googleRouter.Get("/search", c.search)
+
+	newsRouter := chi.NewRouter()
+	// Register more specific route first to avoid route conflicts
+	newsRouter.Get("/football/match", c.getMatchNews)
+	newsRouter.Get("/football", c.getFootballNews)
 
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)
@@ -134,6 +140,7 @@ func New(c Config) http.Handler {
 	router.Mount("/users", userRouter)
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)
+	router.Mount("/news", newsRouter)
 	router.Mount("/debates", debateRouter)
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)

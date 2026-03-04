@@ -12,12 +12,15 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {StatusBar} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import {QueryClientProvider} from '@tanstack/react-query';
+import {queryClient} from './src/config/queryClient';
 
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
 import MatchDetailsScreen from './src/screens/MatchDetailsScreen';
 import CameraPreviewScreen from './src/screens/CameraPreviewScreen';
 import NewsWebViewScreen from './src/screens/NewsWebViewScreen';
+import NewsScreen from './src/screens/NewsScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -53,6 +56,41 @@ const HomeStack = () => {
           },
           headerShadowVisible: false,
           headerTintColor: '#007AFF',
+        }}
+      />
+      <StackScreen
+        name="NewsWebView"
+        component={NewsWebViewScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
+      />
+    </StackNavigator>
+  );
+};
+
+const NewsStack = () => {
+  return (
+    <StackNavigator>
+      <StackScreen
+        name="NewsFeed"
+        component={NewsScreen}
+        options={{
+          headerShown: false,
+          title: '',
+        }}
+      />
+      <StackScreen
+        name="NewsWebView"
+        component={NewsWebViewScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
+          gestureEnabled: true,
         }}
       />
     </StackNavigator>
@@ -100,6 +138,18 @@ const MainStack = () => {
             title: '',
           }}
         />
+        <Tab.Screen
+          name="News"
+          component={NewsStack}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="newspaper-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
       </TabNavigator>
     </SafeAreaView>
   );
@@ -107,30 +157,24 @@ const MainStack = () => {
 
 function App(): React.JSX.Element {
   return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{headerShown: false}}>
-          <Stack.Screen name="Main" component={MainStack} />
-          <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
-            <Stack.Screen
-              name="CameraPreview"
-              component={CameraPreviewScreen}
-              options={{
-                animation: 'slide_from_bottom',
-              }}
-            />
-            <StackScreen
-              name="NewsWebView"
-              component={NewsWebViewScreen}
-              options={{
-                headerShown: false,
-                animation: 'slide_from_bottom',
-              }}
-            />
-          </Stack.Group>
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{headerShown: false}}>
+            <Stack.Screen name="Main" component={MainStack} />
+            <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
+              <Stack.Screen
+                name="CameraPreview"
+                component={CameraPreviewScreen}
+                options={{
+                  animation: 'slide_from_bottom',
+                }}
+              />
+            </Stack.Group>
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }
 

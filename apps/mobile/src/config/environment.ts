@@ -46,6 +46,11 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
 
 export const environment = getEnvironmentConfig();
 
+// Log the API base URL in development for debugging
+if (environment.NODE_ENV === 'development') {
+  console.log('[Environment] API_BASE_URL:', environment.API_BASE_URL);
+}
+
 // Helper functions for common environment checks
 export const isDevelopment = () => environment.NODE_ENV === 'development';
 export const isProduction = () => environment.NODE_ENV === 'production';

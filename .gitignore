@@ -232,3 +232,6 @@ out/
 # pnpm-lock.yaml
 node_modules
 .DS_Store
+
+# SpecStory AI session history
+.specstory/
