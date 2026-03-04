@@ -175,7 +175,7 @@ interface NewsFeedState {
 ```
 Frontend (React Query)
   ↓
-Backend API Endpoint (/api/v1/news/football)
+Backend API Endpoint (/v1/api/news/football)
   ↓
 Check Redis Cache (15min TTL)
   ↓
