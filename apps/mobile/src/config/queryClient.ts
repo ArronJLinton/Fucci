@@ -5,7 +5,7 @@ import {QueryClient} from '@tanstack/react-query';
  *
  * Cache Strategy:
  * - staleTime: 5 minutes - Data is considered fresh for 5 minutes
- * - cacheTime: 15 minutes - Cached data is kept for 15 minutes (matches backend Redis TTL)
+ * - gcTime: 15 minutes - Cached data is kept for 15 minutes (matches backend Redis TTL)
  * - retry: 3 attempts with exponential backoff
  */
 export const queryClient = new QueryClient({
