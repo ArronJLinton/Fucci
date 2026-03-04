@@ -25,7 +25,7 @@ export interface NewsAPIResponse {
   todayArticles: NewsArticle[];
   historyArticles: NewsArticle[];
   cached: boolean;
-  cachedAt?: string; // ISO 8601 format (only present if cached is true)
+  cachedAt?: string; // ISO 8601 format; may be set for both cached and fresh responses
   // Deprecated: Use todayArticles and historyArticles instead
   articles?: NewsArticle[];
 }
@@ -36,5 +36,5 @@ export interface NewsAPIResponse {
 export interface MatchNewsAPIResponse {
   articles: NewsArticle[];
   cached: boolean;
-  cachedAt?: string; // ISO 8601 format (only present if cached is true)
+  cachedAt?: string; // ISO 8601 format; may be set for both cached and fresh responses
 }
