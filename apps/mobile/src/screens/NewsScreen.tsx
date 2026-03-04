@@ -11,16 +11,11 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
-import type {Match} from '../types/match';
 import type {NavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
 
-interface NewsScreenProps {
-  match?: Match; // Optional - if provided, shows match-specific news, otherwise general football news
-}
-
-const NewsScreen: React.FC<NewsScreenProps> = ({match}) => {
+const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const {
     todayArticles,
