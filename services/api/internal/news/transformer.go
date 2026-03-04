@@ -2,6 +2,7 @@ package news
 
 import (
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -30,14 +31,12 @@ func TransformRapidAPIResponse(rapidAPIResp *RapidAPIResponse) (*NewsAPIResponse
 	articles := make([]NewsArticle, 0, len(rapidAPIResp.Data))
 
 	for _, article := range rapidAPIResp.Data {
-		// Generate article ID from URL
 		articleID, err := GenerateArticleID(article.Link)
 		if err != nil {
-			// Log error but continue with other articles
+			log.Printf("news: skipping article, GenerateArticleID failed for link %q: %v", article.Link, err)
 			continue
 		}
 
-		// Compute relative time
 		relativeTime := computeRelativeTime(article.PublishedDatetimeUTC)
 
 		transformedArticle := NewsArticle{
@@ -69,6 +68,7 @@ func TransformTodayAndHistoryResponse(resp *TodayAndHistoryResponse) (*NewsAPIRe
 		for _, article := range resp.TodayResponse.Data {
 			articleID, err := GenerateArticleID(article.Link)
 			if err != nil {
+				log.Printf("news: skipping today article, GenerateArticleID failed for link %q: %v", article.Link, err)
 				continue
 			}
 
@@ -93,6 +93,7 @@ func TransformTodayAndHistoryResponse(resp *TodayAndHistoryResponse) (*NewsAPIRe
 		for _, article := range resp.HistoryResponse.Data {
 			articleID, err := GenerateArticleID(article.Link)
 			if err != nil {
+				log.Printf("news: skipping history article, GenerateArticleID failed for link %q: %v", article.Link, err)
 				continue
 			}
 
@@ -194,14 +195,12 @@ func TransformMatchNewsResponse(rapidAPIResp *RapidAPIResponse) (*MatchNewsAPIRe
 	articles := make([]NewsArticle, 0, len(rapidAPIResp.Data))
 
 	for _, article := range rapidAPIResp.Data {
-		// Generate article ID from URL
 		articleID, err := GenerateArticleID(article.Link)
 		if err != nil {
-			// Log error but continue with other articles
+			log.Printf("news: skipping match article, GenerateArticleID failed for link %q: %v", article.Link, err)
 			continue
 		}
 
-		// Compute relative time
 		relativeTime := computeRelativeTime(article.PublishedDatetimeUTC)
 
 		transformedArticle := NewsArticle{
