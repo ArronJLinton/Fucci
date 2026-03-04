@@ -19,10 +19,16 @@ func GenerateArticleID(articleURL string) (string, error) {
 		return "", fmt.Errorf("article URL cannot be empty")
 	}
 
-	// Validate URL format
-	_, err := url.Parse(articleURL)
+	// Require absolute http(s) URL so we reject relative or invalid inputs (e.g. "foo", "/path")
+	u, err := url.Parse(articleURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL format: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("article URL must be http or https, got scheme %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("article URL must have a host")
 	}
 
 	// Generate SHA256 hash of the URL
