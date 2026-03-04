@@ -118,6 +118,7 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("Cache get error: %v\n", err)
+		exists = false // no usable cached data for fallback
 	}
 
 	// Create news client
