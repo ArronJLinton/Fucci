@@ -55,3 +55,25 @@ func TestBuildUserPrompt_OmitsH2HAndLeagueTableWhenEmpty(t *testing.T) {
 		t.Error("prompt should not contain LEAGUE TABLE when summary is empty")
 	}
 }
+
+func TestExtractJSONFromContent_StripsMarkdownFences(t *testing.T) {
+	jsonOnly := `{"headline":"Test","description":"Desc","cards":[]}`
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{"raw json", jsonOnly, jsonOnly},
+		{"with ```json fence", "```json\n" + jsonOnly + "\n```", jsonOnly},
+		{"with ``` fence", "```\n" + jsonOnly + "\n```", jsonOnly},
+		{"with leading whitespace", "  " + jsonOnly, jsonOnly},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractJSONFromContent(tt.content)
+			if got != tt.expected {
+				t.Errorf("extractJSONFromContent() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

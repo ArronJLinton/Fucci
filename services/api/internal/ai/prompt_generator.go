@@ -193,14 +193,27 @@ func (pg *PromptGenerator) generatePrompt(ctx context.Context, matchData MatchDa
 		return nil, fmt.Errorf("OpenAI API call failed: %w", err)
 	}
 
-	// Parse the response
+	// Parse the response (strip markdown code fences if present; models often wrap JSON in ```json ... ```)
+	content := extractJSONFromContent(response.Choices[0].Message.Content)
 	var prompt DebatePrompt
-	err = json.Unmarshal([]byte(response.Choices[0].Message.Content), &prompt)
+	err = json.Unmarshal([]byte(content), &prompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
 	}
 
 	return &prompt, nil
+}
+
+// extractJSONFromContent returns the first JSON object from content, stripping optional markdown code fences.
+func extractJSONFromContent(content string) string {
+	s := strings.TrimSpace(content)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSpace(s)
+	if idx := strings.LastIndex(s, "```"); idx >= 0 {
+		s = s[:idx]
+	}
+	return strings.TrimSpace(s)
 }
 
 func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
@@ -209,7 +222,7 @@ func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
 
 IMPORTANT: This is a PRE-MATCH debate. The match has NOT happened yet. Focus on predictions, expectations, and pre-match analysis.
 
-Generate a JSON response with this structure:
+Respond with ONLY a single JSON object (no markdown, no code fences, no extra text). Use this structure:
 {
   "headline": "A compelling, controversial headline that will spark debate",
   "description": "A brief description providing context for the debate",
@@ -248,7 +261,7 @@ Make the debate engaging and controversial but respectful.`
 
 IMPORTANT: This is a POST-MATCH debate. The match has already happened. Focus on analysis of what occurred.
 
-Generate a JSON response with this structure:
+Respond with ONLY a single JSON object (no markdown, no code fences, no extra text). Use this structure:
 {
   "headline": "A compelling, controversial headline that will spark debate",
   "description": "A brief description providing context for the debate",

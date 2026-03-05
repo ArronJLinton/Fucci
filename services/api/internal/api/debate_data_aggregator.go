@@ -2,15 +2,11 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"net/url"
-	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
+	"github.com/ArronJLinton/fucci-api/internal/news"
 )
 
 type DebateDataAggregator struct {
@@ -117,8 +113,8 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Set the enhanced stats
 	matchData.Stats = enhancedStats
 
-	// Fetch news headlines
-	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.HomeTeam, matchReq.AwayTeam)
+	// Fetch news headlines via news module (FetchMatchNews)
+	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.Status)
 	if err != nil {
 		fmt.Printf("Failed to fetch news headlines: %v\n", err)
 	} else {
@@ -232,100 +228,25 @@ func getNumericStat(statistics []FixtureStatEntry, statType string) int {
 	return 0
 }
 
-// fetchNewsHeadlines gets relevant news headlines for the teams
-func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTeam, awayTeam string) ([]string, error) {
-	var headlines []string
+// fetchNewsHeadlines gets match news via the news module's FetchMatchNews (Real-Time News Data API).
+func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTeam, awayTeam, matchStatus string) ([]string, error) {
+	newsClient := news.NewClient(dda.Config.RapidAPIKey)
+	if dda.Config.NewsBaseURL != "" {
+		newsClient = news.NewClientWithBaseURL(dda.Config.RapidAPIKey, dda.Config.NewsBaseURL)
+	}
 
-	// Search for home team news
-	homeHeadlines, err := dda.searchNews(ctx, homeTeam)
+	limit := 10
+	resp, err := newsClient.FetchMatchNews(homeTeam, awayTeam, limit, matchStatus, nil)
 	if err != nil {
-		fmt.Printf("Failed to fetch home team news: %v\n", err)
-	} else {
-		headlines = append(headlines, homeHeadlines...)
+		return nil, err
 	}
 
-	// Search for away team news
-	awayHeadlines, err := dda.searchNews(ctx, awayTeam)
-	if err != nil {
-		fmt.Printf("Failed to fetch away team news: %v\n", err)
-	} else {
-		headlines = append(headlines, awayHeadlines...)
-	}
-
-	// Search for match-up news
-	matchupQuery := fmt.Sprintf("%s vs %s", homeTeam, awayTeam)
-	matchupHeadlines, err := dda.searchNews(ctx, matchupQuery)
-	if err != nil {
-		fmt.Printf("Failed to fetch matchup news: %v\n", err)
-	} else {
-		headlines = append(headlines, matchupHeadlines...)
-	}
-
-	// Limit to top 10 headlines to avoid overwhelming the AI
-	if len(headlines) > 10 {
-		headlines = headlines[:10]
-	}
-
-	return headlines, nil
-}
-
-// searchNews performs a Google News search
-func (dda *DebateDataAggregator) searchNews(ctx context.Context, query string) ([]string, error) {
-	// Construct the URL
-	baseURL := "https://google-news13.p.rapidapi.com/search"
-	params := url.Values{}
-	params.Add("keyword", query)
-	params.Add("lr", "en-US")
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"?"+params.Encode(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating news request: %w", err)
-	}
-
-	// Add RapidAPI headers
-	req.Header.Add("x-rapidapi-key", dda.Config.RapidAPIKey)
-	req.Header.Add("x-rapidapi-host", "google-news13.p.rapidapi.com")
-
-	// Make the request
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making news request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading news response: %w", err)
-	}
-
-	// Check if response is successful
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("news API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse JSON response
-	var newsResponse struct {
-		Items []struct {
-			Title string `json:"title"`
-		} `json:"items"`
-	}
-
-	err = json.Unmarshal(body, &newsResponse)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing news response: %w", err)
-	}
-
-	// Extract headlines
-	var headlines []string
-	for _, item := range newsResponse.Items {
-		if item.Title != "" {
-			headlines = append(headlines, item.Title)
+	headlines := make([]string, 0, len(resp.Data))
+	for _, article := range resp.Data {
+		if article.Title != "" {
+			headlines = append(headlines, article.Title)
 		}
 	}
-
 	return headlines, nil
 }
 

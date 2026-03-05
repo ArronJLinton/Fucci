@@ -18,6 +18,7 @@
 Ensure the API has:
 
 - `OPENAI_API_KEY` – used by the prompt generator
+- `JWT_SECRET` – required for auth (generate with: `openssl rand -base64 32`)
 - Football API key (e.g. RapidAPI) – used for fixture, standings, and H2H (when added)
 - News API – existing news client used for the “news articles” source
 
@@ -92,6 +93,9 @@ Optional (already or to be aggregated): lineups, match stats, social sentiment.
 
 ## Troubleshooting
 
+- **JWT_SECRET is not set** – Add `JWT_SECRET` to your `.env`. Generate a value: `openssl rand -base64 32`. Without it, login and protected routes will not work.
+- **News API 403 "You are not subscribed to this API"** – Your RapidAPI key does not have an active subscription to the Google News API. Subscribe in the RapidAPI dashboard, or ignore; debate generation still runs with H2H and league table only.
+- **News API 429 "Too many requests"** – Rate limit hit (e.g. free tier). Wait before retrying or upgrade the news API plan. Debates are still generated with other context when news fails.
 - **501 Not Implemented** – `AIPromptGenerator` is nil; set `OPENAI_API_KEY` and ensure the API config wires the prompt generator.
 - **500 from generate** – Check logs for aggregation errors (e.g. fixture not found, football API key, or OpenAI errors).
 - **Empty or missing sections in prompt** – Verify H2H and league table fetchers are implemented and that fixture has `league_id`/`season` and team IDs for H2H.
