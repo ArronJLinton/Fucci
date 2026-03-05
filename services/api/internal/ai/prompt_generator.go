@@ -22,18 +22,20 @@ type CacheInterface interface {
 }
 
 type MatchData struct {
-	MatchID         string           `json:"match_id"`
-	HomeTeam        string           `json:"home_team"`
-	AwayTeam        string           `json:"away_team"`
-	Date            string           `json:"date"`
-	Status          string           `json:"status"`
-	Lineups         *LineupData      `json:"lineups,omitempty"`
-	Stats           *MatchStats      `json:"stats,omitempty"`
-	NewsHeadlines   []string         `json:"news_headlines,omitempty"`
-	SocialSentiment *SocialSentiment `json:"social_sentiment,omitempty"`
-	Venue           string           `json:"venue,omitempty"`
-	League          string           `json:"league,omitempty"`
-	Season          string           `json:"season,omitempty"`
+	MatchID            string           `json:"match_id"`
+	HomeTeam           string           `json:"home_team"`
+	AwayTeam           string           `json:"away_team"`
+	Date               string           `json:"date"`
+	Status             string           `json:"status"`
+	Lineups            *LineupData      `json:"lineups,omitempty"`
+	Stats              *MatchStats      `json:"stats,omitempty"`
+	NewsHeadlines      []string         `json:"news_headlines,omitempty"`
+	SocialSentiment    *SocialSentiment `json:"social_sentiment,omitempty"`
+	Venue              string           `json:"venue,omitempty"`
+	League             string           `json:"league,omitempty"`
+	Season             string           `json:"season,omitempty"`
+	HeadToHeadSummary  string           `json:"head_to_head_summary,omitempty"`
+	LeagueTableSummary string           `json:"league_table_summary,omitempty"`
 }
 
 type LineupData struct {
@@ -301,6 +303,18 @@ func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType strin
 		prompt.WriteString(fmt.Sprintf("Season: %s\n", matchData.Season))
 	}
 	prompt.WriteString("\n")
+
+	if matchData.HeadToHeadSummary != "" {
+		prompt.WriteString("HEAD-TO-HEAD:\n")
+		prompt.WriteString(matchData.HeadToHeadSummary)
+		prompt.WriteString("\n\n")
+	}
+
+	if matchData.LeagueTableSummary != "" {
+		prompt.WriteString("LEAGUE TABLE:\n")
+		prompt.WriteString(matchData.LeagueTableSummary)
+		prompt.WriteString("\n\n")
+	}
 
 	if matchData.Lineups != nil {
 		prompt.WriteString("LINEUPS:\n")

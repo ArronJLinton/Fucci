@@ -945,9 +945,11 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 			} `json:"fixture"`
 			Teams struct {
 				Home struct {
+					ID   int    `json:"id"`
 					Name string `json:"name"`
 				} `json:"home"`
 				Away struct {
+					ID   int    `json:"id"`
 					Name string `json:"name"`
 				} `json:"away"`
 			} `json:"teams"`
@@ -974,6 +976,7 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 				} `json:"penalty"`
 			} `json:"score"`
 			League struct {
+				ID     int    `json:"id"`
 				Name   string `json:"name"`
 				Season int    `json:"season"`
 			} `json:"league"`
@@ -1037,6 +1040,10 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 		Venue:           match.Fixture.Venue.Name,
 		League:          match.League.Name,
 		Season:          fmt.Sprintf("%d", match.League.Season),
+		LeagueID:        match.League.ID,
+		SeasonYear:      match.League.Season,
+		HomeTeamID:      match.Teams.Home.ID,
+		AwayTeamID:      match.Teams.Away.ID,
 	}, nil
 }
 
@@ -1287,6 +1294,10 @@ type MatchInfo struct {
 	Venue           string
 	League          string
 	Season          string
+	LeagueID        int
+	SeasonYear      int
+	HomeTeamID      int
+	AwayTeamID      int
 }
 
 // buildMatchDataRequest converts MatchInfo to MatchDataRequest
@@ -1314,5 +1325,9 @@ func (c *Config) buildMatchDataRequest(matchID string, matchInfo *MatchInfo) Mat
 		Venue:           matchInfo.Venue,
 		League:          matchInfo.League,
 		Season:          matchInfo.Season,
+		LeagueID:        matchInfo.LeagueID,
+		SeasonYear:      matchInfo.SeasonYear,
+		HomeTeamID:      matchInfo.HomeTeamID,
+		AwayTeamID:      matchInfo.AwayTeamID,
 	}
 }
