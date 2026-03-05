@@ -73,6 +73,53 @@ Builds appear in the EAS dashboard and are available via the internal distributi
 
 ---
 
+## 4b. Local EAS build steps (Phase 1)
+
+Run these from the **`apps/mobile`** directory (repo root: `apps/mobile`).
+
+### One-time setup
+
+- Ensure [EAS CLI](https://docs.expo.dev/build/setup/) is installed: `npm install -g eas-cli`
+- Log in: `eas login` (use your Expo account)
+- Ensure this project is linked to an EAS project: `eas project:link` (if not already)
+
+### Build for EAS Internal distribution
+
+Use the **preview** profile (configured in `eas.json` with `distribution: "internal"`):
+
+```bash
+cd apps/mobile
+
+# Build both iOS and Android (EAS Internal)
+yarn build:preview
+
+# Or with EAS CLI directly:
+eas build --platform all --profile preview
+```
+
+To build a single platform:
+
+```bash
+eas build --platform ios --profile preview
+# or
+eas build --platform android --profile preview
+```
+
+Builds run on Expo’s servers. When they finish, EAS shows a build URL and the app appears in your [Expo dashboard](https://expo.dev).
+
+### Where to find the internal distribution link
+
+1. Open [expo.dev](https://expo.dev) and sign in.
+2. Select your project (Fucci / this app).
+3. Go to **Builds** to see the latest builds and their status.
+4. Open a completed build and use **Install** (or the build’s shareable link) to get the internal distribution link. Share that link with testers so they can install the build (iOS: install via link; Android: download the APK from the link).
+
+### Verification (T006)
+
+Run one successful local build (`yarn build:preview` or `eas build --platform all --profile preview`), then confirm in the Expo dashboard that the builds completed and the internal distribution link works for at least one tester.
+
+---
+
 ## 5. Implementation Phases
 
 ### Phase 1: Local EAS build and EAS Internal distribution (do this first)

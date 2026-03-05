@@ -71,6 +71,10 @@ yarn web
 yarn build:android
 yarn build:ios
 
+# EAS Internal distribution (preview builds for testers)
+yarn build:preview
+# See specs/003-mobile-release/plan.md for full steps and where to find the install link.
+
 # Deploy to staging
 yarn staging
 

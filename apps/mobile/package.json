@@ -17,6 +17,7 @@
     "prod": "yarn env:prod && expo start",
     "build:android": "yarn env:prod && eas build -p android --profile production",
     "build:ios": "yarn env:prod && eas build -p ios --profile production",
+    "build:preview": "eas build --platform all --profile preview",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf node_modules && yarn install",
     "reset": "yarn clean && yarn env:dev"

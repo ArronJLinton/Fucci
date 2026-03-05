@@ -20,9 +20,9 @@
 - [x] T001 Document required GitHub secrets (EXPO_TOKEN for CI phase) and where to create them in specs/003-mobile-release/SECRETS.md
 - [x] T002 [P] Verify apps/mobile/eas.json has build.preview (distribution internal) and build.production; add or adjust for CI if needed in apps/mobile/eas.json
 - [x] T003 Document trigger choice (tag pattern mobile/v*, workflow_dispatch) and distribution choice (EAS Internal first, TestFlight later) in specs/003-mobile-release/plan.md
-- [ ] T004 [US1] Document local EAS build steps (run from apps/mobile: eas build --platform all --profile preview; where to find internal distribution link in Expo dashboard) in apps/mobile/README.md or specs/003-mobile-release/plan.md
-- [ ] T005 [US1] Add npm script build:preview (or build:internal) in apps/mobile/package.json that runs eas build --profile preview for convenience
-- [ ] T006 [US1] Run one successful local EAS build (iOS and/or Android with profile preview); verify builds in EAS dashboard and internal distribution link; optionally share link with a tester
+- [x] T004 [US1] Document local EAS build steps (run from apps/mobile: eas build --platform all --profile preview; where to find internal distribution link in Expo dashboard) in apps/mobile/README.md or specs/003-mobile-release/plan.md
+- [x] T005 [US1] Add npm script build:preview (or build:internal) in apps/mobile/package.json that runs eas build --profile preview for convenience
+- [ ] T006 [US1] Run one successful local EAS build (iOS and/or Android with profile preview); verify builds in EAS dashboard and internal distribution link; optionally share link with a tester (manual: run `yarn build:preview` from apps/mobile and verify in Expo dashboard)
 
 **Checkpoint**: Maintainers can build and distribute via EAS Internal from their machine; process is documented.
 
