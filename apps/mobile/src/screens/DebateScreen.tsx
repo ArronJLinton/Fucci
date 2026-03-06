@@ -6,7 +6,6 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -14,22 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import type { Match } from '../types/match';
-import type {
-  DebateResponse,
-  DebateType,
-  MockComment,
-} from '../types/debate';
+import type { DebateResponse, DebateType } from '../types/debate';
 import {
   fetchDebatesByMatch,
   fetchDebateById,
   createDebate,
 } from '../services/api';
-
-const MOCK_COMMENTS: MockComment[] = [
-  { id: '1', username: 'MrAficionado', content: 'He\'s more impactful and is a game changer for Madrid!', upvotes: 2700, replies: 12 },
-  { id: '2', username: 'GoPSG', content: 'Haaland is a goal machine.', upvotes: 1100, replies: 5 },
-  { id: '3', username: 'FutbolExpert', content: 'Both are world class—depends on the system.', upvotes: 827, replies: 0 },
-];
 
 const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'];
 
@@ -52,13 +41,6 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debateType, setDebateType] = useState<DebateType>(() => getDefaultDebateType(match));
-  const [commentInput, setCommentInput] = useState('');
-  const [mockComments, setMockComments] = useState<MockComment[]>(MOCK_COMMENTS);
-  const [mockVotePercentages, setMockVotePercentages] = useState<Record<string, number>>({
-    agree: 55,
-    disagree: 45,
-    wildcard: 0,
-  });
 
   const openSingleDebate = (selectedCardIndex: number) => {
     if (!debateData || !stackNav) return;
@@ -110,63 +92,6 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
     const defaultType = getDefaultDebateType(match);
     setDebateType((prev) => (prev !== defaultType ? defaultType : prev));
   }, [match?.fixture?.id, match?.fixture?.status?.short]);
-
-  const getStanceColor = (
-    stance: 'agree' | 'disagree' | 'wildcard' | DebateType,
-  ) => {
-    switch (stance) {
-      case 'agree':
-        return '#4CAF50';
-      case 'disagree':
-        return '#F44336';
-      case 'wildcard':
-        return '#FF9800';
-      default:
-        return '#666';
-    }
-  };
-
-  const getStanceIcon = (stance: string) => {
-    switch (stance) {
-      case 'agree':
-        return '👍';
-      case 'disagree':
-        return '👎';
-      case 'wildcard':
-        return '🎯';
-      default:
-        return '❓';
-    }
-  };
-
-  const handleVotePress = (stance: string) => {
-    if (!debateData?.cards?.length) return;
-    const key = stance as keyof typeof mockVotePercentages;
-    setMockVotePercentages((prev) => {
-      const next = { ...prev };
-      next[key] = (next[key] || 0) + 5;
-      const total = Object.values(next).reduce((a, b) => a + b, 0);
-      Object.keys(next).forEach((k) => {
-        next[k] = Math.round((next[k] / total) * 100);
-      });
-      return next;
-    });
-  };
-
-  const handleAddComment = () => {
-    if (!commentInput.trim()) return;
-    setMockComments((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        username: 'You',
-        content: commentInput.trim(),
-        upvotes: 0,
-        replies: 0,
-      },
-    ]);
-    setCommentInput('');
-  };
 
   const showLoading = isLoading || isGenerating;
   const loadingMessage = isGenerating
@@ -237,98 +162,6 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
               <Ionicons name="chevron-forward" size={18} color="#007AFF" />
             </View>
           </TouchableOpacity>
-
-          {debateData.cards && debateData.cards.length > 0 ? (
-            debateData.cards.map((card, index) => {
-              const pct = mockVotePercentages[card.stance] ?? 0;
-              return (
-                <View key={card.stance} style={styles.debateCard}>
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => openSingleDebate(index)}
-                  >
-                    <View style={styles.cardHeader}>
-                      <Text style={styles.stanceIcon}>
-                        {getStanceIcon(card.stance)}
-                      </Text>
-                      <View
-                        style={[
-                          styles.stanceBadge,
-                          { backgroundColor: getStanceColor(card.stance) },
-                        ]}
-                      >
-                        <Text style={styles.stanceText}>
-                          {card.stance.charAt(0).toUpperCase() +
-                            card.stance.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.cardTitle}>{card.title}</Text>
-                    <Text style={styles.cardDescription}>{card.description}</Text>
-                    <View style={styles.voteBarContainer}>
-                      <View style={styles.voteBarBg}>
-                        <View
-                          style={[
-                            styles.voteBarFill,
-                            {
-                              width: `${pct}%`,
-                              backgroundColor: getStanceColor(card.stance),
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.votePct}>{pct}%</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.voteNowLinkRow}
-                    activeOpacity={0.7}
-                    onPress={() => handleVotePress(card.stance)}
-                  >
-                    <Text style={styles.voteNowLinkLabel}>Vote Now</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#007AFF" />
-                  </TouchableOpacity>
-                </View>
-              );
-            })
-          ) : (
-            <Text style={styles.noDebateText}>No debate cards available.</Text>
-          )}
-
-          {/* Comments section (mock data - T031) */}
-          <View style={styles.commentsSection}>
-            <Text style={styles.commentsSectionTitle}>Top Comments</Text>
-            {mockComments.map((c) => (
-              <View key={c.id} style={styles.commentCard}>
-                <Text style={styles.commentUsername}>{c.username}</Text>
-                <Text style={styles.commentContent}>{c.content}</Text>
-                <View style={styles.commentMeta}>
-                  <Text style={styles.commentUpvotes}>↑ {c.upvotes}</Text>
-                  {c.replies != null && (
-                    <Text style={styles.commentReplies}>
-                      {c.replies} replies
-                    </Text>
-                  )}
-                </View>
-              </View>
-            ))}
-            <View style={styles.commentInputRow}>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Write your opinion..."
-                placeholderTextColor="#999"
-                value={commentInput}
-                onChangeText={setCommentInput}
-                multiline
-              />
-              <TouchableOpacity
-                style={styles.addCommentButton}
-                onPress={handleAddComment}
-              >
-                <Text style={styles.addCommentButtonText}>Add</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -439,165 +272,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#007AFF',
-  },
-  debateCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  stanceIcon: {
-    fontSize: 24,
-  },
-  stanceBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  stanceText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-    textTransform: 'uppercase',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    lineHeight: 22,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  voteBarContainer: {
-    marginBottom: 12,
-  },
-  voteBarBg: {
-    height: 8,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  voteBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  votePct: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  voteNowLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
-  },
-  voteNowLinkLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  noDebateText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  commentsSection: {
-    marginTop: 24,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  commentsSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
-  commentCard: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    paddingVertical: 12,
-  },
-  commentUsername: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  commentContent: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  commentMeta: {
-    flexDirection: 'row',
-    marginTop: 6,
-    gap: 12,
-  },
-  commentUpvotes: {
-    fontSize: 12,
-    color: '#4CAF50',
-  },
-  commentReplies: {
-    fontSize: 12,
-    color: '#999',
-  },
-  commentInputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginTop: 16,
-    gap: 8,
-  },
-  commentInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#333',
-    minHeight: 44,
-    maxHeight: 100,
-  },
-  addCommentButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-  addCommentButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 

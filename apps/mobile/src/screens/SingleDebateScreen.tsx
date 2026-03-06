@@ -14,7 +14,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import type {RootStackParamList} from '../types/navigation';
-import type {MockComment} from '../types/debate';
+import type {DebateCard, MockComment} from '../types/debate';
 
 type SingleDebateRouteProp = RouteProp<RootStackParamList, 'SingleDebate'>;
 
@@ -60,10 +60,55 @@ const SingleDebateScreen = () => {
   const [commentInput, setCommentInput] = useState('');
   const [sideAPct, setSideAPct] = useState(61);
   const [sideBPct, setSideBPct] = useState(39);
+  const [cardVotePcts, setCardVotePcts] = useState<Record<string, number>>({
+    agree: 55,
+    disagree: 45,
+    wildcard: 0,
+  });
 
   const headline = debate?.headline ?? 'Debate';
   const sideALabel = match?.teams?.home?.name ?? 'Yes';
   const sideBLabel = match?.teams?.away?.name ?? 'No';
+  const cards: DebateCard[] = debate?.cards ?? [];
+
+  const getStanceColor = (stance: string) => {
+    switch (stance) {
+      case 'agree':
+        return '#4CAF50';
+      case 'disagree':
+        return '#F44336';
+      case 'wildcard':
+        return '#FF9800';
+      default:
+        return '#6b7280';
+    }
+  };
+
+  const getStanceIcon = (stance: string) => {
+    switch (stance) {
+      case 'agree':
+        return '👍';
+      case 'disagree':
+        return '👎';
+      case 'wildcard':
+        return '🎯';
+      default:
+        return '❓';
+    }
+  };
+
+  const handleCardVote = (stance: string) => {
+    const key = stance as keyof typeof cardVotePcts;
+    setCardVotePcts(prev => {
+      const next = {...prev};
+      next[key] = (next[key] ?? 0) + 5;
+      const total = Object.values(next).reduce((a, b) => a + b, 0);
+      Object.keys(next).forEach(k => {
+        next[k] = Math.round((next[k] / total) * 100);
+      });
+      return next;
+    });
+  };
 
   const handleVoteNow = () => {
     setSideAPct(p => Math.min(100, p + 2));
@@ -187,6 +232,61 @@ const SingleDebateScreen = () => {
           <Text style={styles.voteNowLinkLabel}>Vote Now</Text>
           <Ionicons name="chevron-forward" size={18} color="#007AFF" />
         </TouchableOpacity>
+
+        {/* Agree / Disagree / Wildcard cards */}
+        {cards.length > 0 && (
+          <View style={styles.stanceCardsSection}>
+            {cards.map(card => {
+              const pct = cardVotePcts[card.stance] ?? 0;
+              return (
+                <View key={card.stance} style={styles.stanceCard}>
+                  <View style={styles.stanceCardHeader}>
+                    <Text style={styles.stanceCardIcon}>
+                      {getStanceIcon(card.stance)}
+                    </Text>
+                    <View
+                      style={[
+                        styles.stanceBadge,
+                        {backgroundColor: getStanceColor(card.stance)},
+                      ]}>
+                      <Text style={styles.stanceBadgeText}>
+                        {card.stance.charAt(0).toUpperCase() +
+                          card.stance.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.stanceCardTitle}>{card.title}</Text>
+                  <Text style={styles.stanceCardDescription}>
+                    {card.description}
+                  </Text>
+                  <View style={styles.stanceVoteBarBg}>
+                    <View
+                      style={[
+                        styles.stanceVoteBarFill,
+                        {
+                          width: `${pct}%`,
+                          backgroundColor: getStanceColor(card.stance),
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.stanceVotePct}>{pct}%</Text>
+                  <TouchableOpacity
+                    style={styles.stanceVoteNowRow}
+                    activeOpacity={0.7}
+                    onPress={() => handleCardVote(card.stance)}>
+                    <Text style={styles.stanceVoteNowLabel}>Vote Now</Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#007AFF"
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Top Comments header */}
         <View style={styles.commentsHeader}>
@@ -400,6 +500,80 @@ const styles = StyleSheet.create({
     borderTopColor: '#e5e7eb',
   },
   voteNowLinkLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  stanceCardsSection: {
+    marginBottom: 28,
+  },
+  stanceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  stanceCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stanceCardIcon: {
+    fontSize: 24,
+  },
+  stanceBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  stanceBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+    textTransform: 'uppercase',
+  },
+  stanceCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  stanceCardDescription: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  stanceVoteBarBg: {
+    height: 8,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  stanceVoteBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  stanceVotePct: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  stanceVoteNowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  stanceVoteNowLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#007AFF',
