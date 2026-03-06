@@ -19,4 +19,6 @@ type CacheInterface interface {
 	Incr(ctx context.Context, key string) (int64, error)
 	// Expire sets the TTL for the key.
 	Expire(ctx context.Context, key string, ttl time.Duration) error
+	// TTL returns the key's remaining TTL; if < 0 the key has no expiry or does not exist.
+	TTL(ctx context.Context, key string) (time.Duration, error)
 }

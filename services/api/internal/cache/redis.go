@@ -144,6 +144,11 @@ func (c *Cache) Expire(ctx context.Context, key string, ttl time.Duration) error
 	return c.client.Expire(ctx, key, ttl).Err()
 }
 
+// TTL returns the key's remaining TTL. Redis returns negative for no expiry (-1) or missing key (-2).
+func (c *Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
+	return c.client.TTL(ctx, key).Result()
+}
+
 // GetStats returns basic cache statistics
 func (c *Cache) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	info, err := c.client.Info(ctx).Result()

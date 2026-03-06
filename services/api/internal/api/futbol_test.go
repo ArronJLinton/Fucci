@@ -168,6 +168,7 @@ type MockCache struct {
 	setFunc    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	incrFunc   func(ctx context.Context, key string) (int64, error)
 	expireFunc func(ctx context.Context, key string, ttl time.Duration) error
+	ttlFunc    func(ctx context.Context, key string) (time.Duration, error)
 }
 
 func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
@@ -214,6 +215,13 @@ func (m *MockCache) Expire(ctx context.Context, key string, ttl time.Duration) e
 		return m.expireFunc(ctx, key, ttl)
 	}
 	return nil
+}
+
+func (m *MockCache) TTL(ctx context.Context, key string) (time.Duration, error) {
+	if m.ttlFunc != nil {
+		return m.ttlFunc(ctx, key)
+	}
+	return time.Minute, nil
 }
 
 func TestGetLeagueStandings(t *testing.T) {
