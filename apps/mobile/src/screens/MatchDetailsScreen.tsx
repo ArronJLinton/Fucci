@@ -18,6 +18,13 @@ import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
 import {generateDebateSet} from '../services/api';
 
+/** Keys we've already triggered preload for this session; avoids repeated POST and rate limit. */
+const preloadFiredFor = new Set<string>();
+
+function preloadKey(matchId: number, debateType: string): string {
+  return `${matchId}:${debateType}`;
+}
+
 type MatchDetailsRouteProp = RouteProp<RootStackParamList, 'MatchDetails'>;
 const Tab = createMaterialTopTabNavigator();
 const TabNavigator = Tab.Navigator as any;
@@ -39,13 +46,17 @@ const MatchDetailsScreen = () => {
     };
   }, []);
 
-  // Preload debate set when Match Details opens (background; do not block UI)
+  // Preload debate set when Match Details opens (background; do not block UI).
+  // Only once per (matchId, debateType) per session so status updates (e.g. live 1H→HT→2H→FT) don't hit rate limit.
   useEffect(() => {
     const matchId = match?.fixture?.id;
     if (!matchId) return;
     const status = match?.fixture?.status?.short ?? '';
     const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(status);
     const debateType = finished ? 'post_match' : 'pre_match';
+    const key = preloadKey(matchId, debateType);
+    if (preloadFiredFor.has(key)) return;
+    preloadFiredFor.add(key);
     generateDebateSet(matchId, debateType, 3).catch(() => {});
   }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
