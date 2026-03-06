@@ -84,7 +84,7 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 
 	// Fetch lineups if match is upcoming or in progress (optional: continue with other sources if unavailable)
 	if matchReq.Status == "NS" || matchReq.Status == "1H" || matchReq.Status == "2H" || matchReq.Status == "HT" {
-		lineups, err := dda.fetchLineups(ctx, matchReq.MatchID)
+		lineups, err := dda.fetchLineups(ctx, matchReq.MatchID, matchReq.HomeTeamID, matchReq.AwayTeamID)
 		if err != nil {
 			log.Printf("Lineup data unavailable for match %s, continuing with other sources: %v", matchReq.MatchID, err)
 		} else {
@@ -156,7 +156,8 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 }
 
 // fetchLineups gets lineup data for a match via Config.FetchLineupData (shared with futbol handler).
-func (dda *DebateDataAggregator) fetchLineups(ctx context.Context, matchID string) (*ai.LineupData, error) {
+// Maps each response block to home/away by team.id when homeTeamID/awayTeamID are set; otherwise falls back to index order.
+func (dda *DebateDataAggregator) fetchLineups(ctx context.Context, matchID string, homeTeamID, awayTeamID int) (*ai.LineupData, error) {
 	raw, err := dda.Config.FetchLineupData(ctx, matchID)
 	if err != nil {
 		return nil, err
@@ -165,9 +166,33 @@ func (dda *DebateDataAggregator) fetchLineups(ctx context.Context, matchID strin
 		return nil, fmt.Errorf("insufficient lineup data")
 	}
 
-	lineupData := &ai.LineupData{}
-	home, away := raw.Response[0], raw.Response[1]
+	homeIdx, awayIdx := 0, 1
+	for i := range raw.Response {
+		tid := raw.Response[i].Team.ID
+		if homeTeamID != 0 && tid == homeTeamID {
+			homeIdx = i
+		}
+		if awayTeamID != 0 && tid == awayTeamID {
+			awayIdx = i
+		}
+	}
+	if homeIdx == awayIdx {
+		// One ID matched or neither: assign the other slot to the remaining block
+		if homeTeamID != 0 || awayTeamID != 0 {
+			if homeTeamID != 0 {
+				awayIdx = 1 - homeIdx
+			} else {
+				homeIdx = 1 - awayIdx
+			}
+		} else {
+			homeIdx, awayIdx = 0, 1
+		}
+	}
 
+	home := &raw.Response[homeIdx]
+	away := &raw.Response[awayIdx]
+
+	lineupData := &ai.LineupData{}
 	for _, p := range home.StartXI {
 		lineupData.HomeStarters = append(lineupData.HomeStarters, apiPlayerToAIPlayer(p.Player))
 	}
