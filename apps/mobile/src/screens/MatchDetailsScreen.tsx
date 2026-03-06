@@ -18,11 +18,27 @@ import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
 import {generateDebateSet} from '../services/api';
 
-/** Keys we've already triggered preload for this session; avoids repeated POST and rate limit. */
+const MAX_PRELOAD_KEYS = 64;
+
+/** Keys we've successfully preloaded this session (avoid repeated POST). Only add on success so transient failures can retry. */
 const preloadFiredFor = new Set<string>();
+/** FIFO order for eviction when at capacity. */
+const preloadFiredOrder: string[] = [];
+/** In-flight preload keys so we don't double-fire while a request is pending. */
+const preloadInFlight = new Set<string>();
 
 function preloadKey(matchId: number, debateType: string): string {
   return `${matchId}:${debateType}`;
+}
+
+function markPreloadFired(key: string) {
+  if (preloadFiredFor.has(key)) return;
+  if (preloadFiredOrder.length >= MAX_PRELOAD_KEYS) {
+    const oldest = preloadFiredOrder.shift();
+    if (oldest) preloadFiredFor.delete(oldest);
+  }
+  preloadFiredOrder.push(key);
+  preloadFiredFor.add(key);
 }
 
 type MatchDetailsRouteProp = RouteProp<RootStackParamList, 'MatchDetails'>;
@@ -47,7 +63,7 @@ const MatchDetailsScreen = () => {
   }, []);
 
   // Preload debate set when Match Details opens (background; do not block UI).
-  // Only once per (matchId, debateType) per session so status updates (e.g. live 1H→HT→2H→FT) don't hit rate limit.
+  // Only mark as fired after success so 429/5xx/offline can retry later; bound set with LRU to avoid unbounded growth.
   useEffect(() => {
     const matchId = match?.fixture?.id;
     if (!matchId) return;
@@ -55,9 +71,18 @@ const MatchDetailsScreen = () => {
     const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(status);
     const debateType = finished ? 'post_match' : 'pre_match';
     const key = preloadKey(matchId, debateType);
-    if (preloadFiredFor.has(key)) return;
-    preloadFiredFor.add(key);
-    generateDebateSet(matchId, debateType, 3).catch(() => {});
+    if (preloadFiredFor.has(key) || preloadInFlight.has(key)) return;
+    preloadInFlight.add(key);
+    generateDebateSet(matchId, debateType, 3)
+      .then((result) => {
+        if (result != null && !result.rateLimited) {
+          markPreloadFired(key);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        preloadInFlight.delete(key);
+      });
   }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
   const MatchHeader = () => (
