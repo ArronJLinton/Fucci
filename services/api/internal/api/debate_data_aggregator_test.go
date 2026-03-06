@@ -217,8 +217,9 @@ func TestAggregateMatchData_SetsH2HAndStandingsWhenIDsPresent(t *testing.T) {
 	config := &Config{
 		APIFootballBaseURL: server.URL,
 		FootballAPIKey:     "test-key",
-		Cache:             nil,
-		RapidAPIKey:       "key",
+		Cache:              nil,
+		RapidAPIKey:        "key",
+		NewsBaseURL:        server.URL,
 	}
 	dda := NewDebateDataAggregator(config)
 
