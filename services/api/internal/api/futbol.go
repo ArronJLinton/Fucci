@@ -728,6 +728,13 @@ func (c *Config) FetchHeadToHead(ctx context.Context, homeTeamID, awayTeamID int
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		errorBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("headtohead non-200 status %d and read body error: %w", resp.StatusCode, readErr)
+		}
+		return "", fmt.Errorf("headtohead non-200 status %d: %s", resp.StatusCode, strings.TrimSpace(string(errorBody)))
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("headtohead read body: %w", err)
