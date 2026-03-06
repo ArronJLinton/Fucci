@@ -18,6 +18,7 @@ import {queryClient} from './src/config/queryClient';
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
 import MatchDetailsScreen from './src/screens/MatchDetailsScreen';
+import SingleDebateScreen from './src/screens/SingleDebateScreen';
 import CameraPreviewScreen from './src/screens/CameraPreviewScreen';
 import NewsWebViewScreen from './src/screens/NewsWebViewScreen';
 import NewsScreen from './src/screens/NewsScreen';
@@ -65,6 +66,16 @@ const HomeStack = () => {
           headerShown: false,
           presentation: 'card',
           animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
+      />
+      <StackScreen
+        name="SingleDebate"
+        component={SingleDebateScreen}
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
           gestureEnabled: true,
         }}
       />

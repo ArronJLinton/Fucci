@@ -7,13 +7,14 @@ import {
   SafeAreaView,
   useWindowDimensions,
 } from 'react-native';
-import {useRoute, RouteProp} from '@react-navigation/native';
+import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import type {RootStackParamList} from '../types/navigation';
 // import StoryScreen from './StoryScreen';
 import LineupScreen from './LineupScreen';
 import MatchNewsScreen from './MatchNewsScreen';
-// import DebateScreen from './DebateScreen';
+import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
 
 type MatchDetailsRouteProp = RouteProp<RootStackParamList, 'MatchDetails'>;
@@ -23,6 +24,7 @@ const TabScreen = Tab.Screen as any;
 
 const MatchDetailsScreen = () => {
   const route = useRoute<MatchDetailsRouteProp>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
@@ -89,7 +91,7 @@ const MatchDetailsScreen = () => {
         screenOptions={{
           tabBarScrollEnabled: true,
           tabBarItemStyle: {
-            width: width / 3,
+            width: width / 4,
             alignItems: 'center',
             justifyContent: 'center',
           },
@@ -133,13 +135,13 @@ const MatchDetailsScreen = () => {
           }}>
           {() => <MatchNewsScreen match={match} />}
         </TabScreen>
-        {/* <TabScreen
+        <TabScreen
           name="Debate"
           options={{
             tabBarLabel: 'Debate',
           }}>
-          {() => <DebateScreen match={match} />}
-        </TabScreen> */}
+          {() => <DebateScreen match={match} stackNavigation={navigation} />}
+        </TabScreen>
       </TabNavigator>
     </SafeAreaView>
   );

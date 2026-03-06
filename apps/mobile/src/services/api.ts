@@ -1,5 +1,8 @@
 // Import types
-import {DebateResponse} from '../types/debate';
+import {
+  DebateResponse,
+  DebateListItem,
+} from '../types/debate';
 import {apiConfig} from '../config/environment';
 
 // Types
@@ -179,31 +182,75 @@ export const fetchLineup = async (
   }
 };
 
+/** GET /debates/match?match_id= — fetch existing debates from DB */
+export const fetchDebatesByMatch = async (
+  matchId: string | number,
+): Promise<DebateListItem[]> => {
+  try {
+    const data = await makeApiRequest(
+      `/debates/match?match_id=${encodeURIComponent(String(matchId))}`,
+      'GET',
+    );
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Error fetching debates by match:', error);
+    return [];
+  }
+};
+
+/** GET /debates/:id — fetch full debate with cards */
+export const fetchDebateById = async (
+  debateId: number,
+): Promise<DebateResponse | null> => {
+  try {
+    const data = await makeApiRequest(`/debates/${debateId}`, 'GET');
+    if (data?.headline && Array.isArray(data?.cards)) {
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching debate by id:', error);
+    return null;
+  }
+};
+
+/** POST /debates/generate — create debate (body: match_id, debate_type) */
+export const createDebate = async (
+  matchId: string | number,
+  debateType: string,
+): Promise<DebateResponse | null> => {
+  try {
+    const data = await makeApiRequest('/debates/generate', 'POST', {
+      body: JSON.stringify({
+        match_id: String(matchId),
+        debate_type: debateType,
+      }),
+    });
+    if (data?.info && typeof data.info === 'string') {
+      return null;
+    }
+    const debate = data?.debate ?? data;
+    if (debate?.headline && Array.isArray(debate?.cards)) {
+      return debate;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error creating debate:', error);
+    return null;
+  }
+};
+
+/** @deprecated Use fetchDebatesByMatch + fetchDebateById or createDebate */
 export const fetchDebate = async (
   matchId: number,
   type: string = 'pre_match',
 ): Promise<DebateResponse | null> => {
-  try {
-    const data = await makeApiRequest(
-      `/debates/generate?match_id=${matchId}&type=${type}`,
-      'POST',
-    );
-
-    // Handle different response structures
-    if (data.info && data.info.includes('cannot generate')) {
-      console.log('Debate generation info:', data.info);
-      return null;
-    }
-
-    if (data.message && data.message.includes('No debate data')) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error fetching debate:', error);
-    return null; // Return null instead of throwing to prevent crashes
+  const list = await fetchDebatesByMatch(matchId);
+  const existing = list.find((d) => d.debate_type === type);
+  if (existing) {
+    return fetchDebateById(existing.id);
   }
+  return createDebate(matchId, type);
 };
 
 export const fetchStandings = async (

@@ -7,7 +7,15 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
+)
+
+// Throttle RapidAPI news to at most 1 request per second (BASIC plan limit).
+var (
+	newsRateMu       sync.Mutex
+	newsLastRequest  time.Time
+	newsMinInterval  = time.Second
 )
 
 // RapidAPIResponse represents the response from RapidAPI Real-Time News Data
@@ -76,8 +84,23 @@ func buildParams(pairs map[string]string, limit int) url.Values {
 	return params
 }
 
+// throttleNewsRequest waits until at least newsMinInterval has passed since the last request.
+func throttleNewsRequest() {
+	newsRateMu.Lock()
+	elapsed := time.Since(newsLastRequest)
+	if elapsed < newsMinInterval {
+		sleep := newsMinInterval - elapsed
+		newsRateMu.Unlock()
+		time.Sleep(sleep)
+		newsRateMu.Lock()
+	}
+	newsLastRequest = time.Now()
+	newsRateMu.Unlock()
+}
+
 // FetchNews fetches football news from RapidAPI with custom options
 func (c *Client) FetchNews(opts FetchNewsOptions) (*RapidAPIResponse, error) {
+	throttleNewsRequest()
 	params := buildParams(map[string]string{
 		"query":          opts.Query,
 		"time_published": opts.TimePublished,

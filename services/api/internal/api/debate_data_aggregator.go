@@ -79,11 +79,11 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 		AwayRedCards:    matchReq.AwayRedCards,
 	}
 
-	// Fetch lineups if match is upcoming or in progress
+	// Fetch lineups if match is upcoming or in progress (optional: continue with other sources if unavailable)
 	if matchReq.Status == "NS" || matchReq.Status == "1H" || matchReq.Status == "2H" || matchReq.Status == "HT" {
 		lineups, err := dda.fetchLineups(ctx, matchReq.MatchID)
 		if err != nil {
-			fmt.Printf("Failed to fetch lineups: %v\n", err)
+			log.Printf("Lineup data unavailable for match %s, continuing with other sources: %v", matchReq.MatchID, err)
 		} else {
 			matchData.Lineups = lineups
 		}
@@ -94,7 +94,7 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 		matchReq.Status == "1H" || matchReq.Status == "2H" || matchReq.Status == "HT" {
 		detailedStats, err := dda.fetchMatchStats(ctx, matchReq.MatchID)
 		if err != nil {
-			fmt.Printf("Failed to fetch detailed match stats for match ID %s: %v\n", matchReq.MatchID, err)
+			log.Printf("Match stats unavailable for match %s, continuing with other sources: %v", matchReq.MatchID, err)
 		} else {
 			// Merge detailed stats with basic stats
 			enhancedStats.HomeShots = detailedStats.HomeShots
@@ -113,10 +113,10 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Set the enhanced stats
 	matchData.Stats = enhancedStats
 
-	// Fetch news headlines via news module (FetchMatchNews)
+	// Fetch news headlines via news module (optional: continue with other sources if rate-limited or unavailable)
 	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.Status)
 	if err != nil {
-		fmt.Printf("Failed to fetch news headlines: %v\n", err)
+		log.Printf("News headlines unavailable, continuing with other sources: %v", err)
 	} else {
 		matchData.NewsHeadlines = headlines
 	}

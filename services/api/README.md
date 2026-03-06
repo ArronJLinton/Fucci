@@ -19,9 +19,12 @@ To start postgresql@16 now and restart at login:
 Or, if you don't want/need a background service you can just run:
   LC_ALL="C" /usr/local/opt/postgresql@16/bin/postgres -D /usr/local/var/postgresql@16
   
-#### DB Commands
-    - goose postgres "user=postgres dbname=fucci_dev sslmode=disable" status
-    - goose postgres postgres://postgres:@localhost:5431/fucci_dev up
+#### DB Commands (migrations)
+    From repo root (uses DB_URL from .env):
+      yarn migrate
+    Or from services/api with DB_URL set:
+      go run -tags migrate ./cmd/migrate
+    Migrations live in services/api/sql/schema/ and use -- +goose Up / -- +goose Down markers.
 
 
 ##### Creating New Model

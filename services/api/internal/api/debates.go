@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -648,12 +649,14 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	// Get basic match information
 	matchInfo, err := c.getMatchInfo(ctx, req.MatchID)
 	if err != nil {
+		log.Printf("[debate] generate failed: match_id=%s getMatchInfo: %v", req.MatchID, err)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err))
 		return
 	}
 
 	// Validate match status for debate type
 	if err := c.validateMatchStatusForDebateType(matchInfo.Status, req.DebateType); err != nil {
+		log.Printf("[debate] generate rejected: match_id=%s type=%s status=%s reason=%v", req.MatchID, req.DebateType, matchInfo.Status, err)
 		respondWithJSON(w, http.StatusOK, map[string]string{"info": err.Error()})
 		return
 	}
@@ -662,6 +665,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	aggregator := NewDebateDataAggregator(c)
 	matchData, err := aggregator.AggregateMatchData(ctx, c.buildMatchDataRequest(req.MatchID, matchInfo))
 	if err != nil {
+		log.Printf("[debate] generate failed: match_id=%s aggregate: %v", req.MatchID, err)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err))
 		return
 	}
@@ -675,12 +679,14 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		log.Printf("[debate] generate failed: match_id=%s type=%s AI prompt: %v", req.MatchID, req.DebateType, err)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to generate AI prompt: %v", err))
 		return
 	}
 
 	// Validate prompt structure
 	if prompt.Headline == "" || len(prompt.Cards) == 0 {
+		log.Printf("[debate] generate failed: match_id=%s invalid prompt (headline=%q cards=%d)", req.MatchID, prompt.Headline, len(prompt.Cards))
 		respondWithError(w, http.StatusInternalServerError, "Generated prompt is invalid (missing headline or cards)")
 		return
 	}
@@ -694,6 +700,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		AiGenerated: sql.NullBool{Bool: true, Valid: true},
 	})
 	if err != nil {
+		log.Printf("[debate] generate failed: match_id=%s CreateDebate: %v", req.MatchID, err)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create debate: %v", err))
 		return
 	}
@@ -706,7 +713,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		EngagementScore: sql.NullString{String: "0.0", Valid: true},
 	})
 	if err != nil {
-		fmt.Printf("Failed to create debate analytics: %v\n", err)
+		log.Printf("[debate] CreateDebateAnalytics failed for debate_id=%d (debate created): %v", debate.ID, err)
 	}
 
 	// Create debate cards
@@ -784,6 +791,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	log.Printf("[debate] generate success: match_id=%s type=%s debate_id=%d", req.MatchID, req.DebateType, debate.ID)
 	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Debate generated successfully",
 		"debate":  response,

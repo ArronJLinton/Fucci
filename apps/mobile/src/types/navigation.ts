@@ -1,5 +1,6 @@
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {Match} from './match';
+import type {DebateResponse} from './debate';
 
 export type MediaType = 'photo' | 'video';
 
@@ -8,6 +9,11 @@ export type RootStackParamList = {
   HomeTab: undefined;
   MatchDetails: {
     match: Match;
+  };
+  SingleDebate: {
+    match: Match;
+    debate: DebateResponse;
+    selectedCardIndex?: number;
   };
   Table: {
     match: Match;
