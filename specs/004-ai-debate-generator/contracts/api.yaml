@@ -137,12 +137,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  debates:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/DebateSummary'
+                type: array
+                items:
+                  $ref: '#/components/schemas/DebateSummary'
         '500':
           description: Internal error
 
