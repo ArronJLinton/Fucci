@@ -975,6 +975,20 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ForceRegenerate {
+		existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
+		if err == nil {
+			for _, d := range existing {
+				if d.DebateType == req.DebateType {
+					_ = c.DB.SoftDeleteDebate(ctx, d.ID)
+				}
+			}
+		}
+		if c.Cache != nil {
+			_ = c.Cache.Delete(ctx, cacheKey)
+		}
+	}
+
 	// If not force_regenerate, check DB for existing debates of this type
 	if !req.ForceRegenerate {
 		existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
