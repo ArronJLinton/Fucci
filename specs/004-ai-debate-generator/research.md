@@ -78,7 +78,45 @@
 
 ---
 
-## 5. Graceful degradation
+## 5. Multi-debate generation (one call per type, multiple debates)
+
+**Decision**: Use **one AI call per debate type** (pre_match, post_match). Each call returns **multiple debates** (e.g. 3) in a **single JSON response** (array of debate prompts: each with headline, description, cards).
+
+**Rationale**:
+
+- Fewer round-trips and lower token usage than N separate calls (e.g. 3 calls per type).
+- Avoids extra OpenAI rate-limit pressure.
+- Cost stays in the “fraction of a cent per match” range (~\$0.002–0.003 for 3+3 debates with one prompt per type).
+- Single round-trip per type simplifies caching and “full set ready” semantics.
+
+**Alternatives considered**:
+
+- Multiple API calls per type (one per debate): Rejected; more tokens, more latency, more complexity for progressive display; not required for v1.
+- Progressive rendering (show debates as they’re ready): Deferred; preload on match details makes full-set load acceptable; can add later if metrics show drop-off.
+
+**Implementation note**: Extend prompt to request “Return an array of 3 distinct debate prompts” and response schema to an array of `{ headline, description, cards }`. Increase `MaxTokens` (e.g. 2500–3000) for the larger output. Parse and persist each item as a separate debate row; cache key stores the full set (see data-model).
+
+---
+
+## 6. Preload when match details open
+
+**Decision**: When the user **opens Match Details**, trigger **background generation** for the applicable debate type (pre_match if match not finished, post_match if finished). Do not block the UI.
+
+**Rationale**:
+
+- By the time the user taps the Debate tab, the set is often already in cache/DB → show immediately.
+- If still generating, show one loading state until the full set is ready (no progressive “one-by-one” in v1).
+
+**Alternatives considered**:
+
+- Generate only when user opens Debate tab: Rejected; increases perceived wait on first open.
+- Progressive rendering as each debate completes: Deferred; adds complexity; preload is sufficient for v1.
+
+**Implementation note**: Mobile: on Match Details mount (or when match is set), call a “warm” or “ensure debates” endpoint (or fire generate-set in background). API: idempotent “generate set” that returns existing if present or starts generation and returns pending; or fire-and-forget trigger that writes to cache/DB when done. Client Debate tab: if list empty and no pending state, then trigger generate and show loading.
+
+---
+
+## 7. Graceful degradation
 
 **Decision**: If H2H or league table fetch fails (or returns empty), still call the AI with the remaining sources; do not fail the whole request unless all three fail or the match context is missing.
 
@@ -91,7 +129,7 @@
 
 ---
 
-## 6. Clarifications resolved
+## 8. Clarifications resolved
 
 | Spec question                         | Resolution |
 |--------------------------------------|------------|

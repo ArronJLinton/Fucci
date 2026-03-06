@@ -67,17 +67,31 @@ curl -s -X POST "http://localhost:8080/v1/api/debates/generate" \
 
 Optional: `"force_regenerate": true` to replace an existing debate for that match and type.
 
-### 3. Get debate by ID
+### 3. Generate set (multiple debates per type)
+
+Creates multiple debates (e.g. 3) for the match and type in one AI call, persists each, and returns the full set. Use for preload (when user opens match details) or when the Debate tab finds no debates:
+
+```bash
+curl -s -X POST "http://localhost:8080/v1/api/debates/generate-set" \
+  -H "Content-Type: application/json" \
+  -d '{"match_id":"1234567","debate_type":"pre_match","count":3}' | jq .
+```
+
+Response: `{ "debates": [ DebateResponse, ... ] }` (and optional `"pending": true` if generation is async). Optional `"force_regenerate": true` replaces existing debates for that match and type.
+
+### 4. Get debate by ID
 
 ```bash
 curl -s "http://localhost:8080/v1/api/debates/1" | jq .
 ```
 
-### 4. Get debates by match
+### 5. Get debates by match
 
 ```bash
 curl -s "http://localhost:8080/v1/api/debates/match?match_id=1234567" | jq .
 ```
+
+Optional query: `debate_type=pre_match` or `debate_type=post_match` to filter. When multiple debates per type are supported, the list may contain several items per type.
 
 ## Data sources (after implementation)
 
@@ -100,13 +114,18 @@ Optional (already or to be aggregated): lineups, match stats, social sentiment.
 - **500 from generate** – Check logs for aggregation errors (e.g. fixture not found, football API key, or OpenAI errors).
 - **Empty or missing sections in prompt** – Verify H2H and league table fetchers are implemented and that fixture has `league_id`/`season` and team IDs for H2H.
 
+## Preload (multi-debate)
+
+When the user opens **Match Details**, the client can call `POST /api/debates/generate-set` in the background for the applicable `debate_type` (pre_match if match not finished, post_match if finished). By the time they open the Debate tab, the set is often already in cache/DB and can be shown immediately; if still generating, show a single loading state until the full set is ready.
+
 ## Contract
 
 OpenAPI spec: [contracts/api.yaml](./contracts/api.yaml). Paths:
 
 - `GET /api/debates/generate?match_id=&type=`
 - `POST /api/debates/generate`
+- `POST /api/debates/generate-set` — generate multiple debates (e.g. 3) per match and type; returns `{ debates: DebateResponse[] }`
 - `GET /api/debates/{id}`
-- `GET /api/debates/match?match_id=`
+- `GET /api/debates/match?match_id=` (optional `debate_type=`)
 
 (Base URL in spec is `/v1`; so full path is e.g. `http://localhost:8080/v1/api/debates/...`.)

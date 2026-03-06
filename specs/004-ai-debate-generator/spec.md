@@ -135,12 +135,16 @@ AI-generated prompts and user comments are moderatable; blocked content is not s
 - **FR-002**: System MUST use **head-to-head history** between the two teams as an input when generating debate prompts.
 - **FR-003**: System MUST use **league table** (standings for the match’s competition) as an input when generating debate prompts.
 - **FR-004**: System MUST use **news articles** (relevant to teams or fixture) as an input when generating debate prompts.
-- **FR-005**: System MUST generate a structured debate prompt (e.g. headline, description, debate cards with optional side labels and topic tags) suitable for display in the app.
+- **FR-005**: System MUST generate a structured debate prompt (e.g. headline, description, debate cards with optional side labels and topic tags) suitable for display in the app. When generating multiple debates per type, the **default count is 3** per type (configurable; max e.g. 7).
 - **FR-006**: System MUST restrict pre-match debates to matches that have not started and post-match debates to matches that have finished (FT/AET/PEN).
 - **FR-007**: System SHOULD degrade gracefully when one or more sources (H2H, table, news) are temporarily unavailable (e.g. return debate with available data or clear messaging).
-- **FR-008**: System SHOULD support on-demand generation when debates are missing (pending or immediate fallback), with rate limiting per match.
+- **FR-008**: System SHOULD support on-demand generation when debates are missing (pending or immediate fallback), with rate limiting per match. On-demand generation MUST be limited to **3 requests per hour per match_id** (configurable). When the API returns a pending state, the client obtains the result by **polling** (e.g. GET debates by match) until the debate set appears or a timeout is reached.
 - **FR-009**: System SHOULD cache generated debates by match + phase (and optionally context_version) with configurable TTL.
-- **FR-010**: System SHOULD support comments and voting on debate threads; auth required for posting; moderation and reporting as per Epic E.
+- **FR-010**: System SHOULD support comments and voting on debate threads. **Authentication is required for engagement**: posting comments and casting votes require an authenticated user. Moderation and reporting as per Epic E. Generate-set / preload may be called unauthenticated (rate limit by match_id).
+
+### Edge Cases
+
+- **Concurrent generation**: When multiple requests trigger generation for the same (match_id, debate_type) at once, the system MUST **deduplicate** (e.g. one in-flight job per key); concurrent callers wait or receive the same result when ready (no duplicate AI calls or duplicate debate rows).
 
 ### Key Entities
 
@@ -161,10 +165,18 @@ AI-generated prompts and user comments are moderatable; blocked content is not s
 
 ## Clarifications
 
+### Session 2026-02-15
+
+- Q: When the API returns "pending" for on-demand generation, how should the client get the final result? → A: **Polling** – client repeatedly calls GET debates by match until the debate set appears or a timeout is reached.
+- Q: What rate limit for on-demand debate generation per match? → A: **3 per hour** per match_id (configurable).
+- Q: Default number of debates generated per type when not configured? → A: **3** (configurable; e.g. up to 7).
+- Q: If two requests trigger generation for the same (match_id, debate_type) simultaneously, how should the system behave? → A: **Deduplicate** – one generation job per (match_id, debate_type); concurrent callers wait or receive the same result when ready.
+- Q: Should generate-set / preload require authentication? → A: **Optional auth** – endpoint may be called unauthenticated (e.g. preload on match details); rate limit by match_id. **Authentication is required for engagement**: posting comments and casting votes require an authenticated user.
+
 - Q: How many H2H meetings to include? → Last 10 (configurable); see research.md.
 - Q: Which league table to use? → Match’s competition/league from fixture data.
 - Q: How many news items? → Current behaviour (per-team + matchup); document in data-model.
-- Q: How many debates per match? → Configurable (e.g. 3–7); see Epic A1 in user-stories.md.
+- Q: How many debates per match? → Default 3 per type, configurable (e.g. 3–7); see Epic A1, FR-005, and Session 2026-02-15.
 - Q: Safety classification and context_quality? → Stored for moderation and observability; schema extensions as needed (see data-model).
 
 ## Non-Goals (Out of Scope for This Spec)

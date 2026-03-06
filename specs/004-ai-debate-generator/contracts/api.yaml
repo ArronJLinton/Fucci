@@ -130,7 +130,10 @@ paths:
   /api/debates/match:
     get:
       summary: Get debates by match
-      description: Returns all debates for a given match_id (pre_match and/or post_match).
+      description: |
+        Returns all debates for a given match_id (pre_match and/or post_match).
+        When multiple debates per type are supported, the list may contain several items
+        per debate_type; client can filter by debate_type for the current phase.
       operationId: getDebatesByMatch
       tags: [Debates]
       parameters:
@@ -139,9 +142,16 @@ paths:
           required: true
           schema:
             type: string
+        - name: debate_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pre_match, post_match]
+          description: Optional filter by debate type
       responses:
         '200':
-          description: List of debates for the match
+          description: List of debates for the match (one or more per type)
           content:
             application/json:
               schema:
@@ -150,6 +160,50 @@ paths:
                   $ref: '#/components/schemas/DebateSummary'
         '500':
           description: Internal error
+
+  /api/debates/generate-set:
+    post:
+      summary: Generate and persist a set of debates for a match and type
+      description: |
+        Generates multiple AI debates (e.g. 3) for the given match_id and debate_type in a single
+        AI call, persists each as a separate debate row, and returns the full set. If debates
+        already exist for (match_id, debate_type), returns existing set unless force_regenerate
+        is true. Used for preload (match details open) or on-demand when the Debate tab finds
+        no debates. Response is the list of debates (each with cards); client treats debates
+        as a list (e.g. show first as primary or list all).
+      operationId: generateDebateSet
+      tags: [Debates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDebateSetRequest'
+      responses:
+        '201':
+          description: Set of debates created or existing returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDebateSetResponse'
+        '200':
+          description: Existing set returned (when no regeneration)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDebateSetResponse'
+        '400':
+          description: Bad request (missing/invalid match_id or debate_type)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error (aggregation, OpenAI, or DB failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
   schemas:
@@ -207,6 +261,37 @@ components:
       properties:
         debate:
           $ref: '#/components/schemas/DebateResponse'
+    GenerateDebateSetRequest:
+      type: object
+      required: [match_id, debate_type]
+      properties:
+        match_id:
+          type: string
+          description: Fixture ID (numeric)
+        debate_type:
+          type: string
+          enum: [pre_match, post_match]
+        count:
+          type: integer
+          minimum: 1
+          maximum: 7
+          default: 3
+          description: Number of debates to generate (e.g. 3)
+        force_regenerate:
+          type: boolean
+          default: false
+          description: If true, replace existing debates for (match_id, debate_type)
+    GenerateDebateSetResponse:
+      type: object
+      properties:
+        debates:
+          type: array
+          description: Full set of debates for this match and type (each with cards)
+          items:
+            $ref: '#/components/schemas/DebateResponse'
+        pending:
+          type: boolean
+          description: If true, generation is in progress; client may poll or wait
     DebateResponse:
       type: object
       properties:

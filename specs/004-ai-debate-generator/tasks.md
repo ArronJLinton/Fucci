@@ -49,11 +49,36 @@
 
 **Independent Test**: For a fixture with status NS, GET /v1/api/debates/generate?match_id=X&type=pre_match returns 200 with headline and cards; POST /v1/api/debates/generate with debate_type=pre_match persists and returns debate. For fixture without team/league IDs, response still returns a debate (partial context).
 
-- [ ] T013 [US1] Ensure validateMatchStatusForDebateType in services/api/internal/api/debates.go rejects post_match when status is NS and pre_match when status is FT/AET/PEN per FR-006
-- [ ] T014 [US1] Verify generateAIPrompt and generateDebate use aggregator and prompt generator for type=pre_match; pre_match path uses buildUserPrompt with pre_match system prompt in services/api/internal/api/debates.go and services/api/internal/ai/prompt_generator.go
+- [x] T013 [US1] Ensure validateMatchStatusForDebateType in services/api/internal/api/debates.go rejects post_match when status is NS and pre_match when status is FT/AET/PEN per FR-006
+- [x] T014 [US1] Verify generateAIPrompt and generateDebate use aggregator and prompt generator for type=pre_match; pre_match path uses buildUserPrompt with pre_match system prompt in services/api/internal/api/debates.go and services/api/internal/ai/prompt_generator.go
 - [ ] T015 [US1] Add integration test: pre_match generation with mocked H2H and standings returns 200 and prompt contains expected sections in services/api/internal/api/debates_test.go or equivalent
 
 **Checkpoint**: Pre-match debate flow end-to-end; validation and prompt content verified.
+
+---
+
+## Phase 3b: Generate-Set (Multi-Debate) Implementation
+
+**Purpose**: One AI call per type returns multiple debates (e.g. 3); generate-set endpoint; cache set by (match, type); preload on match details; list UI and polling. Implements plan.md multi-debate strategy and spec.md FR-005, FR-008, FR-009.
+
+**Goal**: Fans see multiple debates per match (pre or post); generation is one prompt per type; backend caches and returns full set; client preloads on Match Details and shows list with loading/polling.
+
+**Independent Test**: POST /v1/api/debates/generate-set with match_id and debate_type returns 200/201 with `debates` array (e.g. 3 items); GET /v1/api/debates/match?match_id=X&debate_type=pre_match returns same set; mobile Match Details triggers background generate-set; Debate tab shows list of debates and polls when pending.
+
+- [ ] T043 [P] Extend AI prompt and response in services/api/internal/ai/prompt_generator.go: system/user prompt asks for array of N debates (default 3); increase MaxTokens (e.g. 2500–3000); parse array from OpenAI response; add GenerateDebateSetPrompt or equivalent returning []DebatePrompt
+- [ ] T044 Implement generateDebateSet core in services/api/internal/api/debates.go: one AI call per (match_id, debate_type) returning array; validate match status for debate_type; parse array and persist each item as debate row (cards, analytics); return full set of DebateResponse
+- [ ] T045 Add POST /v1/api/debates/generate-set handler in services/api/internal/api/debates.go and api.go: body GenerateDebateSetRequest (match_id, debate_type, optional count, optional force_regenerate); response GenerateDebateSetResponse (debates[], optional pending); call generateDebateSet; optional auth (no auth required per FR-010)
+- [ ] T046 Cache debate set in services/api/internal/api/debates.go: after generating set, store in Redis with key e.g. debates:{matchID}:{type}; on generate-set and getDebatesByMatch check cache first when returning set; TTL per plan (e.g. 24h); invalidate on force_regenerate
+- [ ] T047 Ensure GET /v1/api/debates/match in services/api/internal/api/debates.go accepts optional query debate_type and returns array of debates (multiple per type); filter DB result by debate_type when provided; response shape array of DebateSummary per contracts/api.yaml
+- [ ] T048 Add rate limit for generate-set in services/api/internal/api/debates.go: 3 requests per hour per match_id (Redis key e.g. debate_gen:{match_id} with TTL 1h); return 429 with Retry-After when exceeded per FR-008
+- [ ] T049 Implement deduplication for concurrent generate-set in services/api/internal/api/debates.go: one in-flight generation per (match_id, debate_type); concurrent callers wait or receive same result (e.g. sync.Map of in-flight keys or Redis lock); per spec edge case
+- [ ] T050 Ensure generate-set route is callable without authentication in services/api/internal/api/api.go (do not require auth middleware for POST /debates/generate-set); document optional auth and preload in specs/004-ai-debate-generator/quickstart.md
+- [ ] T051 [US5] Add generateDebateSet API and optional debate_type param to getDebatesByMatch in apps/mobile/src/services/api.ts; handle response debates array and optional pending from generate-set; types per contracts/api.yaml
+- [ ] T052 [US5] When Match Details screen mounts, trigger background call to generate-set for applicable debate type (pre_match if match not finished, post_match if finished) in apps/mobile/src/screens/MatchDetailsScreen.tsx; do not block UI
+- [ ] T053 [US5] Debate tab shows list of debates for current type in apps/mobile/src/screens/DebateScreen.tsx; loading until set ready; if generate-set or getDebatesByMatch returns pending, poll GET debates by match until set appears or timeout; navigate to SingleDebateScreen on item tap
+- [ ] T054 [P] Update specs/004-ai-debate-generator/quickstart.md with generate-set curl example, rate limit (3/hour), and preload behaviour; list GET /debates/match with optional debate_type
+
+**Checkpoint**: Generate-set endpoint returns multiple debates; cache and GET by match/type work; mobile preloads and shows list with polling.
 
 ---
 
@@ -153,10 +178,11 @@
 - **Phase 1 (Setup)**: No dependencies — start immediately.
 - **Phase 2 (Foundational)**: Depends on Phase 1. **Blocks** US1, US2, US3, US4.
 - **Phase 3 (US1)**: Depends on Phase 2.
-- **Phase 4 (US2)**: Depends on Phase 2 (and optionally Phase 3).
+- **Phase 3b (Generate-Set)**: Depends on Phase 2 and Phase 3 (single-debate generation path); extends prompt generator and debates API for multi-debate.
+- **Phase 4 (US2)**: Depends on Phase 2 (and optionally Phase 3); rate limit and on-demand behaviour align with Phase 3b (generate-set).
 - **Phase 5 (US3)**: Depends on Phase 2 (and optionally Phase 3).
 - **Phase 6 (US4)**: Depends on Phase 2.
-- **Phase 7 (US5)**: Depends on Phase 2; may use endpoints from Phases 3–5.
+- **Phase 7 (US5)**: Depends on Phase 2; may use endpoints from Phases 3, 3b, 5; list/preload from Phase 3b.
 - **Phase 8 (US6)**: Depends on Phase 2; moderation applies to debates and comments from Phases 3–7.
 - **Phase 9 (Polish)**: Depends on completion of desired user stories.
 
@@ -173,7 +199,9 @@
 
 - T002 can run in parallel with T001.
 - T005, T011, T012 can run in parallel after T004.
-- Phases 3, 4, 5, 6 can be worked in parallel by different developers after Phase 2.
+- T043 can run in parallel once Phase 3 is done (prompt generator changes).
+- T047, T048, T050, T054 can run in parallel after T044–T046 are done (handler/cache first).
+- Phases 3, 4, 5, 6 can be worked in parallel by different developers after Phase 2; Phase 3b follows Phase 3.
 - T038, T040, T041, T042 (Polish) marked [P] can run in parallel.
 
 ---
@@ -190,6 +218,17 @@ T012  Integration tests for generateAIPrompt with H2H and league table
 # Then sequentially: T008, T009 (wire into AggregateMatchData), T010 (buildUserPrompt sections).
 ```
 
+### Parallel Example: Phase 3b (Generate-Set)
+
+```text
+# After T044 (generateDebateSet core), these can run in parallel:
+T047  GET /debates/match optional debate_type filter
+T048  Rate limit 3/hour per match_id
+T050  Optional auth and quickstart doc
+T054  quickstart.md generate-set curl and preload
+# T045 (handler), T046 (cache), T049 (deduplication) build on T044; then T051–T053 (mobile).
+```
+
 ---
 
 ## Implementation Strategy
@@ -204,20 +243,28 @@ T012  Integration tests for generateAIPrompt with H2H and league table
 6. Complete Phase 6: US4 Context & degradation (tagging, cache)  
 7. Deploy/demo debate generation with three sources
 
+### Generate-Set (Multi-Debate) Path
+
+1. After Phase 3: Complete **Phase 3b** (T043–T054) for multi-debate: one AI call per type, generate-set endpoint, cache set, rate limit, deduplication, GET by match/type, mobile preload and list with polling.  
+2. Phase 4 (US2) on-demand and rate limit can align with Phase 3b (same rate limit and optional pending/polling).  
+3. Phase 7 (US5) list UI uses Phase 3b (list of debates, preload, polling).
+
 ### Incremental Delivery
 
 1. Phase 1 + 2 → Foundation ready  
 2. Phase 3 (US1) → Pre-match debates testable  
-3. Phase 4 (US2) → On-demand + rate limit  
-4. Phase 5 (US3) → Post-match debates  
-5. Phase 6 (US4) → Partial context and cache  
-6. Phase 7 (US5) → Display and engagement  
-7. Phase 8 (US6) → Moderation  
-8. Phase 9 → Polish and docs  
+3. **Phase 3b** → Generate-set: multiple debates per type, preload, list UI  
+4. Phase 4 (US2) → On-demand + rate limit  
+5. Phase 5 (US3) → Post-match debates  
+6. Phase 6 (US4) → Partial context and cache  
+7. Phase 7 (US5) → Display and engagement  
+8. Phase 8 (US6) → Moderation  
+9. Phase 9 → Polish and docs  
 
 ### Suggested MVP Scope
 
 - **Minimum**: Phase 1 + Phase 2 + Phase 3 (US1) + Phase 5 (US3) + Phase 6 (US4) — generation with three sources, pre/post, graceful degradation.  
+- **With generate-set**: Add Phase 3b for multi-debate, preload, and list experience.  
 - **Full MVP (spec)**: Add Phase 4 (US2), Phase 7 (US5), Phase 8 (US6) for on-demand, display/engagement, and moderation.
 
 ---

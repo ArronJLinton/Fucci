@@ -50,6 +50,15 @@ OpenAI → DebatePrompt { Headline, Description, Cards[] }
 Persist: debates + debate_cards (+ analytics)
 ```
 
+### Multi-debate flow (generate set)
+
+When generating **multiple debates per type** (e.g. 3 pre_match, 3 post_match):
+
+1. **One AI call per type**: Prompt asks for an **array** of N debate prompts (e.g. 3). Response shape: `[{ headline, description, cards }, ...]`.
+2. **Cache**: One key per (match, type) storing the **full set** of debates, e.g. `pre_match_debates:{matchID}` or `debates:{matchID}:pre_match`. Value: array of debate payloads (or list of debate IDs after persist). TTL as per existing policy (e.g. 24h).
+3. **DB**: **One row per debate**; multiple rows per `(match_id, debate_type)` are expected. No uniqueness constraint on (match_id, debate_type); list endpoints return all debates for the match (optionally filtered by type).
+4. **Preload**: When the user opens Match Details, the client or API can trigger “generate set” in the background for the applicable type so that by the time the user opens the Debate tab, the set is often already available.
+
 ## Source Details
 
 ### 1. Head-to-head history
@@ -105,9 +114,10 @@ Bundle is cached with TTL (e.g. by match_id + phase); see Epic F1. Debates creat
 
 ## Debate and DebateCard (persisted)
 
-- **Debate**: match_id, debate_type / phase (`pre_match` | `post_match`), headline, description, ai_generated. Optional extensions for phased work: safety_classification (approved | needs_review | blocked), context_quality (full | partial), source_context_ids (refs to stat/news used). Stored in `debates` table (existing; schema extensions as needed for E1, B2).
+- **Debate**: match_id, debate_type / phase (`pre_match` | `post_match`), headline, description, ai_generated. Optional extensions for phased work: safety_classification (approved | needs_review | blocked), context_quality (full | partial), source_context_ids (refs to stat/news used). Stored in `debates` table (existing; schema extensions as needed for E1, B2). **Multiple rows per (match_id, debate_type)** are allowed when generating a set (e.g. 3 debates per type).
 - **DebateCard**: debate_id, stance, title, description, ai_generated. Optional: side_a_label, side_b_label, topic_tags. Stored in `debate_cards` table (existing; schema extensions as needed for A1).
 - **Debate Thread** (logical): Debate + comments + votes; used for delivery (Epic C) and ranking (Epic D3).
+- **Cache (multi-debate)**: One key per (match_id, debate_type) storing the full set, e.g. `pre_match_debates:{matchID}`. Value: array of debate payloads or list of debate IDs; TTL as per existing policy (e.g. 24h).
 
 ## Validation Rules
 

@@ -5,29 +5,49 @@
 
 ## Summary
 
-Implement and document the AI Powered Debate Generator so it explicitly uses three required sources—**head-to-head history**, **league table**, and **news articles**—for both **Pre Match** and **Post Match** debate types, and supports the full scope in [spec.md](./spec.md) and [user-stories.md](./user-stories.md) (Epics A–H). The codebase already has debate generation (handlers, aggregator, OpenAI prompt generator); this plan aligns the implementation with the spec by guaranteeing H2H and league table are fetched and passed into the AI prompt, and by documenting behaviour and contracts.
-
-**Technical approach**: Extend the existing `DebateDataAggregator` and AI `MatchData`/prompt builder to include H2H and league standings; add or reuse API-Football endpoints for H2H and league table; keep news as already implemented; ensure pre/post match rules and graceful degradation are explicit. Phased work: core generation + context (Epics A, B) first; then delivery (C), engagement (D), safety (E), cost/performance (F), and admin (G) per MVP cut in the spec.
+Generate AI-powered debate prompts for football matches (Pre Match and Post Match) using head-to-head history, league table, and news articles. Support multiple debates per type (e.g. 3 per type), preload generation when the user opens match details, and deliver via a dedicated Debate tab with single-debate drill-down. One AI call per type returns multiple debates in a single response to control cost and latency; cache and DB store a set per (match_id, debate_type).
 
 ## Technical Context
 
-**Language/Version**: Go 1.22+, TypeScript (React Native) for consumers  
-**Primary Dependencies**: Existing Fucci API (chi router), OpenAI API (gpt-4o-mini), API-Football (RapidAPI) for fixtures/standings/H2H, internal news client (RapidAPI Real-Time News), PostgreSQL (debates storage), Redis (caching)  
-**Storage**: PostgreSQL (debates, debate_analytics); Redis for caching external API responses (news, standings, H2H as needed)  
-**Testing**: Go testing (unit + integration for handlers/aggregator), mock OpenAI and football API  
-**Target Platform**: Backend API (Linux/server); mobile app consumes debate API  
-**Project Type**: Mobile + API (existing monorepo: `apps/mobile`, `services/api`)  
-**Performance Goals**: Debate generation &lt; 30s end-to-end; API p95 &lt; 200ms for read endpoints; aggregate external calls in parallel where possible  
-**Constraints**: All three sources (H2H, league table, news) required by spec; graceful degradation when a source fails; no PII in prompts  
-**Scale/Scope**: Same as 001-football-community (10k users); feature scope: 2 debate types, 3 mandatory sources, context bundle (H2H, form, stats, news), debate generation + delivery + engagement (comments, voting) + moderation + caching/async; see [user-stories.md](./user-stories.md) for Epics A–H and MVP cut
+**Language/Version**: Go 1.22+ (backend), TypeScript / React Native (mobile)  
+**Primary Dependencies**: chi router, OpenAI API, API-Football (RapidAPI), Redis, PostgreSQL  
+**Storage**: PostgreSQL (debates, debate_cards, debate_analytics, comments, votes); Redis (context and prompt caching)  
+**Testing**: Go tests (unit/integration) in `services/api`; Jest/React Native in `apps/mobile`  
+**Target Platform**: Backend (Linux/server); Mobile (iOS/Android via Expo)  
+**Project Type**: Monorepo (mobile app + API); `services/api`, `apps/mobile`  
+**Performance Goals**: Debate generation &lt; 10–20s (sync) or non-blocking (async); API p95 &lt; 200ms for read endpoints  
+**Constraints**: OpenAI token budget; rate limits on external APIs (news, API-Football); graceful degradation when sources fail  
+**Scale/Scope**: Multiple debates per match (e.g. 3 pre + 3 post); cache by match + type; list UI and single-debate screen
 
-**Current state**:
+## Multi-debate generation and preload (implementation approach)
 
-- `services/api/internal/api/debates.go`: `generateAIPrompt`, `generateDebate`; pre_match/post_match validation; `DebateDataAggregator` used.
-- `services/api/internal/api/debate_data_aggregator.go`: Fetches lineups, match stats, news headlines, social sentiment. **Does not** fetch head-to-head history or league table.
-- `services/api/internal/ai/prompt_generator.go`: `MatchData` has NewsHeadlines, Stats, Lineups, SocialSentiment; **no H2H or LeagueTable** fields yet.
-- League standings: `getLeagueStandingsByLeagueId`, `getLeagueStandingsByTeamId` exist in `futbol.go`; aggregator does not call them.
-- H2H: No head-to-head endpoint in codebase; API-Football supports H2H (e.g. `fixtures/headtohead?h2h=id1-id2`); to be added.
+The following approach is adopted for generating **multiple debates per pre- and post-match** and for **load time / UX**.
+
+### 1. One prompt per type returning multiple debates
+
+- **Decision**: Use **one AI call per debate type** (pre_match, post_match). Each call returns **multiple debates** (e.g. 3) in a **single JSON response** (array of debate prompts).
+- **Rationale**: Fewer round-trips, lower token usage than N separate calls; avoids extra rate-limit pressure; cost stays in the “fraction of a cent per match” range.
+- **Implementation**: Extend the prompt and response contract so the model returns an array of debates (each with headline, description, cards). Increase `MaxTokens` as needed (e.g. 2500–3000) for the larger output. Parse and persist each item as a separate debate row.
+
+### 2. Preload when match details open
+
+- **Decision**: When the user **opens Match Details** (match screen), trigger **background generation** for the applicable debate type (pre_match if match not finished, post_match if finished). Do not block the UI; user can browse Lineup, Table, News while debates generate.
+- **Behaviour**:
+  - When the user opens the **Debate** tab: if the result is already in cache/DB → show it immediately. If still generating → show one loading state until the full set is ready.
+- **Rationale**: First-creation load time is hidden for most users; no progressive rendering required for v1.
+
+### 3. Backend shape
+
+| Concern | Decision |
+|--------|----------|
+| **Cache** | One key per (match, type) storing an **array** of debates, e.g. `pre_match_debates:{matchID}` or `debates:{matchID}:{type}`. Simpler than one key per debate index. |
+| **DB** | Keep **one row per debate**; multiple rows per `(match_id, debate_type)` is expected and matches “multiple debates per type.” No schema change to uniqueness; list endpoints return all debates for the match (optionally filtered by type). |
+| **API** | Add a **“generate set”** endpoint (or extend existing generate) that returns **multiple debates at once** (e.g. 3). Client and list UI treat debates as a **list** (e.g. show first as primary or show all in a list). |
+
+### 4. Client behaviour
+
+- **List**: Debate tab shows the set of debates for the current type (pre or post). Each item can open SingleDebateScreen (existing behaviour).
+- **Loading**: Single loading state until the full set is ready; no progressive “debates appear one by one” in v1 unless specified later.
 
 ## Constitution Check
 
@@ -35,34 +55,38 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Code Quality Standards:**
 
-- [x] TypeScript strict mode compliance (mobile app existing)
-- [x] ESLint zero warnings (existing)
-- [x] Function complexity ≤ 10, length ≤ 50 lines (enforced in changes)
-- [x] Meaningful naming (H2H, league table, debate type)
+- [x] TypeScript strict mode compliance verified (apps/mobile)
+- [x] ESLint configuration defined with zero warnings
+- [x] Function complexity ≤ 10, length ≤ 50 lines (target)
+- [x] Meaningful naming conventions established
 
 **Testing Standards:**
 
-- [ ] TDD for new aggregator fetchers (H2H, league table) and prompt inclusion
-- [ ] Unit test coverage ≥ 80% for new/updated debate logic
-- [ ] Integration tests: debate generation with mocked OpenAI and football API
-- [ ] E2E: P1 user stories (pre-match and post-match debate flow) covered in test plan
+- [x] TDD approach planned for new features
+- [x] Unit test coverage target ≥ 80% identified
+- [x] Integration test requirements defined (API, aggregator, prompt generator)
+- [x] E2E test scenarios for P1 user stories planned (Debate tab, single debate)
 
 **User Experience Consistency:**
 
-- [x] Design system (existing debate UI in app)
-- [x] Loading and error states (existing patterns)
-- [x] Graceful degradation (spec FR-007)
+- [x] Design system compliance verified
+- [x] Accessibility requirements (WCAG 2.1 AA) identified
+- [x] Loading states and error handling planned (empty, generating, error)
+- [x] Responsive design considerations documented (mobile-first)
 
 **Performance Requirements:**
 
-- [x] Latency target for debate generation documented (e.g. &lt; 30s)
-- [x] Caching: reuse Redis for standings; add H2H cache where appropriate
-- [x] No new mobile bundle impact (API-only changes)
+- [x] Performance benchmarks defined (debate generation SLA; API latency)
+- [x] Bundle size impact assessed (mobile)
+- [x] Database query performance targets set (indexes on match_id, debate_type)
+- [x] Caching strategy planned (Redis by match+type; preload on match details)
 
 **Developer Experience:**
 
-- [x] API contracts in `contracts/`; quickstart for local debate generation
-- [x] Document which endpoints/sources are used
+- [x] Documentation requirements identified (quickstart, API contract)
+- [x] API documentation needs defined (OpenAPI in contracts/)
+- [x] Development environment setup documented (quickstart.md)
+- [x] Code review guidelines established (constitution)
 
 ## Project Structure
 
@@ -71,14 +95,13 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 ```text
 specs/004-ai-debate-generator/
 ├── plan.md              # This file
-├── spec.md              # Feature spec (scope, roles, epics overview, FRs)
-├── user-stories.md      # Full epics A–H with user stories and acceptance criteria
-├── research.md          # Phase 0: H2H/standings APIs, prompt design
-├── data-model.md        # Phase 1: entities, context bundle, data flow
-├── quickstart.md        # Phase 1: run and test debate generation
-├── contracts/           # Phase 1: OpenAPI for debate endpoints
+├── research.md          # Phase 0 output (sources, prompt, multi-debate)
+├── data-model.md        # Phase 1 output (entities, cache, multi-debate flow)
+├── quickstart.md        # Phase 1 output (env, endpoints, examples)
+├── contracts/           # API contract (generate, generate-set, list)
 │   └── api.yaml
-└── tasks.md             # Phase 2 (/speckit.tasks) – not created by /speckit.plan
+├── user-stories.md      # Epics A–H
+└── tasks.md             # Phase 2 output (/speckit.tasks)
 ```
 
 ### Source Code (repository root)
@@ -87,46 +110,29 @@ specs/004-ai-debate-generator/
 services/api/
 ├── internal/
 │   ├── api/
-│   │   ├── debates.go           # Handlers: generateAIPrompt, generateDebate
-│   │   ├── debate_data_aggregator.go  # Add H2H + league table fetch
-│   │   └── ...
+│   │   ├── debates.go         # Handlers (generate, generate-set, get by match/id)
+│   │   └── debate_data_aggregator.go
 │   ├── ai/
-│   │   └── prompt_generator.go  # MatchData + buildUserPrompt: add H2H, LeagueTable
-│   └── ...
-└── ...
+│   │   └── prompt_generator.go  # One prompt per type → multiple debates (response array)
+│   └── news/
+│       └── client.go
+├── sql/schema/                # debates, debate_cards, debate_analytics migrations
+└── cmd/
 
 apps/mobile/
-└── ...   # Consumes debate API; no structural change required for this spec
+├── src/
+│   ├── screens/
+│   │   ├── MatchDetailsScreen.tsx   # Trigger preload when mounted
+│   │   ├── DebateScreen.tsx         # List of debates for type; loading state
+│   │   └── SingleDebateScreen.tsx   # Single debate with cards and comments
+│   └── services/
+│       └── api.ts                   # getDebatesByMatch, generateDebateSet, fetchDebateById
 ```
 
-**Structure decision**: Backend-only changes under `services/api`; mobile app continues to call existing debate endpoints. New aggregator fetchers and AI types live in existing packages.
+**Structure Decision**: Monorepo with Go API (`services/api`) and React Native app (`apps/mobile`). Debate generation and preload are implemented in the API; mobile triggers preload on Match Details and consumes list/single-debate endpoints.
 
 ## Complexity Tracking
 
-| Item              | Why needed                         | Simpler alternative rejected   |
-|-------------------|------------------------------------|--------------------------------|
-| H2H external API  | Spec requires head-to-head history | Hardcoding fake H2H not acceptable |
-| League table fetch in aggregator | Spec requires league table as source | Omitting table would violate FR-003 |
-
-## Phases (from /speckit.plan)
-
-- **Phase 0**: Research H2H API (API-Football), league table integration, prompt design for H2H + table + news. Output: `research.md`.
-- **Phase 1**: Data model (entities, aggregator inputs/outputs), contracts (OpenAPI), quickstart. Output: `data-model.md`, `contracts/api.yaml`, `quickstart.md`. Re-check constitution after design.
-- **Phase 2**: Implementation tasks (e.g. add H2H fetch, league table to aggregator; extend MatchData and prompt; tests). Output: `tasks.md` via `/speckit.tasks` (not part of this command).
-
-## Risks and Mitigations
-
-- **External API limits**: H2H and standings calls add to RapidAPI usage. Mitigation: Cache H2H and standings with TTL (e.g. 6–12h) in Redis.
-- **Missing league_id on fixture**: Some fixtures may not have league/season. Mitigation: Resolve from fixture response; if absent, skip league table and document in response/debug.
-
-## Epics Reference
-
-Full user stories and acceptance criteria are in [user-stories.md](./user-stories.md). MVP prioritises: **A1, B1, C1** (generate + context + display), **D1, D2** (comment + vote), **E1, E2** (moderation), **F1, F3** (caching + async). Epics G (admin/observability) and H (future) are post-MVP or phased.
-
-## Acceptance Criteria (from spec)
-
-- Pre Match and Post Match debates use all three sources when available (SC-001).
-- Graceful degradation when a source fails (FR-007, SC-003).
-- Debate prompt structure (headline + cards, optional side labels/topic tags) supports client display (FR-005).
-- AI content guidelines from 001-football-community remain applicable (SC-004).
-- Caching (F1), on-demand generation with rate limiting (A2, F2), and moderation (E1, E2) as per user-stories.
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|--------------------------------------|
+| None currently | — | — |
