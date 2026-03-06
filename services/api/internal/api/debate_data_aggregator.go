@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
 	"github.com/ArronJLinton/fucci-api/internal/news"
@@ -220,12 +223,54 @@ func (dda *DebateDataAggregator) fetchMatchStats(ctx context.Context, matchID st
 func getNumericStat(statistics []FixtureStatEntry, statType string) int {
 	for _, stat := range statistics {
 		if stat.Type == statType {
-			if val, ok := stat.Value.(float64); ok {
-				return int(val)
-			}
+			return valueToInt(stat.Value)
 		}
 	}
 	return 0
+}
+
+// valueToInt converts API-Football stat value to int. Statistics often come as float64, int, string (e.g. "55%"), or json.Number.
+func valueToInt(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	switch val := v.(type) {
+	case float64:
+		return int(val)
+	case int:
+		return val
+	case int32:
+		return int(val)
+	case int64:
+		return int(val)
+	case json.Number:
+		n, err := val.Int64()
+		if err != nil {
+			if f, err2 := val.Float64(); err2 == nil {
+				return int(f)
+			}
+			return 0
+		}
+		return int(n)
+	case string:
+		s := strings.TrimSpace(val)
+		s = strings.TrimSuffix(s, "%")
+		s = strings.TrimSpace(s)
+		// Take leading numeric part in case of "55.5" or "55"
+		if i := strings.IndexAny(s, " \t"); i >= 0 {
+			s = s[:i]
+		}
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			if f, err2 := strconv.ParseFloat(s, 64); err2 == nil {
+				return int(f)
+			}
+			return 0
+		}
+		return int(n)
+	default:
+		return 0
+	}
 }
 
 // fetchNewsHeadlines gets match news via the news module's FetchMatchNews (Real-Time News Data API).
