@@ -232,12 +232,17 @@ func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetF
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("match stats request: unexpected status code %d", resp.StatusCode)
-	}
 	rawBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("match stats read body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyPreview := string(rawBody)
+		if len(bodyPreview) > 500 {
+			bodyPreview = bodyPreview[:500] + "..."
+		}
+		return nil, fmt.Errorf("match stats request: status %d: %s", resp.StatusCode, bodyPreview)
 	}
 
 	var data GetFixtureStatisticsResponse
