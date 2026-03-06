@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -42,6 +42,9 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
   const [error, setError] = useState<string | null>(null);
   const [debateType, setDebateType] = useState<DebateType>(() => getDefaultDebateType(match));
 
+  /** Set to true in effect cleanup so in-flight load/polling bails and does not setState after unmount or when type changes */
+  const loadCancelledRef = useRef(false);
+
   const openSingleDebate = (debate: DebateResponse, selectedCardIndex: number = 0) => {
     if (!stackNav) return;
     stackNav.navigate('SingleDebate', { match, debate, selectedCardIndex });
@@ -61,20 +64,26 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
       const POLL_INTERVAL_MS = 3000;
       const POLL_TIMEOUT_MS = 60000;
 
+      const cancelled = () => loadCancelledRef.current;
+
       try {
         let list = await fetchDebatesByMatch(matchId, type);
+        if (cancelled()) return;
         if (list.length > 0) {
           const fullDebates: DebateResponse[] = [];
           for (const item of list) {
             const full = await fetchDebateById(item.id);
+            if (cancelled()) return;
             if (full) fullDebates.push(full);
           }
+          if (cancelled()) return;
           setDebateList(fullDebates);
           return;
         }
 
         setIsGenerating(true);
         const setResult = await generateDebateSet(matchId, type, 3);
+        if (cancelled()) return;
         if (setResult?.rateLimited) {
           setError('Rate limit reached. Try again later.');
           return;
@@ -86,18 +95,24 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
         if (setResult?.pending) {
           const deadline = Date.now() + POLL_TIMEOUT_MS;
           while (Date.now() < deadline) {
+            if (cancelled()) break;
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            if (cancelled()) break;
             list = await fetchDebatesByMatch(matchId, type);
+            if (cancelled()) break;
             if (list.length > 0) {
               const fullDebates: DebateResponse[] = [];
               for (const item of list) {
                 const full = await fetchDebateById(item.id);
+                if (cancelled()) break;
                 if (full) fullDebates.push(full);
               }
+              if (cancelled()) break;
               setDebateList(fullDebates);
               return;
             }
           }
+          if (cancelled()) return;
         }
 
         if (setResult !== null) {
@@ -106,30 +121,40 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
         }
 
         list = await fetchDebatesByMatch(matchId, type);
+        if (cancelled()) return;
         if (list.length > 0) {
           const fullDebates: DebateResponse[] = [];
           for (const item of list) {
             const full = await fetchDebateById(item.id);
+            if (cancelled()) return;
             if (full) fullDebates.push(full);
           }
+          if (cancelled()) return;
           setDebateList(fullDebates);
         } else {
           setError('Could not load debates. Try again.');
         }
       } catch (err) {
+        if (cancelled()) return;
         const msg = err instanceof Error ? err.message : 'Failed to load debate';
         setError(msg);
         setDebateList([]);
       } finally {
-        setIsLoading(false);
-        setIsGenerating(false);
+        if (!cancelled()) {
+          setIsLoading(false);
+          setIsGenerating(false);
+        }
       }
     },
     [match?.fixture?.id],
   );
 
   useEffect(() => {
+    loadCancelledRef.current = false;
     loadDebateForType(debateType);
+    return () => {
+      loadCancelledRef.current = true;
+    };
   }, [debateType, loadDebateForType]);
 
   useEffect(() => {
