@@ -206,6 +206,8 @@ export interface GenerateDebateSetResponse {
   pending?: boolean;
   /** True when server returned 429 (rate limit); do not fall back to createDebate. */
   rateLimited?: boolean;
+  /** True when fewer valid debates than requested (AI returned invalid/skipped items). */
+  partial_set?: boolean;
 }
 
 /** POST /debates/generate-set — generate multiple debates (e.g. 3) for match + type; returns full set or pending. Uses fetch so we can detect 429 and avoid bypassing rate limit. */
@@ -242,6 +244,7 @@ export const generateDebateSet = async (
     return {
       debates,
       pending: !!data?.pending,
+      partial_set: !!data?.partial_set,
     };
   } catch (error) {
     console.error('Error generating debate set:', error);

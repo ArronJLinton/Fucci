@@ -42,8 +42,9 @@ type GenerateDebateSetRequest struct {
 
 // GenerateDebateSetResponse is the response for POST /debates/generate-set.
 type GenerateDebateSetResponse struct {
-	Debates []DebateResponse `json:"debates"`
-	Pending bool             `json:"pending,omitempty"`
+	Debates    []DebateResponse `json:"debates"`
+	Pending    bool             `json:"pending,omitempty"`
+	PartialSet bool            `json:"partial_set,omitempty"` // true when fewer valid debates than requested (AI returned invalid/skipped items)
 }
 
 type CreateDebateCardRequest struct {
@@ -142,26 +143,28 @@ type generateSetInflight struct {
 	debates []DebateResponse
 	code    int    // HTTP status code to return
 	info    string // optional message (e.g. validation error or rate limit)
+	partial bool   // true when fewer valid debates than requested
 }
 
-func (g *generateSetInflight) signal(debates []DebateResponse, code int, info string) {
+func (g *generateSetInflight) signal(debates []DebateResponse, code int, info string, partial bool) {
 	g.mu.Lock()
 	g.debates = debates
 	g.code = code
 	g.info = info
+	g.partial = partial
 	g.mu.Unlock()
 	close(g.done)
 }
 
-func (g *generateSetInflight) waitAndGet(timeout time.Duration) (debates []DebateResponse, code int, info string) {
+func (g *generateSetInflight) waitAndGet(timeout time.Duration) (debates []DebateResponse, code int, info string, partial bool) {
 	select {
 	case <-g.done:
 		g.mu.Lock()
-		debates, code, info = g.debates, g.code, g.info
+		debates, code, info, partial = g.debates, g.code, g.info, g.partial
 		g.mu.Unlock()
-		return debates, code, info
+		return debates, code, info, partial
 	case <-time.After(timeout):
-		return nil, http.StatusGatewayTimeout, "generation timed out"
+		return nil, http.StatusGatewayTimeout, "generation timed out", false
 	}
 }
 
@@ -947,8 +950,8 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	gen, exists := generateSetInFlight[inflightKey]
 	if exists {
 		generateSetInFlightMu.Unlock()
-		debates, code, info := gen.waitAndGet(60 * time.Second)
-		generateSetRespond(w, debates, code, info)
+		debates, code, info, partial := gen.waitAndGet(60 * time.Second)
+		generateSetRespond(w, debates, code, info, partial)
 		return
 	}
 	gen = &generateSetInflight{done: make(chan struct{})}
@@ -965,12 +968,12 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	matchInfo, err := c.getMatchInfo(ctx, req.MatchID)
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s getMatchInfo: %v", req.MatchID, err)
-		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err))
+		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err), false)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err))
 		return
 	}
 	if err := c.validateMatchStatusForDebateType(matchInfo.Status, req.DebateType); err != nil {
-		gen.signal(nil, http.StatusOK, err.Error())
+		gen.signal(nil, http.StatusOK, err.Error(), false)
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{"info": err.Error(), "debates": []DebateResponse{}})
 		return
 	}
@@ -1006,7 +1009,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 					if c.Cache != nil {
 						_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
 					}
-					gen.signal(responses, http.StatusOK, "")
+					gen.signal(responses, http.StatusOK, "", false)
 					respondWithJSON(w, http.StatusOK, GenerateDebateSetResponse{Debates: responses})
 					return
 				}
@@ -1016,7 +1019,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 
 	// Rate limit only when we're about to call the AI (cache/DB miss). Cache hits and existing-DB returns don't consume the budget.
 	if !checkGenerateSetRateLimit(ctx, c, req.MatchID) {
-		gen.signal(nil, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match")
+		gen.signal(nil, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match", false)
 		w.Header().Set("Retry-After", "3600")
 		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match")
 		return
@@ -1026,7 +1029,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	matchData, err := aggregator.AggregateMatchData(ctx, c.buildMatchDataRequest(req.MatchID, matchInfo))
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s aggregate: %v", req.MatchID, err)
-		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err))
+		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err), false)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err))
 		return
 	}
@@ -1034,7 +1037,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	prompts, err := c.AIPromptGenerator.GenerateDebateSetPrompt(ctx, *matchData, req.DebateType, count)
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s AI: %v", req.MatchID, err)
-		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to generate debate set: %v", err))
+		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to generate debate set: %v", err), false)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to generate debate set: %v", err))
 		return
 	}
@@ -1103,21 +1106,22 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(responses) == 0 {
-		gen.signal(nil, http.StatusInternalServerError, "No valid debates were generated")
+		gen.signal(nil, http.StatusInternalServerError, "No valid debates were generated", false)
 		respondWithError(w, http.StatusInternalServerError, "No valid debates were generated")
 		return
 	}
 
+	partialSet := len(responses) < count
 	if c.Cache != nil {
 		_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
 	}
-	gen.signal(responses, http.StatusCreated, "")
-	log.Printf("[debate] generate-set success: match_id=%s type=%s count=%d", req.MatchID, req.DebateType, len(responses))
-	respondWithJSON(w, http.StatusCreated, GenerateDebateSetResponse{Debates: responses})
+	gen.signal(responses, http.StatusCreated, "", partialSet)
+	log.Printf("[debate] generate-set success: match_id=%s type=%s count=%d (partial=%v)", req.MatchID, req.DebateType, len(responses), partialSet)
+	respondWithJSON(w, http.StatusCreated, GenerateDebateSetResponse{Debates: responses, PartialSet: partialSet})
 }
 
 // generateSetRespond writes the appropriate HTTP response for a generate-set result (used by both generator and waiters).
-func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code int, info string) {
+func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code int, info string, partial bool) {
 	if debates == nil {
 		debates = []DebateResponse{}
 	}
@@ -1136,7 +1140,7 @@ func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code in
 		respondWithJSON(w, code, map[string]interface{}{"info": info, "debates": debates})
 		return
 	}
-	respondWithJSON(w, code, GenerateDebateSetResponse{Debates: debates})
+	respondWithJSON(w, code, GenerateDebateSetResponse{Debates: debates, PartialSet: partial})
 }
 
 // buildDebateResponsesFromDB loads full debate (with cards) for each DB row and returns DebateResponse slice.
