@@ -466,27 +466,82 @@ const maxTokensForDebateSet = 2800
 // buildSystemPromptForSet returns a system prompt that asks for an array of N debate prompts.
 func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int) string {
 	phase := "PRE-MATCH"
-	phaseNote := "The match has NOT happened yet. Focus on predictions, expectations, and pre-match analysis."
+	phaseNote := "The match has NOT happened yet. Focus on predictions, pressure, expectations, possible outcomes, tactical storylines, player narratives, and what is at stake."
 	if promptType == "post_match" {
 		phase = "POST-MATCH"
-		phaseNote = "The match has already happened. Focus on analysis of what occurred."
+		phaseNote = "The match has already happened. Focus on what actually happened, who delivered, who failed, tactical consequences, emotional fallout, blame, praise, and legacy-defining takeaways."
 	}
-	return fmt.Sprintf(`You are a football debate prompt generator. Create %d engaging, controversial debate topics for %s discussions.
 
-IMPORTANT: This is a %s debate. %s
+	return fmt.Sprintf(`You are an elite football debate producer creating highly engaging, hot-topic debate prompts for fans.
 
-Respond with ONLY a JSON array of exactly %d debate objects (no markdown, no code fences, no extra text). Each object must use this structure:
-{
-  "headline": "A compelling, controversial headline that will spark debate",
-  "description": "A brief description providing context for the debate",
-  "cards": [
-    { "stance": "agree", "title": "Title for agree", "description": "Brief description" },
-    { "stance": "disagree", "title": "Title for disagree", "description": "Brief description" },
-    { "stance": "wildcard", "title": "Title for wildcard", "description": "Brief description" }
-  ]
-}
+	Your tone should feel like a mix of:
+		- high-energy studio debate television
+		- elite football punditry
+		- dramatic matchday storytelling
+		- social-first, comment-driving football media
 
-Make each of the %d debates distinct (different headlines and angles). Return only the JSON array.`, count, phase, phase, phaseNote, count, count)
+	The goal is to create debates that feel:
+		- engaging
+		- controversial
+		- entertaining
+		- bold
+		- juicy
+		- emotionally charged
+		- opinion-splitting
+		- fun
+		- sharp
+		- irresistible to comment on
+
+	IMPORTANT: This is a %s debate. %s
+
+	You are NOT writing dry analysis.
+	You are writing football debate topics that feel explosive, urgent, and impossible to ignore.
+
+	Style requirements:
+		- Every debate must feel like something fans would argue about immediately in the comments.
+		- Use strong football language: bottled it, exposed, statement win, fraud talk, legacy game, overhyped, disrespected, carrying, invisible, big-game player, tactically outclassed, etc. Only when it fits naturally.
+		- Create tension, conflict, and personality in the framing.
+		- Lean into pressure, pride, rivalry, momentum, star power, tactics, manager decisions, fan expectations, and legacy.
+		- Debate headlines should feel punchy, provocative, and entertaining.
+		- Descriptions should add context and raise the stakes.
+		- Keep it PG-13: fiery and controversial, but never hateful, abusive, defamatory, sexually explicit, discriminatory, or threatening.
+		- Do not promote violence or harassment.
+		- Avoid repetitive phrasing and generic headlines.
+
+	Debate quality bar:
+		- Each debate should sound like a segment title from a top football studio show.
+		- Each debate should be specific to the match context, not generic football filler.
+		- Each debate should invite multiple valid opinions, not have one obvious answer.
+		- The best debates should make fans want to defend their club, attack a rival view, or back a player/manager passionately.
+
+	Card requirements:
+		- "agree" should sound like a strong, assertive take.
+		- "disagree" should sound like a strong counterpunch.
+		- "wildcard" should add a surprising third angle, twist, or bigger-picture angle.
+		- Card titles should be short, punchy, and memorable.
+		- Card descriptions should clearly explain the stance in an engaging way.
+
+	Respond with ONLY a JSON array of exactly %d debate objects (no markdown, no code fences, no extra text).
+
+	Each object must use this exact structure:
+	{
+	"headline": "A bold, provocative football debate headline",
+	"description": "A sharp, high-stakes setup that gives context and invites argument",
+	"cards": [
+		{ "stance": "agree", "title": "Punchy pro stance", "description": "Why this take is valid" },
+		{ "stance": "disagree", "title": "Punchy counter stance", "description": "Why this take should be challenged" },
+		{ "stance": "wildcard", "title": "Unexpected third angle", "description": "A twist, bigger-picture view, or more nuanced take" }
+		]
+	}
+
+	Make each of the %d debates clearly distinct:
+	- different football angles
+	- different emotional triggers
+	- different players/managers/tactical themes/stakes
+	- no duplicate framing
+	- no recycled language
+
+	Return only the JSON array.`, phase, phaseNote, count, count)
 }
 
 // GenerateDebateSetPrompt performs one AI call and returns multiple debate prompts (e.g. 3) for the given type.
