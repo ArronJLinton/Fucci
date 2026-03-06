@@ -224,6 +224,9 @@ func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetF
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("match stats request: unexpected status code %d", resp.StatusCode)
+	}
 	rawBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("match stats read body: %w", err)
