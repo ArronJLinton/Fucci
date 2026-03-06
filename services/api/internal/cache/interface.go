@@ -15,4 +15,8 @@ type CacheInterface interface {
 	FlushAll(ctx context.Context) error
 	HealthCheck(ctx context.Context) error
 	GetStats(ctx context.Context) (map[string]interface{}, error)
+	// Incr increments the key by 1; if key does not exist it is set to 1. Returns the new value.
+	Incr(ctx context.Context, key string) (int64, error)
+	// Expire sets the TTL for the key.
+	Expire(ctx context.Context, key string, ttl time.Duration) error
 }

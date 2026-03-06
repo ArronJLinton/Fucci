@@ -168,8 +168,6 @@ func (g *generateSetInflight) waitAndGet(timeout time.Duration) (debates []Debat
 var (
 	generateSetInFlight   = make(map[string]*generateSetInflight) // key: matchID:debateType
 	generateSetInFlightMu sync.Mutex
-	generateSetRateLimitMu sync.Mutex
-	generateSetRateTimes  = make(map[string][]time.Time) // matchID -> request times in last hour
 )
 
 // Debate API handlers
@@ -868,28 +866,27 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// debateGenRateLimitTTL is how long the rate-limit counter lives per match_id (1 hour).
+const debateGenRateLimitTTL = time.Hour
+
 // checkGenerateSetRateLimit returns true if the request is within limit (3 per hour per match_id).
-func checkGenerateSetRateLimit(matchID string) bool {
-	generateSetRateLimitMu.Lock()
-	defer generateSetRateLimitMu.Unlock()
-	now := time.Now()
-	cutoff := now.Add(-1 * time.Hour)
-	times := generateSetRateTimes[matchID]
-	// Trim to last hour
-	i := 0
-	for _, t := range times {
-		if t.After(cutoff) {
-			times[i] = t
-			i++
+// Uses Redis so the limit is durable and enforced across API instances; if Redis is unavailable, allows the request (fail open).
+func checkGenerateSetRateLimit(ctx context.Context, c *Config, matchID string) bool {
+	if c.Cache == nil {
+		return true
+	}
+	key := fmt.Sprintf("debate_gen:%s", matchID)
+	n, err := c.Cache.Incr(ctx, key)
+	if err != nil {
+		log.Printf("[debate] generate-set rate limit Redis Incr failed: %v", err)
+		return true // fail open
+	}
+	if n == 1 {
+		if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
+			log.Printf("[debate] generate-set rate limit Redis Expire failed: %v", err)
 		}
 	}
-	times = times[:i]
-	generateSetRateTimes[matchID] = times
-	if len(times) >= generateSetRateLimit {
-		return false
-	}
-	generateSetRateTimes[matchID] = append(times, now)
-	return true
+	return n <= int64(generateSetRateLimit)
 }
 
 func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
@@ -993,7 +990,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rate limit only when we're about to call the AI (cache/DB miss). Cache hits and existing-DB returns don't consume the budget.
-	if !checkGenerateSetRateLimit(req.MatchID) {
+	if !checkGenerateSetRateLimit(ctx, c, req.MatchID) {
 		gen.signal(nil, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match")
 		w.Header().Set("Retry-After", "3600")
 		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match")

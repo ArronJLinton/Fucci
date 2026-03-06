@@ -134,6 +134,16 @@ func (c *Cache) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Incr increments the key by 1; if the key does not exist it is set to 1. Returns the new value.
+func (c *Cache) Incr(ctx context.Context, key string) (int64, error) {
+	return c.client.Incr(ctx, key).Result()
+}
+
+// Expire sets the TTL for the key.
+func (c *Cache) Expire(ctx context.Context, key string, ttl time.Duration) error {
+	return c.client.Expire(ctx, key, ttl).Err()
+}
+
 // GetStats returns basic cache statistics
 func (c *Cache) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	info, err := c.client.Info(ctx).Result()
