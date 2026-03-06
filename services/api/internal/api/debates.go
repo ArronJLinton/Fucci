@@ -882,8 +882,19 @@ func checkGenerateSetRateLimit(ctx context.Context, c *Config, matchID string) b
 		return true // fail open
 	}
 	if n == 1 {
+		// First time we've seen this key in the current window: set the TTL.
 		if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
 			log.Printf("[debate] generate-set rate limit Redis Expire failed: %v", err)
+		}
+	} else {
+		// Fallback: if, for any reason, the key has no TTL, apply one now to avoid a permanent rate limit.
+		ttl, err := c.Cache.TTL(ctx, key)
+		if err != nil {
+			log.Printf("[debate] generate-set rate limit Redis TTL failed: %v", err)
+		} else if ttl < 0 {
+			if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
+				log.Printf("[debate] generate-set rate limit Redis fallback Expire failed: %v", err)
+			}
 		}
 	}
 	return n <= int64(generateSetRateLimit)
