@@ -127,7 +127,7 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Fetch social media sentiment
 	sentiment, err := dda.fetchSocialSentiment(ctx, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.MatchID)
 	if err != nil {
-		fmt.Printf("Failed to fetch social sentiment: %v\n", err)
+		log.Printf("[debate] social sentiment unavailable match_id=%s home=%s away=%s: %v", matchReq.MatchID, matchReq.HomeTeam, matchReq.AwayTeam, err)
 	} else {
 		matchData.SocialSentiment = sentiment
 	}
