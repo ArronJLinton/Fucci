@@ -28,16 +28,16 @@
 
 **Independent Test**: Call `GET /v1/api/debates/generate?match_id=<id>&type=pre_match` and verify response prompt content includes H2H and league table sections when fixture has league/team IDs.
 
-- [ ] T003 Extend fixture response parsing in getMatchInfo to capture league ID, season, home team ID, away team ID; add LeagueID, SeasonYear, HomeTeamID, AwayTeamID to MatchInfo in services/api/internal/api/debates.go
-- [ ] T004 Add LeagueID, SeasonYear, HomeTeamID, AwayTeamID to MatchDataRequest in services/api/internal/api/debate_data_aggregator.go and populate them in buildMatchDataRequest in services/api/internal/api/debates.go
-- [ ] T005 [P] Add HeadToHeadSummary and LeagueTableSummary (or HeadToHead/LeagueTable structs) to MatchData in services/api/internal/ai/prompt_generator.go per data-model.md
-- [ ] T006 Implement fetchHeadToHead(ctx, homeTeamID, awayTeamID) in services/api/internal/api/debate_data_aggregator.go calling API-Football GET fixtures/headtohead?h2h={home}-{away}&last=10; cache with key h2h:{home_id}-{away_id} and TTL (e.g. 6–12h) per research.md
-- [ ] T007 Implement fetchLeagueStandings(ctx, leagueID, season) in services/api/internal/api/debate_data_aggregator.go using Config.APIFootballBaseURL and Config.FootballAPIKey (or call existing standings logic); use cache key league_standings:{league_id}:{season} per data-model.md
-- [ ] T008 In AggregateMatchData in services/api/internal/api/debate_data_aggregator.go call fetchHeadToHead when HomeTeamID and AwayTeamID are set; set matchData.HeadToHeadSummary (or equivalent); on error log and leave empty (graceful degradation)
-- [ ] T009 In AggregateMatchData in services/api/internal/api/debate_data_aggregator.go call fetchLeagueStandings when LeagueID and SeasonYear are set; set matchData.LeagueTableSummary (or equivalent); on error log and leave empty (graceful degradation)
-- [ ] T010 Add HEAD-TO-HEAD and LEAGUE TABLE sections to buildUserPrompt in services/api/internal/ai/prompt_generator.go when matchData.HeadToHeadSummary and matchData.LeagueTableSummary are present per data-model.md
-- [ ] T011 [P] Add unit tests for fetchHeadToHead and fetchLeagueStandings (mock HTTP) in services/api/internal/api/debate_data_aggregator_test.go or equivalent
-- [ ] T012 [P] Add or extend integration/unit tests for generateAIPrompt with mocked aggregator returning H2H and league table in services/api/internal/api/debates_test.go to assert prompt includes both sources
+- [x] T003 Extend fixture response parsing in getMatchInfo to capture league ID, season, home team ID, away team ID; add LeagueID, SeasonYear, HomeTeamID, AwayTeamID to MatchInfo in services/api/internal/api/debates.go
+- [x] T004 Add LeagueID, SeasonYear, HomeTeamID, AwayTeamID to MatchDataRequest in services/api/internal/api/debate_data_aggregator.go and populate them in buildMatchDataRequest in services/api/internal/api/debates.go
+- [x] T005 [P] Add HeadToHeadSummary and LeagueTableSummary (or HeadToHead/LeagueTable structs) to MatchData in services/api/internal/ai/prompt_generator.go per data-model.md
+- [x] T006 Implement fetchHeadToHead(ctx, homeTeamID, awayTeamID) in services/api/internal/api/futbol.go as FetchHeadToHead; cache key h2h:{home_id}-{away_id}, TTL H2HTTL; aggregator calls Config.FetchHeadToHead
+- [x] T007 Implement fetchLeagueStandings via services/api/internal/api/futbol.go GetLeagueStandingsData + FormatLeagueStandingsSummary; cache league_standings:{league_id}:{season}; aggregator calls Config.GetLeagueStandingsData
+- [x] T008 In AggregateMatchData in services/api/internal/api/debate_data_aggregator.go call fetchHeadToHead when HomeTeamID and AwayTeamID are set; set matchData.HeadToHeadSummary (or equivalent); on error log and leave empty (graceful degradation)
+- [x] T009 In AggregateMatchData in services/api/internal/api/debate_data_aggregator.go call fetchLeagueStandings when LeagueID and SeasonYear are set; set matchData.LeagueTableSummary (or equivalent); on error log and leave empty (graceful degradation)
+- [x] T010 Add HEAD-TO-HEAD and LEAGUE TABLE sections to buildUserPrompt in services/api/internal/ai/prompt_generator.go when matchData.HeadToHeadSummary and matchData.LeagueTableSummary are present per data-model.md
+- [x] T011 [P] Add unit tests for fetchHeadToHead and fetchLeagueStandings (mock HTTP) in services/api/internal/api/debate_data_aggregator_test.go or equivalent
+- [x] T012 [P] Add or extend integration/unit tests for generateAIPrompt with mocked aggregator returning H2H and league table in services/api/internal/ai/prompt_generator_test.go and debate_data_aggregator_test.go to assert prompt includes both sources
 
 **Checkpoint**: Context bundle includes H2H and league table; pre_match and post_match generation use them when available; graceful degradation when IDs or API fail.
 
