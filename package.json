@@ -26,6 +26,7 @@
     "mobile:web": "yarn workspace fucci web",
     "mobile:start": "yarn workspace fucci start",
     "deploy:backend": "cd services/api && go build && flyctl deploy --remote-only",
+    "deploy:api": "./scripts/deploy-api.sh",
     "deploy:mobile": "yarn workspace fucci build:android && yarn workspace fucci build:ios",
     "clear:cache": "redis-cli FLUSHALL"
   },
