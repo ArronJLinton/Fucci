@@ -1020,7 +1020,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// If not force_regenerate, check DB for existing debates of this type
+	// If not force_regenerate, return any existing debates for this match/type as the set (avoids unbounded growth and mixed old/new sets).
 	if !req.ForceRegenerate {
 		existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
 		if err == nil {
@@ -1030,9 +1030,13 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 					ofType = append(ofType, d)
 				}
 			}
-			if len(ofType) >= count {
-				// Build full responses with cards and return
-				responses := c.buildDebateResponsesFromDB(ctx, ofType[:count])
+			if len(ofType) > 0 {
+				// Return up to count; treat existing as the set so we don't generate more on every call
+				limit := count
+				if len(ofType) < limit {
+					limit = len(ofType)
+				}
+				responses := c.buildDebateResponsesFromDB(ctx, ofType[:limit])
 				if len(responses) > 0 {
 					if c.Cache != nil {
 						_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
@@ -1118,6 +1122,11 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 				UpdatedAt:   dbCard.UpdatedAt.Time,
 				VoteCounts:  VoteCounts{Upvotes: 0, Downvotes: 0, Emojis: make(map[string]int)},
 			})
+		}
+		if len(cardResponses) == 0 {
+			// All cards skipped/failed: avoid returning debate with zero cards and orphan rows
+			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
+			continue
 		}
 		responses = append(responses, DebateResponse{
 			ID:          debate.ID,
