@@ -281,7 +281,7 @@ func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTea
 	}
 
 	limit := 10
-	resp, err := newsClient.FetchMatchNews(homeTeam, awayTeam, limit, matchStatus, nil)
+	resp, err := newsClient.FetchMatchNews(ctx, homeTeam, awayTeam, limit, matchStatus, nil)
 	if err != nil {
 		return nil, err
 	}

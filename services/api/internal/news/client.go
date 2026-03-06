@@ -1,6 +1,7 @@
 package news
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,22 +86,39 @@ func buildParams(pairs map[string]string, limit int) url.Values {
 }
 
 // throttleNewsRequest waits until at least newsMinInterval has passed since the last request.
-func throttleNewsRequest() {
+// It is context-aware: if ctx is cancelled during the wait, returns ctx.Err() without updating lastRequest.
+// The mutex is not held while sleeping so other goroutines can observe/update the next-allowed time.
+func throttleNewsRequest(ctx context.Context) error {
 	newsRateMu.Lock()
-	defer newsRateMu.Unlock()
-
 	elapsed := time.Since(newsLastRequest)
+	sleep := time.Duration(0)
 	if elapsed < newsMinInterval {
-		sleep := newsMinInterval - elapsed
-		time.Sleep(sleep)
+		sleep = newsMinInterval - elapsed
+	}
+	newsRateMu.Unlock()
+
+	if sleep > 0 {
+		timer := time.NewTimer(sleep)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			// waited; fall through to update lastRequest
+		}
 	}
 
+	newsRateMu.Lock()
 	newsLastRequest = time.Now()
+	newsRateMu.Unlock()
+	return nil
 }
 
-// FetchNews fetches football news from RapidAPI with custom options
-func (c *Client) FetchNews(opts FetchNewsOptions) (*RapidAPIResponse, error) {
-	throttleNewsRequest()
+// FetchNews fetches football news from RapidAPI with custom options.
+func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAPIResponse, error) {
+	if err := throttleNewsRequest(ctx); err != nil {
+		return nil, err
+	}
 	params := buildParams(map[string]string{
 		"query":          opts.Query,
 		"time_published": opts.TimePublished,
@@ -109,7 +127,7 @@ func (c *Client) FetchNews(opts FetchNewsOptions) (*RapidAPIResponse, error) {
 	}, opts.Limit)
 
 	// Create HTTP request
-	req, err := http.NewRequest("GET", c.baseURL+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"?"+params.Encode(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -155,7 +173,7 @@ type TodayAndHistoryResponse struct {
 // FetchTodayAndHistoryNews fetches both today's news and historical news.
 // Returns partial success (empty slice for a failed section) when at least one request succeeds.
 // Returns an error only when both today and history requests fail, so the handler can return 5xx and avoid caching an empty payload.
-func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
+func (c *Client) FetchTodayAndHistoryNews(ctx context.Context) (*TodayAndHistoryResponse, error) {
 	defaultOpts := FetchNewsOptions{
 		Lang:  "en",
 		Limit: 5,
@@ -166,7 +184,7 @@ func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
 	todayOpts.Query = "FIFA Football News"
 	todayOpts.TimePublished = "1d"
 
-	todayResp, todayErr := c.FetchNews(todayOpts)
+	todayResp, todayErr := c.FetchNews(ctx, todayOpts)
 	if todayErr != nil {
 		log.Printf("Failed to fetch today's news: %v", todayErr)
 		todayResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
@@ -177,7 +195,7 @@ func (c *Client) FetchTodayAndHistoryNews() (*TodayAndHistoryResponse, error) {
 	historyOpts.Query = "World FIFA Football History"
 	historyOpts.TimePublished = "anytime"
 
-	historyResp, historyErr := c.FetchNews(historyOpts)
+	historyResp, historyErr := c.FetchNews(ctx, historyOpts)
 	if historyErr != nil {
 		log.Printf("Failed to fetch historical news: %v", historyErr)
 		historyResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
@@ -208,7 +226,7 @@ func MatchStatusCompleted(status string) bool {
 // Time filtering:
 // - Not started / ongoing: fetches articles from past 1 day
 // - Completed: fetches articles from past 7 days, then filters to only those published after match end
-func (c *Client) FetchMatchNews(homeTeam, awayTeam string, limit int, matchStatus string, matchEndTime *time.Time) (*RapidAPIResponse, error) {
+func (c *Client) FetchMatchNews(ctx context.Context, homeTeam, awayTeam string, limit int, matchStatus string, matchEndTime *time.Time) (*RapidAPIResponse, error) {
 	// Build combined query: "Team A and Team B"
 	query := fmt.Sprintf("%s and %s", homeTeam, awayTeam)
 
@@ -225,7 +243,7 @@ func (c *Client) FetchMatchNews(homeTeam, awayTeam string, limit int, matchStatu
 		Lang:          "en",
 	}
 
-	resp, err := c.FetchNews(opts)
+	resp, err := c.FetchNews(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
