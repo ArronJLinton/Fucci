@@ -183,12 +183,20 @@ func (c *Config) FetchLineupData(ctx context.Context, matchID string) (*GetLineU
 		return nil, fmt.Errorf("lineup read body: %w", err)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		bodyPreview := string(rawBody)
+		if len(bodyPreview) > 500 {
+			bodyPreview = bodyPreview[:500] + "..."
+		}
+		return nil, fmt.Errorf("lineup request: status %d: %s", resp.StatusCode, bodyPreview)
+	}
+
 	var data GetLineUpResponse
 	if err := json.Unmarshal(rawBody, &data); err != nil {
 		return nil, fmt.Errorf("lineup parse: %w", err)
 	}
 
-	if c.Cache != nil {
+	if c.Cache != nil && data.Get != "" {
 		_ = c.Cache.Set(ctx, rawCacheKey, data, cache.LineupTTL)
 	}
 
@@ -657,13 +665,21 @@ func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season st
 		return nil, fmt.Errorf("standings read body: %w", err)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		bodyPreview := string(rawBody)
+		if len(bodyPreview) > 500 {
+			bodyPreview = bodyPreview[:500] + "..."
+		}
+		return nil, fmt.Errorf("standings request: status %d: %s", resp.StatusCode, bodyPreview)
+	}
+
 	var data GetLeagueStandingsResponse
 	if err := json.Unmarshal(rawBody, &data); err != nil {
 		return nil, fmt.Errorf("standings parse: %w", err)
 	}
 
-	if c.Cache != nil {
-		cacheKey := fmt.Sprintf("league_standings:%s:%s", leagueID, season)
+	cacheKey := fmt.Sprintf("league_standings:%s:%s", leagueID, season)
+	if c.Cache != nil && len(data.Response) > 0 {
 		_ = c.Cache.Set(ctx, cacheKey, data, cache.StandingsTTL)
 	}
 
