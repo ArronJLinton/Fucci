@@ -54,7 +54,7 @@ const SingleDebateScreen = () => {
   const route = useRoute<SingleDebateRouteProp>();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const {match, debate, selectedCardIndex = 0} = route.params;
+  const {match, debate} = route.params;
 
   const [mockComments, setMockComments] = useState(MOCK_COMMENTS);
   const [commentInput, setCommentInput] = useState('');
