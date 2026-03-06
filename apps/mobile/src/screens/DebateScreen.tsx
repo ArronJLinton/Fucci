@@ -217,40 +217,9 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
           <Text style={styles.headerSubtitle}>
             {match.teams.home.name} vs {match.teams.away.name}
           </Text>
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                debateType === 'pre_match' && styles.toggleButtonActive,
-              ]}
-              onPress={() => setDebateType('pre_match')}
-            >
-              <Text
-                style={[
-                  styles.toggleButtonText,
-                  debateType === 'pre_match' && styles.toggleButtonTextActive,
-                ]}
-              >
-                Pre-Match
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                debateType === 'post_match' && styles.toggleButtonActive,
-              ]}
-              onPress={() => setDebateType('post_match')}
-            >
-              <Text
-                style={[
-                  styles.toggleButtonText,
-                  debateType === 'post_match' && styles.toggleButtonTextActive,
-                ]}
-              >
-                Post-Match
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.debatePhaseLabel}>
+            {debateType === 'pre_match' ? 'Pre-Match' : 'Post-Match'}
+          </Text>
         </View>
 
         <View style={styles.content}>
@@ -423,31 +392,12 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  toggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  toggleButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  toggleButtonText: {
+  debatePhaseLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
-  },
-  toggleButtonTextActive: {
-    color: '#fff',
+    color: '#007AFF',
   },
   content: {
     padding: 16,
