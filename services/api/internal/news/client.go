@@ -87,15 +87,15 @@ func buildParams(pairs map[string]string, limit int) url.Values {
 // throttleNewsRequest waits until at least newsMinInterval has passed since the last request.
 func throttleNewsRequest() {
 	newsRateMu.Lock()
+	defer newsRateMu.Unlock()
+
 	elapsed := time.Since(newsLastRequest)
 	if elapsed < newsMinInterval {
 		sleep := newsMinInterval - elapsed
-		newsRateMu.Unlock()
 		time.Sleep(sleep)
-		newsRateMu.Lock()
 	}
+
 	newsLastRequest = time.Now()
-	newsRateMu.Unlock()
 }
 
 // FetchNews fetches football news from RapidAPI with custom options
