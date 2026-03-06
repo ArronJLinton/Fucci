@@ -23,7 +23,7 @@ As a fan, I want to see a set of AI-generated debates for a match before kickoff
   - **side_a_label**, **side_b_label** (e.g. “Yes / No”, “Team A / Team B”, “Overrated / Elite”)
   - **topic_tags** (e.g. tactics, form, rivalry, player)
   - **source_context_ids** (refs to stat/news items used)
-  - **safety_classification** (safe / needs_review / blocked)
+  - **safety_classification** (approved / needs_review / blocked)
 - Debates are stored and retrievable via API by `match_id`.
 - Debates do not regenerate unnecessarily if already created within a TTL.
 
