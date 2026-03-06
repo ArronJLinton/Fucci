@@ -16,6 +16,7 @@ import LineupScreen from './LineupScreen';
 import MatchNewsScreen from './MatchNewsScreen';
 import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
+import {generateDebateSet} from '../services/api';
 
 type MatchDetailsRouteProp = RouteProp<RootStackParamList, 'MatchDetails'>;
 const Tab = createMaterialTopTabNavigator();
@@ -37,6 +38,16 @@ const MatchDetailsScreen = () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Preload debate set when Match Details opens (background; do not block UI)
+  useEffect(() => {
+    const matchId = match?.fixture?.id;
+    if (!matchId) return;
+    const status = match?.fixture?.status?.short ?? '';
+    const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(status);
+    const debateType = finished ? 'post_match' : 'pre_match';
+    generateDebateSet(matchId, debateType, 3).catch(() => {});
+  }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
   const MatchHeader = () => (
     <View style={styles.headerContainer}>

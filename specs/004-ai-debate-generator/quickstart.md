@@ -79,6 +79,8 @@ curl -s -X POST "http://localhost:8080/v1/api/debates/generate-set" \
 
 Response: `{ "debates": [ DebateResponse, ... ] }` (and optional `"pending": true` if generation is async). Optional `"force_regenerate": true` replaces existing debates for that match and type.
 
+**Rate limit**: Generate-set is limited to **3 requests per hour per match_id**. If exceeded, the API returns `429 Too Many Requests` with a `Retry-After: 3600` header. Client can preload once when Match Details opens to avoid hitting the limit.
+
 ### 4. Get debate by ID
 
 ```bash
@@ -114,9 +116,14 @@ Optional (already or to be aggregated): lineups, match stats, social sentiment.
 - **500 from generate** – Check logs for aggregation errors (e.g. fixture not found, football API key, or OpenAI errors).
 - **Empty or missing sections in prompt** – Verify H2H and league table fetchers are implemented and that fixture has `league_id`/`season` and team IDs for H2H.
 
+## Auth (generate-set vs engagement)
+
+- **Generate-set and preload**: `POST /api/debates/generate-set` and `GET /api/debates/match` do **not** require authentication. Clients can call them unauthenticated (e.g. when opening Match Details). Rate limit is applied by `match_id`.
+- **Engagement**: Posting comments and casting votes require an authenticated user (see spec FR-010).
+
 ## Preload (multi-debate)
 
-When the user opens **Match Details**, the client can call `POST /api/debates/generate-set` in the background for the applicable `debate_type` (pre_match if match not finished, post_match if finished). By the time they open the Debate tab, the set is often already in cache/DB and can be shown immediately; if still generating, show a single loading state until the full set is ready.
+When the user opens **Match Details**, the client can call `POST /v1/api/debates/generate-set` in the background for the applicable `debate_type` (pre_match if match not finished, post_match if finished). By the time they open the Debate tab, the set is often already in cache/DB and can be shown immediately; if still generating, show a single loading state (or poll `GET /v1/api/debates/match?match_id=X&debate_type=pre_match`) until the full set is ready.
 
 ## Contract
 

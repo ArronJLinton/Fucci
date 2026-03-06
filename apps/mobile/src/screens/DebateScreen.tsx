@@ -18,6 +18,7 @@ import {
   fetchDebatesByMatch,
   fetchDebateById,
   createDebate,
+  generateDebateSet,
 } from '../services/api';
 
 const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'];
@@ -36,15 +37,15 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
   const fallbackNav = (stackNavigation ?? null) as NativeStackNavigationProp<RootStackParamList> | null;
   const stackNav = fallbackNav;
 
-  const [debateData, setDebateData] = useState<DebateResponse | null>(null);
+  const [debateList, setDebateList] = useState<DebateResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debateType, setDebateType] = useState<DebateType>(() => getDefaultDebateType(match));
 
-  const openSingleDebate = (selectedCardIndex: number) => {
-    if (!debateData || !stackNav) return;
-    stackNav.navigate('SingleDebate', { match, debate: debateData, selectedCardIndex });
+  const openSingleDebate = (debate: DebateResponse, selectedCardIndex: number = 0) => {
+    if (!stackNav) return;
+    stackNav.navigate('SingleDebate', { match, debate, selectedCardIndex });
   };
 
   const loadDebateForType = useCallback(
@@ -56,26 +57,56 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
       }
       setError(null);
       setIsLoading(true);
-      setDebateData(null);
+      setDebateList([]);
+      const matchId = match.fixture.id;
+      const POLL_INTERVAL_MS = 3000;
+      const POLL_TIMEOUT_MS = 60000;
+
       try {
-        const list = await fetchDebatesByMatch(match.fixture.id);
-        const existing = list.find((d) => d.debate_type === type);
-        if (existing) {
-          const full = await fetchDebateById(existing.id);
-          setDebateData(full ?? null);
-        } else {
-          setIsLoading(false);
-          setIsGenerating(true);
-          const created = await createDebate(match.fixture.id, type);
-          setDebateData(created ?? null);
-          if (!created) {
-            setError('Could not generate debate. Try again.');
+        let list = await fetchDebatesByMatch(matchId, type);
+        if (list.length > 0) {
+          const fullDebates: DebateResponse[] = [];
+          for (const item of list) {
+            const full = await fetchDebateById(item.id);
+            if (full) fullDebates.push(full);
           }
+          setDebateList(fullDebates);
+          return;
+        }
+
+        setIsGenerating(true);
+        const setResult = await generateDebateSet(matchId, type, 3);
+        if (setResult?.debates?.length) {
+          setDebateList(setResult.debates);
+          return;
+        }
+        if (setResult?.pending) {
+          const deadline = Date.now() + POLL_TIMEOUT_MS;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            list = await fetchDebatesByMatch(matchId, type);
+            if (list.length > 0) {
+              const fullDebates: DebateResponse[] = [];
+              for (const item of list) {
+                const full = await fetchDebateById(item.id);
+                if (full) fullDebates.push(full);
+              }
+              setDebateList(fullDebates);
+              return;
+            }
+          }
+        }
+
+        const created = await createDebate(matchId, type);
+        if (created) {
+          setDebateList([created]);
+        } else {
+          setError('Could not generate debate. Try again.');
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to load debate';
         setError(msg);
-        setDebateData(null);
+        setDebateList([]);
       } finally {
         setIsLoading(false);
         setIsGenerating(false);
@@ -115,7 +146,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
     );
   }
 
-  if (!debateData) {
+  if (!debateList.length) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.noDataText}>No debates yet</Text>
@@ -148,20 +179,23 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
         </View>
 
         <View style={styles.content}>
-          <TouchableOpacity
-            style={styles.promptContainer}
-            activeOpacity={0.9}
-            onPress={() => openSingleDebate(0)}
-          >
-            <Text style={styles.promptHeadline}>{debateData.headline}</Text>
-            <Text style={styles.promptDescription}>
-              {debateData.description}
-            </Text>
-            <View style={styles.joinConversationRow}>
-              <Text style={styles.joinConversationLabel}>Join the conversation</Text>
-              <Ionicons name="chevron-forward" size={18} color="#007AFF" />
-            </View>
-          </TouchableOpacity>
+          {debateList.map((debate, index) => (
+            <TouchableOpacity
+              key={debate.id ?? index}
+              style={styles.promptContainer}
+              activeOpacity={0.9}
+              onPress={() => openSingleDebate(debate, 0)}
+            >
+              <Text style={styles.promptHeadline}>{debate.headline}</Text>
+              <Text style={styles.promptDescription}>
+                {debate.description}
+              </Text>
+              <View style={styles.joinConversationRow}>
+                <Text style={styles.joinConversationLabel}>Join the conversation</Text>
+                <Ionicons name="chevron-forward" size={18} color="#007AFF" />
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

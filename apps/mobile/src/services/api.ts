@@ -182,19 +182,57 @@ export const fetchLineup = async (
   }
 };
 
-/** GET /debates/match?match_id= — fetch existing debates from DB */
+/** GET /debates/match?match_id= — fetch existing debates from DB; optional debate_type filter */
 export const fetchDebatesByMatch = async (
   matchId: string | number,
+  debateType?: 'pre_match' | 'post_match',
 ): Promise<DebateListItem[]> => {
   try {
-    const data = await makeApiRequest(
-      `/debates/match?match_id=${encodeURIComponent(String(matchId))}`,
-      'GET',
-    );
+    let url = `/debates/match?match_id=${encodeURIComponent(String(matchId))}`;
+    if (debateType) {
+      url += `&debate_type=${encodeURIComponent(debateType)}`;
+    }
+    const data = await makeApiRequest(url, 'GET');
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching debates by match:', error);
     return [];
+  }
+};
+
+/** Response shape from POST /debates/generate-set */
+export interface GenerateDebateSetResponse {
+  debates: DebateResponse[];
+  pending?: boolean;
+}
+
+/** POST /debates/generate-set — generate multiple debates (e.g. 3) for match + type; returns full set or pending */
+export const generateDebateSet = async (
+  matchId: string | number,
+  debateType: 'pre_match' | 'post_match',
+  count: number = 3,
+  forceRegenerate?: boolean,
+): Promise<GenerateDebateSetResponse | null> => {
+  try {
+    const data = await makeApiRequest('/debates/generate-set', 'POST', {
+      body: JSON.stringify({
+        match_id: String(matchId),
+        debate_type: debateType,
+        count: count <= 0 ? 3 : Math.min(7, count),
+        force_regenerate: !!forceRegenerate,
+      }),
+    });
+    if (data?.info && typeof data.info === 'string') {
+      return { debates: [], pending: false };
+    }
+    const debates = Array.isArray(data?.debates) ? data.debates : [];
+    return {
+      debates,
+      pending: !!data?.pending,
+    };
+  } catch (error) {
+    console.error('Error generating debate set:', error);
+    return null;
   }
 };
 

@@ -89,6 +89,9 @@ type DebateCard struct {
 	Description string `json:"description"`
 }
 
+// DefaultDebateSetCount is the default number of debates returned per type when generating a set.
+const DefaultDebateSetCount = 3
+
 type OpenAIRequest struct {
 	Model       string    `json:"model"`
 	Messages    []Message `json:"messages"`
@@ -206,6 +209,18 @@ func (pg *PromptGenerator) generatePrompt(ctx context.Context, matchData MatchDa
 
 // extractJSONFromContent returns the first JSON object from content, stripping optional markdown code fences.
 func extractJSONFromContent(content string) string {
+	s := strings.TrimSpace(content)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSpace(s)
+	if idx := strings.LastIndex(s, "```"); idx >= 0 {
+		s = s[:idx]
+	}
+	return strings.TrimSpace(s)
+}
+
+// extractJSONArrayFromContent returns the first JSON array from content, stripping optional markdown code fences.
+func extractJSONArrayFromContent(content string) string {
 	s := strings.TrimSpace(content)
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
@@ -443,4 +458,67 @@ func (pg *PromptGenerator) callOpenAI(ctx context.Context, request OpenAIRequest
 	}
 
 	return &response, nil
+}
+
+// maxTokensForDebateSet is the max tokens for a single AI response returning multiple debates.
+const maxTokensForDebateSet = 2800
+
+// buildSystemPromptForSet returns a system prompt that asks for an array of N debate prompts.
+func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int) string {
+	phase := "PRE-MATCH"
+	phaseNote := "The match has NOT happened yet. Focus on predictions, expectations, and pre-match analysis."
+	if promptType == "post_match" {
+		phase = "POST-MATCH"
+		phaseNote = "The match has already happened. Focus on analysis of what occurred."
+	}
+	return fmt.Sprintf(`You are a football debate prompt generator. Create %d engaging, controversial debate topics for %s discussions.
+
+IMPORTANT: This is a %s debate. %s
+
+Respond with ONLY a JSON array of exactly %d debate objects (no markdown, no code fences, no extra text). Each object must use this structure:
+{
+  "headline": "A compelling, controversial headline that will spark debate",
+  "description": "A brief description providing context for the debate",
+  "cards": [
+    { "stance": "agree", "title": "Title for agree", "description": "Brief description" },
+    { "stance": "disagree", "title": "Title for disagree", "description": "Brief description" },
+    { "stance": "wildcard", "title": "Title for wildcard", "description": "Brief description" }
+  ]
+}
+
+Make each of the %d debates distinct (different headlines and angles). Return only the JSON array.`, count, phase, phase, phaseNote, count, count)
+}
+
+// GenerateDebateSetPrompt performs one AI call and returns multiple debate prompts (e.g. 3) for the given type.
+func (pg *PromptGenerator) GenerateDebateSetPrompt(ctx context.Context, matchData MatchData, promptType string, count int) ([]DebatePrompt, error) {
+	if count <= 0 {
+		count = DefaultDebateSetCount
+	}
+	if count > 7 {
+		count = 7
+	}
+	systemPrompt := pg.buildSystemPromptForSet(promptType, count)
+	userPrompt := pg.buildUserPrompt(matchData, promptType)
+
+	request := OpenAIRequest{
+		Model: "gpt-4o-mini",
+		Messages: []Message{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userPrompt},
+		},
+		Temperature: 0.7,
+		MaxTokens:   maxTokensForDebateSet,
+	}
+
+	response, err := pg.callOpenAI(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("OpenAI API call failed: %w", err)
+	}
+
+	content := extractJSONArrayFromContent(response.Choices[0].Message.Content)
+	var prompts []DebatePrompt
+	if err := json.Unmarshal([]byte(content), &prompts); err != nil {
+		return nil, fmt.Errorf("failed to parse OpenAI response as array: %w", err)
+	}
+	return prompts, nil
 }
