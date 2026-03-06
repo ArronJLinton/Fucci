@@ -668,16 +668,25 @@ func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season st
 }
 
 // FormatLeagueStandingsSummary returns a text summary (rank, team, points) for debate prompts.
+// To avoid excessively large prompt context, only the first maxStandingsSummaryLines rows are included.
+const maxStandingsSummaryLines = 10
+
 func FormatLeagueStandingsSummary(data *GetLeagueStandingsResponse) string {
 	if data == nil {
 		return ""
 	}
+
 	var lines []string
+
+outer:
 	for _, r := range data.Response {
 		if len(r.League.Standings) == 0 {
 			continue
 		}
 		for _, row := range r.League.Standings[0] {
+			if len(lines) >= maxStandingsSummaryLines {
+				break outer
+			}
 			lines = append(lines, fmt.Sprintf("%d. %s %d pts", row.Rank, row.Team.Name, row.Points))
 		}
 	}
