@@ -173,6 +173,36 @@ var (
 	generateSetInFlightMu sync.Mutex
 )
 
+// In-memory fallback for generate-set rate limit when Redis is unavailable (per-process; enforces same 3/hour cap per FR-008).
+type generateSetRateWindow struct {
+	Count       int
+	WindowStart time.Time
+}
+
+type generateSetRateLimitFallback struct {
+	mu    sync.Mutex
+	byKey map[string]generateSetRateWindow
+}
+
+var generateSetFallbackLimiter = &generateSetRateLimitFallback{byKey: make(map[string]generateSetRateWindow)}
+
+func (f *generateSetRateLimitFallback) allow(matchID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	entry, exists := f.byKey[matchID]
+	if !exists || now.Sub(entry.WindowStart) >= debateGenRateLimitTTL {
+		f.byKey[matchID] = generateSetRateWindow{Count: 1, WindowStart: now}
+		return true
+	}
+	entry.Count++
+	if entry.Count > generateSetRateLimit {
+		return false
+	}
+	f.byKey[matchID] = entry
+	return true
+}
+
 // Debate API handlers
 func (c *Config) createDebate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -873,34 +903,32 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 const debateGenRateLimitTTL = time.Hour
 
 // checkGenerateSetRateLimit returns true if the request is within limit (3 per hour per match_id).
-// Uses Redis so the limit is durable and enforced across API instances; if Redis is unavailable, allows the request (fail open).
+// Uses Redis when available; on Redis failure or nil cache, falls back to in-memory per-process limiter so the cap is still enforced (FR-008).
 func checkGenerateSetRateLimit(ctx context.Context, c *Config, matchID string) bool {
-	if c.Cache == nil {
-		return true
-	}
-	key := fmt.Sprintf("debate_gen:%s", matchID)
-	n, err := c.Cache.Incr(ctx, key)
-	if err != nil {
-		log.Printf("[debate] generate-set rate limit Redis Incr failed: %v", err)
-		return true // fail open
-	}
-	if n == 1 {
-		// First time we've seen this key in the current window: set the TTL.
-		if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
-			log.Printf("[debate] generate-set rate limit Redis Expire failed: %v", err)
-		}
-	} else {
-		// Fallback: if, for any reason, the key has no TTL, apply one now to avoid a permanent rate limit.
-		ttl, err := c.Cache.TTL(ctx, key)
-		if err != nil {
-			log.Printf("[debate] generate-set rate limit Redis TTL failed: %v", err)
-		} else if ttl < 0 {
-			if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
-				log.Printf("[debate] generate-set rate limit Redis fallback Expire failed: %v", err)
+	if c.Cache != nil {
+		key := fmt.Sprintf("debate_gen:%s", matchID)
+		n, err := c.Cache.Incr(ctx, key)
+		if err == nil {
+			if n == 1 {
+				if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
+					log.Printf("[debate] generate-set rate limit Redis Expire failed: %v", err)
+				}
+			} else {
+				ttl, err := c.Cache.TTL(ctx, key)
+				if err != nil {
+					log.Printf("[debate] generate-set rate limit Redis TTL failed: %v", err)
+				} else if ttl < 0 {
+					if err := c.Cache.Expire(ctx, key, debateGenRateLimitTTL); err != nil {
+						log.Printf("[debate] generate-set rate limit Redis fallback Expire failed: %v", err)
+					}
+				}
 			}
+			return n <= int64(generateSetRateLimit)
 		}
+		log.Printf("[debate] generate-set rate limit Redis Incr failed: %v; using in-memory fallback", err)
 	}
-	return n <= int64(generateSetRateLimit)
+	// Redis unavailable or nil: enforce limit via in-memory per-process fallback (fail closed for FR-008).
+	return generateSetFallbackLimiter.allow(matchID)
 }
 
 func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
