@@ -17,7 +17,6 @@ import type { DebateResponse, DebateType } from '../types/debate';
 import {
   fetchDebatesByMatch,
   fetchDebateById,
-  createDebate,
   generateDebateSet,
 } from '../services/api';
 
@@ -76,6 +75,10 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
 
         setIsGenerating(true);
         const setResult = await generateDebateSet(matchId, type, 3);
+        if (setResult?.rateLimited) {
+          setError('Rate limit reached. Try again later.');
+          return;
+        }
         if (setResult?.debates?.length) {
           setDebateList(setResult.debates);
           return;
@@ -97,11 +100,21 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
           }
         }
 
-        const created = await createDebate(matchId, type);
-        if (created) {
-          setDebateList([created]);
+        if (setResult !== null) {
+          setError('No debates generated. Try again later.');
+          return;
+        }
+
+        list = await fetchDebatesByMatch(matchId, type);
+        if (list.length > 0) {
+          const fullDebates: DebateResponse[] = [];
+          for (const item of list) {
+            const full = await fetchDebateById(item.id);
+            if (full) fullDebates.push(full);
+          }
+          setDebateList(fullDebates);
         } else {
-          setError('Could not generate debate. Try again.');
+          setError('Could not load debates. Try again.');
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to load debate';

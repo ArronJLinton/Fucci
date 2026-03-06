@@ -1104,6 +1104,9 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 
 // generateSetRespond writes the appropriate HTTP response for a generate-set result (used by both generator and waiters).
 func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code int, info string) {
+	if debates == nil {
+		debates = []DebateResponse{}
+	}
 	if code == http.StatusTooManyRequests {
 		w.Header().Set("Retry-After", "3600")
 	}
@@ -1118,9 +1121,6 @@ func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code in
 	if code == http.StatusOK && info != "" {
 		respondWithJSON(w, code, map[string]interface{}{"info": info, "debates": debates})
 		return
-	}
-	if debates == nil {
-		debates = []DebateResponse{}
 	}
 	respondWithJSON(w, code, GenerateDebateSetResponse{Debates: debates})
 }

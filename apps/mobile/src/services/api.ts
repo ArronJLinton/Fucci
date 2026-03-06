@@ -204,17 +204,22 @@ export const fetchDebatesByMatch = async (
 export interface GenerateDebateSetResponse {
   debates: DebateResponse[];
   pending?: boolean;
+  /** True when server returned 429 (rate limit); do not fall back to createDebate. */
+  rateLimited?: boolean;
 }
 
-/** POST /debates/generate-set — generate multiple debates (e.g. 3) for match + type; returns full set or pending */
+/** POST /debates/generate-set — generate multiple debates (e.g. 3) for match + type; returns full set or pending. Uses fetch so we can detect 429 and avoid bypassing rate limit. */
 export const generateDebateSet = async (
   matchId: string | number,
   debateType: 'pre_match' | 'post_match',
   count: number = 3,
   forceRegenerate?: boolean,
 ): Promise<GenerateDebateSetResponse | null> => {
+  const url = `${apiConfig.baseURL}/debates/generate-set`;
   try {
-    const data = await makeApiRequest('/debates/generate-set', 'POST', {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { ...apiConfig.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         match_id: String(matchId),
         debate_type: debateType,
@@ -222,6 +227,14 @@ export const generateDebateSet = async (
         force_regenerate: !!forceRegenerate,
       }),
     });
+    if (response.status === 429) {
+      return { debates: [], pending: false, rateLimited: true };
+    }
+    if (!response.ok) {
+      console.error('Error generating debate set:', response.status, await response.text());
+      return null;
+    }
+    const data = await response.json();
     if (data?.info && typeof data.info === 'string') {
       return { debates: [], pending: false };
     }
