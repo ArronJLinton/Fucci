@@ -149,6 +149,11 @@ func (c *Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 	return c.client.TTL(ctx, key).Result()
 }
 
+// SetNX sets key to "1" with ttl only if key does not exist (for distributed locks). Returns true if set, false if key already existed.
+func (c *Cache) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return c.client.SetNX(ctx, key, "1", ttl).Result()
+}
+
 // GetStats returns basic cache statistics
 func (c *Cache) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	info, err := c.client.Info(ctx).Result()

@@ -224,6 +224,10 @@ func (m *MockCache) TTL(ctx context.Context, key string) (time.Duration, error) 
 	return time.Minute, nil
 }
 
+func (m *MockCache) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return true, nil
+}
+
 func TestGetLeagueStandings(t *testing.T) {
 	// Skip if no Redis connection
 	redisURL := "redis://localhost:6379"

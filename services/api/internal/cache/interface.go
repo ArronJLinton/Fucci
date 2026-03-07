@@ -21,4 +21,6 @@ type CacheInterface interface {
 	Expire(ctx context.Context, key string, ttl time.Duration) error
 	// TTL returns the key's remaining TTL; if < 0 the key has no expiry or does not exist.
 	TTL(ctx context.Context, key string) (time.Duration, error)
+	// SetNX sets key to value with ttl only if key does not exist (e.g. for distributed locks). Returns true if set, false if key already existed.
+	SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error)
 }

@@ -972,8 +972,42 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Deduplicate: one in-flight generation per key; all concurrent callers wait and get the same result.
 	inflightKey := req.MatchID + ":" + req.DebateType
+	const distributeLockTTL = 120 * time.Second
+	const waiterPollInterval = 2 * time.Second
+	const waiterTimeout = 60 * time.Second
+
+	// Distributed deduplication: try to acquire Redis lock so only one instance runs generation per key.
+	var weAcquiredLock bool
+	if c.Cache != nil {
+		lockKey := "debate_gen_lock:" + inflightKey
+		acquired, err := c.Cache.SetNX(ctx, lockKey, distributeLockTTL)
+		if err != nil {
+			log.Printf("[debate] generate-set SetNX lock failed: %v; proceeding with in-process dedup only", err)
+		} else if !acquired {
+			// Another instance is generating; wait for result to appear in cache
+			deadline := time.Now().Add(waiterTimeout)
+			for time.Now().Before(deadline) {
+				var cached []DebateResponse
+				if err := c.Cache.Get(ctx, cacheKey, &cached); err == nil && len(cached) > 0 {
+					respondWithJSON(w, http.StatusOK, GenerateDebateSetResponse{Debates: cached})
+					return
+				}
+				time.Sleep(waiterPollInterval)
+			}
+			respondWithError(w, http.StatusServiceUnavailable, "generate-set in progress on another instance; try again shortly")
+			return
+		} else {
+			weAcquiredLock = true
+		}
+	}
+	if weAcquiredLock && c.Cache != nil {
+		defer func() {
+			_ = c.Cache.Delete(ctx, "debate_gen_lock:"+inflightKey)
+		}()
+	}
+
+	// In-process deduplication: one in-flight generation per key on this instance; concurrent callers wait and get the same result.
 	generateSetInFlightMu.Lock()
 	gen, exists := generateSetInFlight[inflightKey]
 	if exists {
@@ -1192,99 +1226,20 @@ func (c *Config) buildDebateResponsesFromDB(ctx context.Context, debates []datab
 	return out
 }
 
-// getDebateResponseByID returns a full DebateResponse for the given debate ID, or nil on error.
-func (c *Config) getDebateResponseByID(ctx context.Context, debateID int32) *DebateResponse {
-	debate, err := c.DB.GetDebate(ctx, debateID)
-	if err != nil {
-		return nil
-	}
-	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
-	if err != nil {
-		return nil
-	}
-	var cardResponses []DebateCardResponse
-	for _, card := range cards {
-		cardResponses = append(cardResponses, DebateCardResponse{
-			ID:          card.ID,
-			DebateID:    card.DebateID.Int32,
-			Stance:      card.Stance,
-			Title:       card.Title,
-			Description: card.Description.String,
-			AIGenerated: card.AiGenerated.Bool,
-			CreatedAt:   card.CreatedAt.Time,
-			UpdatedAt:   card.UpdatedAt.Time,
-			VoteCounts:  VoteCounts{Upvotes: 0, Downvotes: 0, Emojis: make(map[string]int)},
-		})
-	}
-	return &DebateResponse{
-		ID:          debate.ID,
-		MatchID:     debate.MatchID,
-		DebateType:  debate.DebateType,
-		Headline:    debate.Headline,
-		Description: debate.Description.String,
-		AIGenerated: debate.AiGenerated.Bool,
-		CreatedAt:   debate.CreatedAt.Time,
-		UpdatedAt:   debate.UpdatedAt.Time,
-		Cards:       cardResponses,
-	}
-}
-
-// Helper function to get debate by ID (extracted from getDebate for reuse)
-func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID int32) {
-	ctx := r.Context()
-
-	// Get debate
-	debate, err := c.DB.GetDebate(ctx, debateID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			respondWithError(w, http.StatusNotFound, "Debate not found")
-			return
-		}
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate: %v", err))
-		return
-	}
-
-	// Get debate cards
-	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate cards: %v", err))
-		return
-	}
-
-	// Get analytics
-	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
-	if err != nil && err != sql.ErrNoRows {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate analytics: %v", err))
-		return
-	}
-
-	// Build response
-	response := DebateResponse{
-		ID:          debate.ID,
-		MatchID:     debate.MatchID,
-		DebateType:  debate.DebateType,
-		Headline:    debate.Headline,
-		Description: debate.Description.String,
-		AIGenerated: debate.AiGenerated.Bool,
-		CreatedAt:   debate.CreatedAt.Time,
-		UpdatedAt:   debate.UpdatedAt.Time,
-	}
-
-	// Add cards with vote counts
+// buildFullDebateResponse builds a DebateResponse with analytics and vote counts (shared by getDebateResponseByID and getDebateByID).
+func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.Debate, cards []database.DebateCard) (*DebateResponse, error) {
 	cardIDs := make([]int32, len(cards))
 	for i, card := range cards {
 		cardIDs[i] = card.ID
 	}
 
+	var voteCountsMap map[int32]VoteCounts
 	if len(cardIDs) > 0 {
 		voteCounts, err := c.DB.GetVoteCounts(ctx, cardIDs)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get vote counts: %v", err))
-			return
+			return nil, err
 		}
-
-		// Build vote counts map
-		voteCountsMap := make(map[int32]VoteCounts)
+		voteCountsMap = make(map[int32]VoteCounts)
 		for _, vc := range voteCounts {
 			if vc.DebateCardID.Valid {
 				counts := voteCountsMap[vc.DebateCardID.Int32]
@@ -1304,35 +1259,46 @@ func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID 
 				voteCountsMap[vc.DebateCardID.Int32] = counts
 			}
 		}
-
-		// Build card responses
-		for _, card := range cards {
-			cardResponse := DebateCardResponse{
-				ID:          card.ID,
-				DebateID:    card.DebateID.Int32,
-				Stance:      card.Stance,
-				Title:       card.Title,
-				Description: card.Description.String,
-				AIGenerated: card.AiGenerated.Bool,
-				CreatedAt:   card.CreatedAt.Time,
-				UpdatedAt:   card.UpdatedAt.Time,
-				VoteCounts:  voteCountsMap[card.ID],
-			}
-			response.Cards = append(response.Cards, cardResponse)
-		}
+	} else {
+		voteCountsMap = make(map[int32]VoteCounts)
 	}
 
-	// Add analytics if available
+	var cardResponses []DebateCardResponse
+	for _, card := range cards {
+		cardResponses = append(cardResponses, DebateCardResponse{
+			ID:          card.ID,
+			DebateID:    card.DebateID.Int32,
+			Stance:      card.Stance,
+			Title:       card.Title,
+			Description: card.Description.String,
+			AIGenerated: card.AiGenerated.Bool,
+			CreatedAt:   card.CreatedAt.Time,
+			UpdatedAt:   card.UpdatedAt.Time,
+			VoteCounts:  voteCountsMap[card.ID],
+		})
+	}
+
+	resp := &DebateResponse{
+		ID:          debate.ID,
+		MatchID:     debate.MatchID,
+		DebateType:  debate.DebateType,
+		Headline:    debate.Headline,
+		Description: debate.Description.String,
+		AIGenerated: debate.AiGenerated.Bool,
+		CreatedAt:   debate.CreatedAt.Time,
+		UpdatedAt:   debate.UpdatedAt.Time,
+		Cards:       cardResponses,
+	}
+
+	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err == nil {
 		engagementScore := 0.0
 		if analytics.EngagementScore.Valid {
-			// Parse engagement score from string
-			if score, err := strconv.ParseFloat(analytics.EngagementScore.String, 64); err == nil {
+			if score, e := strconv.ParseFloat(analytics.EngagementScore.String, 64); e == nil {
 				engagementScore = score
 			}
 		}
-
-		response.Analytics = &DebateAnalyticsResponse{
+		resp.Analytics = &DebateAnalyticsResponse{
 			ID:              analytics.ID,
 			DebateID:        analytics.DebateID.Int32,
 			TotalVotes:      int(analytics.TotalVotes.Int32),
@@ -1343,6 +1309,51 @@ func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID 
 		}
 	}
 
+	return resp, nil
+}
+
+// getDebateResponseByID returns a full DebateResponse for the given debate ID, or nil on error.
+func (c *Config) getDebateResponseByID(ctx context.Context, debateID int32) *DebateResponse {
+	debate, err := c.DB.GetDebate(ctx, debateID)
+	if err != nil {
+		return nil
+	}
+	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
+	if err != nil {
+		return nil
+	}
+	resp, err := c.buildFullDebateResponse(ctx, debate, cards)
+	if err != nil {
+		return nil
+	}
+	return resp
+}
+
+// Helper function to get debate by ID (extracted from getDebate for reuse)
+func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID int32) {
+	ctx := r.Context()
+
+	debate, err := c.DB.GetDebate(ctx, debateID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Debate not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate: %v", err))
+		return
+	}
+
+	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate cards: %v", err))
+		return
+	}
+
+	response, err := c.buildFullDebateResponse(ctx, debate, cards)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to build debate response: %v", err))
+		return
+	}
 	respondWithJSON(w, http.StatusOK, response)
 }
 
