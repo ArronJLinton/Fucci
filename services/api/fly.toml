@@ -10,8 +10,8 @@ primary_region = 'iad'
   dockerfile = 'Dockerfile'
 
 # Run DB migrations before switching to the new release (uses DB_URL from secrets)
-[release_command]
-  command = "./migrate"
+[deploy]
+  release_command = "./migrate"
 
 [env]
   ENVIRONMENT = 'production'
