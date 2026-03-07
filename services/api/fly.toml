@@ -9,6 +9,10 @@ primary_region = 'iad'
 [build]
   dockerfile = 'Dockerfile'
 
+# Run DB migrations before switching to the new release (uses DB_URL from secrets)
+[deploy]
+  release_command = "./migrate"
+
 [env]
   ENVIRONMENT = 'production'
   PORT = '8080'

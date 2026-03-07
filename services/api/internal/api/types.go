@@ -126,6 +126,22 @@ type GetLineUpResponse struct {
 	} `json:"response"`
 }
 
+// FixtureStatEntry is one statistic row in GetFixtureStatisticsResponse.
+type FixtureStatEntry struct {
+	Type  string      `json:"type"`
+	Value interface{} `json:"value"`
+}
+
+// GetFixtureStatisticsResponse is the API-Football response for GET /fixtures/statistics.
+type GetFixtureStatisticsResponse struct {
+	Response []struct {
+		Team struct {
+			ID int `json:"id"`
+		} `json:"team"`
+		Statistics []FixtureStatEntry `json:"statistics"`
+	} `json:"response"`
+}
+
 type GetSquadResponse struct {
 	Get        string `json:"get"`
 	Parameters struct {

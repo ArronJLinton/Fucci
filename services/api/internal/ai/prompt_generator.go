@@ -22,18 +22,20 @@ type CacheInterface interface {
 }
 
 type MatchData struct {
-	MatchID         string           `json:"match_id"`
-	HomeTeam        string           `json:"home_team"`
-	AwayTeam        string           `json:"away_team"`
-	Date            string           `json:"date"`
-	Status          string           `json:"status"`
-	Lineups         *LineupData      `json:"lineups,omitempty"`
-	Stats           *MatchStats      `json:"stats,omitempty"`
-	NewsHeadlines   []string         `json:"news_headlines,omitempty"`
-	SocialSentiment *SocialSentiment `json:"social_sentiment,omitempty"`
-	Venue           string           `json:"venue,omitempty"`
-	League          string           `json:"league,omitempty"`
-	Season          string           `json:"season,omitempty"`
+	MatchID            string           `json:"match_id"`
+	HomeTeam           string           `json:"home_team"`
+	AwayTeam           string           `json:"away_team"`
+	Date               string           `json:"date"`
+	Status             string           `json:"status"`
+	Lineups            *LineupData      `json:"lineups,omitempty"`
+	Stats              *MatchStats      `json:"stats,omitempty"`
+	NewsHeadlines      []string         `json:"news_headlines,omitempty"`
+	SocialSentiment    *SocialSentiment `json:"social_sentiment,omitempty"`
+	Venue              string           `json:"venue,omitempty"`
+	League             string           `json:"league,omitempty"`
+	Season             string           `json:"season,omitempty"`
+	HeadToHeadSummary  string           `json:"head_to_head_summary,omitempty"`
+	LeagueTableSummary string           `json:"league_table_summary,omitempty"`
 }
 
 type LineupData struct {
@@ -86,6 +88,9 @@ type DebateCard struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
+
+// DefaultDebateSetCount is the default number of debates returned per type when generating a set.
+const DefaultDebateSetCount = 3
 
 type OpenAIRequest struct {
 	Model       string    `json:"model"`
@@ -191,14 +196,39 @@ func (pg *PromptGenerator) generatePrompt(ctx context.Context, matchData MatchDa
 		return nil, fmt.Errorf("OpenAI API call failed: %w", err)
 	}
 
-	// Parse the response
+	// Parse the response (strip markdown code fences if present; models often wrap JSON in ```json ... ```)
+	content := extractJSONFromContent(response.Choices[0].Message.Content)
 	var prompt DebatePrompt
-	err = json.Unmarshal([]byte(response.Choices[0].Message.Content), &prompt)
+	err = json.Unmarshal([]byte(content), &prompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
 	}
 
 	return &prompt, nil
+}
+
+// extractJSONFromContent returns the first JSON object from content, stripping optional markdown code fences.
+func extractJSONFromContent(content string) string {
+	s := strings.TrimSpace(content)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSpace(s)
+	if idx := strings.LastIndex(s, "```"); idx >= 0 {
+		s = s[:idx]
+	}
+	return strings.TrimSpace(s)
+}
+
+// extractJSONArrayFromContent returns the first JSON array from content, stripping optional markdown code fences.
+func extractJSONArrayFromContent(content string) string {
+	s := strings.TrimSpace(content)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSpace(s)
+	if idx := strings.LastIndex(s, "```"); idx >= 0 {
+		s = s[:idx]
+	}
+	return strings.TrimSpace(s)
 }
 
 func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
@@ -207,7 +237,7 @@ func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
 
 IMPORTANT: This is a PRE-MATCH debate. The match has NOT happened yet. Focus on predictions, expectations, and pre-match analysis.
 
-Generate a JSON response with this structure:
+Respond with ONLY a single JSON object (no markdown, no code fences, no extra text). Use this structure:
 {
   "headline": "A compelling, controversial headline that will spark debate",
   "description": "A brief description providing context for the debate",
@@ -246,7 +276,7 @@ Make the debate engaging and controversial but respectful.`
 
 IMPORTANT: This is a POST-MATCH debate. The match has already happened. Focus on analysis of what occurred.
 
-Generate a JSON response with this structure:
+Respond with ONLY a single JSON object (no markdown, no code fences, no extra text). Use this structure:
 {
   "headline": "A compelling, controversial headline that will spark debate",
   "description": "A brief description providing context for the debate",
@@ -301,6 +331,18 @@ func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType strin
 		prompt.WriteString(fmt.Sprintf("Season: %s\n", matchData.Season))
 	}
 	prompt.WriteString("\n")
+
+	if matchData.HeadToHeadSummary != "" {
+		prompt.WriteString("HEAD-TO-HEAD:\n")
+		prompt.WriteString(matchData.HeadToHeadSummary)
+		prompt.WriteString("\n\n")
+	}
+
+	if matchData.LeagueTableSummary != "" {
+		prompt.WriteString("LEAGUE TABLE:\n")
+		prompt.WriteString(matchData.LeagueTableSummary)
+		prompt.WriteString("\n\n")
+	}
 
 	if matchData.Lineups != nil {
 		prompt.WriteString("LINEUPS:\n")
@@ -416,4 +458,122 @@ func (pg *PromptGenerator) callOpenAI(ctx context.Context, request OpenAIRequest
 	}
 
 	return &response, nil
+}
+
+// maxTokensForDebateSet is the max tokens for a single AI response returning multiple debates.
+const maxTokensForDebateSet = 2800
+
+// buildSystemPromptForSet returns a system prompt that asks for an array of N debate prompts.
+func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int) string {
+	phase := "PRE-MATCH"
+	phaseNote := "The match has NOT happened yet. Focus on predictions, pressure, expectations, possible outcomes, tactical storylines, player narratives, and what is at stake."
+	if promptType == "post_match" {
+		phase = "POST-MATCH"
+		phaseNote = "The match has already happened. Focus on what actually happened, who delivered, who failed, tactical consequences, emotional fallout, blame, praise, and legacy-defining takeaways."
+	}
+
+	return fmt.Sprintf(`You are an elite football debate producer creating highly engaging, hot-topic debate prompts for fans.
+
+	Your tone should feel like a mix of:
+		- high-energy studio debate television
+		- elite football punditry
+		- dramatic matchday storytelling
+		- social-first, comment-driving football media
+
+	The goal is to create debates that feel:
+		- engaging
+		- controversial
+		- entertaining
+		- bold
+		- juicy
+		- emotionally charged
+		- opinion-splitting
+		- fun
+		- sharp
+		- irresistible to comment on
+
+	IMPORTANT: This is a %s debate. %s
+
+	You are NOT writing dry analysis.
+	You are writing football debate topics that feel explosive, urgent, and impossible to ignore.
+
+	Style requirements:
+		- Every debate must feel like something fans would argue about immediately in the comments.
+		- Use strong football language: bottled it, exposed, statement win, fraud talk, legacy game, overhyped, disrespected, carrying, invisible, big-game player, tactically outclassed, etc. Only when it fits naturally.
+		- Create tension, conflict, and personality in the framing.
+		- Lean into pressure, pride, rivalry, momentum, star power, tactics, manager decisions, fan expectations, and legacy.
+		- Debate headlines should feel punchy, provocative, and entertaining.
+		- Descriptions should add context and raise the stakes.
+		- Keep it PG-13: fiery and controversial, but never hateful, abusive, defamatory, sexually explicit, discriminatory, or threatening.
+		- Do not promote violence or harassment.
+		- Avoid repetitive phrasing and generic headlines.
+
+	Debate quality bar:
+		- Each debate should sound like a segment title from a top football studio show.
+		- Each debate should be specific to the match context, not generic football filler.
+		- Each debate should invite multiple valid opinions, not have one obvious answer.
+		- The best debates should make fans want to defend their club, attack a rival view, or back a player/manager passionately.
+
+	Card requirements:
+		- "agree" should sound like a strong, assertive take.
+		- "disagree" should sound like a strong counterpunch.
+		- "wildcard" should add a surprising third angle, twist, or bigger-picture angle.
+		- Card titles should be short, punchy, and memorable.
+		- Card descriptions should clearly explain the stance in an engaging way.
+
+	Respond with ONLY a JSON array of exactly %d debate objects (no markdown, no code fences, no extra text).
+
+	Each object must use this exact structure:
+	{
+	"headline": "A bold, provocative football debate headline",
+	"description": "A sharp, high-stakes setup that gives context and invites argument",
+	"cards": [
+		{ "stance": "agree", "title": "Punchy pro stance", "description": "Why this take is valid" },
+		{ "stance": "disagree", "title": "Punchy counter stance", "description": "Why this take should be challenged" },
+		{ "stance": "wildcard", "title": "Unexpected third angle", "description": "A twist, bigger-picture view, or more nuanced take" }
+		]
+	}
+
+	Make each of the %d debates clearly distinct:
+	- different football angles
+	- different emotional triggers
+	- different players/managers/tactical themes/stakes
+	- no duplicate framing
+	- no recycled language
+
+	Return only the JSON array.`, phase, phaseNote, count, count)
+}
+
+// GenerateDebateSetPrompt performs one AI call and returns multiple debate prompts (e.g. 3) for the given type.
+func (pg *PromptGenerator) GenerateDebateSetPrompt(ctx context.Context, matchData MatchData, promptType string, count int) ([]DebatePrompt, error) {
+	if count <= 0 {
+		count = DefaultDebateSetCount
+	}
+	if count > 7 {
+		count = 7
+	}
+	systemPrompt := pg.buildSystemPromptForSet(promptType, count)
+	userPrompt := pg.buildUserPrompt(matchData, promptType)
+
+	request := OpenAIRequest{
+		Model: "gpt-4o-mini",
+		Messages: []Message{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userPrompt},
+		},
+		Temperature: 0.7,
+		MaxTokens:   maxTokensForDebateSet,
+	}
+
+	response, err := pg.callOpenAI(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("OpenAI API call failed: %w", err)
+	}
+
+	content := extractJSONArrayFromContent(response.Choices[0].Message.Content)
+	var prompts []DebatePrompt
+	if err := json.Unmarshal([]byte(content), &prompts); err != nil {
+		return nil, fmt.Errorf("failed to parse OpenAI response as array: %w", err)
+	}
+	return prompts, nil
 }

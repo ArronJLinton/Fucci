@@ -1,0 +1,387 @@
+openapi: 3.0.3
+info:
+  title: AI Debate Generator API (004)
+  description: |
+    API for generating AI-powered debate prompts. Supports Pre Match and Post Match debate types.
+    Generation uses three required sources: head-to-head history, league table, and news articles.
+  version: 1.0.0
+  contact:
+    name: Fucci Development Team
+
+servers:
+  - url: https://api.fucci.app/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local development
+
+paths:
+  /api/debates/generate:
+    get:
+      summary: Generate AI debate prompt (preview)
+      description: |
+        Returns an AI-generated debate prompt (headline + cards) without persisting.
+        Uses match_id and type (pre_match | post_match). Data sources: head-to-head history,
+        league table, and news articles. Optional sources (lineups, stats, sentiment) may be included.
+      operationId: generateAIPrompt
+      tags: [Debates]
+      parameters:
+        - name: match_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Fixture ID (numeric)
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [pre_match, post_match]
+          description: Debate type - pre_match (before kick-off) or post_match (after full-time)
+      responses:
+        '200':
+          description: Generated debate prompt (headline, description, cards)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebatePrompt'
+        '400':
+          description: Bad request (missing or invalid match_id/type)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error (e.g. aggregation or OpenAI failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Generate and persist AI debate
+      description: |
+        Generates an AI debate using the same sources (H2H, league table, news), persists it,
+        and returns the created debate with cards. If a debate already exists for (match_id, debate_type),
+        returns existing unless force_regenerate is true.
+      operationId: generateDebate
+      tags: [Debates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDebateRequest'
+      responses:
+        '201':
+          description: Debate created or existing returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Human-readable status message about the debate generation result.
+                  debate:
+                    $ref: '#/components/schemas/DebateResponse'
+                required:
+                  - debate
+        '400':
+          description: Bad request (missing/invalid match_id or debate_type)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error (aggregation, OpenAI, or DB failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/debates/{id}:
+    get:
+      summary: Get debate by ID
+      description: Returns a single debate with cards and analytics.
+      operationId: getDebate
+      tags: [Debates]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Debate with cards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebateResponse'
+        '400':
+          description: Invalid debate ID
+        '404':
+          description: Debate not found
+        '500':
+          description: Internal error
+
+  /api/debates/match:
+    get:
+      summary: Get debates by match
+      description: |
+        Returns all debates for a given match_id (pre_match and/or post_match).
+        When multiple debates per type are supported, the list may contain several items
+        per debate_type; client can filter by debate_type for the current phase.
+      operationId: getDebatesByMatch
+      tags: [Debates]
+      parameters:
+        - name: match_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: debate_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pre_match, post_match]
+          description: Optional filter by debate type
+      responses:
+        '200':
+          description: List of debates for the match (one or more per type)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DebateSummary'
+        '500':
+          description: Internal error
+
+  /api/debates/generate-set:
+    post:
+      summary: Generate and persist a set of debates for a match and type
+      description: |
+        Generates multiple AI debates (e.g. 3) for the given match_id and debate_type in a single
+        AI call, persists each as a separate debate row, and returns the full set. If debates
+        already exist for (match_id, debate_type), returns existing set unless force_regenerate
+        is true. Used for preload (match details open) or on-demand when the Debate tab finds
+        no debates. Response is the list of debates (each with cards); client treats debates
+        as a list (e.g. show first as primary or list all).
+      operationId: generateDebateSet
+      tags: [Debates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDebateSetRequest'
+      responses:
+        '201':
+          description: Set of debates created or existing returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDebateSetResponse'
+        '200':
+          description: |
+            Existing set returned (when no regeneration), or validation/constraint message.
+            When `info` is present, the server is indicating a constraint (e.g. match status not
+            valid for requested debate_type); `debates` is typically empty and clients should
+            treat as non-error but no debates to show (e.g. show pre_match for a finished match).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDebateSetResponse'
+        '400':
+          description: Bad request (missing/invalid match_id or debate_type)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded (e.g. max 3 generate-set requests per hour per match). Client should not retry until Retry-After.
+          headers:
+            Retry-After:
+              schema: { type: integer, description: Seconds after which to retry }
+              description: Recommended wait time in seconds (e.g. 3600)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error (aggregation, OpenAI, or DB failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    DebatePrompt:
+      type: object
+      required: [headline, cards]
+      properties:
+        headline:
+          type: string
+          description: Main debate headline
+        description:
+          type: string
+          description: Optional context for the debate
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateCard'
+    DebateCard:
+      type: object
+      properties:
+        stance:
+          type: string
+          enum: [agree, disagree, wildcard]
+        title:
+          type: string
+        description:
+          type: string
+        side_a_label:
+          type: string
+          description: Optional label for first side (e.g. "Yes", "Team A")
+        side_b_label:
+          type: string
+          description: Optional label for second side (e.g. "No", "Team B")
+        topic_tags:
+          type: array
+          items:
+            type: string
+          description: Optional tags (e.g. tactics, form, rivalry, player)
+    GenerateDebateRequest:
+      type: object
+      required: [match_id, debate_type]
+      properties:
+        match_id:
+          type: string
+          description: Fixture ID (numeric)
+        debate_type:
+          type: string
+          enum: [pre_match, post_match]
+        force_regenerate:
+          type: boolean
+          default: false
+          description: If true, replace existing debate for (match_id, debate_type)
+    GenerateDebateResponse:
+      type: object
+      properties:
+        debate:
+          $ref: '#/components/schemas/DebateResponse'
+    GenerateDebateSetRequest:
+      type: object
+      required: [match_id, debate_type]
+      properties:
+        match_id:
+          type: string
+          description: Fixture ID (numeric)
+        debate_type:
+          type: string
+          enum: [pre_match, post_match]
+        count:
+          type: integer
+          minimum: 1
+          maximum: 7
+          default: 3
+          description: Number of debates to generate (e.g. 3)
+        force_regenerate:
+          type: boolean
+          default: false
+          description: If true, replace existing debates for (match_id, debate_type)
+    GenerateDebateSetResponse:
+      type: object
+      properties:
+        debates:
+          type: array
+          description: Full set of debates for this match and type (each with cards). Empty when `info` is set (validation/constraint).
+          items:
+            $ref: '#/components/schemas/DebateResponse'
+        pending:
+          type: boolean
+          description: If true, generation is in progress; client may poll or wait
+        partial_set:
+          type: boolean
+          description: If true, fewer valid debates than requested (AI returned invalid/skipped items)
+        info:
+          type: string
+          description: |
+            When present (typically with 200 and empty debates), a validation or constraint message
+            (e.g. "cannot generate post_match debate for a match that hasn't started"). Clients
+            should treat as non-error but no debates to display for this type.
+    DebateResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        match_id:
+          type: string
+        debate_type:
+          type: string
+          enum: [pre_match, post_match]
+        headline:
+          type: string
+        description:
+          type: string
+        ai_generated:
+          type: boolean
+        safety_classification:
+          type: string
+          enum: [approved, needs_review, blocked]
+          description: Optional; for moderation (Epic E1)
+        context_quality:
+          type: string
+          enum: [full, partial]
+          description: Optional; partial when context bundle had missing sources (Epic B2)
+        source_context_ids:
+          type: array
+          items:
+            type: string
+          description: Optional refs to stat/news items used in generation
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateCard'
+        analytics:
+          type: object
+          nullable: true
+    DebateSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        match_id:
+          type: string
+        debate_type:
+          type: string
+        headline:
+          type: string
+        description:
+          type: string
+        ai_generated:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      properties:
+        error:
+          type: string

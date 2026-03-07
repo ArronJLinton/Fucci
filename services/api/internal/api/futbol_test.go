@@ -166,6 +166,9 @@ type MockCache struct {
 	existsFunc func(ctx context.Context, key string) (bool, error)
 	getFunc    func(ctx context.Context, key string, value interface{}) error
 	setFunc    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	incrFunc   func(ctx context.Context, key string) (int64, error)
+	expireFunc func(ctx context.Context, key string, ttl time.Duration) error
+	ttlFunc    func(ctx context.Context, key string) (time.Duration, error)
 }
 
 func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
@@ -198,6 +201,31 @@ func (m *MockCache) HealthCheck(ctx context.Context) error {
 
 func (m *MockCache) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	return make(map[string]interface{}), nil
+}
+
+func (m *MockCache) Incr(ctx context.Context, key string) (int64, error) {
+	if m.incrFunc != nil {
+		return m.incrFunc(ctx, key)
+	}
+	return 1, nil
+}
+
+func (m *MockCache) Expire(ctx context.Context, key string, ttl time.Duration) error {
+	if m.expireFunc != nil {
+		return m.expireFunc(ctx, key, ttl)
+	}
+	return nil
+}
+
+func (m *MockCache) TTL(ctx context.Context, key string) (time.Duration, error) {
+	if m.ttlFunc != nil {
+		return m.ttlFunc(ctx, key)
+	}
+	return time.Minute, nil
+}
+
+func (m *MockCache) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return true, nil
 }
 
 func TestGetLeagueStandings(t *testing.T) {

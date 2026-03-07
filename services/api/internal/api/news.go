@@ -39,7 +39,7 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch both today's news and historical news from RapidAPI
-	todayAndHistoryResp, err := newsClient.FetchTodayAndHistoryNews()
+	todayAndHistoryResp, err := newsClient.FetchTodayAndHistoryNews(ctx)
 	if err != nil {
 		log.Printf("Failed to fetch news from RapidAPI: %v", err)
 
@@ -133,7 +133,7 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 	// Fetch match news (combined query for both teams)
 	// Default limit to 10 articles
 	limit := 10
-	matchResp, err := newsClient.FetchMatchNews(homeTeam, awayTeam, limit, matchStatus, matchEndTime)
+	matchResp, err := newsClient.FetchMatchNews(ctx, homeTeam, awayTeam, limit, matchStatus, matchEndTime)
 	if err != nil {
 		log.Printf("Failed to fetch match news from RapidAPI: %v", err)
 

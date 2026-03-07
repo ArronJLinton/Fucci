@@ -15,4 +15,12 @@ type CacheInterface interface {
 	FlushAll(ctx context.Context) error
 	HealthCheck(ctx context.Context) error
 	GetStats(ctx context.Context) (map[string]interface{}, error)
+	// Incr increments the key by 1; if key does not exist it is set to 1. Returns the new value.
+	Incr(ctx context.Context, key string) (int64, error)
+	// Expire sets the TTL for the key.
+	Expire(ctx context.Context, key string, ttl time.Duration) error
+	// TTL returns the key's remaining TTL; if < 0 the key has no expiry or does not exist.
+	TTL(ctx context.Context, key string) (time.Duration, error)
+	// SetNX sets key to value with ttl only if key does not exist (e.g. for distributed locks). Returns true if set, false if key already existed.
+	SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error)
 }

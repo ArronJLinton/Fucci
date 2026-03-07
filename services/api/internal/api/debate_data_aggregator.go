@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"time"
+	"log"
+	"strconv"
+	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
+	"github.com/ArronJLinton/fucci-api/internal/news"
 )
 
 type DebateDataAggregator struct {
@@ -39,6 +39,10 @@ type MatchDataRequest struct {
 	Venue           string `json:"venue"`
 	League          string `json:"league"`
 	Season          string `json:"season"`
+	LeagueID        int    `json:"league_id"`
+	SeasonYear      int    `json:"season_year"`
+	HomeTeamID      int    `json:"home_team_id"`
+	AwayTeamID      int    `json:"away_team_id"`
 }
 
 func NewDebateDataAggregator(config *Config) *DebateDataAggregator {
@@ -78,11 +82,11 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 		AwayRedCards:    matchReq.AwayRedCards,
 	}
 
-	// Fetch lineups if match is upcoming or in progress
+	// Fetch lineups if match is upcoming or in progress (optional: continue with other sources if unavailable)
 	if matchReq.Status == "NS" || matchReq.Status == "1H" || matchReq.Status == "2H" || matchReq.Status == "HT" {
-		lineups, err := dda.fetchLineups(ctx, matchReq.MatchID)
+		lineups, err := dda.fetchLineups(ctx, matchReq.MatchID, matchReq.HomeTeamID, matchReq.AwayTeamID)
 		if err != nil {
-			fmt.Printf("Failed to fetch lineups: %v\n", err)
+			log.Printf("Lineup data unavailable for match %s, continuing with other sources: %v", matchReq.MatchID, err)
 		} else {
 			matchData.Lineups = lineups
 		}
@@ -91,9 +95,9 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Fetch detailed match statistics if match is finished or in progress
 	if matchReq.Status == "FT" || matchReq.Status == "AET" || matchReq.Status == "PEN" ||
 		matchReq.Status == "1H" || matchReq.Status == "2H" || matchReq.Status == "HT" {
-		detailedStats, err := dda.fetchMatchStats(ctx, matchReq.MatchID)
+		detailedStats, err := dda.fetchMatchStats(ctx, matchReq.MatchID, matchReq.HomeTeamID, matchReq.AwayTeamID)
 		if err != nil {
-			fmt.Printf("Failed to fetch detailed match stats for match ID %s: %v\n", matchReq.MatchID, err)
+			log.Printf("Match stats unavailable for match %s, continuing with other sources: %v", matchReq.MatchID, err)
 		} else {
 			// Merge detailed stats with basic stats
 			enhancedStats.HomeShots = detailedStats.HomeShots
@@ -112,10 +116,10 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Set the enhanced stats
 	matchData.Stats = enhancedStats
 
-	// Fetch news headlines
-	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.HomeTeam, matchReq.AwayTeam)
+	// Fetch news headlines via news module (optional: continue with other sources if rate-limited or unavailable)
+	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.Status)
 	if err != nil {
-		fmt.Printf("Failed to fetch news headlines: %v\n", err)
+		log.Printf("News headlines unavailable, continuing with other sources: %v", err)
 	} else {
 		matchData.NewsHeadlines = headlines
 	}
@@ -123,263 +127,219 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Fetch social media sentiment
 	sentiment, err := dda.fetchSocialSentiment(ctx, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.MatchID)
 	if err != nil {
-		fmt.Printf("Failed to fetch social sentiment: %v\n", err)
+		log.Printf("[debate] social sentiment unavailable match_id=%s home=%s away=%s: %v", matchReq.MatchID, matchReq.HomeTeam, matchReq.AwayTeam, err)
 	} else {
 		matchData.SocialSentiment = sentiment
+	}
+
+	// Fetch head-to-head when both team IDs are available (uses API-Football via Config)
+	if matchReq.HomeTeamID != 0 && matchReq.AwayTeamID != 0 {
+		h2h, err := dda.Config.FetchHeadToHead(ctx, matchReq.HomeTeamID, matchReq.AwayTeamID)
+		if err != nil {
+			log.Printf("Failed to fetch head-to-head for %d vs %d: %v", matchReq.HomeTeamID, matchReq.AwayTeamID, err)
+		} else {
+			matchData.HeadToHeadSummary = h2h
+		}
+	}
+
+	// Fetch league standings when league and season are available (uses API-Football via Config)
+	if matchReq.LeagueID != 0 && matchReq.SeasonYear != 0 {
+		data, err := dda.Config.GetLeagueStandingsData(ctx, fmt.Sprintf("%d", matchReq.LeagueID), fmt.Sprintf("%d", matchReq.SeasonYear))
+		if err != nil {
+			log.Printf("Failed to fetch league standings for league %d season %d: %v", matchReq.LeagueID, matchReq.SeasonYear, err)
+		} else {
+			matchData.LeagueTableSummary = FormatLeagueStandingsSummary(data)
+		}
 	}
 
 	return matchData, nil
 }
 
-// fetchLineups gets lineup data for a match
-func (dda *DebateDataAggregator) fetchLineups(ctx context.Context, matchID string) (*ai.LineupData, error) {
-	// Use configurable base URL with fallback
-	baseURL := dda.Config.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-
-	url := fmt.Sprintf("%s/fixtures/lineups?fixture=%s", baseURL, matchID)
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": dda.Config.FootballAPIKey,
-	}
-
-	resp, err := HTTPRequest("GET", url, headers, nil)
+// fetchLineups gets lineup data for a match via Config.FetchLineupData (shared with futbol handler).
+// Maps each response block to home/away by team.id when homeTeamID/awayTeamID are set; otherwise falls back to index order.
+func (dda *DebateDataAggregator) fetchLineups(ctx context.Context, matchID string, homeTeamID, awayTeamID int) (*ai.LineupData, error) {
+	raw, err := dda.Config.FetchLineupData(ctx, matchID)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching lineups: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading lineup response: %w", err)
-	}
-
-	var lineupResponse struct {
-		Response []struct {
-			Team struct {
-				ID int `json:"id"`
-			} `json:"team"`
-			StartXI []struct {
-				Player ai.Player `json:"player"`
-			} `json:"startXI"`
-			Substitutes []struct {
-				Player ai.Player `json:"player"`
-			} `json:"substitutes"`
-		} `json:"response"`
-	}
-
-	err = json.Unmarshal(body, &lineupResponse)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing lineup response: %w", err)
-	}
-
-	if len(lineupResponse.Response) < 2 {
+	if len(raw.Response) < 2 {
 		return nil, fmt.Errorf("insufficient lineup data")
 	}
 
-	// Convert to ai.LineupData format
+	homeIdx, awayIdx := 0, 1
+	for i := range raw.Response {
+		tid := raw.Response[i].Team.ID
+		if homeTeamID != 0 && tid == homeTeamID {
+			homeIdx = i
+		}
+		if awayTeamID != 0 && tid == awayTeamID {
+			awayIdx = i
+		}
+	}
+	if homeIdx == awayIdx {
+		// One ID matched or neither: assign the other slot to the remaining block
+		if homeTeamID != 0 || awayTeamID != 0 {
+			if homeTeamID != 0 {
+				awayIdx = 1 - homeIdx
+			} else {
+				homeIdx = 1 - awayIdx
+			}
+		} else {
+			homeIdx, awayIdx = 0, 1
+		}
+	}
+
+	home := &raw.Response[homeIdx]
+	away := &raw.Response[awayIdx]
+
 	lineupData := &ai.LineupData{}
-
-	// Home team (first response)
-	for _, player := range lineupResponse.Response[0].StartXI {
-		lineupData.HomeStarters = append(lineupData.HomeStarters, player.Player)
+	for _, p := range home.StartXI {
+		lineupData.HomeStarters = append(lineupData.HomeStarters, apiPlayerToAIPlayer(p.Player))
 	}
-	for _, player := range lineupResponse.Response[0].Substitutes {
-		lineupData.HomeSubstitutes = append(lineupData.HomeSubstitutes, player.Player)
+	for _, p := range home.Substitutes {
+		lineupData.HomeSubstitutes = append(lineupData.HomeSubstitutes, ai.Player{ID: p.Player.ID, Name: p.Player.Name, Number: p.Player.Number, Pos: p.Player.Pos, Photo: p.Player.Photo})
 	}
-
-	// Away team (second response)
-	for _, player := range lineupResponse.Response[1].StartXI {
-		lineupData.AwayStarters = append(lineupData.AwayStarters, player.Player)
+	for _, p := range away.StartXI {
+		lineupData.AwayStarters = append(lineupData.AwayStarters, apiPlayerToAIPlayer(p.Player))
 	}
-	for _, player := range lineupResponse.Response[1].Substitutes {
-		lineupData.AwaySubstitutes = append(lineupData.AwaySubstitutes, player.Player)
+	for _, p := range away.Substitutes {
+		lineupData.AwaySubstitutes = append(lineupData.AwaySubstitutes, ai.Player{ID: p.Player.ID, Name: p.Player.Name, Number: p.Player.Number, Pos: p.Player.Pos, Photo: p.Player.Photo})
 	}
 
 	return lineupData, nil
 }
 
-// fetchMatchStats gets match statistics
-func (dda *DebateDataAggregator) fetchMatchStats(ctx context.Context, matchID string) (*ai.MatchStats, error) {
-	// Use configurable base URL with fallback
-	baseURL := dda.Config.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
+// apiPlayerToAIPlayer maps api.Player to ai.Player (ID, Name, Number, Pos, Photo).
+func apiPlayerToAIPlayer(p Player) ai.Player {
+	return ai.Player{ID: p.ID, Name: p.Name, Number: p.Number, Pos: p.Pos, Photo: p.Photo}
+}
 
-	url := fmt.Sprintf("%s/fixtures/statistics?fixture=%s", baseURL, matchID)
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": dda.Config.FootballAPIKey,
-	}
-
-	resp, err := HTTPRequest("GET", url, headers, nil)
+// fetchMatchStats gets match statistics via Config.FetchMatchStatsData (shared with API-Football).
+// Maps response blocks to home/away by team.id when homeTeamID/awayTeamID are set; otherwise falls back to index order.
+func (dda *DebateDataAggregator) fetchMatchStats(ctx context.Context, matchID string, homeTeamID, awayTeamID int) (*ai.MatchStats, error) {
+	raw, err := dda.Config.FetchMatchStatsData(ctx, matchID)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching match stats: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading stats response: %w", err)
-	}
-
-	var statsResponse struct {
-		Response []struct {
-			Team struct {
-				ID int `json:"id"`
-			} `json:"team"`
-			Statistics []struct {
-				Type  string      `json:"type"`
-				Value interface{} `json:"value"`
-			} `json:"statistics"`
-		} `json:"response"`
-	}
-
-	err = json.Unmarshal(body, &statsResponse)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing stats response: %w", err)
-	}
-
-	if len(statsResponse.Response) < 2 {
+	if len(raw.Response) < 2 {
 		return nil, fmt.Errorf("insufficient stats data")
 	}
 
-	// Parse statistics into ai.MatchStats format
-	stats := &ai.MatchStats{}
-
-	// Helper function to extract numeric value
-	getNumericValue := func(statistics []struct {
-		Type  string      `json:"type"`
-		Value interface{} `json:"value"`
-	}, statType string) int {
-		for _, stat := range statistics {
-			if stat.Type == statType {
-				if val, ok := stat.Value.(float64); ok {
-					return int(val)
-				}
-			}
+	homeIdx, awayIdx := 0, 1
+	for i := range raw.Response {
+		tid := raw.Response[i].Team.ID
+		if homeTeamID != 0 && tid == homeTeamID {
+			homeIdx = i
 		}
-		return 0
+		if awayTeamID != 0 && tid == awayTeamID {
+			awayIdx = i
+		}
+	}
+	if homeIdx == awayIdx {
+		if homeTeamID != 0 || awayTeamID != 0 {
+			if homeTeamID != 0 {
+				awayIdx = 1 - homeIdx
+			} else {
+				homeIdx = 1 - awayIdx
+			}
+		} else {
+			homeIdx, awayIdx = 0, 1
+		}
 	}
 
-	// Home team stats (first response)
-	homeStats := statsResponse.Response[0].Statistics
-	stats.HomeGoals = getNumericValue(homeStats, "Goals")
-	stats.HomeShots = getNumericValue(homeStats, "Total Shots")
-	stats.HomePossession = getNumericValue(homeStats, "Ball Possession")
-	stats.HomeFouls = getNumericValue(homeStats, "Fouls")
-	stats.HomeYellowCards = getNumericValue(homeStats, "Yellow Cards")
-	stats.HomeRedCards = getNumericValue(homeStats, "Red Cards")
+	homeStats := raw.Response[homeIdx].Statistics
+	awayStats := raw.Response[awayIdx].Statistics
 
-	// Away team stats (second response)
-	awayStats := statsResponse.Response[1].Statistics
-	stats.AwayGoals = getNumericValue(awayStats, "Goals")
-	stats.AwayShots = getNumericValue(awayStats, "Total Shots")
-	stats.AwayPossession = getNumericValue(awayStats, "Ball Possession")
-	stats.AwayFouls = getNumericValue(awayStats, "Fouls")
-	stats.AwayYellowCards = getNumericValue(awayStats, "Yellow Cards")
-	stats.AwayRedCards = getNumericValue(awayStats, "Red Cards")
+	stats := &ai.MatchStats{}
+	stats.HomeGoals = getNumericStat(homeStats, "Goals")
+	stats.HomeShots = getNumericStat(homeStats, "Total Shots")
+	stats.HomePossession = getNumericStat(homeStats, "Ball Possession")
+	stats.HomeFouls = getNumericStat(homeStats, "Fouls")
+	stats.HomeYellowCards = getNumericStat(homeStats, "Yellow Cards")
+	stats.HomeRedCards = getNumericStat(homeStats, "Red Cards")
+
+	stats.AwayGoals = getNumericStat(awayStats, "Goals")
+	stats.AwayShots = getNumericStat(awayStats, "Total Shots")
+	stats.AwayPossession = getNumericStat(awayStats, "Ball Possession")
+	stats.AwayFouls = getNumericStat(awayStats, "Fouls")
+	stats.AwayYellowCards = getNumericStat(awayStats, "Yellow Cards")
+	stats.AwayRedCards = getNumericStat(awayStats, "Red Cards")
 
 	return stats, nil
 }
 
-// fetchNewsHeadlines gets relevant news headlines for the teams
-func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTeam, awayTeam string) ([]string, error) {
-	var headlines []string
-
-	// Search for home team news
-	homeHeadlines, err := dda.searchNews(ctx, homeTeam)
-	if err != nil {
-		fmt.Printf("Failed to fetch home team news: %v\n", err)
-	} else {
-		headlines = append(headlines, homeHeadlines...)
-	}
-
-	// Search for away team news
-	awayHeadlines, err := dda.searchNews(ctx, awayTeam)
-	if err != nil {
-		fmt.Printf("Failed to fetch away team news: %v\n", err)
-	} else {
-		headlines = append(headlines, awayHeadlines...)
-	}
-
-	// Search for match-up news
-	matchupQuery := fmt.Sprintf("%s vs %s", homeTeam, awayTeam)
-	matchupHeadlines, err := dda.searchNews(ctx, matchupQuery)
-	if err != nil {
-		fmt.Printf("Failed to fetch matchup news: %v\n", err)
-	} else {
-		headlines = append(headlines, matchupHeadlines...)
-	}
-
-	// Limit to top 10 headlines to avoid overwhelming the AI
-	if len(headlines) > 10 {
-		headlines = headlines[:10]
-	}
-
-	return headlines, nil
-}
-
-// searchNews performs a Google News search
-func (dda *DebateDataAggregator) searchNews(ctx context.Context, query string) ([]string, error) {
-	// Construct the URL
-	baseURL := "https://google-news13.p.rapidapi.com/search"
-	params := url.Values{}
-	params.Add("keyword", query)
-	params.Add("lr", "en-US")
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"?"+params.Encode(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating news request: %w", err)
-	}
-
-	// Add RapidAPI headers
-	req.Header.Add("x-rapidapi-key", dda.Config.RapidAPIKey)
-	req.Header.Add("x-rapidapi-host", "google-news13.p.rapidapi.com")
-
-	// Make the request
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making news request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading news response: %w", err)
-	}
-
-	// Check if response is successful
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("news API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse JSON response
-	var newsResponse struct {
-		Items []struct {
-			Title string `json:"title"`
-		} `json:"items"`
-	}
-
-	err = json.Unmarshal(body, &newsResponse)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing news response: %w", err)
-	}
-
-	// Extract headlines
-	var headlines []string
-	for _, item := range newsResponse.Items {
-		if item.Title != "" {
-			headlines = append(headlines, item.Title)
+func getNumericStat(statistics []FixtureStatEntry, statType string) int {
+	for _, stat := range statistics {
+		if stat.Type == statType {
+			return valueToInt(stat.Value)
 		}
 	}
+	return 0
+}
 
+// valueToInt converts API-Football stat value to int. Statistics often come as float64, int, string (e.g. "55%"), or json.Number.
+func valueToInt(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	switch val := v.(type) {
+	case float64:
+		return int(val)
+	case int:
+		return val
+	case int32:
+		return int(val)
+	case int64:
+		return int(val)
+	case json.Number:
+		n, err := val.Int64()
+		if err != nil {
+			if f, err2 := val.Float64(); err2 == nil {
+				return int(f)
+			}
+			return 0
+		}
+		return int(n)
+	case string:
+		s := strings.TrimSpace(val)
+		s = strings.TrimSuffix(s, "%")
+		s = strings.TrimSpace(s)
+		// Take leading numeric part in case of "55.5" or "55"
+		if i := strings.IndexAny(s, " \t"); i >= 0 {
+			s = s[:i]
+		}
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			if f, err2 := strconv.ParseFloat(s, 64); err2 == nil {
+				return int(f)
+			}
+			return 0
+		}
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+// fetchNewsHeadlines gets match news via the news module's FetchMatchNews (Real-Time News Data API).
+func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTeam, awayTeam, matchStatus string) ([]string, error) {
+	newsClient := news.NewClient(dda.Config.RapidAPIKey)
+	if dda.Config.NewsBaseURL != "" {
+		newsClient = news.NewClientWithBaseURL(dda.Config.RapidAPIKey, dda.Config.NewsBaseURL)
+	}
+
+	limit := 10
+	resp, err := newsClient.FetchMatchNews(ctx, homeTeam, awayTeam, limit, matchStatus, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	headlines := make([]string, 0, len(resp.Data))
+	for _, article := range resp.Data {
+		if article.Title != "" {
+			headlines = append(headlines, article.Title)
+		}
+	}
 	return headlines, nil
 }
 

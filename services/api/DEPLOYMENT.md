@@ -216,20 +216,35 @@ flyctl scale count 2 --app fucci-api
 
 ## Database Migrations
 
-Database migrations should be run as part of the deployment process. You can:
+Migrations run **automatically** on each deploy via Fly’s `release_command` in `fly.toml`. Before the new release is switched, Fly runs `./migrate` in the app image (using `DB_URL` from secrets). No manual step is required for normal deploys.
 
-1. **Run migrations manually:**
+**Deploy (migrations run on Fly during release):**
 
-   ```bash
-   flyctl ssh console --app fucci-api
-   # Then run your migration command inside the container
-   ```
+```bash
+# From repo root
+./scripts/deploy-api.sh
+# or
+yarn deploy:backend
+```
 
-2. **Add to release command in fly.toml:**
-   ```toml
-   [release_command]
-     command = "./bin/migrate"
-   ```
+**Optional: run migrations locally before deploy** (e.g. against a staging DB):
+
+```bash
+RUN_MIGRATIONS=1 ./scripts/deploy-api.sh
+```
+
+**Run migrations only** (e.g. local or CI against a specific DB):
+
+```bash
+yarn migrate   # uses DB_URL from environment
+```
+
+**Manual run inside Fly container** (if needed):
+
+```bash
+flyctl ssh console --app fucci-api
+# Then run: ./migrate
+```
 
 ## Rollback
 

@@ -7,14 +7,39 @@ import {
   SafeAreaView,
   useWindowDimensions,
 } from 'react-native';
-import {useRoute, RouteProp} from '@react-navigation/native';
+import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import type {RootStackParamList} from '../types/navigation';
 // import StoryScreen from './StoryScreen';
 import LineupScreen from './LineupScreen';
 import MatchNewsScreen from './MatchNewsScreen';
-// import DebateScreen from './DebateScreen';
+import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
+import {generateDebateSet} from '../services/api';
+
+const MAX_PRELOAD_KEYS = 64;
+
+/** Keys we've successfully preloaded this session (avoid repeated POST). Only add on success so transient failures can retry. */
+const preloadFiredFor = new Set<string>();
+/** FIFO order for eviction when at capacity. */
+const preloadFiredOrder: string[] = [];
+/** In-flight preload keys so we don't double-fire while a request is pending. */
+const preloadInFlight = new Set<string>();
+
+function preloadKey(matchId: number, debateType: string): string {
+  return `${matchId}:${debateType}`;
+}
+
+function markPreloadFired(key: string) {
+  if (preloadFiredFor.has(key)) return;
+  if (preloadFiredOrder.length >= MAX_PRELOAD_KEYS) {
+    const oldest = preloadFiredOrder.shift();
+    if (oldest) preloadFiredFor.delete(oldest);
+  }
+  preloadFiredOrder.push(key);
+  preloadFiredFor.add(key);
+}
 
 type MatchDetailsRouteProp = RouteProp<RootStackParamList, 'MatchDetails'>;
 const Tab = createMaterialTopTabNavigator();
@@ -23,6 +48,7 @@ const TabScreen = Tab.Screen as any;
 
 const MatchDetailsScreen = () => {
   const route = useRoute<MatchDetailsRouteProp>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
@@ -35,6 +61,30 @@ const MatchDetailsScreen = () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Preload debate set when Match Details opens (background; do not block UI).
+  // Only mark as fired after success so 429/5xx/offline can retry later; bound set with LRU to avoid unbounded growth.
+  useEffect(() => {
+    const matchId = match?.fixture?.id;
+    if (!matchId) return;
+    const status = match?.fixture?.status?.short ?? '';
+    // Align with backend: only match-actually-finished statuses get post_match preload (skip PST/CANC/ABD etc.)
+    const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'].includes(status);
+    const debateType = finished ? 'post_match' : 'pre_match';
+    const key = preloadKey(matchId, debateType);
+    if (preloadFiredFor.has(key) || preloadInFlight.has(key)) return;
+    preloadInFlight.add(key);
+    generateDebateSet(matchId, debateType, 3)
+      .then((result) => {
+        if (result != null && !result.rateLimited) {
+          markPreloadFired(key);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        preloadInFlight.delete(key);
+      });
+  }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
   const MatchHeader = () => (
     <View style={styles.headerContainer}>
@@ -89,7 +139,7 @@ const MatchDetailsScreen = () => {
         screenOptions={{
           tabBarScrollEnabled: true,
           tabBarItemStyle: {
-            width: width / 3,
+            width: width / 4,
             alignItems: 'center',
             justifyContent: 'center',
           },
@@ -133,13 +183,13 @@ const MatchDetailsScreen = () => {
           }}>
           {() => <MatchNewsScreen match={match} />}
         </TabScreen>
-        {/* <TabScreen
+        <TabScreen
           name="Debate"
           options={{
             tabBarLabel: 'Debate',
           }}>
-          {() => <DebateScreen match={match} />}
-        </TabScreen> */}
+          {() => <DebateScreen match={match} stackNavigation={navigation} />}
+        </TabScreen>
       </TabNavigator>
     </SafeAreaView>
   );

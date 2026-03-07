@@ -134,6 +134,26 @@ func (c *Cache) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Incr increments the key by 1; if the key does not exist it is set to 1. Returns the new value.
+func (c *Cache) Incr(ctx context.Context, key string) (int64, error) {
+	return c.client.Incr(ctx, key).Result()
+}
+
+// Expire sets the TTL for the key.
+func (c *Cache) Expire(ctx context.Context, key string, ttl time.Duration) error {
+	return c.client.Expire(ctx, key, ttl).Err()
+}
+
+// TTL returns the key's remaining TTL. Redis returns negative for no expiry (-1) or missing key (-2).
+func (c *Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
+	return c.client.TTL(ctx, key).Result()
+}
+
+// SetNX sets key to "1" with ttl only if key does not exist (for distributed locks). Returns true if set, false if key already existed.
+func (c *Cache) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return c.client.SetNX(ctx, key, "1", ttl).Result()
+}
+
 // GetStats returns basic cache statistics
 func (c *Cache) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	info, err := c.client.Info(ctx).Result()
