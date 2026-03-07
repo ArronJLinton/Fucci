@@ -8,15 +8,16 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
-// Throttle RapidAPI news to at most 1 request per second (BASIC plan limit).
+// Throttle RapidAPI news; interval is configurable per client (default 1 req/s for BASIC plan; e.g. 100ms for 10 req/s).
 var (
-	newsRateMu       sync.Mutex
-	newsLastRequest  time.Time
-	newsMinInterval  = time.Second
+	newsRateMu      sync.Mutex
+	newsLastRequest time.Time
 )
 
 // RapidAPIResponse represents the response from RapidAPI Real-Time News Data
@@ -41,24 +42,33 @@ type RapidAPIArticle struct {
 
 // Client wraps the RapidAPI Real-Time News Data API client
 type Client struct {
-	apiKey  string
-	baseURL string
-	timeout time.Duration
+	apiKey           string
+	baseURL          string
+	timeout          time.Duration
+	MinRequestInterval time.Duration // Min time between requests (default 1s; use 100ms for 10 req/s plans)
 }
 
 const defaultNewsBaseURL = "https://real-time-news-data.p.rapidapi.com/search"
 
-// NewClient creates a new RapidAPI news client
+// NewClient creates a new RapidAPI news client (MinRequestInterval defaults to 1s for BASIC plan).
 func NewClient(apiKey string) *Client {
 	return NewClientWithBaseURL(apiKey, defaultNewsBaseURL)
 }
 
 // NewClientWithBaseURL creates a client with a custom base URL (e.g. for tests).
+// MinRequestInterval defaults to 1s (1 req/s); set env NEWS_RATE_LIMIT_RPS to e.g. "10" for 10 req/s plans.
 func NewClientWithBaseURL(apiKey, baseURL string) *Client {
+	interval := time.Second
+	if rps := os.Getenv("NEWS_RATE_LIMIT_RPS"); rps != "" {
+		if n, err := strconv.Atoi(rps); err == nil && n > 0 {
+			interval = time.Second / time.Duration(n)
+		}
+	}
 	return &Client{
-		apiKey:  apiKey,
-		baseURL: baseURL,
-		timeout: 10 * time.Second,
+		apiKey:             apiKey,
+		baseURL:            baseURL,
+		timeout:            10 * time.Second,
+		MinRequestInterval: interval,
 	}
 }
 
@@ -85,15 +95,18 @@ func buildParams(pairs map[string]string, limit int) url.Values {
 	return params
 }
 
-// throttleNewsRequest waits until at least newsMinInterval has passed since the last request.
+// throttleNewsRequest waits until at least minInterval has passed since the last request.
 // It is context-aware: if ctx is cancelled during the wait, returns ctx.Err() without updating lastRequest.
 // The mutex is not held while sleeping so other goroutines can observe/update the next-allowed time.
-func throttleNewsRequest(ctx context.Context) error {
+func throttleNewsRequest(ctx context.Context, minInterval time.Duration) error {
+	if minInterval <= 0 {
+		minInterval = time.Second
+	}
 	newsRateMu.Lock()
 	elapsed := time.Since(newsLastRequest)
 	sleep := time.Duration(0)
-	if elapsed < newsMinInterval {
-		sleep = newsMinInterval - elapsed
+	if elapsed < minInterval {
+		sleep = minInterval - elapsed
 	}
 	newsRateMu.Unlock()
 
@@ -116,7 +129,7 @@ func throttleNewsRequest(ctx context.Context) error {
 
 // FetchNews fetches football news from RapidAPI with custom options.
 func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAPIResponse, error) {
-	if err := throttleNewsRequest(ctx); err != nil {
+	if err := throttleNewsRequest(ctx, c.MinRequestInterval); err != nil {
 		return nil, err
 	}
 	params := buildParams(map[string]string{
