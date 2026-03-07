@@ -95,7 +95,7 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Fetch detailed match statistics if match is finished or in progress
 	if matchReq.Status == "FT" || matchReq.Status == "AET" || matchReq.Status == "PEN" ||
 		matchReq.Status == "1H" || matchReq.Status == "2H" || matchReq.Status == "HT" {
-		detailedStats, err := dda.fetchMatchStats(ctx, matchReq.MatchID)
+		detailedStats, err := dda.fetchMatchStats(ctx, matchReq.MatchID, matchReq.HomeTeamID, matchReq.AwayTeamID)
 		if err != nil {
 			log.Printf("Match stats unavailable for match %s, continuing with other sources: %v", matchReq.MatchID, err)
 		} else {
@@ -215,7 +215,8 @@ func apiPlayerToAIPlayer(p Player) ai.Player {
 }
 
 // fetchMatchStats gets match statistics via Config.FetchMatchStatsData (shared with API-Football).
-func (dda *DebateDataAggregator) fetchMatchStats(ctx context.Context, matchID string) (*ai.MatchStats, error) {
+// Maps response blocks to home/away by team.id when homeTeamID/awayTeamID are set; otherwise falls back to index order.
+func (dda *DebateDataAggregator) fetchMatchStats(ctx context.Context, matchID string, homeTeamID, awayTeamID int) (*ai.MatchStats, error) {
 	raw, err := dda.Config.FetchMatchStatsData(ctx, matchID)
 	if err != nil {
 		return nil, err
@@ -224,10 +225,32 @@ func (dda *DebateDataAggregator) fetchMatchStats(ctx context.Context, matchID st
 		return nil, fmt.Errorf("insufficient stats data")
 	}
 
-	stats := &ai.MatchStats{}
-	homeStats := raw.Response[0].Statistics
-	awayStats := raw.Response[1].Statistics
+	homeIdx, awayIdx := 0, 1
+	for i := range raw.Response {
+		tid := raw.Response[i].Team.ID
+		if homeTeamID != 0 && tid == homeTeamID {
+			homeIdx = i
+		}
+		if awayTeamID != 0 && tid == awayTeamID {
+			awayIdx = i
+		}
+	}
+	if homeIdx == awayIdx {
+		if homeTeamID != 0 || awayTeamID != 0 {
+			if homeTeamID != 0 {
+				awayIdx = 1 - homeIdx
+			} else {
+				homeIdx = 1 - awayIdx
+			}
+		} else {
+			homeIdx, awayIdx = 0, 1
+		}
+	}
 
+	homeStats := raw.Response[homeIdx].Statistics
+	awayStats := raw.Response[awayIdx].Statistics
+
+	stats := &ai.MatchStats{}
 	stats.HomeGoals = getNumericStat(homeStats, "Goals")
 	stats.HomeShots = getNumericStat(homeStats, "Total Shots")
 	stats.HomePossession = getNumericStat(homeStats, "Ball Possession")
