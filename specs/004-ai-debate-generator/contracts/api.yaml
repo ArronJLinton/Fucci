@@ -187,13 +187,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/GenerateDebateSetResponse'
         '200':
-          description: Existing set returned (when no regeneration)
+          description: |
+            Existing set returned (when no regeneration), or validation/constraint message.
+            When `info` is present, the server is indicating a constraint (e.g. match status not
+            valid for requested debate_type); `debates` is typically empty and clients should
+            treat as non-error but no debates to show (e.g. show pre_match for a finished match).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/GenerateDebateSetResponse'
         '400':
           description: Bad request (missing/invalid match_id or debate_type)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded (e.g. max 3 generate-set requests per hour per match). Client should not retry until Retry-After.
+          headers:
+            Retry-After:
+              schema: { type: integer, description: Seconds after which to retry }
+              description: Recommended wait time in seconds (e.g. 3600)
           content:
             application/json:
               schema:
@@ -286,12 +300,21 @@ components:
       properties:
         debates:
           type: array
-          description: Full set of debates for this match and type (each with cards)
+          description: Full set of debates for this match and type (each with cards). Empty when `info` is set (validation/constraint).
           items:
             $ref: '#/components/schemas/DebateResponse'
         pending:
           type: boolean
           description: If true, generation is in progress; client may poll or wait
+        partial_set:
+          type: boolean
+          description: If true, fewer valid debates than requested (AI returned invalid/skipped items)
+        info:
+          type: string
+          description: |
+            When present (typically with 200 and empty debates), a validation or constraint message
+            (e.g. "cannot generate post_match debate for a match that hasn't started"). Clients
+            should treat as non-error but no debates to display for this type.
     DebateResponse:
       type: object
       properties:
