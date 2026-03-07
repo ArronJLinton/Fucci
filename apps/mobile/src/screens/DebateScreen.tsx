@@ -20,7 +20,8 @@ import {
   generateDebateSet,
 } from '../services/api';
 
-const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'];
+// Match actually finished (has result); aligns with backend validateMatchStatusForDebateType. Excludes PST/CANC/ABD/AWD/WO so we don't request post_match for postponed/cancelled/abandoned matches.
+const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
 
 function getDefaultDebateType(match: Match): DebateType {
   const short = match?.fixture?.status?.short ?? '';

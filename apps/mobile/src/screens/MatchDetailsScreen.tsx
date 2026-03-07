@@ -68,7 +68,8 @@ const MatchDetailsScreen = () => {
     const matchId = match?.fixture?.id;
     if (!matchId) return;
     const status = match?.fixture?.status?.short ?? '';
-    const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN', 'AWD', 'WO', 'CANC', 'ABD', 'PST'].includes(status);
+    // Align with backend: only match-actually-finished statuses get post_match preload (skip PST/CANC/ABD etc.)
+    const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'].includes(status);
     const debateType = finished ? 'post_match' : 'pre_match';
     const key = preloadKey(matchId, debateType);
     if (preloadFiredFor.has(key) || preloadInFlight.has(key)) return;
