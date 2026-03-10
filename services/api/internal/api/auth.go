@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
+	"github.com/google/uuid"
 )
 
-// LoginRequest represents the login request payload
+// LoginRequest represents the login request payload (identifier = email or username)
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Identifier string `json:"identifier"`
+	Password   string `json:"password"`
 }
 
 // LoginResponse represents the login response payload
@@ -44,8 +45,17 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user by email
-	user, err := c.DB.GetUserByEmail(r.Context(), req.Email)
+	// Get user by email or username (identifier)
+	var user struct {
+		ID        int32
+		Firstname string
+		Lastname  string
+		Email     string
+	}
+	err := c.DBConn.QueryRowContext(r.Context(),
+		`SELECT id, firstname, lastname, email FROM users WHERE (email = $1 OR (username IS NOT NULL AND username = $1)) AND is_active = true LIMIT 1`,
+		req.Identifier,
+	).Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusUnauthorized, "invalid email or password")
@@ -228,6 +238,52 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
+}
+
+// FollowingItem represents a single followed entity for GET /users/me/following
+type FollowingItem struct {
+	ID            string `json:"id"`
+	Type          string `json:"type"`
+	FollowableID  string `json:"followable_id"`
+	Name          string `json:"name,omitempty"`
+}
+
+// GetFollowingResponse is the response for GET /users/me/following
+type GetFollowingResponse struct {
+	Items []FollowingItem `json:"items"`
+}
+
+func (c *Config) handleGetFollowing(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	rows, err := c.DBConn.QueryContext(r.Context(),
+		`SELECT id, followable_type, followable_id FROM user_follows WHERE user_id = $1 ORDER BY created_at DESC`,
+		userID,
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to list following")
+		return
+	}
+	defer rows.Close()
+
+	var items []FollowingItem
+	for rows.Next() {
+		var id, followableID uuid.UUID
+		var followableType string
+		if err := rows.Scan(&id, &followableType, &followableID); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "failed to scan following")
+			return
+		}
+		items = append(items, FollowingItem{ID: id.String(), Type: followableType, FollowableID: followableID.String()})
+	}
+	if items == nil {
+		items = []FollowingItem{}
+	}
+	respondWithJSON(w, http.StatusOK, GetFollowingResponse{Items: items})
 }
 
 func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {

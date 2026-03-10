@@ -17,8 +17,8 @@
 
 **Purpose**: Verify project structure and environment for auth and settings work.
 
-- [ ] T001 Verify apps/mobile and services/api structure; ensure Expo and Go 1.22+ and DB/Redis per quickstart in specs/005-user-registration-settings/quickstart.md
-- [ ] T002 [P] Ensure JWT_SECRET and API base URL are documented for mobile (e.g. apps/mobile/.env.example or README) per specs/005-user-registration-settings/quickstart.md
+- [x] T001 Verify apps/mobile and services/api structure; ensure Expo and Go 1.22+ and DB/Redis per quickstart in specs/005-user-registration-settings/quickstart.md
+- [x] T002 [P] Ensure JWT_SECRET and API base URL are documented for mobile (e.g. apps/mobile/.env.example or README) per specs/005-user-registration-settings/quickstart.md
 
 ---
 
@@ -28,12 +28,12 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 Add DB migration in services/api/sql/migrations/ for users table: add username VARCHAR(100) UNIQUE nullable if not present; ensure firstname, lastname, avatar_url exist (align with specs/005-user-registration-settings/data-model.md)
-- [ ] T004 Extend POST /auth/register in services/api/internal/api/users.go to accept optional avatar_url/photo_url; return user + token in response (201) so client can auto sign-in per spec clarification
-- [ ] T005 Extend handleCreateUser in services/api/internal/api/users.go to return full UserResponse and JWT token (reuse auth.GenerateToken) on 201 for auto sign-in
-- [ ] T006 Extend login to accept identifier (email or username) in services/api/internal/api/auth.go: add identifier field to LoginRequest; resolve user by email or username (add GetUserByUsername or equivalent in services/api/internal/database if needed)
-- [ ] T007 Enforce password rules in services/api/internal/auth (min length 8, at least one letter and one number) and document in contracts; ensure ValidatePasswordStrength matches specs/005-user-registration-settings/spec.md FR-006
-- [ ] T008 [P] Add GET /users/me/following (or equivalent) in services/api for Following tab if not present; return list of followed leagues and teams per specs/005-user-registration-settings/contracts/api.yaml
+- [x] T003 Add DB migration in services/api/sql/migrations/ for users table: add username VARCHAR(100) UNIQUE nullable if not present; ensure firstname, lastname, avatar_url exist (align with specs/005-user-registration-settings/data-model.md)
+- [x] T004 Extend POST /auth/register in services/api/internal/api/users.go to accept optional avatar_url/photo_url; return user + token in response (201) so client can auto sign-in per spec clarification
+- [x] T005 Extend handleCreateUser in services/api/internal/api/users.go to return full UserResponse and JWT token (reuse auth.GenerateToken) on 201 for auto sign-in
+- [x] T006 Extend login to accept identifier (email or username) in services/api/internal/api/auth.go: add identifier field to LoginRequest; resolve user by email or username (add GetUserByUsername or equivalent in services/api/internal/database if needed)
+- [x] T007 Enforce password rules in services/api/internal/auth (min length 8, at least one letter and one number) and document in contracts; ensure ValidatePasswordStrength matches specs/005-user-registration-settings/spec.md FR-006
+- [x] T008 [P] Add GET /users/me/following (or equivalent) in services/api for Following tab if not present; return list of followed leagues and teams per specs/005-user-registration-settings/contracts/api.yaml
 
 **Checkpoint**: Backend supports register (with token response), login by identifier, profile GET/PUT, password rules, and following list. Mobile can proceed.
 

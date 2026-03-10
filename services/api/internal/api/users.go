@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 )
@@ -14,6 +15,12 @@ type CreateUserRequest struct {
 	Email       string `json:"email"`
 	Password    string `json:"password"`
 	DisplayName string `json:"display_name,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
+}
+
+type CreateUserResponse struct {
+	User  UserResponse `json:"user"`
+	Token string       `json:"token"`
 }
 
 func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
@@ -44,29 +51,49 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		displayName = fmt.Sprintf("%s %s", req.Firstname, req.Lastname)
 	}
 
-	// Insert user with password hash
-	query := `INSERT INTO users (firstname, lastname, email, password_hash, display_name, role) 
-			  VALUES ($1, $2, $3, $4, $5, 'fan') 
+	// Insert user with password hash and optional avatar_url
+	query := `INSERT INTO users (firstname, lastname, email, password_hash, display_name, role, avatar_url) 
+			  VALUES ($1, $2, $3, $4, $5, 'fan', NULLIF($6, '')) 
 			  RETURNING id, firstname, lastname, email, created_at, updated_at, role`
 
-	var user struct {
-		ID        int32  `json:"id"`
-		Firstname string `json:"firstname"`
-		Lastname  string `json:"lastname"`
-		Email     string `json:"email"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Role      string `json:"role"`
-	}
-
-	err = config.DBConn.QueryRow(query, req.Firstname, req.Lastname, req.Email, passwordHash, displayName).Scan(
-		&user.ID, &user.Firstname, &user.Lastname, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Role,
+	var id int32
+	var firstname, lastname, email, createdAt, updatedAt, role string
+	err = config.DBConn.QueryRow(query, req.Firstname, req.Lastname, req.Email, passwordHash, displayName, req.AvatarURL).Scan(
+		&id, &firstname, &lastname, &email, &createdAt, &updatedAt, &role,
 	)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating user: %s", err))
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, user)
+
+	// Fetch display_name and avatar_url for response
+	var displayNameOut, avatarURL string
+	var isVerified, isActive bool
+	_ = config.DBConn.QueryRow(
+		"SELECT display_name, avatar_url, is_verified, is_active FROM users WHERE id = $1",
+		id,
+	).Scan(&displayNameOut, &avatarURL, &isVerified, &isActive)
+
+	token, err := auth.GenerateToken(id, email, role, 24*time.Hour)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	userResponse := UserResponse{
+		ID:          id,
+		Firstname:   firstname,
+		Lastname:    lastname,
+		Email:       email,
+		DisplayName: displayNameOut,
+		AvatarURL:   avatarURL,
+		IsVerified:  isVerified,
+		IsActive:    isActive,
+		Role:        role,
+		CreatedAt:   createdAt,
+	}
+
+	respondWithJSON(w, http.StatusCreated, CreateUserResponse{User: userResponse, Token: token})
 }
 
 func (config *Config) handleListAllUsers(w http.ResponseWriter, r *http.Request) {
