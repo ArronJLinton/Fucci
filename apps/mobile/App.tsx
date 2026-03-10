@@ -7,6 +7,7 @@
 
 import React from 'react';
 import {NavigationContainer} from '@react-navigation/native';
+import {rootNavigationRef} from './src/navigation/rootNavigation';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {StatusBar} from 'react-native';
@@ -22,6 +23,9 @@ import SingleDebateScreen from './src/screens/SingleDebateScreen';
 import CameraPreviewScreen from './src/screens/CameraPreviewScreen';
 import NewsWebViewScreen from './src/screens/NewsWebViewScreen';
 import NewsScreen from './src/screens/NewsScreen';
+import SignUpScreen from './src/screens/SignUpScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -161,6 +165,18 @@ const MainStack = () => {
             title: '',
           }}
         />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="person-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
       </TabNavigator>
     </SafeAreaView>
   );
@@ -170,9 +186,19 @@ function App(): React.JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={rootNavigationRef}>
           <Stack.Navigator screenOptions={{headerShown: false}}>
             <Stack.Screen name="Main" component={MainStack} />
+            <Stack.Screen
+              name="SignUp"
+              component={SignUpScreen}
+              options={{title: 'Sign Up'}}
+            />
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{title: 'Login'}}
+            />
             <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
               <Stack.Screen
                 name="CameraPreview"

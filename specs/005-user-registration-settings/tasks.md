@@ -47,11 +47,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [P] [US1] Add auth API helpers in apps/mobile/src/services/api.ts (or auth.ts): register(body: { identifier, password, first_name, last_name, photo_url? }) calling POST /auth/register; map to backend firstname/lastname/email and optional avatar_url
-- [ ] T010 [US1] Create SignUpScreen in apps/mobile/src/screens/SignUpScreen.tsx with fields: identifier (email or username), password, first name, last name, optional photo picker/placeholder; client-side validation (required fields, password min 8 chars + one letter + one number)
-- [ ] T011 [US1] On SignUpScreen submit in apps/mobile/src/screens/SignUpScreen.tsx: call register API; on 201 store token (and user) in secure storage or auth context; navigate to main app (e.g. Home or Profile); show inline validation errors on 400
-- [ ] T012 [US1] Add "Already have an account? Login" link on SignUpScreen in apps/mobile/src/screens/SignUpScreen.tsx that navigates to Login screen
-- [ ] T013 [US1] Register SignUpScreen in app navigation and expose entry point (e.g. from Profile when unauthenticated or onboarding) in apps/mobile/src/navigation or App entry
+- [x] T009 [P] [US1] Add auth API helpers in apps/mobile/src/services/api.ts (or auth.ts): register(body: { identifier, password, first_name, last_name, photo_url? }) calling POST /auth/register; map to backend firstname/lastname/email and optional avatar_url
+- [x] T010 [US1] Create SignUpScreen in apps/mobile/src/screens/SignUpScreen.tsx with fields: identifier (email or username), password, first name, last name, optional photo picker/placeholder; client-side validation (required fields, password min 8 chars + one letter + one number)
+- [x] T011 [US1] On SignUpScreen submit in apps/mobile/src/screens/SignUpScreen.tsx: call register API; on 201 store token (and user) in secure storage or auth context; navigate to main app (e.g. Home or Profile); show inline validation errors on 400
+- [x] T012 [US1] Add "Already have an account? Login" link on SignUpScreen in apps/mobile/src/screens/SignUpScreen.tsx that navigates to Login screen
+- [x] T013 [US1] Register SignUpScreen in app navigation and expose entry point (e.g. from Profile when unauthenticated or onboarding) in apps/mobile/src/navigation or App entry
 
 **Checkpoint**: User can sign up and is auto signed in; can navigate to Login from Sign Up.
 

@@ -5,6 +5,31 @@ import {
 } from '../types/debate';
 import {apiConfig} from '../config/environment';
 
+// Auth types (005 user registration)
+export interface RegisterRequest {
+  identifier: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  photo_url?: string;
+}
+
+export interface AuthUser {
+  id: number;
+  firstname: string;
+  lastname: string;
+  email: string;
+  display_name?: string;
+  avatar_url?: string;
+  role?: string;
+  created_at?: string;
+}
+
+export interface RegisterResponse {
+  user: AuthUser;
+  token: string;
+}
+
 // Types
 interface Standing {
   rank: number;
@@ -368,5 +393,37 @@ export const deleteMatch = async (matchId: number): Promise<boolean> => {
   } catch (error) {
     console.error('Error deleting match:', error);
     throw error;
+  }
+};
+
+// Auth API (005 user registration) — POST /auth/register
+// Maps identifier -> email for backend; optional photo_url -> avatar_url
+export const register = async (
+  body: RegisterRequest,
+): Promise<{ok: true; data: RegisterResponse} | {ok: false; status: number; message: string; errors?: Array<{field: string; message: string}>}> => {
+  const url = `${apiConfig.baseURL}/auth/register`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {...apiConfig.headers},
+      body: JSON.stringify({
+        firstname: body.first_name,
+        lastname: body.last_name,
+        email: body.identifier,
+        password: body.password,
+        avatar_url: body.photo_url || undefined,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 201 && data.user && data.token) {
+      return {ok: true, data: data as RegisterResponse};
+    }
+    const message =
+      data.message || data.error || `Request failed (${response.status})`;
+    const errors = data.errors;
+    return {ok: false, status: response.status, message, errors};
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error';
+    return {ok: false, status: 0, message};
   }
 };
