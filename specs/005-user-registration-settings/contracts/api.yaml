@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: User Registration and Settings API (005)
+  description: Auth and profile endpoints for sign-up, login, and settings flow. Extends 001-football-community auth/users.
+  version: 1.0.0
+
+servers:
+  - url: /api
+    description: API base
+
+tags:
+  - name: Authentication
+    description: Sign up and login
+  - name: Users
+    description: Profile and settings
+
+paths:
+  # Registration (extends 001; adds first_name, last_name, photo)
+  /auth/register:
+    post:
+      summary: Register new user
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Validation error (missing or invalid fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '409':
+          description: Email or username already in use
+
+  # Login (username or email + password)
+  /auth/login:
+    post:
+      summary: Login user
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier:
+                  type: string
+                  description: Email or username
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserProfile'
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+                    description: Optional; used when "Remember me" is true
+        '401':
+          description: Invalid credentials
+
+  # Forgot password (entry point; implementation may be Phase 2)
+  /auth/forgot-password:
+    post:
+      summary: Request password reset
+      tags: [Authentication]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '202':
+          description: If account exists, reset email sent (idempotent)
+        '400':
+          description: Invalid email format
+
+  # Current user profile (extends 001 GET/PUT /users/me)
+  /users/me:
+    get:
+      summary: Get current user profile
+      tags: [Users]
+      security: [BearerAuth]
+      responses:
+        '200':
+          description: User profile (includes first_name, last_name, avatar_url for Settings)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Unauthorized
+    put:
+      summary: Update profile (Player Profile tab)
+      tags: [Users]
+      security: [BearerAuth]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                last_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                display_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                avatar_url:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  # Following (settings tab) — reference 001 follow/unfollow if applicable
+  /users/me/following:
+    get:
+      summary: List followed teams/leagues/matches (Following tab)
+      tags: [Users]
+      security: [BearerAuth]
+      responses:
+        '200':
+          description: List of followed items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [team, league, match]
+                        name:
+                          type: string
+        '401':
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [identifier, password, first_name, last_name]
+      properties:
+        identifier:
+          type: string
+          description: Email or username (unique)
+          minLength: 1
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        photo_url:
+          type: string
+          format: uri
+          description: Optional avatar/photo URL
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          nullable: true
+        first_name:
+          type: string
+        last_name:
+          type: string
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        role:
+          type: string
+          enum: [fan, team_manager, admin]
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ValidationError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string

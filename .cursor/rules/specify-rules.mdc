@@ -3,6 +3,8 @@
 Auto-generated from all feature plans. Last updated: 2025-10-23
 
 ## Active Technologies
+- TypeScript (React Native/Expo), Go 1.22+ (backend) + React Navigation, existing auth API (JWT), 001 user/follow APIs (005-user-registration-settings)
+- PostgreSQL (users, user_follows); existing schema in 001; may add first_name, last_name, avatar_url if not presen (005-user-registration-settings)
 
 - TypeScript (React Native), Go 1.22+, SQL + React Native with Expo, Gin framework, PostgreSQL, Redis, OpenAI API, Socket.io (001-football-community)
 
@@ -22,6 +24,7 @@ npm test && npm run lint
 TypeScript (React Native), Go 1.22+, SQL: Follow standard conventions
 
 ## Recent Changes
+- 005-user-registration-settings: Added TypeScript (React Native/Expo), Go 1.22+ (backend) + React Navigation, existing auth API (JWT), 001 user/follow APIs
 
 - 001-football-community: Added TypeScript (React Native), Go 1.22+, SQL + React Native with Expo, Gin framework, PostgreSQL, Redis, OpenAI API, Socket.io
 
