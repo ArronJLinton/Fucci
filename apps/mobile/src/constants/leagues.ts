@@ -10,6 +10,7 @@ export const LEAGUES: League[] = [
   {id: 135, name: 'Serie A'},
   {id: 78, name: 'Bundesliga'},
   {id: 61, name: 'Ligue 1'},
+  {id: 2, name: 'UEFA Champions League'},
 ];
 
 export const DEFAULT_LEAGUE = LEAGUES[0]; // Premier League
