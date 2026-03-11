@@ -1,8 +1,32 @@
 import React from 'react';
-import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, ActivityIndicator} from 'react-native';
+import {useAuth} from '../context/AuthContext';
 import {rootNavigate} from '../navigation/rootNavigation';
 
 const ProfileScreen = () => {
+  const {isLoggedIn, isReady} = useAuth();
+
+  if (!isReady) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="small" color="#007AFF" />
+      </View>
+    );
+  }
+
+  if (isLoggedIn) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>Profile</Text>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => rootNavigate('Settings')}>
+          <Text style={styles.buttonText}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Profile</Text>
@@ -26,6 +50,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  centered: {
+    justifyContent: 'center',
   },
   text: {
     fontSize: 24,

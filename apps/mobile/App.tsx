@@ -15,6 +15,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {QueryClientProvider} from '@tanstack/react-query';
 import {queryClient} from './src/config/queryClient';
+import {AuthProvider} from './src/context/AuthContext';
 
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -25,7 +26,8 @@ import NewsWebViewScreen from './src/screens/NewsWebViewScreen';
 import NewsScreen from './src/screens/NewsScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
+import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceholderScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -167,7 +169,8 @@ const MainStack = () => {
         />
         <Tab.Screen
           name="Profile"
-          component={ProfileScreen}
+          component={SettingsScreen}
+          initialParams={{embeddedInTab: true}}
           options={{
             headerShown: false,
             tabBarIcon: ({color, size}) => (
@@ -186,30 +189,42 @@ function App(): React.JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <NavigationContainer ref={rootNavigationRef}>
-          <Stack.Navigator screenOptions={{headerShown: false}}>
-            <Stack.Screen name="Main" component={MainStack} />
-            <Stack.Screen
-              name="SignUp"
-              component={SignUpScreen}
-              options={{title: 'Sign Up'}}
-            />
-            <Stack.Screen
-              name="Login"
-              component={LoginScreen}
-              options={{title: 'Login'}}
-            />
-            <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
+        <AuthProvider>
+          <NavigationContainer ref={rootNavigationRef}>
+            <Stack.Navigator screenOptions={{headerShown: false}}>
+              <Stack.Screen name="Main" component={MainStack} />
               <Stack.Screen
-                name="CameraPreview"
-                component={CameraPreviewScreen}
-                options={{
-                  animation: 'slide_from_bottom',
-                }}
+                name="SignUp"
+                component={SignUpScreen}
+                options={{title: 'Sign Up'}}
               />
-            </Stack.Group>
-          </Stack.Navigator>
-        </NavigationContainer>
+              <Stack.Screen
+                name="Login"
+                component={LoginScreen}
+                options={{title: 'Login'}}
+              />
+              <Stack.Screen
+                name="ForgotPassword"
+                component={ForgotPasswordPlaceholderScreen}
+                options={{title: 'Forgot password'}}
+              />
+              <Stack.Screen
+                name="Settings"
+                component={SettingsScreen}
+                options={{title: 'Settings'}}
+              />
+              <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
+                <Stack.Screen
+                  name="CameraPreview"
+                  component={CameraPreviewScreen}
+                  options={{
+                    animation: 'slide_from_bottom',
+                  }}
+                />
+              </Stack.Group>
+            </Stack.Navigator>
+          </NavigationContainer>
+        </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

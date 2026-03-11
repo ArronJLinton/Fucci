@@ -65,11 +65,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Add login API helper in apps/mobile/src/services/api.ts: login(body: { identifier, password }) calling POST /auth/login; return token and user; optional persist refresh_token or long-lived token when "Remember me" (e.g. Expo SecureStore)
-- [ ] T015 [US2] Create LoginScreen in apps/mobile/src/screens/LoginScreen.tsx with fields: identifier, password; "Remember me" checkbox; "Login" button; "Forgot password?" link; "Don't have an account? Sign Up" link
-- [ ] T016 [US2] On LoginScreen submit in apps/mobile/src/screens/LoginScreen.tsx: call login API; on 200 store token (and optionally user); if "Remember me" use persistent storage (e.g. SecureStore), else session-only; navigate to main app; show error message on 401
-- [ ] T017 [US2] Create ForgotPasswordPlaceholderScreen in apps/mobile/src/screens/ForgotPasswordPlaceholderScreen.tsx showing "Coming soon" or placeholder message; "Forgot password?" on LoginScreen navigates to it
-- [ ] T018 [US2] Register LoginScreen and ForgotPasswordPlaceholderScreen in navigation; ensure SignUpScreen "Already have an account? Login" and Profile (when logged out) open LoginScreen
+- [x] T014 [P] [US2] Add login API helper in apps/mobile/src/services/api.ts: login(body: { identifier, password }) calling POST /auth/login; return token and user; optional persist refresh_token or long-lived token when "Remember me" (e.g. Expo SecureStore)
+- [x] T015 [US2] Create LoginScreen in apps/mobile/src/screens/LoginScreen.tsx with fields: identifier, password; "Remember me" checkbox; "Login" button; "Forgot password?" link; "Don't have an account? Sign Up" link
+- [x] T016 [US2] On LoginScreen submit in apps/mobile/src/screens/LoginScreen.tsx: call login API; on 200 store token (and optionally user); if "Remember me" use persistent storage (e.g. SecureStore), else session-only; navigate to main app; show error message on 401
+- [x] T017 [US2] Create ForgotPasswordPlaceholderScreen in apps/mobile/src/screens/ForgotPasswordPlaceholderScreen.tsx showing "Coming soon" or placeholder message; "Forgot password?" on LoginScreen navigates to it
+- [x] T018 [US2] Register LoginScreen and ForgotPasswordPlaceholderScreen in navigation; ensure SignUpScreen "Already have an account? Login" and Profile (when logged out) open LoginScreen
 
 **Checkpoint**: User can log in and reach main app; Forgot password shows placeholder.
 
@@ -83,12 +83,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Replace stub in apps/mobile/src/screens/SettingsScreen.tsx with full layout: header with back; profile summary (avatar, name, email) with chevron linking to edit; tabs: Following | Player Profile | Team Manager; Logout action at bottom
-- [ ] T020 [US3] Implement Following tab in apps/mobile/src/screens/SettingsScreen.tsx: fetch GET /users/me/following; display list of leagues and teams with toggles to follow/unfollow; empty state when none
-- [ ] T021 [US3] Implement Player Profile tab in apps/mobile/src/screens/SettingsScreen.tsx: load GET /users/me; editable fields first name, last name, photo (avatar); save via PUT /users/me with validation and error display
-- [ ] T022 [US3] Implement Team Manager tab in apps/mobile/src/screens/SettingsScreen.tsx: if user role is team_manager show team management content or link; else show empty state or "Request access" message
-- [ ] T023 [US3] Implement Logout in apps/mobile/src/screens/SettingsScreen.tsx: on Logout tap show confirmation dialog ("Log out?" with Cancel / Log out); on confirm clear token and user state and navigate to Login or anonymous Home
-- [ ] T024 [US3] Ensure Settings is reachable from Profile or bottom nav when logged in; style per FUCCI dark theme and blue accents per spec UI flow summary
+- [x] T019 [US3] Replace stub in apps/mobile/src/screens/SettingsScreen.tsx with full layout: header with back; profile summary (avatar, name, email) with chevron linking to edit; tabs: Following | Player Profile | Team Manager; Logout action at bottom
+- [x] T020 [US3] Implement Following tab in apps/mobile/src/screens/SettingsScreen.tsx: fetch GET /users/me/following; display list of leagues and teams with toggles to follow/unfollow; empty state when none
+- [x] T021 [US3] Implement Player Profile tab in apps/mobile/src/screens/SettingsScreen.tsx: load GET /users/me; editable fields first name, last name, photo (avatar); save via PUT /users/me with validation and error display
+- [x] T022 [US3] Implement Team Manager tab in apps/mobile/src/screens/SettingsScreen.tsx: if user role is team_manager show team management content or link; else show empty state or "Request access" message
+- [x] T023 [US3] Implement Logout in apps/mobile/src/screens/SettingsScreen.tsx: on Logout tap show confirmation dialog ("Log out?" with Cancel / Log out); on confirm clear token and user state and navigate to Login or anonymous Home
+- [x] T024 [US3] Ensure Settings is reachable from Profile or bottom nav when logged in; style per FUCCI dark theme and blue accents per spec UI flow summary
 
 **Checkpoint**: Settings with all three tabs and Logout (with confirmation) work; profile editable in Player Profile tab.
 

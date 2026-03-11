@@ -30,6 +30,16 @@ export interface RegisterResponse {
   token: string;
 }
 
+export interface LoginRequest {
+  identifier: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  user: AuthUser;
+  token: string;
+}
+
 // Types
 interface Standing {
   rank: number;
@@ -422,6 +432,99 @@ export const register = async (
       data.message || data.error || `Request failed (${response.status})`;
     const errors = data.errors;
     return {ok: false, status: response.status, message, errors};
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error';
+    return {ok: false, status: 0, message};
+  }
+};
+
+// Authenticated request helper (adds Bearer token)
+const makeAuthRequest = async (
+  token: string,
+  endpoint: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
+  options: RequestInit = {},
+) => {
+  const url = `${apiConfig.baseURL}${endpoint}`;
+  const response = await fetch(url, {
+    method,
+    headers: {
+      ...apiConfig.headers,
+      Authorization: `Bearer ${token}`,
+      ...(options.headers as object),
+    },
+    ...options,
+  });
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.message || errBody.error || `Request failed: ${response.status}`);
+  }
+  return response.json();
+};
+
+// GET /users/profile (auth required)
+export const getProfile = async (token: string): Promise<AuthUser | null> => {
+  try {
+    const data = await makeAuthRequest(token, '/users/profile', 'GET');
+    return data as AuthUser;
+  } catch {
+    return null;
+  }
+};
+
+// PUT /users/profile (auth required)
+export const updateProfile = async (
+  token: string,
+  body: {firstname?: string; lastname?: string; display_name?: string; avatar_url?: string},
+): Promise<AuthUser | null> => {
+  try {
+    const data = await makeAuthRequest(token, '/users/profile', 'PUT', {
+      body: JSON.stringify(body),
+    });
+    return data as AuthUser;
+  } catch {
+    return null;
+  }
+};
+
+export interface FollowingItem {
+  id: string;
+  type: string;
+  followable_id: string;
+  name?: string;
+}
+
+// GET /users/me/following (auth required)
+export const getFollowing = async (token: string): Promise<FollowingItem[]> => {
+  try {
+    const data = await makeAuthRequest(token, '/users/me/following', 'GET');
+    return (data?.items ?? []) as FollowingItem[];
+  } catch {
+    return [];
+  }
+};
+
+// Auth API (005) — POST /auth/login
+export const login = async (
+  body: LoginRequest,
+): Promise<
+  | {ok: true; data: LoginResponse}
+  | {ok: false; status: number; message: string}
+> => {
+  const url = `${apiConfig.baseURL}/auth/login`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {...apiConfig.headers},
+      body: JSON.stringify({identifier: body.identifier, password: body.password}),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 200 && data.user && data.token) {
+      return {ok: true, data: data as LoginResponse};
+    }
+    const message =
+      data.message || data.error || `Request failed (${response.status})`;
+    return {ok: false, status: response.status, message};
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error';
     return {ok: false, status: 0, message};

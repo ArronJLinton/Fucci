@@ -12,12 +12,9 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {RootStackParamList} from '../types/navigation';
+import {useAuth} from '../context/AuthContext';
 import {register, type RegisterRequest} from '../services/api';
-
-const AUTH_TOKEN_KEY = '@fucci/auth_token';
-const AUTH_USER_KEY = '@fucci/auth_user';
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) {
@@ -32,6 +29,7 @@ function validatePassword(password: string): string | null {
 
 export default function SignUpScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const {setAuth} = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -71,8 +69,7 @@ export default function SignUpScreen() {
       const result = await register(body);
 
       if (result.ok) {
-        await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.data.token);
-        await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(result.data.user));
+        await setAuth(result.data.token, result.data.user);
         navigation.reset({
           index: 0,
           routes: [{name: 'Main'}],

@@ -16,6 +16,8 @@ export type RootStackParamList = {
   Main: undefined | {screen?: keyof MainTabParamList};
   SignUp: undefined;
   Login: undefined;
+  ForgotPassword: undefined;
+  Settings: undefined;
   HomeTab: undefined;
   MatchDetails: {
     match: Match;
