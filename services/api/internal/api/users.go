@@ -70,7 +70,7 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("create user: db error: %v", err)
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			respondWithError(w, http.StatusConflict, "email or username already in use")
+			respondWithError(w, http.StatusConflict, "email already in use")
 			return
 		}
 		respondWithError(w, http.StatusInternalServerError, "could not create account")
