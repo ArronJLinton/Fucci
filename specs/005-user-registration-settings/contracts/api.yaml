@@ -34,11 +34,11 @@ paths:
             application/json:
               schema:
                 type: object
-                  properties:
-                    user:
-                      $ref: '#/components/schemas/UserProfile'
-                    token:
-                      type: string
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserProfile'
+                  token:
+                    type: string
         '400':
           description: Validation error (missing or invalid fields)
           content:
