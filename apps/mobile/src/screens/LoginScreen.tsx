@@ -43,7 +43,7 @@ export default function LoginScreen() {
         });
         return;
       }
-      setError(result.status === 401 ? 'Invalid email or password.' : result.message);
+      setError(result.status === 401 ? 'Invalid credentials.' : result.message);
     } catch {
       setError('Something went wrong. Try again.');
     } finally {
