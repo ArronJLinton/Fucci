@@ -28,7 +28,8 @@ function validatePassword(password: string): string | null {
 }
 
 export default function SignUpScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {setAuth} = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -49,7 +50,9 @@ export default function SignUpScreen() {
     if (!firstName.trim()) errors.first_name = 'First name is required';
     if (!lastName.trim()) errors.last_name = 'Last name is required';
     setFieldErrors(errors);
-    setError(Object.keys(errors).length > 0 ? 'Please fix the errors below.' : null);
+    setError(
+      Object.keys(errors).length > 0 ? 'Please fix the errors below.' : null,
+    );
     return Object.keys(errors).length === 0;
   };
 
@@ -79,7 +82,7 @@ export default function SignUpScreen() {
 
       if (result.status === 400 && result.errors?.length) {
         const errs: Record<string, string> = {};
-        result.errors.forEach((e) => {
+        result.errors.forEach(e => {
           const key = e.field === 'email' ? 'identifier' : e.field;
           errs[key] = e.message;
         });
@@ -114,12 +117,13 @@ export default function SignUpScreen() {
 
         <TextInput
           style={[styles.input, fieldErrors.identifier && styles.inputError]}
-          placeholder="Email or username"
+          placeholder="Email"
           placeholderTextColor="#999"
           value={identifier}
-          onChangeText={(t) => {
+          onChangeText={t => {
             setIdentifier(t);
-            if (fieldErrors.identifier) setFieldErrors((p) => ({...p, identifier: ''}));
+            if (fieldErrors.identifier)
+              setFieldErrors(p => ({...p, identifier: ''}));
           }}
           autoCapitalize="none"
           autoCorrect={false}
@@ -135,9 +139,10 @@ export default function SignUpScreen() {
           placeholder="Password"
           placeholderTextColor="#999"
           value={password}
-          onChangeText={(t) => {
+          onChangeText={t => {
             setPassword(t);
-            if (fieldErrors.password) setFieldErrors((p) => ({...p, password: ''}));
+            if (fieldErrors.password)
+              setFieldErrors(p => ({...p, password: ''}));
           }}
           secureTextEntry
           editable={!submitting}
@@ -154,9 +159,10 @@ export default function SignUpScreen() {
           placeholder="First name"
           placeholderTextColor="#999"
           value={firstName}
-          onChangeText={(t) => {
+          onChangeText={t => {
             setFirstName(t);
-            if (fieldErrors.first_name) setFieldErrors((p) => ({...p, first_name: ''}));
+            if (fieldErrors.first_name)
+              setFieldErrors(p => ({...p, first_name: ''}));
           }}
           autoCapitalize="words"
           editable={!submitting}
@@ -170,9 +176,10 @@ export default function SignUpScreen() {
           placeholder="Last name"
           placeholderTextColor="#999"
           value={lastName}
-          onChangeText={(t) => {
+          onChangeText={t => {
             setLastName(t);
-            if (fieldErrors.last_name) setFieldErrors((p) => ({...p, last_name: ''}));
+            if (fieldErrors.last_name)
+              setFieldErrors(p => ({...p, last_name: ''}));
           }}
           autoCapitalize="words"
           editable={!submitting}
@@ -192,7 +199,10 @@ export default function SignUpScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.linkButton} onPress={goToLogin} disabled={submitting}>
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={goToLogin}
+          disabled={submitting}>
           <Text style={styles.linkText}>Already have an account? Login</Text>
         </TouchableOpacity>
       </ScrollView>
