@@ -52,8 +52,7 @@ Open the app on a simulator or device. Navigate to Sign Up or Login (e.g. from P
 ### 2. Login
 
 - Enter email and password.
-- Optional: toggle “Remember me” (persists session when implemented).
-- Submit; expect 200 with user and token.
+- Submit; expect 200 with user and token (session is persisted securely by default).
 - “Forgot password?” opens a placeholder screen (full flow in a later phase).
 
 ### 3. Settings

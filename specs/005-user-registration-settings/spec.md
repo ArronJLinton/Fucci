@@ -10,7 +10,7 @@
 This spec covers the **mobile UI and API contract** for:
 
 1. **Sign up / Register** – New account creation with required and optional fields.
-2. **Login** – Returning user authentication (email/username + password, optional “Remember me”, forgot password).
+2. **Login** – Returning user authentication (email + password) with a Forgot password entry point.
 3. **Settings** – Single settings screen with tabs: **Following**, **Player Profile**, **Team Manager**, and **Logout**.
 
 Backend auth and user APIs already exist under `specs/001-football-community` (e.g. `POST /auth/register`, `POST /auth/login`, `GET/PUT /users/me`). This spec defines the **registration fields**, **UI flow**, and **settings structure** so implementation stays consistent across client and API.
@@ -51,7 +51,7 @@ A new user can create an account from the app with email/username, password, fir
 
 ### User Story 2 – Login (Priority: P1)
 
-A returning user can sign in with email/username and password, with optional “Remember me” and “Forgot password” flow.
+A returning user can sign in with email and password, with a “Forgot password” entry point.
 
 **Why this priority**: Login is required to access profile, settings, and protected features.
 
@@ -59,7 +59,7 @@ A returning user can sign in with email/username and password, with optional “
 
 **Acceptance Scenarios**:
 
-1. **Given** the app shows the Login screen, **When** the user enters email/username and password and taps Login, **Then** they are authenticated and taken to the main app.
+1. **Given** the app shows the Login screen, **When** the user enters email and password and taps Login, **Then** they are authenticated and taken to the main app.
 2. **Given** credentials are invalid, **When** the user taps Login, **Then** an error message is shown and the user can retry.
 3. **Given** the user taps “Forgot password?”, **When** the flow is triggered, **Then** they see a placeholder screen or "Coming soon" message; full reset flow is out of scope for this phase.
 4. **Given** the user has no account, **When** they tap “Don’t have an account? Sign Up”, **Then** they are taken to the Sign Up screen.
@@ -89,7 +89,7 @@ An authenticated user can open Settings, switch between tabs (Following, Player 
 ### Functional Requirements
 
 - **FR-001**: System MUST allow users to register with: username or email (required), password (required), first name (required), last name (required), photo (optional).
-- **FR-002**: System MUST allow users to log in with username or email and password; support optional “Remember me” and “Forgot password” entry points.
+- **FR-002**: System MUST allow users to log in with email and password and expose a “Forgot password?” entry point.
 - **FR-003**: System MUST expose a Settings flow with at least: **Following** (manage followed leagues and teams via toggles), **Player Profile** (view/edit name, photo, profile data), **Team Manager** (for team_manager role), and **Logout**.
 - **FR-004**: System MUST persist and return first name, last name, and avatar/photo for the user profile; API and DB MUST support these fields (extend existing user model if needed).
 - **FR-005**: System MUST validate required registration fields on client and server and return clear validation errors.
@@ -114,5 +114,5 @@ An authenticated user can open Settings, switch between tabs (Following, Player 
 ## UI Flow Summary (from attached designs)
 
 - **Sign Up**: FUCCI logo; optional profile photo placeholder; fields: username/email, password, first name, last name; “Sign Up” primary button; “Already have an account? Login”; optional “Or continue with” Google/Apple (and Facebook on Login).
-- **Login**: Back arrow; “Login”; username/email, password; “Remember me”; “Login” button; “Forgot password?”; “Don’t have an account? Sign Up”; social buttons.
+- **Login**: Back arrow; “Login”; email, password; “Login” button; “Forgot password?”; “Don’t have an account? Sign Up”; social buttons.
 - **Settings**: Back arrow; user avatar and name/email with chevron (edit profile); tabs: **Following** (active), **Player Profile**, **Team Manager**; under Following: list of leagues and teams with toggles; **Logout** at bottom. Dark theme with blue accents; bottom nav: Home, Matches, News, Profile/Settings.

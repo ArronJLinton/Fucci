@@ -82,7 +82,7 @@ paths:
                     type: string
                   refresh_token:
                     type: string
-                    description: Optional; used when "Remember me" is true
+                    description: Optional; reserved for future extended auth flows (not used by current mobile client)
         '401':
           description: Invalid credentials
 

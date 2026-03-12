@@ -33,13 +33,13 @@
 
 ---
 
-## 4. “Remember me” and Session Storage
+## 4. Session Storage (no \"Remember me\" toggle)
 
-**Decision**: “Remember me” controls whether the app persists the refresh token (or session) in secure storage. If unchecked, session is memory-only (or short-lived). Implementation detail: use secure storage (e.g. Expo SecureStore) when “Remember me” is checked.
+**Decision**: Sessions are always persisted securely using platform secure storage (e.g. Expo SecureStore / Keychain / Keystore). There is no explicit “Remember me” toggle in the UI for this phase.
 
-**Rationale**: Standard pattern for mobile; avoids storing long-lived tokens when user explicitly opts out (e.g. shared device).
+**Rationale**: Simpler UX and implementation; avoids confusion when the toggle is not wired differently from the default behavior. Users can still log out explicitly from Settings.
 
-**Alternatives considered**: Always persist — rejected for shared-device and spec requirement for optional “Remember me”.
+**Alternatives considered**: Adding a “Remember me” toggle that controls persistence; deferred to a future spec if needed for shared-device scenarios.
 
 ---
 

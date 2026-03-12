@@ -59,15 +59,15 @@
 
 ## Phase 4: User Story 2 – Login (Priority: P1)
 
-**Goal**: Returning user can sign in with identifier (email/username) and password; optional "Remember me" and "Forgot password?" link to placeholder screen.
+**Goal**: Returning user can sign in with email and password, with a "Forgot password?" link to a placeholder screen.
 
 **Independent Test**: Enter valid credentials, tap Login; reach main app. Tap "Forgot password?" and see placeholder/Coming soon.
 
 ### Implementation for User Story 2
 
-- [x] T014 [P] [US2] Add login API helper in apps/mobile/src/services/api.ts: login(body: { identifier, password }) calling POST /auth/login; return token and user; optional persist refresh_token or long-lived token when "Remember me" (e.g. Expo SecureStore)
-- [x] T015 [US2] Create LoginScreen in apps/mobile/src/screens/LoginScreen.tsx with fields: identifier, password; "Remember me" checkbox; "Login" button; "Forgot password?" link; "Don't have an account? Sign Up" link
-- [x] T016 [US2] On LoginScreen submit in apps/mobile/src/screens/LoginScreen.tsx: call login API; on 200 store token (and optionally user); if "Remember me" use persistent storage (e.g. SecureStore), else session-only; navigate to main app; show error message on 401
+- [x] T014 [P] [US2] Add login API helper in apps/mobile/src/services/api.ts: login(body: { email, password }) calling POST /auth/login; return token and user.
+- [x] T015 [US2] Create LoginScreen in apps/mobile/src/screens/LoginScreen.tsx with fields: email, password; "Login" button; "Forgot password?" link; "Don't have an account? Sign Up" link
+- [x] T016 [US2] On LoginScreen submit in apps/mobile/src/screens/LoginScreen.tsx: call login API; on 200 store token (and user) in secure storage and navigate to main app; show error message on 401
 - [x] T017 [US2] Create ForgotPasswordPlaceholderScreen in apps/mobile/src/screens/ForgotPasswordPlaceholderScreen.tsx showing "Coming soon" or placeholder message; "Forgot password?" on LoginScreen navigates to it
 - [x] T018 [US2] Register LoginScreen and ForgotPasswordPlaceholderScreen in navigation; ensure SignUpScreen "Already have an account? Login" and Profile (when logged out) open LoginScreen
 

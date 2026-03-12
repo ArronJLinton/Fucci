@@ -6,7 +6,7 @@
 
 ## Summary
 
-Deliver mobile UI and aligned API for **Sign up** (username/email, password, first name, last name, optional photo), **Login** (email/username + password, Remember me, Forgot password), and **Settings** with tabs: **Following**, **Player Profile**, **Team Manager**, and **Logout**. Backend auth and user APIs exist in 001; this feature extends the registration payload and profile shape (first_name, last_name, photo) and defines the settings screen structure and navigation.
+Deliver mobile UI and aligned API for **Sign up** (email, password, first name, last name, optional photo), **Login** (email + password with Forgot password entry point), and **Settings** with tabs: **Following**, **Player Profile**, **Team Manager**, and **Logout**. Backend auth and user APIs exist in 001; this feature extends the registration payload and profile shape (first_name, last_name, photo) and defines the settings screen structure and navigation.
 
 ## Technical Context
 
