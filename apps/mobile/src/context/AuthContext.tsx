@@ -13,7 +13,8 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   isLoggedIn: boolean;
-  setAuth: (token: string, user: AuthUser) => Promise<void>;
+  /** Set auth state. When persist is false (session-only), auth is not written to storage and is cleared on next app launch. */
+  setAuth: (token: string, user: AuthUser, persist?: boolean) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -50,9 +51,13 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     loadAuth();
   }, [loadAuth]);
 
-  const setAuth = useCallback(async (token: string, user: AuthUser) => {
-    await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
-    await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  const setAuth = useCallback(async (token: string, user: AuthUser, persist = true) => {
+    if (persist) {
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+      await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    } else {
+      await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, AUTH_USER_KEY]);
+    }
     setState((s) => ({...s, token, user}));
   }, []);
 

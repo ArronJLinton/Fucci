@@ -36,7 +36,7 @@ export default function LoginScreen() {
     try {
       const result = await login({identifier: identifier.trim(), password} as LoginRequest);
       if (result.ok) {
-        await setAuth(result.data.token, result.data.user);
+        await setAuth(result.data.token, result.data.user, rememberMe);
         navigation.reset({
           index: 0,
           routes: [{name: 'Main'}],
