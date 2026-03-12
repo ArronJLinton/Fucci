@@ -33,7 +33,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserProfile'
+                type: object
+                  properties:
+                    user:
+                      $ref: '#/components/schemas/UserProfile'
+                    token:
+                      type: string
         '400':
           description: Validation error (missing or invalid fields)
           content:
