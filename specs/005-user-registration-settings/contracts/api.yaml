@@ -198,7 +198,7 @@ components:
           type: string
           minLength: 1
           maxLength: 100
-        photo_url:
+        avatar_url:
           type: string
           format: uri
           description: Optional avatar/photo URL
