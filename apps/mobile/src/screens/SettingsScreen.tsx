@@ -15,7 +15,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
-import {rootNavigate} from '../navigation/rootNavigation';
+import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
 import {usePullToRefresh} from '../hooks/usePullToRefresh';
 import {
   getProfile,
@@ -111,7 +111,7 @@ export default function SettingsScreen({
         style: 'destructive',
         onPress: async () => {
           await authLogout();
-          rootNavigate('Login');
+          rootResetTo('Login');
         },
       },
     ]);
