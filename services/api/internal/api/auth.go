@@ -44,6 +44,10 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if strings.TrimSpace(req.Identifier) == "" || req.Password == "" {
+		respondWithError(w, http.StatusBadRequest, "identifier and password are required")
+		return
+	}
 
 	// Get user by email or username (identifier)
 	var user struct {
