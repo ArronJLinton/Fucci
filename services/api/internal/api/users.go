@@ -3,10 +3,12 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
+	"github.com/lib/pq"
 )
 
 type CreateUserRequest struct {
@@ -57,12 +59,18 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 			  RETURNING id, firstname, lastname, email, created_at, updated_at, role`
 
 	var id int32
-	var firstname, lastname, email, createdAt, updatedAt, role string
+	var firstname, lastname, email, role string
+	var createdAt, updatedAt time.Time
 	err = config.DBConn.QueryRow(query, req.Firstname, req.Lastname, req.Email, passwordHash, displayName, req.AvatarURL).Scan(
 		&id, &firstname, &lastname, &email, &createdAt, &updatedAt, &role,
 	)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating user: %s", err))
+		log.Printf("create user: db error: %v", err)
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			respondWithError(w, http.StatusConflict, "email or username already in use")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "could not create account")
 		return
 	}
 
@@ -90,7 +98,7 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		IsVerified:  isVerified,
 		IsActive:    isActive,
 		Role:        role,
-		CreatedAt:   createdAt,
+		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
 
 	respondWithJSON(w, http.StatusCreated, CreateUserResponse{User: userResponse, Token: token})
