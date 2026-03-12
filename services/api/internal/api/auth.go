@@ -116,7 +116,7 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var displayName, avatarURL, createdAt, updatedAt string
 	var isVerified, isActive bool
 	c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, created_at, updated_at FROM users WHERE id = $1",
+		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, created_at, updated_at FROM users WHERE id = $1",
 		user.ID,
 	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &createdAt, &updatedAt)
 
@@ -226,7 +226,7 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var displayName, avatarURL, role, createdAt, updatedAt string
 	var isVerified, isActive bool
 	c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
+		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
 		userID,
 	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
 
@@ -315,7 +315,7 @@ func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	var displayName, avatarURL, role, createdAt, updatedAt string
 	var isVerified, isActive bool
 	err = c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
+		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
 		userID,
 	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
 	if err != nil {
