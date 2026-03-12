@@ -73,7 +73,7 @@ Registration request body (aligned with spec):
 - `first_name` (required), `last_name` (required)
 - `photo_url` (optional)
 
-Profile response includes: `id`, `email`, `username`, `first_name`, `last_name`, `display_name`, `avatar_url`, `role`. See [contracts/api.yaml](./contracts/api.yaml) for full shapes.
+Profile response includes: `id`, `email`, `firstname`, `lastname`, `display_name`, `avatar_url`, `role`. See [contracts/api.yaml](./contracts/api.yaml) for full shapes.
 
 ## Database
 
