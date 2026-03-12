@@ -16,7 +16,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
-import {usePullToRefresh} from '../hooks/usePullToRefresh';
+import {usePullToRefresh} from '../hooks';
 import {
   getProfile,
   updateProfile,
