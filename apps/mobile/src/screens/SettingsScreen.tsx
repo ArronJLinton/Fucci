@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  RefreshControl,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate} from '../navigation/rootNavigation';
+import {usePullToRefresh} from '../hooks/usePullToRefresh';
 import {
   getProfile,
   updateProfile,
@@ -87,6 +89,11 @@ export default function SettingsScreen({
     }
     loadProfileData(token);
   }, [token, loadProfileData]);
+
+  const refreshProfile = useCallback(async () => {
+    if (token) await loadProfileData(token);
+  }, [token, loadProfileData]);
+  const {refreshing, onRefresh} = usePullToRefresh(refreshProfile);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -210,7 +217,12 @@ export default function SettingsScreen({
 
       <ScrollView
         style={styles.tabContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          token ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }>
         {!isLoggedIn ? (
           <View style={styles.loginPromptContainer}>
             <Text style={styles.loginPromptText}>
