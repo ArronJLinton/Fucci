@@ -1,9 +1,13 @@
 import React, {createContext, useCallback, useContext, useEffect, useState} from 'react';
+import {Platform} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import type {AuthUser} from '../services/api';
 
-export const AUTH_TOKEN_KEY = '@fucci/auth_token';
-export const AUTH_USER_KEY = '@fucci/auth_user';
+export const AUTH_TOKEN_KEY = 'fucci_auth_token';
+export const AUTH_USER_KEY = 'fucci_auth_user';
+
+const useSecureStorage = Platform.OS !== 'web';
 
 interface AuthState {
   token: string | null;
@@ -20,6 +24,39 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function getStoredToken(): Promise<string | null> {
+  if (useSecureStorage) {
+    return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+  }
+  return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+async function getStoredUser(): Promise<string | null> {
+  if (useSecureStorage) {
+    return await SecureStore.getItemAsync(AUTH_USER_KEY);
+  }
+  return await AsyncStorage.getItem(AUTH_USER_KEY);
+}
+
+async function setStoredAuth(token: string, userJson: string): Promise<void> {
+  if (useSecureStorage) {
+    await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, userJson);
+  } else {
+    await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+    await AsyncStorage.setItem(AUTH_USER_KEY, userJson);
+  }
+}
+
+async function clearStoredAuth(): Promise<void> {
+  if (useSecureStorage) {
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(AUTH_USER_KEY);
+  } else {
+    await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, AUTH_USER_KEY]);
+  }
+}
+
 export function AuthProvider({children}: {children: React.ReactNode}) {
   const [state, setState] = useState<AuthState>({
     token: null,
@@ -30,8 +67,8 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   const loadAuth = useCallback(async () => {
     try {
       const [token, userJson] = await Promise.all([
-        AsyncStorage.getItem(AUTH_TOKEN_KEY),
-        AsyncStorage.getItem(AUTH_USER_KEY),
+        getStoredToken(),
+        getStoredUser(),
       ]);
       let user: AuthUser | null = null;
       if (userJson) {
@@ -53,16 +90,15 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
   const setAuth = useCallback(async (token: string, user: AuthUser, persist = true) => {
     if (persist) {
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
-      await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      await setStoredAuth(token, JSON.stringify(user));
     } else {
-      await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, AUTH_USER_KEY]);
+      await clearStoredAuth();
     }
     setState((s) => ({...s, token, user}));
   }, []);
 
   const logout = useCallback(async () => {
-    await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, AUTH_USER_KEY]);
+    await clearStoredAuth();
     setState((s) => ({...s, token: null, user: null}));
   }, []);
 
