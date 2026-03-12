@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Switch,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -22,7 +21,6 @@ export default function LoginScreen() {
   const {setAuth} = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +34,7 @@ export default function LoginScreen() {
     try {
       const result = await login({identifier: identifier.trim(), password} as LoginRequest);
       if (result.ok) {
-        await setAuth(result.data.token, result.data.user, rememberMe);
+        await setAuth(result.data.token, result.data.user);
         navigation.reset({
           index: 0,
           routes: [{name: 'Main'}],
@@ -86,16 +84,6 @@ export default function LoginScreen() {
         <Text style={styles.passwordHint}>
           Min 8 characters, one letter, one number.
         </Text>
-
-        <View style={styles.rememberRow}>
-          <Switch
-            value={rememberMe}
-            onValueChange={setRememberMe}
-            trackColor={{false: '#ccc', true: '#007AFF'}}
-            thumbColor="#fff"
-          />
-          <Text style={styles.rememberLabel}>Remember me</Text>
-        </View>
 
         <TouchableOpacity
           style={[styles.button, submitting && styles.buttonDisabled]}
@@ -163,16 +151,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 16,
-  },
-  rememberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  rememberLabel: {
-    marginLeft: 10,
-    fontSize: 15,
-    color: '#333',
   },
   button: {
     backgroundColor: '#007AFF',
