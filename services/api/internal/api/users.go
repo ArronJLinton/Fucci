@@ -94,6 +94,7 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt.Format(time.RFC3339),
+		UpdatedAt:   updatedAt.Format(time.RFC3339),
 	}
 
 	respondWithJSON(w, http.StatusCreated, CreateUserResponse{User: userResponse, Token: token})

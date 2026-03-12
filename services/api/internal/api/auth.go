@@ -36,6 +36,7 @@ type UserResponse struct {
 	IsActive    bool   `json:"is_active"`
 	Role        string `json:"role"`
 	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -112,12 +113,12 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build user response
-	var displayName, avatarURL, createdAt string
+	var displayName, avatarURL, createdAt, updatedAt string
 	var isVerified, isActive bool
 	c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, created_at FROM users WHERE id = $1",
+		"SELECT display_name, avatar_url, is_verified, is_active, created_at, updated_at FROM users WHERE id = $1",
 		user.ID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &createdAt)
+	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &createdAt, &updatedAt)
 
 	userResponse := UserResponse{
 		ID:          user.ID,
@@ -130,6 +131,7 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 
 	response := LoginResponse{
@@ -221,12 +223,12 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get additional fields
-	var displayName, avatarURL, role, createdAt string
+	var displayName, avatarURL, role, createdAt, updatedAt string
 	var isVerified, isActive bool
 	c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at FROM users WHERE id = $1",
+		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
 		userID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt)
+	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
 
 	userResponse := UserResponse{
 		ID:          user.ID,
@@ -239,6 +241,7 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
@@ -309,12 +312,12 @@ func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get additional fields
-	var displayName, avatarURL, role, createdAt string
+	var displayName, avatarURL, role, createdAt, updatedAt string
 	var isVerified, isActive bool
 	err = c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at FROM users WHERE id = $1",
+		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
 		userID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt)
+	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "failed to fetch user details")
 		return
@@ -331,6 +334,7 @@ func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
