@@ -284,6 +284,10 @@ func (c *Config) handleGetFollowing(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, FollowingItem{ID: id.String(), Type: followableType, FollowableID: followableID.String()})
 	}
+	if err := rows.Err(); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to list following")
+		return
+	}
 	if items == nil {
 		items = []FollowingItem{}
 	}
