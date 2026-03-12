@@ -20,8 +20,8 @@ type LoginRequest struct {
 
 // LoginResponse represents the login response payload
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  UserResponse
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
 }
 
 // UserResponse represents a user without sensitive data
