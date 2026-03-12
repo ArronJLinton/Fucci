@@ -80,28 +80,6 @@ paths:
         '401':
           description: Invalid credentials
 
-  # Forgot password (entry point; implementation may be Phase 2)
-  /auth/forgot-password:
-    post:
-      summary: Request password reset
-      tags: [Authentication]
-      security: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
-      responses:
-        '202':
-          description: If account exists, reset email sent (idempotent)
-        '400':
-          description: Invalid email format
-
   # Current user profile (extends 001 GET/PUT /users/me; exposed here as /users/profile)
   /users/profile:
     get:
