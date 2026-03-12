@@ -132,7 +132,7 @@ export default function SignUpScreen() {
 
         <TextInput
           style={[styles.input, fieldErrors.password && styles.inputError]}
-          placeholder="Password (min 8 chars, 1 letter, 1 number)"
+          placeholder="Password"
           placeholderTextColor="#999"
           value={password}
           onChangeText={(t) => {
@@ -142,6 +142,9 @@ export default function SignUpScreen() {
           secureTextEntry
           editable={!submitting}
         />
+        <Text style={styles.passwordRules}>
+          At least 8 characters, one letter, and one number.
+        </Text>
         {fieldErrors.password ? (
           <Text style={styles.fieldError}>{fieldErrors.password}</Text>
         ) : null}
@@ -232,6 +235,11 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#c00',
+  },
+  passwordRules: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
   },
   fieldError: {
     color: '#c00',

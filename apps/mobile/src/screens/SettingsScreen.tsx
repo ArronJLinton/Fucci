@@ -47,6 +47,8 @@ export default function SettingsScreen({
   const [activeTab, setActiveTab] = useState<TabId>('following');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [profileEdit, setProfileEdit] = useState({
     firstname: '',
     lastname: '',
@@ -54,20 +56,28 @@ export default function SettingsScreen({
   });
 
   const loadProfileData = useCallback(async (t: string) => {
-    const [userData, followData] = await Promise.all([
-      getProfile(t),
-      getFollowing(t),
-    ]);
-    if (userData) {
-      setProfile(userData);
-      setProfileEdit({
-        firstname: userData.firstname || '',
-        lastname: userData.lastname || '',
-        avatar_url: userData.avatar_url || '',
-      });
+    setLoadError(null);
+    try {
+      const [userData, followData] = await Promise.all([
+        getProfile(t),
+        getFollowing(t),
+      ]);
+      if (userData) {
+        setProfile(userData);
+        setProfileEdit({
+          firstname: userData.firstname || '',
+          lastname: userData.lastname || '',
+          avatar_url: userData.avatar_url || '',
+        });
+      } else {
+        setLoadError('Could not load profile. Pull down to retry.');
+      }
+      setFollowing(followData || []);
+    } catch {
+      setLoadError('Could not load profile. Pull down to retry.');
+    } finally {
+      setLoading(false);
     }
-    setFollowing(followData || []);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -102,6 +112,7 @@ export default function SettingsScreen({
 
   const handleSaveProfile = async () => {
     if (!token) return;
+    setSaveError(null);
     setSaving(true);
     const updated = await updateProfile(token, {
       firstname: profileEdit.firstname || undefined,
@@ -111,6 +122,8 @@ export default function SettingsScreen({
     setSaving(false);
     if (updated) {
       setProfile(updated);
+    } else {
+      setSaveError('Failed to save profile. Try again.');
     }
   };
 
@@ -162,6 +175,17 @@ export default function SettingsScreen({
           </Text>
         </View>
       </View>
+
+      {loadError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{loadError}</Text>
+          <TouchableOpacity
+            onPress={() => token && loadProfileData(token)}
+            style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View style={styles.tabs}>
         {(['following', 'profile', 'team'] as const).map(tab => (
@@ -221,6 +245,9 @@ export default function SettingsScreen({
 
             {activeTab === 'profile' && (
               <View style={styles.section}>
+                {saveError ? (
+                  <Text style={styles.saveErrorText}>{saveError}</Text>
+                ) : null}
                 <Text style={styles.label}>First name</Text>
                 <TextInput
                   style={styles.input}
@@ -409,6 +436,35 @@ const styles = StyleSheet.create({
   tabContent: {
     flex: 1,
     padding: 16,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff3cd',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#856404',
+  },
+  retryButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  saveErrorText: {
+    fontSize: 14,
+    color: '#c00',
+    marginBottom: 12,
   },
   section: {
     marginBottom: 24,

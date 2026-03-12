@@ -21,8 +21,7 @@
 
 **Mobile (apps/mobile)**:
 
-- API base URL pointing to your backend (localhost or deployed)
-- No extra env vars required for sign-up/login/settings MVP
+- API base URL must point to your backend. Set in `app.json` → `expo.extra.API_BASE_URL` (e.g. `http://localhost:8080/v1/api`). For Android emulator use `http://10.0.2.2:8080/v1/api`. Use `apps/mobile/scripts/set-env.js` for environment-specific builds if needed.
 
 ## Run the API
 
@@ -32,7 +31,7 @@ From repo root:
 cd services/api && go run ./cmd/api
 ```
 
-Default base URL: `http://localhost:8080` (or as configured). Auth routes: `POST /api/auth/register`, `POST /api/auth/login`; profile: `GET/PUT /api/users/me`.
+Default base URL: `http://localhost:8080` (or as configured). The API is typically mounted at `/v1/api`. Auth routes: `POST /auth/register`, `POST /auth/login`; profile: `GET/PUT /users/profile`; following: `GET /users/me/following` (paths relative to base, e.g. `http://localhost:8080/v1/api`).
 
 ## Run the Mobile App
 
@@ -48,21 +47,20 @@ Open the app on a simulator or device. Navigate to Sign Up or Login (e.g. from P
 
 - Open Sign Up screen.
 - Enter: identifier (email or username), password (min 8 chars), first name, last name; optionally add photo.
-- Submit; expect 201 and user + token (or redirect to Login with success).
-- If backend still expects `email` + `display_name`, use register request that includes `first_name`, `last_name` and optional `photo_url` per [contracts/api.yaml](./contracts/api.yaml) once implemented.
+- Submit; expect 201 and response with user + token (auto sign-in). Request body uses `identifier`, `password`, `first_name`, `last_name`, and optional `photo_url` per [contracts/api.yaml](./contracts/api.yaml).
 
 ### 2. Login
 
 - Enter identifier (email or username) and password.
 - Optional: toggle “Remember me” (persists session when implemented).
 - Submit; expect 200 with user and token.
-- “Forgot password?” should open forgot-password flow (may be Phase 2).
+- “Forgot password?” opens a placeholder screen (full flow in a later phase).
 
 ### 3. Settings
 
 - After login, open Settings (e.g. Profile → Settings or tab bar).
-- **Following**: List of followed teams/leagues; toggles or manage list (uses `GET /users/me/following` when implemented).
-- **Player Profile**: View/edit first name, last name, photo (uses `GET/PUT /users/me`).
+- **Following**: List of followed teams/leagues; toggles or manage list (uses `GET /users/me/following`).
+- **Player Profile**: View/edit first name, last name, photo (uses `GET/PUT /users/profile`).
 - **Team Manager**: Shown for team_manager role; empty state or “Request access” for others.
 - **Logout**: Tap to sign out; expect token cleared and navigation to Login or anonymous Home.
 
@@ -79,10 +77,10 @@ Profile response includes: `id`, `email`, `username`, `first_name`, `last_name`,
 
 ## Database
 
-If the existing `users` table does not have `first_name`, `last_name`, or `username`, add a migration (see [data-model.md](./data-model.md)) and run:
+If the existing `users` table does not have `first_name`, `last_name`, or `username`, add a migration (see [data-model.md](./data-model.md)) and run from the repo root:
 
 ```bash
 yarn migrate
 ```
 
-(from repo root, if migrate script is configured).
+This runs the migrator in `services/api`; ensure `DB_URL` is set in the environment or in `services/api/.env`.

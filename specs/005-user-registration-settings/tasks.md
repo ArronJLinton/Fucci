@@ -98,9 +98,9 @@
 
 **Purpose**: Consistency, validation, and docs.
 
-- [ ] T025 [P] Add client-side password validation (min 8 chars, at least one letter and one number) and display rules on SignUpScreen and optionally LoginScreen per specs/005-user-registration-settings/spec.md FR-006
-- [ ] T026 Ensure loading states and error messages for all auth and settings API calls in apps/mobile (SignUpScreen, LoginScreen, SettingsScreen)
-- [ ] T027 Run through specs/005-user-registration-settings/quickstart.md: sign-up, login, settings tabs, logout; fix any contract or env gaps
+- [x] T025 [P] Add client-side password validation (min 8 chars, at least one letter and one number) and display rules on SignUpScreen and optionally LoginScreen per specs/005-user-registration-settings/spec.md FR-006
+- [x] T026 Ensure loading states and error messages for all auth and settings API calls in apps/mobile (SignUpScreen, LoginScreen, SettingsScreen)
+- [x] T027 Run through specs/005-user-registration-settings/quickstart.md: sign-up, login, settings tabs, logout; fix any contract or env gaps
 
 ---
 

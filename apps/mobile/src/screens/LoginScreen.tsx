@@ -83,6 +83,9 @@ export default function LoginScreen() {
           secureTextEntry
           editable={!submitting}
         />
+        <Text style={styles.passwordHint}>
+          Min 8 characters, one letter, one number.
+        </Text>
 
         <View style={styles.rememberRow}>
           <Switch
@@ -155,6 +158,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
     color: '#000',
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 16,
   },
   rememberRow: {
     flexDirection: 'row',
