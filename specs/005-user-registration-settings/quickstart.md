@@ -46,12 +46,12 @@ Open the app on a simulator or device. Navigate to Sign Up or Login (e.g. from P
 ### 1. Sign Up
 
 - Open Sign Up screen.
-- Enter: identifier (email or username), password (min 8 chars), first name, last name; optionally add photo.
-- Submit; expect 201 and response with user + token (auto sign-in). Request body uses `identifier`, `password`, `first_name`, `last_name`, and optional `photo_url` per [contracts/api.yaml](./contracts/api.yaml).
+- Enter: email, password (min 8 chars), first name, last name; optionally add photo.
+- Submit; expect 201 and response with user + token (auto sign-in). Request body uses `email`, `password`, `first_name`, `last_name`, and optional `photo_url` per [contracts/api.yaml](./contracts/api.yaml).
 
 ### 2. Login
 
-- Enter identifier (email or username) and password.
+- Enter email and password.
 - Optional: toggle “Remember me” (persists session when implemented).
 - Submit; expect 200 with user and token.
 - “Forgot password?” opens a placeholder screen (full flow in a later phase).
@@ -68,7 +68,7 @@ Open the app on a simulator or device. Navigate to Sign Up or Login (e.g. from P
 
 Registration request body (aligned with spec):
 
-- `identifier` (required): email or username
+- `email` (required): user email
 - `password` (required): min 8 characters
 - `first_name` (required), `last_name` (required)
 - `photo_url` (optional)

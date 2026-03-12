@@ -31,7 +31,7 @@ export default function SignUpScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {setAuth} = useAuth();
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -41,7 +41,7 @@ export default function SignUpScreen() {
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
-    if (!identifier.trim()) errors.identifier = 'Email or username is required';
+    if (!email.trim()) errors.email = 'Email is required';
     if (!password) errors.password = 'Password is required';
     else {
       const pwErr = validatePassword(password);
@@ -64,7 +64,7 @@ export default function SignUpScreen() {
     setSubmitting(true);
     try {
       const body: RegisterRequest = {
-        identifier: identifier.trim(),
+        email: email.trim(),
         password,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -83,8 +83,7 @@ export default function SignUpScreen() {
       if (result.status === 400 && result.errors?.length) {
         const errs: Record<string, string> = {};
         result.errors.forEach(e => {
-          const key = e.field === 'email' ? 'identifier' : e.field;
-          errs[key] = e.message;
+          errs[e.field] = e.message;
         });
         setFieldErrors(errs);
         setError(result.message);
@@ -116,22 +115,21 @@ export default function SignUpScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TextInput
-          style={[styles.input, fieldErrors.identifier && styles.inputError]}
+          style={[styles.input, fieldErrors.email && styles.inputError]}
           placeholder="Email"
           placeholderTextColor="#999"
-          value={identifier}
+          value={email}
           onChangeText={t => {
-            setIdentifier(t);
-            if (fieldErrors.identifier)
-              setFieldErrors(p => ({...p, identifier: ''}));
+            setEmail(t);
+            if (fieldErrors.email) setFieldErrors(p => ({...p, email: ''}));
           }}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
           editable={!submitting}
         />
-        {fieldErrors.identifier ? (
-          <Text style={styles.fieldError}>{fieldErrors.identifier}</Text>
+        {fieldErrors.email ? (
+          <Text style={styles.fieldError}>{fieldErrors.email}</Text>
         ) : null}
 
         <TextInput

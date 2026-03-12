@@ -2,9 +2,9 @@
 import {DebateResponse, DebateListItem} from '../types/debate';
 import {apiConfig} from '../config/environment';
 
-// Auth types (005 user registration)
+// Auth types (005 user registration) — email-only (no username)
 export interface RegisterRequest {
-  identifier: string;
+  email: string;
   password: string;
   first_name: string;
   last_name: string;
@@ -28,7 +28,7 @@ export interface RegisterResponse {
 }
 
 export interface LoginRequest {
-  identifier: string;
+  email: string;
   password: string;
 }
 
@@ -407,8 +407,7 @@ export const deleteMatch = async (matchId: number): Promise<boolean> => {
   }
 };
 
-// Auth API (005 user registration) — POST /auth/register
-// Maps identifier -> email for backend; optional photo_url -> avatar_url
+// Auth API (005 user registration) — POST /auth/register (email-only)
 export const register = async (
   body: RegisterRequest,
 ): Promise<
@@ -428,7 +427,7 @@ export const register = async (
       body: JSON.stringify({
         firstname: body.first_name,
         lastname: body.last_name,
-        email: body.identifier,
+        email: body.email,
         password: body.password,
         avatar_url: body.photo_url || undefined,
       }),
@@ -535,7 +534,7 @@ export const login = async (
       method: 'POST',
       headers: {...apiConfig.headers},
       body: JSON.stringify({
-        identifier: body.identifier,
+        email: body.email,
         password: body.password,
       }),
     });

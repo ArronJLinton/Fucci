@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// LoginRequest represents the login request payload (identifier = email or username)
+// LoginRequest represents the login request payload (email-only)
 type LoginRequest struct {
-	Identifier string `json:"identifier"`
-	Password   string `json:"password"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 // LoginResponse represents the login response payload
@@ -44,12 +44,12 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if strings.TrimSpace(req.Identifier) == "" || req.Password == "" {
-		respondWithError(w, http.StatusBadRequest, "identifier and password are required")
+	if strings.TrimSpace(req.Email) == "" || req.Password == "" {
+		respondWithError(w, http.StatusBadRequest, "email and password are required")
 		return
 	}
 
-	// Get user by email or username (identifier)
+	// Get user by email
 	var user struct {
 		ID        int32
 		Firstname string
@@ -57,8 +57,8 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email     string
 	}
 	err := c.DBConn.QueryRowContext(r.Context(),
-		`SELECT id, firstname, lastname, email FROM users WHERE (email = $1 OR (username IS NOT NULL AND username = $1)) AND is_active = true LIMIT 1`,
-		req.Identifier,
+		`SELECT id, firstname, lastname, email FROM users WHERE email = $1 AND is_active = true LIMIT 1`,
+		strings.TrimSpace(req.Email),
 	).Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {

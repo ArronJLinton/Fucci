@@ -19,20 +19,20 @@ import {login, type LoginRequest} from '../services/api';
 export default function LoginScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {setAuth} = useAuth();
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!identifier.trim() || !password) {
-      setError('Please enter your email/username and password.');
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
       return;
     }
     setError(null);
     setSubmitting(true);
     try {
-      const result = await login({identifier: identifier.trim(), password} as LoginRequest);
+      const result = await login({email: email.trim(), password});
       if (result.ok) {
         await setAuth(result.data.token, result.data.user);
         navigation.reset({
@@ -63,10 +63,10 @@ export default function LoginScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Email or username"
+          placeholder="Email"
           placeholderTextColor="#999"
-          value={identifier}
-          onChangeText={setIdentifier}
+          value={email}
+          onChangeText={setEmail}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"

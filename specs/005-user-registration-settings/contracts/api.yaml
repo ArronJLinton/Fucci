@@ -46,9 +46,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '409':
-          description: Email or username already in use
+          description: Email already in use
 
-  # Login (username or email + password)
+  # Login (email + password)
   /auth/login:
     post:
       summary: Login user
@@ -60,11 +60,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [identifier, password]
+              required: [email, password]
               properties:
-                identifier:
+                email:
                   type: string
-                  description: Email or username
+                  format: email
+                  description: User email
                 password:
                   type: string
       responses:
@@ -176,11 +177,12 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [identifier, password, first_name, last_name]
+      required: [email, password, first_name, last_name]
       properties:
-        identifier:
+        email:
           type: string
-          description: Email or username (unique)
+          format: email
+          description: User email (unique)
           minLength: 1
           maxLength: 255
         password:
