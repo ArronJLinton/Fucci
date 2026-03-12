@@ -53,16 +53,19 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		displayName = fmt.Sprintf("%s %s", req.Firstname, req.Lastname)
 	}
 
-	// Insert user with password hash and optional avatar_url
-	query := `INSERT INTO users (firstname, lastname, email, password_hash, display_name, role, avatar_url) 
-			  VALUES ($1, $2, $3, $4, $5, 'fan', NULLIF($6, '')) 
-			  RETURNING id, firstname, lastname, email, created_at, updated_at, role`
+	// Insert user with password hash and optional avatar_url; RETURNING all fields needed for response
+	query := `INSERT INTO users (firstname, lastname, email, password_hash, display_name, role, avatar_url)
+			  VALUES ($1, $2, $3, $4, $5, 'fan', NULLIF($6, ''))
+			  RETURNING id, firstname, lastname, email, created_at, updated_at, role,
+			  COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active`
 
 	var id int32
-	var firstname, lastname, email, role string
+	var firstname, lastname, email, role, displayNameOut, avatarURL string
 	var createdAt, updatedAt time.Time
+	var isVerified, isActive bool
 	err = config.DBConn.QueryRow(query, req.Firstname, req.Lastname, req.Email, passwordHash, displayName, req.AvatarURL).Scan(
 		&id, &firstname, &lastname, &email, &createdAt, &updatedAt, &role,
+		&displayNameOut, &avatarURL, &isVerified, &isActive,
 	)
 	if err != nil {
 		log.Printf("create user: db error: %v", err)
@@ -73,14 +76,6 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "could not create account")
 		return
 	}
-
-	// Fetch display_name and avatar_url for response
-	var displayNameOut, avatarURL string
-	var isVerified, isActive bool
-	_ = config.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active FROM users WHERE id = $1",
-		id,
-	).Scan(&displayNameOut, &avatarURL, &isVerified, &isActive)
 
 	token, err := auth.GenerateToken(id, email, role, 24*time.Hour)
 	if err != nil {
