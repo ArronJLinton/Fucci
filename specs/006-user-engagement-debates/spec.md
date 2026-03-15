@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: Three feature enhancements to the AI Powered Debates experience: headline-driven debate structure with seeded comments, full comment interaction system (replies, votes, emoji reactions), and authentication gate for unauthenticated users.
 
+## Clarifications
+
+### Session 2026-02-15
+
+- Q: When/how is the system user (Fucci) created? → A: Create in a one-time DB migration/seed at deploy; migration ensures Fucci exists before any debate generation.
+- Q: Max length for user-written comments and subcomments? → A: 500 characters.
+- Q: Require loading and error states for comment list and write actions? → A: Yes — require loading and error (with retry where appropriate) for comment list and for reply/vote/reaction.
+- Q: Rate-limit comment creation or vote/reaction? → A: Yes — rate-limit comment creation only (e.g. N per minute per user); votes/reactions not rate-limited for this release.
+- Q: After auth, must auto-init (reply focus / reaction picker) be guaranteed? → A: Best-effort — attempt auto-init when return params are present; if state is lost or init fails, show the debate only. No guarantee.
+
 ## Relationship to Other Specs
 
 This spec **extends** [004-ai-debate-generator](../004-ai-debate-generator/spec.md). It changes the debate format from a binary two-sided discussion to a headline + description + three AI-seeded comments (agree, disagree, wildcard), and adds comment-level interactions (replies, upvotes/downvotes, emoji reactions) plus an auth gate modal. It depends on [005-user-registration-settings](../005-user-registration-settings/spec.md) for login/registration flows used by the auth gate.
@@ -12,7 +22,7 @@ This spec **extends** [004-ai-debate-generator](../004-ai-debate-generator/spec.
 ## Scope
 
 1. **Feature 1 — Match Debate Structure: Headline + Seeded Comments**  
-   Replace two-sided argument with: headline topic, short description, and three AI-generated starter comments (agree, disagree, wildcard) attributed to the **system user** (Fucci). Stored as standard Comment records with a `seeded` flag; no stance labels in UI or API — they appear identical to other comments. Create a system user (Fucci) if one does not exist.
+   Replace two-sided argument with: headline topic, short description, and three AI-generated starter comments (agree, disagree, wildcard) attributed to the **system user** (Fucci). Stored as standard Comment records with a `seeded` flag; no stance labels in UI or API — they appear identical to other comments. The system user (Fucci) is ensured by a one-time DB migration/seed at deploy.
 
 2. **Feature 2 — Comment Interaction System**  
    Replies and subcomments (one level), upvotes/downvotes on comments, emoji reactions on comments; auth required for all write interactions.
@@ -59,7 +69,7 @@ Seeded comments look and feel like real user comments to lower the barrier for o
 
 ### Comment Attribution
 
-All three seeded comments are attributed to the **system user** (Fucci). The `user_id` on the comment record is the system user; create a system user (e.g. display name "Fucci") if one does not exist. They appear as real authored posts — not labeled as "AI," "Bot," or by stance (agree/disagree/wildcard). For moderation and liability, **Fucci is the attributed author** and is tracked as the author of seeded comments.
+All three seeded comments are attributed to the **system user** (Fucci). The `user_id` on the comment record is the system user. The system user is created in a **one-time DB migration/seed at deploy** so Fucci exists before any debate generation runs. They appear as real authored posts — not labeled as "AI," "Bot," or by stance (agree/disagree/wildcard). For moderation and liability, **Fucci is the attributed author** and is tracked as the author of seeded comments.
 
 ### Data Model Notes
 
@@ -77,6 +87,7 @@ Users can engage with debate comments through: **replies/subcomments**, **upvote
 
 - Any top-level comment can receive subcomments (threaded replies).
 - Subcomments are **one level deep only** — subcomments cannot have their own subcomments.
+- **User comments and subcomments**: maximum **500 characters** each; API and UI must validate and enforce this limit.
 - Reply UI is triggered by a "Reply" action on any comment.
 - Subcomments display: replying user's avatar, username, timestamp, comment text.
 - When there are more than 3 replies, the thread is collapsed by default with a "View N more replies" affordance to expand.
@@ -108,6 +119,10 @@ Users can engage with debate comments through: **replies/subcomments**, **upvote
 | Upvote / Downvote | Allowed | Auth gate modal |
 | Emoji reaction | Allowed | Auth gate modal |
 
+**Loading and error states**: The UI MUST show loading states for the comment list and for write actions (reply, vote, reaction). On failure, show a user-friendly error and offer retry where appropriate (e.g. "Couldn't load comments" with Retry; failed vote/reaction with optional retry).
+
+**Rate limiting**: The API MUST rate-limit **comment creation** per user (e.g. N comments per minute); exact limit is implementation-defined. Vote and reaction endpoints are not rate-limited for this release.
+
 ---
 
 ## Feature 3 — Authentication Gate Modal
@@ -136,7 +151,7 @@ When an **unauthenticated** user attempts any write interaction — reply, vote,
 
 ### Return State
 
-This app is **mobile only** (web not available). After successful authentication, the user is deep-linked back to the specific debate on mobile. Where technically feasible, the interaction they attempted (reply, vote, reaction) is **auto-initiated** (e.g., reply box focused or reaction picker opened).
+This app is **mobile only** (web not available). After successful authentication, the user is deep-linked back to the specific debate on mobile. **Best-effort auto-init:** when return params (e.g. pendingAction) are present, the app SHOULD attempt to auto-initiate the blocked action (e.g. focus reply input or open reaction picker). If state is lost or auto-init fails, showing the debate alone is acceptable; no guarantee of auto-init is required.
 
 ---
 

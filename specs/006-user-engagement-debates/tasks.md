@@ -3,7 +3,7 @@
 **Input**: Design documents from `specs/006-user-engagement-debates/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing. Tests are not explicitly requested in the spec; omit test-only tasks per template.
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing. Tests are not explicitly requested in the spec; omit test-only tasks per template. **Clarifications** (spec Session 2026-02-15) are reflected: system user via one-time migration at deploy, 500-char limit for user comments, loading/error states with retry, rate-limit comment creation only, best-effort return-to-debate auto-init.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -34,7 +34,7 @@
 - [ ] T002 Add migration to add `seeded` column (BOOLEAN NOT NULL DEFAULT false) to `comments` table in services/api/sql/schema/ (timestamped filename, e.g. 20260215000000_add_seeded_to_comments.sql)
 - [ ] T003 [P] Add migration for `comment_votes` table (id, comment_id, user_id, vote_type, created_at, UNIQUE(comment_id, user_id)) with FKs to comments and users in services/api/sql/schema/
 - [ ] T004 [P] Add migration for `comment_reactions` table (id, comment_id, user_id, emoji VARCHAR(20), created_at, UNIQUE(comment_id, user_id, emoji)) with FKs in services/api/sql/schema/
-- [ ] T005 Add migration or seed to ensure system user (Fucci) exists: insert a dedicated user (e.g. display_name 'Fucci', identifiable by email or role) if not present in services/api/sql/schema/ or services/api/cmd/
+- [ ] T005 Add one-time migration at deploy to ensure system user (Fucci) exists: INSERT a dedicated user (e.g. display_name 'Fucci', identifiable by email or role) if not present; migration runs before any debate generation in services/api/sql/schema/
 - [ ] T006 Add sqlc queries for comment_votes (upsert/delete vote, get votes by comment_id for net score) in services/api/sql/queries/ (new file e.g. comment_votes.sql or extend existing)
 - [ ] T007 Add sqlc queries for comment_reactions (insert, delete by comment_id+user_id+emoji, list by comment_id) in services/api/sql/queries/
 - [ ] T008 Run sqlc generate and yarn migrate; fix any compile errors in services/api/internal/database/
@@ -55,7 +55,7 @@
 - [ ] T010 [US1] Register GET /api/debates/{debate_id}/comments route (and mount comments router if needed) in services/api/internal/api/api.go
 - [ ] T011 [US1] Extend AI prompt and debate generation to return three comment texts (agree, disagree, wildcard); after creating a debate in generate-set/create flow, insert three comments with debate_id, user_id = system user (Fucci), content from AI, seeded = true in services/api/internal/api/debates.go and services/api/internal/ai/prompt_generator.go
 - [ ] T012 [US1] Add listComments(debateId) API client function in apps/mobile/src/services/api.ts
-- [ ] T013 [US1] Display comments list (with net_score, reactions, author avatar/name, no stance labels) on SingleDebateScreen in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [ ] T013 [US1] Display comments list (with net_score, reactions, author avatar/name, no stance labels) on SingleDebateScreen; include loading state while fetching and on error show user-friendly message with Retry in apps/mobile/src/screens/SingleDebateScreen.tsx
 
 **Checkpoint**: User Story 1 complete — users can see headline, description, and three seeded comments
 
@@ -69,14 +69,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Implement POST /api/debates/{debate_id}/comments handler: create comment or subcomment (body content, parent_comment_id optional); enforce parent is top-level only; require auth; return DebateComment shape in services/api/internal/api/comments.go
+- [ ] T014 [P] [US2] Implement POST /api/debates/{debate_id}/comments handler: create comment or subcomment (body content, parent_comment_id optional); enforce content length ≤ 500 (400 if exceeded), parent is top-level only; require auth; rate-limit comment creation per user (e.g. N per minute), return 429 when exceeded; return DebateComment shape in services/api/internal/api/comments.go
 - [ ] T015 [P] [US2] Implement PUT /api/comments/{comment_id}/vote handler: set or clear vote (body vote_type: upvote|downvote|null); require auth; return net_score in services/api/internal/api/comments.go or comment_engagement.go
 - [ ] T016 [P] [US2] Implement POST /api/comments/{comment_id}/reactions and DELETE /api/comments/{comment_id}/reactions?emoji= handlers: add/toggle or remove reaction; require auth; return updated reaction counts; no max on emoji types in services/api/internal/api/comments.go or comment_engagement.go
 - [ ] T017 [US2] Register POST /api/debates/{debate_id}/comments, PUT /api/comments/{comment_id}/vote, POST and DELETE /api/comments/{comment_id}/reactions routes (auth middleware for write) in services/api/internal/api/api.go
 - [ ] T018 [US2] Add createComment, setCommentVote, addCommentReaction, removeCommentReaction API client functions in apps/mobile/src/services/api.ts
-- [ ] T019 [US2] Add reply UI (Reply action, subcomment form) and enforce one-level subcomments in apps/mobile/src/screens/SingleDebateScreen.tsx (or new component)
-- [ ] T020 [US2] Add upvote/downvote controls and net score display per comment; toggle same vote to clear in apps/mobile/src/screens/SingleDebateScreen.tsx
-- [ ] T021 [US2] Add emoji reaction picker and reaction row (emoji + count) per comment; add/toggle/remove reaction in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [ ] T019 [US2] Add reply UI (Reply action, subcomment form), enforce one-level subcomments and 500-character limit (validate in UI); show loading and error with retry on submit in apps/mobile/src/screens/SingleDebateScreen.tsx (or new component)
+- [ ] T020 [US2] Add upvote/downvote controls and net score display per comment; toggle same vote to clear; show loading/error (and optional retry) for vote action in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [ ] T021 [US2] Add emoji reaction picker and reaction row (emoji + count) per comment; add/toggle/remove reaction; show loading/error (and optional retry) for reaction action in apps/mobile/src/screens/SingleDebateScreen.tsx
 
 **Checkpoint**: User Story 2 complete — authenticated users can reply, vote, and react
 
@@ -84,15 +84,15 @@
 
 ## Phase 5: User Story 3 — Authentication Gate Modal (Priority: P2)
 
-**Goal**: When an unauthenticated user attempts reply, vote, or reaction, show "Join the conversation" modal with Log in / Create account; after auth, return to same debate and auto-initiate the blocked action where feasible (mobile only).
+**Goal**: When an unauthenticated user attempts reply, vote, or reaction, show "Join the conversation" modal with Log in / Create account; after auth, return to same debate and best-effort auto-initiate the blocked action (mobile only; no guarantee if state lost).
 
-**Independent Test**: As unauthenticated user, tap Reply (or Vote or React); modal appears; tap Log in, complete login; return to same debate and reply box focused or reaction picker open if feasible.
+**Independent Test**: As unauthenticated user, tap Reply (or Vote or React); modal appears; tap Log in, complete login; return to same debate; optionally reply box focused or reaction picker open (best-effort).
 
 ### Implementation for User Story 3
 
 - [ ] T022 [US3] Create AuthGateModal component: title "Join the conversation", body text, primary "Log in", secondary "Create account", dismiss; overlay with darkened backdrop in apps/mobile/src/components/AuthGateModal.tsx (or in screens)
 - [ ] T023 [US3] On SingleDebateScreen, when user is unauthenticated and taps Reply / Vote / React, show AuthGateModal instead of performing action; pass pending action type (reply | vote | reaction) for return state in apps/mobile/src/screens/SingleDebateScreen.tsx
-- [ ] T024 [US3] On "Log in" / "Create account", navigate to Login or SignUp with return params (debateId, pendingAction); after successful auth (use AuthContext), navigate back to debate and auto-initiate pending action (e.g. focus reply input or open reaction picker) in apps/mobile/src/screens/SingleDebateScreen.tsx and apps/mobile/src/navigation/rootNavigation.ts or equivalent
+- [ ] T024 [US3] On "Log in" / "Create account", navigate to Login or SignUp with return params (debateId, pendingAction); after successful auth (use AuthContext), navigate back to debate and best-effort auto-initiate pending action (e.g. focus reply input or open reaction picker); if state lost or init fails, showing debate only is acceptable in apps/mobile/src/screens/SingleDebateScreen.tsx and apps/mobile/src/navigation/rootNavigation.ts or equivalent
 
 **Checkpoint**: User Story 3 complete — auth gate and return-to-debate work on mobile
 

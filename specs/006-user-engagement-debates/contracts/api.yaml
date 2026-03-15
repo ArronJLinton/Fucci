@@ -82,7 +82,8 @@ paths:
               properties:
                 content:
                   type: string
-                  maxLength: 2000
+                  maxLength: 500
+                  description: User comment or subcomment; max 500 characters
                 parent_comment_id:
                   type: integer
                   format: int32
