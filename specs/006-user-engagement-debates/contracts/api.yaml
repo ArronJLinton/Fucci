@@ -1,0 +1,308 @@
+openapi: 3.0.3
+info:
+  title: User Engagement for Debates API (006)
+  description: |
+    Comment, vote, and reaction endpoints for AI-powered debates.
+    Extends 004-ai-debate-generator. Requires authentication for write operations (post reply, vote, react).
+  version: 1.0.0
+
+servers:
+  - url: /v1/api
+    description: API base
+
+tags:
+  - name: Debate Comments
+    description: Comments and subcomments on debates
+  - name: Comment Votes
+    description: Upvote/downvote on comments
+  - name: Comment Reactions
+    description: Emoji reactions on comments
+
+paths:
+  # List comments for a debate (includes nested subcomments, vote/reaction counts)
+  /api/debates/{debate_id}/comments:
+    get:
+      summary: List comments for a debate
+      description: |
+        Returns top-level comments for the debate, each with subcomments (one level),
+        net vote score, and emoji reaction counts. Public (no auth required) so
+        unauthenticated users can see all content and counts; they cannot engage
+        (reply/vote/react) until authenticated. Seeded comments are included but
+        the `seeded` flag and stance are not exposed — they appear as regular comments.
+        Order: e.g. by created_at or by net score (client/spec may define).
+      operationId: listDebateComments
+      tags: [Debate Comments]
+      parameters:
+        - name: debate_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: List of top-level comments with subcomments and counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DebateComment'
+        '401':
+          description: Unauthorized (optional; list may be public)
+        '404':
+          description: Debate not found
+        '500':
+          description: Internal error
+
+    post:
+      summary: Create a comment (reply)
+      description: |
+        Create a top-level comment or a subcomment (reply). For subcomments,
+        parent_comment_id must be a top-level comment (no replies to replies).
+        Requires authentication.
+      operationId: createComment
+      tags: [Debate Comments]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: debate_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 2000
+                parent_comment_id:
+                  type: integer
+                  format: int32
+                  nullable: true
+                  description: Omit or null for top-level; set to comment id for reply (one level only)
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebateComment'
+        '400':
+          description: Validation error (e.g. parent is a subcomment, content empty)
+        '401':
+          description: Unauthorized — show auth gate
+        '404':
+          description: Debate or parent comment not found
+        '500':
+          description: Internal error
+
+  # Comment vote (upvote or downvote; toggle off if same vote again)
+  /api/comments/{comment_id}/vote:
+    put:
+      summary: Set or clear vote on a comment
+      description: |
+        Set vote to upvote or downvote; send null or delete to clear.
+        One vote per user per comment (up or down). Toggling same vote clears it.
+        Requires authentication.
+      operationId: setCommentVote
+      tags: [Comment Votes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: comment_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vote_type:
+                  type: string
+                  enum: [upvote, downvote]
+                  nullable: true
+                  description: null or omit to clear vote
+      responses:
+        '200':
+          description: Vote updated; returns current net score for comment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  net_score:
+                    type: integer
+                  vote_type:
+                    type: string
+                    enum: [upvote, downvote]
+                    nullable: true
+        '400':
+          description: Invalid vote_type
+        '401':
+          description: Unauthorized — show auth gate
+        '404':
+          description: Comment not found
+        '500':
+          description: Internal error
+
+  # Comment emoji reaction
+  /api/comments/{comment_id}/reactions:
+    post:
+      summary: Add emoji reaction to a comment
+      description: |
+        Add a reaction with the given emoji (from allowed set). If user already
+        reacted with this emoji, toggles off (removes). Requires authentication.
+      operationId: addCommentReaction
+      tags: [Comment Reactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: comment_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emoji]
+              properties:
+                emoji:
+                  type: string
+                  description: Emoji code from allowed set (e.g. thumbs up, heart, fire)
+      responses:
+        '200':
+          description: Reaction added or toggled off; returns updated reaction counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        emoji:
+                          type: string
+                        count:
+                          type: integer
+        '400':
+          description: Emoji not in allowed set
+        '401':
+          description: Unauthorized — show auth gate
+        '404':
+          description: Comment not found
+        '500':
+          description: Internal error
+
+    delete:
+      summary: Remove emoji reaction from a comment
+      description: Remove the current user's reaction for the given emoji. Requires authentication.
+      operationId: removeCommentReaction
+      tags: [Comment Reactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: comment_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: emoji
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reaction removed
+        '401':
+          description: Unauthorized
+        '404':
+          description: Comment not found or no reaction to remove
+        '500':
+          description: Internal error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    DebateComment:
+      type: object
+      description: Comment or subcomment with vote/reaction counts. Seeded comments appear as regular comments (no stance or seeded flag in API). No max on emoji reaction types per comment.
+      properties:
+        id:
+          type: integer
+          format: int32
+        debate_id:
+          type: integer
+          format: int32
+        parent_comment_id:
+          type: integer
+          format: int32
+          nullable: true
+        user_id:
+          type: integer
+          format: int32
+        user_display_name:
+          type: string
+          description: Display name or username for UI
+        user_avatar_url:
+          type: string
+          nullable: true
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        net_score:
+          type: integer
+          description: Upvotes minus downvotes
+        current_user_vote:
+          type: string
+          enum: [upvote, downvote]
+          nullable: true
+        reactions:
+          type: array
+          items:
+            type: object
+            properties:
+              emoji:
+                type: string
+              count:
+                type: integer
+        subcomments:
+          type: array
+          description: One level only; present for top-level comments
+          items:
+            $ref: '#/components/schemas/DebateComment'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
