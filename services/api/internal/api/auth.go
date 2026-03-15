@@ -249,10 +249,9 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 // FollowingItem represents a single followed entity for GET /users/me/following
 type FollowingItem struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"`
-	FollowableID  string `json:"followable_id"`
-	Name          string `json:"name,omitempty"`
+	ID           string `json:"id"`
+	Type         string `json:"type"`
+	FollowableID string `json:"followable_id"`
 }
 
 // GetFollowingResponse is the response for GET /users/me/following
