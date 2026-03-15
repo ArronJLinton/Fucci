@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
+	"github.com/google/uuid"
 )
 
-// LoginRequest represents the login request payload
+// LoginRequest represents the login request payload (email-only)
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -19,8 +20,8 @@ type LoginRequest struct {
 
 // LoginResponse represents the login response payload
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  UserResponse
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
 }
 
 // UserResponse represents a user without sensitive data
@@ -35,6 +36,7 @@ type UserResponse struct {
 	IsActive    bool   `json:"is_active"`
 	Role        string `json:"role"`
 	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -43,9 +45,22 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if strings.TrimSpace(req.Email) == "" || req.Password == "" {
+		respondWithError(w, http.StatusBadRequest, "email and password are required")
+		return
+	}
 
 	// Get user by email
-	user, err := c.DB.GetUserByEmail(r.Context(), req.Email)
+	var user struct {
+		ID        int32
+		Firstname string
+		Lastname  string
+		Email     string
+	}
+	err := c.DBConn.QueryRowContext(r.Context(),
+		`SELECT id, firstname, lastname, email FROM users WHERE email = $1 AND is_active = true LIMIT 1`,
+		strings.TrimSpace(req.Email),
+	).Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusUnauthorized, "invalid email or password")
@@ -98,12 +113,12 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build user response
-	var displayName, avatarURL, createdAt string
+	var displayName, avatarURL, createdAt, updatedAt string
 	var isVerified, isActive bool
 	c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, created_at FROM users WHERE id = $1",
+		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, created_at, updated_at FROM users WHERE id = $1",
 		user.ID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &createdAt)
+	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &createdAt, &updatedAt)
 
 	userResponse := UserResponse{
 		ID:          user.ID,
@@ -116,6 +131,7 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 
 	response := LoginResponse{
@@ -207,12 +223,12 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get additional fields
-	var displayName, avatarURL, role, createdAt string
+	var displayName, avatarURL, role, createdAt, updatedAt string
 	var isVerified, isActive bool
 	c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at FROM users WHERE id = $1",
+		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
 		userID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt)
+	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
 
 	userResponse := UserResponse{
 		ID:          user.ID,
@@ -225,9 +241,59 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
+}
+
+// FollowingItem represents a single followed entity for GET /users/me/following
+type FollowingItem struct {
+	ID           string `json:"id"`
+	Type         string `json:"type"`
+	FollowableID string `json:"followable_id"`
+}
+
+// GetFollowingResponse is the response for GET /users/me/following
+type GetFollowingResponse struct {
+	Items []FollowingItem `json:"items"`
+}
+
+func (c *Config) handleGetFollowing(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	rows, err := c.DBConn.QueryContext(r.Context(),
+		`SELECT id, followable_type, followable_id FROM user_follows WHERE user_id = $1 ORDER BY created_at DESC`,
+		userID,
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to list following")
+		return
+	}
+	defer rows.Close()
+
+	var items []FollowingItem
+	for rows.Next() {
+		var id, followableID uuid.UUID
+		var followableType string
+		if err := rows.Scan(&id, &followableType, &followableID); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "failed to scan following")
+			return
+		}
+		items = append(items, FollowingItem{ID: id.String(), Type: followableType, FollowableID: followableID.String()})
+	}
+	if err := rows.Err(); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to list following")
+		return
+	}
+	if items == nil {
+		items = []FollowingItem{}
+	}
+	respondWithJSON(w, http.StatusOK, GetFollowingResponse{Items: items})
 }
 
 func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
@@ -245,12 +311,12 @@ func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get additional fields
-	var displayName, avatarURL, role, createdAt string
+	var displayName, avatarURL, role, createdAt, updatedAt string
 	var isVerified, isActive bool
 	err = c.DBConn.QueryRow(
-		"SELECT display_name, avatar_url, is_verified, is_active, role, created_at FROM users WHERE id = $1",
+		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
 		userID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt)
+	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "failed to fetch user details")
 		return
@@ -267,6 +333,7 @@ func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		IsActive:    isActive,
 		Role:        role,
 		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)

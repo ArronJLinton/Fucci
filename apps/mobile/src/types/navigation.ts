@@ -4,8 +4,20 @@ import type {DebateResponse} from './debate';
 
 export type MediaType = 'photo' | 'video';
 
+/** Tab screens inside the Main (bottom tab) navigator */
+export type MainTabParamList = {
+  Home: undefined;
+  News: undefined;
+  Profile: undefined;
+};
+
+/** Root stack screens (Main = tab navigator, SignUp, Login, CameraPreview) and nested screen names for typing navigate() */
 export type RootStackParamList = {
-  Main: undefined;
+  Main: undefined | {screen?: keyof MainTabParamList};
+  SignUp: undefined;
+  Login: undefined;
+  ForgotPassword: undefined;
+  Settings: undefined;
   HomeTab: undefined;
   MatchDetails: {
     match: Match;

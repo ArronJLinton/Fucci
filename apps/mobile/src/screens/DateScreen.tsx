@@ -77,6 +77,17 @@ const MatchCard: React.FC<{match: Match}> = ({match}) => {
   const matchDate = getMatchDate(match.fixture.date.toString());
   const venue = match.fixture.venue?.name || '';
   const venueCity = match.fixture.venue?.city || '';
+  const statusShort = match.fixture.status?.short ?? '';
+  const hasScore =
+    match.goals?.home != null &&
+    match.goals?.away != null &&
+    statusShort !== 'NS';
+  const centerPrimary = hasScore
+    ? getScoreDisplay(match.goals)
+    : matchTime;
+  const centerSecondary = hasScore && statusShort !== 'FT' && statusShort !== 'AET' && statusShort !== 'PEN' && statusShort !== 'FT_PEN' && statusShort !== 'AET_PEN'
+    ? 'LIVE'
+    : matchDate;
 
   return (
     <TouchableOpacity style={styles.matchCard} onPress={handlePress}>
@@ -93,10 +104,10 @@ const MatchCard: React.FC<{match: Match}> = ({match}) => {
           </Text>
         </View>
 
-        {/* Center: Time and Date */}
+        {/* Center: Score (if ongoing/over) or Time and Date */}
         <View style={styles.timeDateContainer}>
-          <Text style={styles.matchTime}>{matchTime}</Text>
-          <Text style={styles.matchDate}>{matchDate}</Text>
+          <Text style={[styles.matchTime, hasScore && styles.scoreText]}>{centerPrimary}</Text>
+          <Text style={styles.matchDate}>{centerSecondary}</Text>
         </View>
 
         {/* Away Team */}
@@ -319,6 +330,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FF0000', // Red color for time
     marginBottom: 4,
+  },
+  scoreText: {
+    fontSize: 18,
   },
   matchDate: {
     fontSize: 12,
