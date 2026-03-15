@@ -23,7 +23,7 @@
 
 **Purpose**: Verify project structure and 006 dependencies (004 debate API, 005 auth).
 
-- [ ] T001 Verify 006 dependencies and structure: 004 debate generation (services/api/internal/api/debates.go) and 005 auth (services/api/internal/api/auth.go, apps/mobile/src/context/AuthContext.tsx) exist; confirm apps/mobile and services/api layout per specs/006-user-engagement-debates/plan.md
+- [x] T001 Verify 006 dependencies and structure: 004 debate generation (services/api/internal/api/debates.go) and 005 auth (services/api/internal/api/auth.go, apps/mobile/src/context/AuthContext.tsx) exist; confirm apps/mobile and services/api layout per specs/006-user-engagement-debates/plan.md
 
 ---
 
