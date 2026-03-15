@@ -78,8 +78,8 @@ WHERE debate_card_id = ANY($1::int[])
 GROUP BY debate_card_id, vote_type, emoji;
 
 -- name: CreateComment :one
-INSERT INTO comments (debate_id, parent_comment_id, user_id, content)
-VALUES ($1, $2, $3, $4)
+INSERT INTO comments (debate_id, parent_comment_id, user_id, content, seeded)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetComments :many

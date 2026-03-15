@@ -537,6 +537,7 @@ func (c *Config) createComment(w http.ResponseWriter, r *http.Request) {
 		ParentCommentID: parentCommentID,
 		UserID:          sql.NullInt32{Int32: userID, Valid: true},
 		Content:         req.Content,
+		Seeded:          false,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create comment: %v", err))

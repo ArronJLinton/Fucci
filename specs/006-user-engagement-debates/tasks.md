@@ -31,13 +31,13 @@
 
 **Purpose**: Database schema and system user that all user stories depend on. No user story work can begin until this phase is complete.
 
-- [ ] T002 Add migration to add `seeded` column (BOOLEAN NOT NULL DEFAULT false) to `comments` table in services/api/sql/schema/ (timestamped filename, e.g. 20260215000000_add_seeded_to_comments.sql)
-- [ ] T003 [P] Add migration for `comment_votes` table (id, comment_id, user_id, vote_type, created_at, UNIQUE(comment_id, user_id)) with FKs to comments and users in services/api/sql/schema/
-- [ ] T004 [P] Add migration for `comment_reactions` table (id, comment_id, user_id, emoji VARCHAR(20), created_at, UNIQUE(comment_id, user_id, emoji)) with FKs in services/api/sql/schema/
-- [ ] T005 Add one-time migration at deploy to ensure system user (Fucci) exists: INSERT a dedicated user (e.g. display_name 'Fucci', identifiable by email or role) if not present; migration runs before any debate generation in services/api/sql/schema/
-- [ ] T006 Add sqlc queries for comment_votes (upsert/delete vote, get votes by comment_id for net score) in services/api/sql/queries/ (new file e.g. comment_votes.sql or extend existing)
-- [ ] T007 Add sqlc queries for comment_reactions (insert, delete by comment_id+user_id+emoji, list by comment_id) in services/api/sql/queries/
-- [ ] T008 Run sqlc generate and yarn migrate; fix any compile errors in services/api/internal/database/
+- [x] T002 Add migration to add `seeded` column (BOOLEAN NOT NULL DEFAULT false) to `comments` table in services/api/sql/schema/ (timestamped filename, e.g. 20260215000000_add_seeded_to_comments.sql)
+- [x] T003 [P] Add migration for `comment_votes` table (id, comment_id, user_id, vote_type, created_at, UNIQUE(comment_id, user_id)) with FKs to comments and users in services/api/sql/schema/
+- [x] T004 [P] Add migration for `comment_reactions` table (id, comment_id, user_id, emoji VARCHAR(20), created_at, UNIQUE(comment_id, user_id, emoji)) with FKs in services/api/sql/schema/
+- [x] T005 Add one-time migration at deploy to ensure system user (Fucci) exists: INSERT a dedicated user (e.g. display_name 'Fucci', identifiable by email or role) if not present; migration runs before any debate generation in services/api/sql/schema/
+- [x] T006 Add sqlc queries for comment_votes (upsert/delete vote, get votes by comment_id for net score) in services/api/sql/queries/ (new file e.g. comment_votes.sql or extend existing)
+- [x] T007 Add sqlc queries for comment_reactions (insert, delete by comment_id+user_id+emoji, list by comment_id) in services/api/sql/queries/
+- [x] T008 Run sqlc generate and yarn migrate; fix any compile errors in services/api/internal/database/
 
 **Checkpoint**: Foundation ready — user story implementation can begin
 

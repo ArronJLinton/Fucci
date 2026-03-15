@@ -19,6 +19,23 @@ type Comment struct {
 	Content         string
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
+	Seeded          bool
+}
+
+type CommentReaction struct {
+	ID        int32
+	CommentID int32
+	UserID    int32
+	Emoji     string
+	CreatedAt sql.NullTime
+}
+
+type CommentVote struct {
+	ID        int32
+	CommentID int32
+	UserID    int32
+	VoteType  string
+	CreatedAt sql.NullTime
 }
 
 type Debate struct {
@@ -66,6 +83,25 @@ type League struct {
 	Founded     sql.NullInt32
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type Match struct {
+	ID                uuid.UUID
+	ExternalMatchID   string
+	HomeTeamID        uuid.NullUUID
+	AwayTeamID        uuid.NullUUID
+	LeagueID          uuid.NullUUID
+	MatchDate         time.Time
+	Venue             sql.NullString
+	Status            interface{}
+	HomeScore         sql.NullInt32
+	AwayScore         sql.NullInt32
+	MatchMinute       sql.NullInt32
+	Referee           sql.NullString
+	Attendance        sql.NullInt32
+	WeatherConditions sql.NullString
+	CreatedAt         sql.NullTime
+	UpdatedAt         sql.NullTime
 }
 
 type Medium struct {
@@ -133,6 +169,14 @@ type User struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	IsAdmin   bool
+}
+
+type UserFollow struct {
+	ID             uuid.UUID
+	UserID         int32
+	FollowableType interface{}
+	FollowableID   uuid.UUID
+	CreatedAt      sql.NullTime
 }
 
 type Verification struct {
