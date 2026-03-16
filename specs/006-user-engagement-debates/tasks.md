@@ -106,15 +106,15 @@
 
 ### Implementation for User Story 4
 
-- [X] T027 [P] [US4] Implement PUT /api/debates/{debate_id}/cards/{card_id}/vote handler: accept vote_type upvote|downvote (yes/no), require auth, one vote per user per card (replace existing row for same user+card), return CardVoteCounts (e.g. yes_count, no_count for meter); no rate limit; validate card belongs to debate in services/api/internal/api/ (e.g. card_votes.go or debates.go)
-- [X] T028 [US4] Ensure GET debate (or GET debate by id) response includes card vote aggregates (total yes/no and optionally per-card yes/no) for live debate meter in services/api/internal/api/debates.go
-- [X] T029 [US4] Register PUT /api/debates/{debate_id}/cards/{card_id}/vote route with auth middleware in services/api/internal/api/api.go
-- [X] T030 [US4] Add setCardVote(debateId, cardId, voteType) and ensure fetchDebateById (or debate payload) returns vote counts per card and totals for meter in apps/mobile/src/services/api.ts
-- [X] T031 [US4] Add header to SingleDebateScreen: team badge(s) and match score when available; when match has no score (pre-match), hide score area and show only team badges and "VS" in apps/mobile/src/screens/SingleDebateScreen.tsx
-- [X] T032 [US4] Add live debate meter at top of SingleDebateScreen: one bar for whole debate (total yes vs no across all 3 cards); optional per-card breakdown on tap or in secondary view in apps/mobile/src/screens/SingleDebateScreen.tsx or apps/mobile/src/components/
-- [X] T033 [US4] Build stacked card UI (3 cards layered, only top card swipeable): swipe right = yes with thumbs up overlay, swipe left = no with thumbs down overlay; on swipe call setCardVote and advance to next card in apps/mobile/src/screens/SingleDebateScreen.tsx or apps/mobile/src/components/
-- [X] T034 [US4] After user has voted on all three cards, hide card stack and show only live meter, headline, and comments in apps/mobile/src/screens/SingleDebateScreen.tsx
-- [X] T035 [US4] When unauthenticated user attempts swipe to vote, show AuthGateModal (reuse US3 component); pass pending action for return state in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T027 [P] [US4] Implement PUT /api/debates/{debate_id}/cards/{card_id}/vote handler: accept vote_type upvote|downvote (yes/no), require auth, one vote per user per card (replace existing row for same user+card), return CardVoteCounts (e.g. yes_count, no_count for meter); no rate limit; validate card belongs to debate in services/api/internal/api/ (e.g. card_votes.go or debates.go)
+- [x] T028 [US4] Ensure GET debate (or GET debate by id) response includes card vote aggregates (total yes/no and optionally per-card yes/no) for live debate meter in services/api/internal/api/debates.go
+- [x] T029 [US4] Register PUT /api/debates/{debate_id}/cards/{card_id}/vote route with auth middleware in services/api/internal/api/api.go
+- [x] T030 [US4] Add setCardVote(debateId, cardId, voteType) and ensure fetchDebateById (or debate payload) returns vote counts per card and totals for meter in apps/mobile/src/services/api.ts
+- [x] T031 [US4] Add header to SingleDebateScreen: team badge(s) and match score when available; when match has no score (pre-match), hide score area and show only team badges and "VS" in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T032 [US4] Add live debate meter at top of SingleDebateScreen: one bar for whole debate (total yes vs no across all 3 cards); optional per-card breakdown on tap or in secondary view in apps/mobile/src/screens/SingleDebateScreen.tsx or apps/mobile/src/components/
+- [x] T033 [US4] Build stacked card UI (3 cards layered, only top card swipeable): swipe right = yes with thumbs up overlay, swipe left = no with thumbs down overlay; on swipe call setCardVote and advance to next card in apps/mobile/src/screens/SingleDebateScreen.tsx or apps/mobile/src/components/
+- [x] T034 [US4] After user has voted on all three cards, hide card stack and show only live meter, headline, and comments in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T035 [US4] When unauthenticated user attempts swipe to vote, show AuthGateModal (reuse US3 component); pass pending action for return state in apps/mobile/src/screens/SingleDebateScreen.tsx
 
 **Checkpoint**: User Story 4 complete — swipe card voting, meter, header, and auth gate on swipe
 
