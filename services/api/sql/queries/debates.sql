@@ -67,6 +67,11 @@ SELECT * FROM votes WHERE debate_card_id = $1 AND user_id = $2 AND vote_type = $
 -- name: DeleteVote :exec
 DELETE FROM votes WHERE debate_card_id = $1 AND user_id = $2 AND vote_type = $3;
 
+-- name: DeleteCardSwipeVotes :exec
+DELETE FROM votes
+WHERE debate_card_id = $1 AND user_id = $2
+  AND vote_type IN ('upvote', 'downvote') AND emoji IS NULL;
+
 -- name: GetVoteCounts :many
 SELECT 
     debate_card_id,

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -68,12 +69,13 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		&displayNameOut, &avatarURL, &isVerified, &isActive,
 	)
 	if err != nil {
-		log.Printf("create user: db error: %v", err)
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			respondWithError(w, http.StatusConflict, "email already in use")
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			respondWithError(w, http.StatusConflict, "Email already in use")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "could not create account")
+		log.Printf("create user: db error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Could not create account")
 		return
 	}
 

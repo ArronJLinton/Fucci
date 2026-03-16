@@ -1,5 +1,9 @@
 // Import types
-import {DebateResponse, DebateListItem} from '../types/debate';
+import {
+  DebateResponse,
+  DebateListItem,
+  CardVoteCounts,
+} from '../types/debate';
 import {apiConfig} from '../config/environment';
 
 // Auth types (005 user registration) — email-only (no username)
@@ -288,18 +292,42 @@ export const generateDebateSet = async (
   }
 };
 
-/** GET /debates/:id — fetch full debate with cards */
+/** GET /debates/:id — fetch full debate with cards (includes card_vote_totals and per-card vote_counts) */
 export const fetchDebateById = async (
   debateId: number,
 ): Promise<DebateResponse | null> => {
   try {
     const data = await makeApiRequest(`/debates/${debateId}`, 'GET');
     if (data?.headline && Array.isArray(data?.cards)) {
-      return data;
+      return data as DebateResponse;
     }
     return null;
   } catch (error) {
     console.error('Error fetching debate by id:', error);
+    return null;
+  }
+};
+
+/** PUT /debates/:debateId/cards/:cardId/vote — set swipe vote (yes=upvote, no=downvote); auth required */
+export const setCardVote = async (
+  token: string,
+  debateId: number,
+  cardId: number,
+  voteType: 'upvote' | 'downvote',
+): Promise<CardVoteCounts | null> => {
+  try {
+    const data = await makeAuthRequest(
+      token,
+      `/debates/${debateId}/cards/${cardId}/vote`,
+      'PUT',
+      {
+        body: JSON.stringify({vote_type: voteType}),
+        headers: {'Content-Type': 'application/json'},
+      },
+    );
+    return data as CardVoteCounts;
+  } catch (error) {
+    console.error('Error setting card vote:', error);
     return null;
   }
 };

@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,21 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import type {RootStackParamList} from '../types/navigation';
-import type {DebateComment} from '../types/debate';
-import {listComments} from '../services/api';
+import type {DebateComment, DebateCard, CardVoteTotals} from '../types/debate';
+import {listComments, setCardVote} from '../services/api';
+import {useAuth} from '../context/AuthContext';
+import {rootNavigate} from '../navigation/rootNavigation';
+
+const {width: SCREEN_WIDTH} = Dimensions.get('window');
+const SWIPE_THRESHOLD = 80;
 
 type SingleDebateRouteProp = RouteProp<RootStackParamList, 'SingleDebate'>;
 
@@ -30,11 +38,54 @@ const SingleDebateScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const {match, debate} = route.params;
+  const {token, isLoggedIn} = useAuth();
 
   const [comments, setComments] = useState<DebateComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
+
+  // Card vote (swipe) state — totals for meter, and which cards user has voted this session
+  const [cardVoteTotals, setCardVoteTotals] = useState<CardVoteTotals | null>(
+    debate?.card_vote_totals ?? null,
+  );
+  /** Per-card vote counts for live Debate Pulse; updated when user votes (setCardVote response) */
+  const [localCardVoteCounts, setLocalCardVoteCounts] = useState<
+    Record<number, { upvotes: number; downvotes: number }>
+  >({});
+  const [votedCardIds, setVotedCardIds] = useState<Set<number>>(new Set());
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [showAuthGate, setShowAuthGate] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swipeOverlay, setSwipeOverlay] = useState<'yes' | 'no' | null>(null);
+  const [voteSubmitting, setVoteSubmitting] = useState(false);
+  const swipeStartX = useRef(0);
+
+  const cards: DebateCard[] = debate?.cards ?? [];
+  const hasVotedAll = votedCardIds.size >= 3 || currentCardIndex >= cards.length;
+  const showCardStack = cards.length > 0 && !hasVotedAll;
+
+  // Initialize per-card counts from debate when debate loads (e.g. new debate)
+  useEffect(() => {
+    if (!debate?.id || !debate?.cards?.length) return;
+    const next: Record<number, { upvotes: number; downvotes: number }> = {};
+    debate.cards.forEach(c => {
+      if (c.id != null) {
+        next[c.id] = {
+          upvotes: c.vote_counts?.upvotes ?? 0,
+          downvotes: c.vote_counts?.downvotes ?? 0,
+        };
+      }
+    });
+    setLocalCardVoteCounts(next);
+  }, [debate?.id]);
+
+  // Keep card vote totals in sync with debate when refetched
+  useEffect(() => {
+    if (debate?.card_vote_totals) {
+      setCardVoteTotals(debate.card_vote_totals);
+    }
+  }, [debate?.card_vote_totals]);
 
   const loadComments = useCallback(async () => {
     const debateId = debate?.id;
@@ -56,6 +107,73 @@ const SingleDebateScreen = () => {
   }, [loadComments]);
 
   const headline = debate?.headline ?? 'Debate';
+
+  const submitCardVote = useCallback(
+    async (cardId: number, voteType: 'upvote' | 'downvote') => {
+      if (!debate?.id || !token) return;
+      setVoteSubmitting(true);
+      try {
+        const counts = await setCardVote(token, debate.id, cardId, voteType);
+        if (counts) {
+          setCardVoteTotals({
+            total_yes: counts.total_yes ?? 0,
+            total_no: counts.total_no ?? 0,
+          });
+          // Update live Debate Pulse: this card’s counts from API
+          setLocalCardVoteCounts(prev => ({
+            ...prev,
+            [cardId]: {
+              upvotes: counts.yes_count,
+              downvotes: counts.no_count,
+            },
+          }));
+        }
+        setVotedCardIds(prev => new Set(prev).add(cardId));
+        setCurrentCardIndex(prev => Math.min(prev + 1, cards.length));
+      } finally {
+        setVoteSubmitting(false);
+      }
+    },
+    [debate?.id, token, cards.length],
+  );
+
+  const handleSwipeVote = useCallback(
+    (voteType: 'upvote' | 'downvote') => {
+      if (!isLoggedIn) {
+        setShowAuthGate(true);
+        return;
+      }
+      const card = cards[currentCardIndex];
+      if (!card?.id || voteSubmitting) return;
+      submitCardVote(card.id, voteType);
+    },
+    [isLoggedIn, cards, currentCardIndex, voteSubmitting, submitCardVote],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => showCardStack && !voteSubmitting,
+        onMoveShouldSetPanResponder: (_, {dx}) => Math.abs(dx) > 10,
+        onPanResponderGrant: () => {
+          swipeStartX.current = 0;
+        },
+        onPanResponderMove: (_, {dx}) => {
+          setSwipeOffset(dx);
+          setSwipeOverlay(dx > 30 ? 'yes' : dx < -30 ? 'no' : null);
+        },
+        onPanResponderRelease: (_, {dx}) => {
+          setSwipeOffset(0);
+          setSwipeOverlay(null);
+          if (dx > SWIPE_THRESHOLD) {
+            handleSwipeVote('upvote');
+          } else if (dx < -SWIPE_THRESHOLD) {
+            handleSwipeVote('downvote');
+          }
+        },
+      }),
+    [showCardStack, voteSubmitting, handleSwipeVote],
+  );
 
   const handleAddComment = () => {
     if (!commentInput.trim()) return;
@@ -127,8 +245,146 @@ const SingleDebateScreen = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        {/* Debate question */}
+        {/* Header: team badges + score (hide score when pre-match) */}
+        {match && (
+          <View style={styles.matchHeader}>
+            <View style={styles.teamBadge}>
+              {match.teams?.home?.logo ? (
+                <Image
+                  source={{uri: match.teams.home.logo}}
+                  style={styles.teamLogo}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.teamLogoPlaceholder} />
+              )}
+              <Text style={styles.teamName} numberOfLines={1}>
+                {match.teams?.home?.name ?? 'Home'}
+              </Text>
+            </View>
+            <View style={styles.scoreOrVs}>
+              {match.goals?.home != null && match.goals?.away != null ? (
+                <Text style={styles.scoreText}>
+                  {match.goals.home} – {match.goals.away}
+                </Text>
+              ) : (
+                <Text style={styles.headerVsText}>VS</Text>
+              )}
+            </View>
+            <View style={styles.teamBadge}>
+              {match.teams?.away?.logo ? (
+                <Image
+                  source={{uri: match.teams.away.logo}}
+                  style={styles.teamLogo}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.teamLogoPlaceholder} />
+              )}
+              <Text style={styles.teamName} numberOfLines={1}>
+                {match.teams?.away?.name ?? 'Away'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Debate topic — above Debate Pulse */}
         <Text style={styles.headline}>{headline}</Text>
+
+        {/* Live debate meter — Debate Pulse: summary bar + per-card breakdown */}
+        {(() => {
+          const hasCards = cards.length > 0;
+          if (!hasCards) return null;
+          // Use only yes (upvote) counts for Debate Pulse percentages; no votes excluded
+          const cardYesVotes = cards.map(c => {
+            const local = c.id != null ? localCardVoteCounts[c.id] : null;
+            return local ? local.upvotes : (c.vote_counts?.upvotes ?? 0);
+          });
+          const totalYesVotes = cardYesVotes.reduce((a, b) => a + b, 0);
+          const stanceColor = (stance: string) =>
+            stance === 'agree' ? '#22c55e' : stance === 'disagree' ? '#ef4444' : '#eab308';
+          return (
+            <View style={styles.meterSection}>
+              {/* Debate Pulse only — percentages per card, no separate summary bar */}
+              {hasCards && (
+                <View style={styles.debatePulseBox}>
+                  <Text style={styles.debatePulseTitle}>Debate Pulse</Text>
+                  {cards.map((card, i) => {
+                    const yesVotes = cardYesVotes[i] ?? 0;
+                    const pct = totalYesVotes > 0 ? Math.round((yesVotes / totalYesVotes) * 100) : 0;
+                    const color = stanceColor(card.stance ?? 'wildcard');
+                    return (
+                      <View key={card.id ?? i} style={styles.debatePulseRow}>
+                        <View style={styles.debatePulseLabelRow}>
+                          <View style={[styles.debatePulseDot, {backgroundColor: color}]} />
+                          <Text style={styles.debatePulseLabel}>
+                            {card.title || (card.stance === 'agree' ? 'Agree' : card.stance === 'disagree' ? 'Disagree' : 'Wildcard')}
+                          </Text>
+                        </View>
+                        <View style={styles.debatePulseBarRow}>
+                          <View style={styles.debatePulseBarBg}>
+                            <View
+                              style={[
+                                styles.debatePulseBarFill,
+                                {backgroundColor: color, width: `${Math.min(100, pct)}%`},
+                              ]}
+                            />
+                          </View>
+                          <Text style={styles.debatePulsePct}>{pct}%</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          );
+        })()}
+
+        {/* Stacked cards — only show when user hasn't voted on all 3 */}
+        {showCardStack && cards[currentCardIndex] && (
+          <View style={styles.cardStackSection}>
+            {/* Back cards (peek) — layered behind */}
+            {cards.slice(currentCardIndex + 1, currentCardIndex + 3).map((card, i) => (
+              <View
+                key={card.id ?? i}
+                style={[
+                  styles.stackedCard,
+                  styles.stackedCardBack,
+                  {top: 8 + i * 8, zIndex: 2 + i},
+                ]}>
+                <Text style={styles.stackedCardTitle}>{card.title}</Text>
+                <Text style={styles.stackedCardDesc} numberOfLines={2}>
+                  {card.description}
+                </Text>
+              </View>
+            ))}
+            {/* Top card — swipeable */}
+            <View
+              style={[
+                styles.stackedCard,
+                styles.stackedCardTop,
+                {
+                  transform: [{translateX: swipeOffset}],
+                  zIndex: 10,
+                },
+              ]}
+              {...panResponder.panHandlers}>
+              {swipeOverlay && (
+                <View style={[styles.swipeOverlay, swipeOverlay === 'yes' ? styles.swipeOverlayYes : styles.swipeOverlayNo]}>
+                  <Ionicons
+                    name={swipeOverlay === 'yes' ? 'thumbs-up' : 'thumbs-down'}
+                    size={64}
+                    color="#fff"
+                  />
+                </View>
+              )}
+              <Text style={styles.stackedCardTitle}>{cards[currentCardIndex].title}</Text>
+              <Text style={styles.stackedCardDesc}>{cards[currentCardIndex].description}</Text>
+              <Text style={styles.swipeHint}>Swipe right 👍 or left 👎</Text>
+            </View>
+          </View>
+        )}
 
         {/* Comments — seeded viewpoints appear here as comments (no voting UI) */}
         <View style={styles.commentsHeader}>
@@ -189,6 +445,48 @@ const SingleDebateScreen = () => {
           <Ionicons name="happy-outline" size={22} color="#6b7280" />
         </TouchableOpacity>
       </View>
+
+      {/* Auth gate: when unauthenticated user tries to swipe to vote */}
+      <Modal
+        visible={showAuthGate}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAuthGate(false)}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.authGateBackdrop}
+          onPress={() => setShowAuthGate(false)}>
+          <View style={styles.authGateBox}>
+            <Text style={styles.authGateTitle}>Login to vote</Text>
+            <Text style={styles.authGateMessage}>
+              Sign in or create an account to vote on debate cards.
+            </Text>
+            <View style={styles.authGateButtons}>
+              <TouchableOpacity
+                style={styles.authGateButtonSecondary}
+                onPress={() => {
+                  setShowAuthGate(false);
+                  rootNavigate('Login');
+                }}>
+                <Text style={styles.authGateButtonSecondaryText}>Login</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.authGateButtonPrimary}
+                onPress={() => {
+                  setShowAuthGate(false);
+                  rootNavigate('SignUp');
+                }}>
+                <Text style={styles.authGateButtonPrimaryText}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.authGateCancel}
+              onPress={() => setShowAuthGate(false)}>
+              <Text style={styles.authGateCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -234,6 +532,257 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 24,
+  },
+  matchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  teamBadge: {
+    flex: 1,
+    alignItems: 'center',
+    maxWidth: 100,
+  },
+  teamLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+  },
+  teamLogoPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e5e7eb',
+  },
+  teamName: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  scoreOrVs: {
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  headerVsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9ca3af',
+  },
+  meterSection: {
+    marginBottom: 20,
+  },
+  debatePulseBox: {
+    marginTop: 16,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    padding: 16,
+  },
+  debatePulseTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  debatePulseRow: {
+    marginBottom: 12,
+  },
+  debatePulseLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  debatePulseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+    marginTop: 4,
+  },
+  debatePulseLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  debatePulseBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 18,
+  },
+  debatePulseBarBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  debatePulseBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  debatePulsePct: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 8,
+    minWidth: 36,
+    textAlign: 'right',
+  },
+  meterBar: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: '#e5e7eb',
+  },
+  meterFillYes: {
+    backgroundColor: '#22c55e',
+    minWidth: 0,
+  },
+  meterFillNo: {
+    backgroundColor: '#ef4444',
+    minWidth: 0,
+  },
+  meterLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  meterLabelYes: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  meterLabelNo: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  cardStackSection: {
+    marginBottom: 24,
+    minHeight: 160,
+    position: 'relative',
+  },
+  stackedCard: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  stackedCardBack: {
+    top: 8,
+    marginLeft: 8,
+    marginRight: 28,
+    opacity: 0.85,
+  },
+  stackedCardTop: {
+    top: 0,
+  },
+  swipeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swipeOverlayYes: {
+    backgroundColor: 'rgba(34, 197, 94, 0.85)',
+  },
+  swipeOverlayNo: {
+    backgroundColor: 'rgba(239, 68, 68, 0.85)',
+  },
+  swipeHint: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  stackedCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  stackedCardDesc: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+  },
+  authGateBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  authGateBox: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+  },
+  authGateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  authGateMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  authGateButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  authGateButtonPrimary: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+  },
+  authGateButtonSecondary: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 10,
+  },
+  authGateButtonPrimaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  authGateButtonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  authGateCancel: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  authGateCancelText: {
+    fontSize: 14,
+    color: '#6b7280',
   },
   headline: {
     fontSize: 20,

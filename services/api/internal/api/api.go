@@ -91,6 +91,7 @@ func New(c Config) http.Handler {
 	debateRouter.Get("/health", c.checkDebateGenerationHealth)
 	debateRouter.Get("/match", c.getDebatesByMatch)
 	debateRouter.Get("/{id}", c.getDebate)
+	debateRouter.With(auth.RequireAuth).Put("/{debateId}/cards/{cardId}/vote", c.setCardVote)
 	debateRouter.Post("/cards", c.createDebateCard)
 	debateRouter.Post("/votes", c.createVote)
 	debateRouter.Post("/comments", c.createComment)

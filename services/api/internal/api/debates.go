@@ -67,17 +67,24 @@ type CreateCommentRequest struct {
 	Content         string `json:"content"`
 }
 
+// CardVoteTotals is debate-level aggregates for the live meter (006 swipe voting).
+type CardVoteTotals struct {
+	TotalYes int `json:"total_yes"`
+	TotalNo  int `json:"total_no"`
+}
+
 type DebateResponse struct {
-	ID          int32                    `json:"id"`
-	MatchID     string                   `json:"match_id"`
-	DebateType  string                   `json:"debate_type"`
-	Headline    string                   `json:"headline"`
-	Description string                   `json:"description"`
-	AIGenerated bool                     `json:"ai_generated"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
-	Cards       []DebateCardResponse     `json:"cards,omitempty"`
-	Analytics   *DebateAnalyticsResponse `json:"analytics,omitempty"`
+	ID              int32                    `json:"id"`
+	MatchID         string                   `json:"match_id"`
+	DebateType      string                   `json:"debate_type"`
+	Headline        string                   `json:"headline"`
+	Description     string                   `json:"description"`
+	AIGenerated     bool                     `json:"ai_generated"`
+	CreatedAt       time.Time                `json:"created_at"`
+	UpdatedAt       time.Time                `json:"updated_at"`
+	Cards           []DebateCardResponse     `json:"cards,omitempty"`
+	CardVoteTotals  *CardVoteTotals          `json:"card_vote_totals,omitempty"`
+	Analytics       *DebateAnalyticsResponse `json:"analytics,omitempty"`
 }
 
 type DebateCardResponse struct {
@@ -1283,6 +1290,7 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 	}
 
 	var voteCountsMap map[int32]VoteCounts
+	var totalYesSwipe, totalNoSwipe int
 	if len(cardIDs) > 0 {
 		voteCounts, err := c.DB.GetVoteCounts(ctx, cardIDs)
 		if err != nil {
@@ -1295,8 +1303,14 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 				switch vc.VoteType {
 				case "upvote":
 					counts.Upvotes = int(vc.Count)
+					if !vc.Emoji.Valid {
+						totalYesSwipe += int(vc.Count)
+					}
 				case "downvote":
 					counts.Downvotes = int(vc.Count)
+					if !vc.Emoji.Valid {
+						totalNoSwipe += int(vc.Count)
+					}
 				case "emoji":
 					if counts.Emojis == nil {
 						counts.Emojis = make(map[string]int)
@@ -1328,15 +1342,16 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 	}
 
 	resp := &DebateResponse{
-		ID:          debate.ID,
-		MatchID:     debate.MatchID,
-		DebateType:  debate.DebateType,
-		Headline:    debate.Headline,
-		Description: debate.Description.String,
-		AIGenerated: debate.AiGenerated.Bool,
-		CreatedAt:   debate.CreatedAt.Time,
-		UpdatedAt:   debate.UpdatedAt.Time,
-		Cards:       cardResponses,
+		ID:             debate.ID,
+		MatchID:        debate.MatchID,
+		DebateType:     debate.DebateType,
+		Headline:       debate.Headline,
+		Description:    debate.Description.String,
+		AIGenerated:    debate.AiGenerated.Bool,
+		CreatedAt:      debate.CreatedAt.Time,
+		UpdatedAt:      debate.UpdatedAt.Time,
+		Cards:          cardResponses,
+		CardVoteTotals: &CardVoteTotals{TotalYes: totalYesSwipe, TotalNo: totalNoSwipe},
 	}
 
 	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})

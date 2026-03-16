@@ -194,6 +194,22 @@ func (q *Queries) CreateVote(ctx context.Context, arg CreateVoteParams) (Vote, e
 	return i, err
 }
 
+const deleteCardSwipeVotes = `-- name: DeleteCardSwipeVotes :exec
+DELETE FROM votes
+WHERE debate_card_id = $1 AND user_id = $2
+  AND vote_type IN ('upvote', 'downvote') AND emoji IS NULL
+`
+
+type DeleteCardSwipeVotesParams struct {
+	DebateCardID sql.NullInt32
+	UserID       sql.NullInt32
+}
+
+func (q *Queries) DeleteCardSwipeVotes(ctx context.Context, arg DeleteCardSwipeVotesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCardSwipeVotes, arg.DebateCardID, arg.UserID)
+	return err
+}
+
 const deleteComment = `-- name: DeleteComment :exec
 DELETE FROM comments WHERE id = $1
 `
