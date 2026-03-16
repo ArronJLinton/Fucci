@@ -66,7 +66,11 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	}
 	// If not in cache or error occurred, fetch from API
 	// Build URL with optional league filter
-	url := fmt.Sprintf("https://api-football-v1.p.rapidapi.com/v3/fixtures?&date=%s", date)
+	baseURL := c.APIFootballBaseURL
+	if baseURL == "" {
+		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+	}
+	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
 	if leagueID != "" {
 		// When filtering by league, RapidAPI requires a season parameter
 		// Extract year from date to determine season
@@ -535,7 +539,11 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Cache get error: %v\n", err)
 	}
 
-	url := "https://api-football-v1.p.rapidapi.com/v3/leagues?season=2025"
+	baseURL := c.APIFootballBaseURL
+	if baseURL == "" {
+		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+	}
+	url := baseURL + "/leagues?season=2025"
 	headers := map[string]string{
 		"Content-Type":   "application/json",
 		"x-rapidapi-key": c.FootballAPIKey,
@@ -607,7 +615,11 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 		log.Printf("Cache get error: %v\n", err)
 	}
 
-	url := fmt.Sprintf("https://api-football-v1.p.rapidapi.com/v3/standings?season=%d&team=%s", currentYear, teamId)
+	baseURL := c.APIFootballBaseURL
+	if baseURL == "" {
+		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+	}
+	url := fmt.Sprintf("%s/standings?season=%d&team=%s", baseURL, currentYear, teamId)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
 		"x-rapidapi-key": c.FootballAPIKey,

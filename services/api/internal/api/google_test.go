@@ -81,8 +81,8 @@ func TestGoogleNewsCache(t *testing.T) {
 // TestGoogleNewsCacheTTL tests that Google News cache entries expire correctly
 func TestGoogleNewsCacheTTL(t *testing.T) {
 	t.Run("Test Google News Cache TTL Constant", func(t *testing.T) {
-		// Verify the TTL constant is set correctly
-		expectedTTL := 30 * time.Minute
+		// Verify the TTL constant is set (15m per cache/constants.go)
+		expectedTTL := 15 * time.Minute
 		if cache.NewsTTL != expectedTTL {
 			t.Errorf("Expected NewsTTL to be %v, got %v", expectedTTL, cache.NewsTTL)
 		}

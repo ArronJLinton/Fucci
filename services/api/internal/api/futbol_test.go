@@ -562,8 +562,10 @@ func TestMatchesCache(t *testing.T) {
 	}
 
 	t.Run("Test Matches Cache Hit and Miss", func(t *testing.T) {
-		// Mock response for matches
+		// Mock response for matches (results and response required so handler caches)
 		mockMatchesResponse := `{
+			"get": "fixtures",
+			"results": 1,
 			"response": [
 				{
 					"fixture": {
@@ -608,8 +610,8 @@ func TestMatchesCache(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", rec2.Code)
 		}
 
-		// Verify cache key exists
-		exists, err := cache.Exists(context.Background(), "matches:2025-01-01")
+		// Verify cache key exists (handler uses matches:date:{date})
+		exists, err := cache.Exists(context.Background(), "matches:date:2025-01-01")
 		if err != nil || !exists {
 			t.Error("Cache key should exist after first request")
 		}
@@ -625,9 +627,9 @@ func TestMatchesCache(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", rec3.Code)
 		}
 
-		// Verify both cache keys exist
-		exists1, _ := cache.Exists(context.Background(), "matches:2025-01-01")
-		exists2, _ := cache.Exists(context.Background(), "matches:2025-01-02")
+		// Verify both cache keys exist (handler uses matches:date:{date})
+		exists1, _ := cache.Exists(context.Background(), "matches:date:2025-01-01")
+		exists2, _ := cache.Exists(context.Background(), "matches:date:2025-01-02")
 
 		if !exists1 {
 			t.Error("First cache key should still exist")
@@ -821,8 +823,10 @@ func TestLeaguesCache(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", rec2.Code)
 		}
 
-		// Verify cache key exists
-		exists, err := cache.Exists(context.Background(), "leagues:2025")
+		// Verify cache key exists (handler uses leagues:{currentYear})
+		currentYear := time.Now().Year()
+		cacheKey := fmt.Sprintf("leagues:%d", currentYear)
+		exists, err := cache.Exists(context.Background(), cacheKey)
 		if err != nil || !exists {
 			t.Error("Leagues cache key should exist")
 		}
