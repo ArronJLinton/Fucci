@@ -340,6 +340,82 @@ export const listComments = async (
   return Array.isArray(data) ? data : [];
 };
 
+/** POST /debates/:debateId/comments — create comment or reply (auth required); content ≤ 500 chars */
+export const createComment = async (
+  token: string,
+  debateId: number,
+  body: {content: string; parent_comment_id?: number | null},
+): Promise<import('../types/debate').DebateComment | null> => {
+  try {
+    const data = await makeAuthRequest(token, `/debates/${debateId}/comments`, 'POST', {
+      body: JSON.stringify({
+        content: body.content.trim(),
+        ...(body.parent_comment_id != null && {parent_comment_id: body.parent_comment_id}),
+      }),
+      headers: {'Content-Type': 'application/json'},
+    });
+    return data as import('../types/debate').DebateComment;
+  } catch (error) {
+    console.error('Error creating comment:', error);
+    return null;
+  }
+};
+
+/** PUT /comments/:commentId/vote — set or clear vote (auth required); vote_type null to clear */
+export const setCommentVote = async (
+  token: string,
+  commentId: number,
+  voteType: 'upvote' | 'downvote' | null,
+): Promise<{net_score: number; vote_type: 'upvote' | 'downvote' | null} | null> => {
+  try {
+    const data = await makeAuthRequest(token, `/comments/${commentId}/vote`, 'PUT', {
+      body: JSON.stringify({vote_type: voteType}),
+      headers: {'Content-Type': 'application/json'},
+    });
+    return data as {net_score: number; vote_type: 'upvote' | 'downvote' | null};
+  } catch (error) {
+    console.error('Error setting comment vote:', error);
+    return null;
+  }
+};
+
+/** POST /comments/:commentId/reactions — add or toggle off emoji reaction (auth required) */
+export const addCommentReaction = async (
+  token: string,
+  commentId: number,
+  emoji: string,
+): Promise<{reactions: Array<{emoji: string; count: number}>} | null> => {
+  try {
+    const data = await makeAuthRequest(token, `/comments/${commentId}/reactions`, 'POST', {
+      body: JSON.stringify({emoji: emoji.trim()}),
+      headers: {'Content-Type': 'application/json'},
+    });
+    return data as {reactions: Array<{emoji: string; count: number}>};
+  } catch (error) {
+    console.error('Error adding comment reaction:', error);
+    return null;
+  }
+};
+
+/** DELETE /comments/:commentId/reactions?emoji= — remove emoji reaction (auth required) */
+export const removeCommentReaction = async (
+  token: string,
+  commentId: number,
+  emoji: string,
+): Promise<{reactions: Array<{emoji: string; count: number}>} | null> => {
+  try {
+    const data = await makeAuthRequest(
+      token,
+      `/comments/${commentId}/reactions?emoji=${encodeURIComponent(emoji.trim())}`,
+      'DELETE',
+    );
+    return data as {reactions: Array<{emoji: string; count: number}>};
+  } catch (error) {
+    console.error('Error removing comment reaction:', error);
+    return null;
+  }
+};
+
 /** POST /debates/generate — create debate (body: match_id, debate_type) */
 export const createDebate = async (
   matchId: string | number,

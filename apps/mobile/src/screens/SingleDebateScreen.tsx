@@ -18,8 +18,14 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import type {RootStackParamList} from '../types/navigation';
-import type {DebateComment, DebateCard, CardVoteTotals} from '../types/debate';
-import {listComments, setCardVote} from '../services/api';
+import type {DebateComment, DebateCard, CardVoteTotals, ReactionCount} from '../types/debate';
+import {
+  listComments,
+  setCardVote,
+  createComment as apiCreateComment,
+  setCommentVote,
+  addCommentReaction,
+} from '../services/api';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate} from '../navigation/rootNavigation';
 
@@ -44,6 +50,13 @@ const SingleDebateScreen = () => {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
+  const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(null);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentSubmitError, setCommentSubmitError] = useState<string | null>(null);
+  const [voteLoadingCommentId, setVoteLoadingCommentId] = useState<number | null>(null);
+  const [reactionLoadingCommentId, setReactionLoadingCommentId] = useState<number | null>(null);
+  const [showReactionPickerCommentId, setShowReactionPickerCommentId] = useState<number | null>(null);
+  const [showCommentAuthGate, setShowCommentAuthGate] = useState(false);
 
   // Card vote (swipe) state — totals for meter, and which cards user has voted this session
   const [cardVoteTotals, setCardVoteTotals] = useState<CardVoteTotals | null>(
@@ -175,44 +188,215 @@ const SingleDebateScreen = () => {
     [showCardStack, voteSubmitting, handleSwipeVote],
   );
 
-  const handleAddComment = () => {
-    if (!commentInput.trim()) return;
-    // TODO Phase 4: POST comment via API
-    setCommentInput('');
+  const COMMENT_MAX_LENGTH = 500;
+  const DEFAULT_REACTION_EMOJIS = ['👍', '❤️', '🔥', '😂', '👎'];
+
+  const handleAddComment = async () => {
+    const content = commentInput.trim();
+    if (!content || !debate?.id) return;
+    if (content.length > COMMENT_MAX_LENGTH) {
+      setCommentSubmitError(`Comment must be at most ${COMMENT_MAX_LENGTH} characters`);
+      return;
+    }
+    if (!isLoggedIn || !token) {
+      setShowCommentAuthGate(true);
+      return;
+    }
+    setCommentSubmitError(null);
+    setCommentSubmitting(true);
+    try {
+      const created = await apiCreateComment(token, debate.id, {
+        content,
+        parent_comment_id: replyingToCommentId ?? undefined,
+      });
+      if (created) {
+        setCommentInput('');
+        setReplyingToCommentId(null);
+        await loadComments();
+      } else {
+        setCommentSubmitError('Failed to post comment. Tap to retry.');
+      }
+    } catch (_e) {
+      setCommentSubmitError('Failed to post comment. Tap to retry.');
+    } finally {
+      setCommentSubmitting(false);
+    }
   };
 
-  const renderComment = (c: DebateComment, isSub?: boolean) => (
-    <View key={c.id} style={[styles.commentRow, isSub && styles.subcommentRow]}>
-      <View style={styles.commentAvatar}>
-        {c.user_avatar_url ? (
-          <Image source={{uri: c.user_avatar_url}} style={styles.commentAvatarImage} />
-        ) : (
-          <Text style={styles.commentAvatarText}>
-            {(c.user_display_name || '?').charAt(0).toUpperCase()}
-          </Text>
-        )}
-      </View>
-      <View style={styles.commentBody}>
-        <View style={styles.commentMetaRow}>
-          <Text style={styles.commentUsername}>{c.user_display_name || 'User'}</Text>
-          <Text style={styles.commentUpvotes}>
-            {c.net_score >= 0 ? '+' : ''}{formatScore(c.net_score)}
-          </Text>
+  const handleCommentVote = async (commentId: number, newVote: 'upvote' | 'downvote' | null) => {
+    if (!isLoggedIn || !token) {
+      setShowCommentAuthGate(true);
+      return;
+    }
+    const c = comments.find(x => x.id === commentId) ?? [...comments, ...comments.flatMap(x => x.subcomments ?? [])].find(x => x.id === commentId);
+    const current = c?.current_user_vote ?? null;
+    const toSend = current === newVote ? null : newVote;
+    setVoteLoadingCommentId(commentId);
+    try {
+      const res = await setCommentVote(token, commentId, toSend);
+      if (res != null) {
+        setComments(prev =>
+          prev.map(top => {
+            if (top.id === commentId) {
+              return { ...top, net_score: res.net_score, current_user_vote: toSend ?? undefined };
+            }
+            if (top.subcomments) {
+              return {
+                ...top,
+                subcomments: top.subcomments.map(sub =>
+                  sub.id === commentId
+                    ? { ...sub, net_score: res.net_score, current_user_vote: toSend ?? undefined }
+                    : sub,
+                ),
+              };
+            }
+            return top;
+          }),
+        );
+      }
+    } finally {
+      setVoteLoadingCommentId(null);
+    }
+  };
+
+  const handleCommentReaction = async (commentId: number, emoji: string) => {
+    if (!isLoggedIn || !token) {
+      setShowCommentAuthGate(true);
+      return;
+    }
+    setShowReactionPickerCommentId(null);
+    setReactionLoadingCommentId(commentId);
+    try {
+      const res = await addCommentReaction(token, commentId, emoji);
+      if (res != null) {
+        setComments(prev =>
+          prev.map(top => {
+            if (top.id === commentId) return { ...top, reactions: res.reactions };
+            if (top.subcomments) {
+              return {
+                ...top,
+                subcomments: top.subcomments.map(sub =>
+                  sub.id === commentId ? { ...sub, reactions: res.reactions } : sub,
+                ),
+              };
+            }
+            return top;
+          }),
+        );
+      }
+    } finally {
+      setReactionLoadingCommentId(null);
+    }
+  };
+
+  const renderComment = (c: DebateComment, isSub?: boolean) => {
+    const voteLoading = voteLoadingCommentId === c.id;
+    const reactionLoading = reactionLoadingCommentId === c.id;
+    const showPicker = showReactionPickerCommentId === c.id;
+    const currentVote = c.current_user_vote ?? null;
+    return (
+      <View key={c.id} style={[styles.commentRow, isSub && styles.subcommentRow]}>
+        <View style={styles.commentAvatar}>
+          {c.user_avatar_url ? (
+            <Image source={{uri: c.user_avatar_url}} style={styles.commentAvatarImage} />
+          ) : (
+            <Text style={styles.commentAvatarText}>
+              {(c.user_display_name || '?').charAt(0).toUpperCase()}
+            </Text>
+          )}
         </View>
-        <Text style={styles.commentContent}>{c.content}</Text>
-        {c.reactions && c.reactions.length > 0 && (
-          <View style={styles.reactionsRow}>
-            {c.reactions.map((r, i) => (
-              <Text key={`${c.id}-${i}`} style={styles.reactionChip}>
-                {r.emoji} {r.count}
+        <View style={styles.commentBody}>
+          <View style={styles.commentMetaRow}>
+            <Text style={styles.commentUsername}>{c.user_display_name || 'User'}</Text>
+            <View style={styles.commentVoteRow}>
+              <TouchableOpacity
+                onPress={() => handleCommentVote(c.id, 'upvote')}
+                disabled={voteLoading}
+                style={[styles.commentVoteBtn, currentVote === 'upvote' && styles.commentVoteBtnActive]}
+                hitSlop={{top: 6, bottom: 6, left: 6, right: 6}}>
+                {voteLoading ? (
+                  <ActivityIndicator size="small" color="#6b7280" />
+                ) : (
+                  <Ionicons
+                    name="chevron-up"
+                    size={20}
+                    color={currentVote === 'upvote' ? '#22c55e' : '#6b7280'}
+                  />
+                )}
+              </TouchableOpacity>
+              <Text style={styles.commentUpvotes}>
+                {c.net_score >= 0 ? '+' : ''}{formatScore(c.net_score)}
               </Text>
-            ))}
+              <TouchableOpacity
+                onPress={() => handleCommentVote(c.id, 'downvote')}
+                disabled={voteLoading}
+                style={[styles.commentVoteBtn, currentVote === 'downvote' && styles.commentVoteBtnActive]}
+                hitSlop={{top: 6, bottom: 6, left: 6, right: 6}}>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={currentVote === 'downvote' ? '#ef4444' : '#6b7280'}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-        {c.subcomments && c.subcomments.length > 0 && c.subcomments.map(sub => renderComment(sub, true))}
+          <Text style={styles.commentContent}>{c.content}</Text>
+          <View style={styles.commentActionsRow}>
+            {!isSub && (
+              <TouchableOpacity
+                onPress={() => {
+                  if (!isLoggedIn) setShowCommentAuthGate(true);
+                  else {
+                    setReplyingToCommentId(c.id);
+                    setCommentInput('');
+                  }
+                }}
+                style={styles.commentActionBtn}>
+                <Ionicons name="arrow-undo-outline" size={14} color="#6b7280" />
+                <Text style={styles.commentActionText}>Reply</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.reactionsRow}>
+              {c.reactions?.map((r: ReactionCount, i: number) => (
+                <TouchableOpacity
+                  key={`${c.id}-r-${i}`}
+                  onPress={() => handleCommentReaction(c.id, r.emoji)}
+                  disabled={reactionLoading}
+                  style={styles.reactionChipTouch}>
+                  <Text style={styles.reactionChip}>{r.emoji} {r.count}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={() => {
+                  if (!isLoggedIn) setShowCommentAuthGate(true);
+                  else setShowReactionPickerCommentId(prev => (prev === c.id ? null : c.id));
+                }}
+                style={styles.reactionAddBtn}>
+                {reactionLoading ? (
+                  <ActivityIndicator size="small" color="#6b7280" />
+                ) : (
+                  <Ionicons name="add-circle-outline" size={18} color="#6b7280" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+          {showPicker && (
+            <View style={styles.reactionPickerRow}>
+              {DEFAULT_REACTION_EMOJIS.map(emoji => (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => handleCommentReaction(c.id, emoji)}
+                  style={styles.reactionPickerEmoji}>
+                  <Text style={styles.reactionPickerEmojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {c.subcomments && c.subcomments.length > 0 && c.subcomments.map(sub => renderComment(sub, true))}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -421,6 +605,14 @@ const SingleDebateScreen = () => {
       </ScrollView>
 
       {/* Fixed comment input */}
+      {commentSubmitError && (
+        <View style={styles.commentSubmitError}>
+          <Text style={styles.commentSubmitErrorText}>{commentSubmitError}</Text>
+          <TouchableOpacity onPress={() => setCommentSubmitError(null)}>
+            <Text style={styles.commentSubmitErrorDismiss}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <View
         style={[
           styles.inputRow,
@@ -429,20 +621,40 @@ const SingleDebateScreen = () => {
         <View style={styles.inputAvatar}>
           <Text style={styles.inputAvatarText}>Y</Text>
         </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Write a comment..."
-          placeholderTextColor="#9ca3af"
-          value={commentInput}
-          onChangeText={setCommentInput}
-          multiline
-          maxLength={500}
-        />
-        <TouchableOpacity onPress={handleAddComment} style={styles.sendButton}>
-          <Ionicons name="send" size={20} color="#007AFF" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.emojiButton}>
-          <Ionicons name="happy-outline" size={22} color="#6b7280" />
+        <View style={styles.inputWrap}>
+          {replyingToCommentId != null && (
+            <View style={styles.replyHintRow}>
+              <Text style={styles.replyHintText}>
+                Replying to {comments.find(x => x.id === replyingToCommentId)?.user_display_name ?? 'comment'}
+              </Text>
+              <TouchableOpacity onPress={() => setReplyingToCommentId(null)} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                <Ionicons name="close" size={18} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder={replyingToCommentId != null ? 'Write a reply...' : 'Write a comment...'}
+            placeholderTextColor="#9ca3af"
+            value={commentInput}
+            onChangeText={setCommentInput}
+            multiline
+            maxLength={COMMENT_MAX_LENGTH}
+            editable={!commentSubmitting}
+          />
+          <Text style={styles.inputCharCount}>
+            {commentInput.length}/{COMMENT_MAX_LENGTH}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleAddComment}
+          style={[styles.sendButton, (!commentInput.trim() || commentSubmitting) && styles.sendButtonDisabled]}
+          disabled={!commentInput.trim() || commentSubmitting}>
+          {commentSubmitting ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : (
+            <Ionicons name="send" size={20} color="#007AFF" />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -482,6 +694,48 @@ const SingleDebateScreen = () => {
             <TouchableOpacity
               style={styles.authGateCancel}
               onPress={() => setShowAuthGate(false)}>
+              <Text style={styles.authGateCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Auth gate: when unauthenticated user tries to reply, vote, or react on a comment */}
+      <Modal
+        visible={showCommentAuthGate}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCommentAuthGate(false)}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.authGateBackdrop}
+          onPress={() => setShowCommentAuthGate(false)}>
+          <View style={styles.authGateBox}>
+            <Text style={styles.authGateTitle}>Join the conversation</Text>
+            <Text style={styles.authGateMessage}>
+              Sign in or create an account to reply, vote, or react on comments.
+            </Text>
+            <View style={styles.authGateButtons}>
+              <TouchableOpacity
+                style={styles.authGateButtonSecondary}
+                onPress={() => {
+                  setShowCommentAuthGate(false);
+                  rootNavigate('Login');
+                }}>
+                <Text style={styles.authGateButtonSecondaryText}>Login</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.authGateButtonPrimary}
+                onPress={() => {
+                  setShowCommentAuthGate(false);
+                  rootNavigate('SignUp');
+                }}>
+                <Text style={styles.authGateButtonPrimaryText}>Create account</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.authGateCancel}
+              onPress={() => setShowCommentAuthGate(false)}>
               <Text style={styles.authGateCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1003,26 +1257,71 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
   },
+  commentVoteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  commentVoteBtn: {
+    padding: 4,
+  },
+  commentVoteBtnActive: {},
   commentUpvotes: {
     fontSize: 13,
     fontWeight: '600',
     color: '#059669',
+    minWidth: 32,
+    textAlign: 'center',
   },
   commentContent: {
     fontSize: 14,
     color: '#4b5563',
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 6,
+  },
+  commentActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 6,
+  },
+  commentActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   reactionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
-    marginTop: 6,
+  },
+  reactionChipTouch: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
   },
   reactionChip: {
     fontSize: 13,
     color: '#6b7280',
+  },
+  reactionAddBtn: {
+    padding: 4,
+  },
+  reactionPickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 6,
+  },
+  reactionPickerEmoji: {
+    padding: 6,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+  },
+  reactionPickerEmojiText: {
+    fontSize: 20,
   },
   commentsLoading: {
     flexDirection: 'row',
@@ -1079,6 +1378,26 @@ const styles = StyleSheet.create({
   bottomSpacer: {
     height: 24,
   },
+  commentSubmitError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fef2f2',
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  commentSubmitErrorText: {
+    fontSize: 13,
+    color: '#b91c1c',
+    flex: 1,
+  },
+  commentSubmitErrorDismiss: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1102,8 +1421,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6b7280',
   },
-  input: {
+  inputWrap: {
     flex: 1,
+    minWidth: 0,
+  },
+  replyHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  replyHintText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  input: {
     minHeight: 40,
     maxHeight: 100,
     backgroundColor: '#f3f4f6',
@@ -1113,11 +1446,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1f2937',
   },
+  inputCharCount: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+    marginLeft: 4,
+  },
   sendButton: {
     padding: 8,
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emojiButton: {
-    padding: 8,
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
 });
 

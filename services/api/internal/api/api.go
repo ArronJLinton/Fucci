@@ -96,6 +96,7 @@ func New(c Config) http.Handler {
 	debateRouter.Post("/votes", c.createVote)
 	debateRouter.Post("/comments", c.createComment)
 	debateRouter.Get("/{debateId}/comments", c.ListDebateComments)
+	debateRouter.With(auth.RequireAuth).Post("/{debateId}/comments", c.CreateDebateComment)
 	// Admin routes for soft delete management
 	debateRouter.Delete("/{id}/hard", c.hardDeleteDebate) // Permanent deletion
 	debateRouter.Post("/{id}/restore", c.restoreDebate)   // Restore soft-deleted debate
@@ -140,8 +141,14 @@ func New(c Config) http.Handler {
 	verificationsRouter.Delete("/{id}", verificationsService.RemoveVerification)
 	verificationsRouter.Get("/player/{playerId}", verificationsService.ListVerifications)
 
+	commentsRouter := chi.NewRouter()
+	commentsRouter.With(auth.RequireAuth).Put("/{commentId}/vote", c.SetCommentVote)
+	commentsRouter.With(auth.RequireAuth).Post("/{commentId}/reactions", c.AddCommentReaction)
+	commentsRouter.With(auth.RequireAuth).Delete("/{commentId}/reactions", c.RemoveCommentReaction)
+
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)
+	router.Mount("/comments", commentsRouter)
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)
 	router.Mount("/news", newsRouter)

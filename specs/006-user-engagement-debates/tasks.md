@@ -69,14 +69,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Implement POST /api/debates/{debate_id}/comments handler: create comment or subcomment (body content, parent_comment_id optional); enforce content length ≤ 500 (400 if exceeded), parent is top-level only; require auth; rate-limit comment creation per user (e.g. N per minute), return 429 when exceeded; return DebateComment shape in services/api/internal/api/comments.go
-- [ ] T015 [P] [US2] Implement PUT /api/comments/{comment_id}/vote handler: set or clear vote (body vote_type: upvote|downvote|null); require auth; return net_score in services/api/internal/api/comments.go or comment_engagement.go
-- [ ] T016 [P] [US2] Implement POST /api/comments/{comment_id}/reactions and DELETE /api/comments/{comment_id}/reactions?emoji= handlers: add/toggle or remove reaction; require auth; return updated reaction counts; no max on emoji types in services/api/internal/api/comments.go or comment_engagement.go
-- [ ] T017 [US2] Register POST /api/debates/{debate_id}/comments, PUT /api/comments/{comment_id}/vote, POST and DELETE /api/comments/{comment_id}/reactions routes (auth middleware for write) in services/api/internal/api/api.go
-- [ ] T018 [US2] Add createComment, setCommentVote, addCommentReaction, removeCommentReaction API client functions in apps/mobile/src/services/api.ts
-- [ ] T019 [US2] Add reply UI (Reply action, subcomment form), enforce one-level subcomments and 500-character limit (validate in UI); show loading and error with retry on submit in apps/mobile/src/screens/SingleDebateScreen.tsx (or new component)
-- [ ] T020 [US2] Add upvote/downvote controls and net score display per comment; toggle same vote to clear; show loading/error (and optional retry) for vote action in apps/mobile/src/screens/SingleDebateScreen.tsx
-- [ ] T021 [US2] Add emoji reaction picker and reaction row (emoji + count) per comment; add/toggle/remove reaction; show loading/error (and optional retry) for reaction action in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T014 [P] [US2] Implement POST /api/debates/{debate_id}/comments handler: create comment or subcomment (body content, parent_comment_id optional); enforce content length ≤ 500 (400 if exceeded), parent is top-level only; require auth; rate-limit comment creation per user (e.g. N per minute), return 429 when exceeded; return DebateComment shape in services/api/internal/api/comments.go
+- [x] T015 [P] [US2] Implement PUT /api/comments/{comment_id}/vote handler: set or clear vote (body vote_type: upvote|downvote|null); require auth; return net_score in services/api/internal/api/comments.go or comment_engagement.go
+- [x] T016 [P] [US2] Implement POST /api/comments/{comment_id}/reactions and DELETE /api/comments/{comment_id}/reactions?emoji= handlers: add/toggle or remove reaction; require auth; return updated reaction counts; no max on emoji types in services/api/internal/api/comments.go or comment_engagement.go
+- [x] T017 [US2] Register POST /api/debates/{debate_id}/comments, PUT /api/comments/{comment_id}/vote, POST and DELETE /api/comments/{comment_id}/reactions routes (auth middleware for write) in services/api/internal/api/api.go
+- [x] T018 [US2] Add createComment, setCommentVote, addCommentReaction, removeCommentReaction API client functions in apps/mobile/src/services/api.ts
+- [x] T019 [US2] Add reply UI (Reply action, subcomment form), enforce one-level subcomments and 500-character limit (validate in UI); show loading and error with retry on submit in apps/mobile/src/screens/SingleDebateScreen.tsx (or new component)
+- [x] T020 [US2] Add upvote/downvote controls and net score display per comment; toggle same vote to clear; show loading/error (and optional retry) for vote action in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T021 [US2] Add emoji reaction picker and reaction row (emoji + count) per comment; add/toggle/remove reaction; show loading/error (and optional retry) for reaction action in apps/mobile/src/screens/SingleDebateScreen.tsx
 
 **Checkpoint**: User Story 2 complete — authenticated users can reply, vote, and react
 

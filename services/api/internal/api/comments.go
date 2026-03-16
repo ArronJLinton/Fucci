@@ -3,15 +3,54 @@ package api
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 )
+
+const (
+	commentMaxLength   = 500
+	commentRateLimitN  = 10
+	commentRateWindow  = time.Minute
+)
+
+type commentRateEntry struct {
+	count       int
+	windowStart time.Time
+}
+
+// commentRateLimiter is in-memory per-user rate limit for comment creation (e.g. N per minute).
+type commentRateLimiter struct {
+	mu     sync.Mutex
+	byUser map[int32]commentRateEntry
+}
+
+func (r *commentRateLimiter) allow(userID int32) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.byUser == nil {
+		r.byUser = make(map[int32]commentRateEntry)
+	}
+	now := time.Now()
+	entry := r.byUser[userID]
+	if now.Sub(entry.windowStart) >= commentRateWindow {
+		entry.count = 0
+		entry.windowStart = now
+	}
+	entry.count++
+	r.byUser[userID] = entry
+	return entry.count <= commentRateLimitN
+}
+
+var defaultCommentRateLimiter commentRateLimiter
 
 // DebateComment is the public API shape for a comment (006 spec). Seeded flag is not exposed.
 type DebateComment struct {
@@ -99,6 +138,266 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, out)
+}
+
+// CreateDebateCommentRequest is the body for POST /api/debates/{debate_id}/comments.
+type CreateDebateCommentRequest struct {
+	Content          string `json:"content"`
+	ParentCommentID  *int32 `json:"parent_comment_id,omitempty"`
+}
+
+// CreateDebateComment handles POST /api/debates/{debate_id}/comments.
+// Requires auth. Content ≤ 500 chars; parent_comment_id must be top-level. Rate-limited.
+func (c *Config) CreateDebateComment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	debateIDStr := chi.URLParam(r, "debateId")
+	debateID, err := strconv.ParseInt(debateIDStr, 10, 32)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid debate ID")
+		return
+	}
+
+	var req CreateDebateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		respondWithError(w, http.StatusBadRequest, "content is required")
+		return
+	}
+	if len(content) > commentMaxLength {
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("content must be at most %d characters", commentMaxLength))
+		return
+	}
+
+	if !defaultCommentRateLimiter.allow(userID) {
+		respondWithError(w, http.StatusTooManyRequests, "Rate limit exceeded; try again later")
+		return
+	}
+
+	_, err = c.DB.GetDebate(ctx, int32(debateID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Debate not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to get debate")
+		return
+	}
+
+	var parentCommentID sql.NullInt32
+	if req.ParentCommentID != nil && *req.ParentCommentID > 0 {
+		parent, err := c.DB.GetComment(ctx, *req.ParentCommentID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				respondWithError(w, http.StatusNotFound, "Parent comment not found")
+				return
+			}
+			respondWithError(w, http.StatusInternalServerError, "Failed to get parent comment")
+			return
+		}
+		if parent.DebateID.Int32 != int32(debateID) {
+			respondWithError(w, http.StatusBadRequest, "Parent comment does not belong to this debate")
+			return
+		}
+		if parent.ParentCommentID.Valid {
+			respondWithError(w, http.StatusBadRequest, "Replies only allowed to top-level comments")
+			return
+		}
+		parentCommentID = sql.NullInt32{Int32: *req.ParentCommentID, Valid: true}
+	}
+
+	comment, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
+		DebateID:        sql.NullInt32{Int32: int32(debateID), Valid: true},
+		ParentCommentID: parentCommentID,
+		UserID:          sql.NullInt32{Int32: userID, Valid: true},
+		Content:         content,
+		Seeded:          false,
+	})
+	if err != nil {
+		log.Printf("[comments] CreateComment error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to create comment")
+		return
+	}
+
+	row, err := c.DB.GetComment(ctx, comment.ID)
+	if err != nil {
+		respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+			"id": comment.ID, "debate_id": debateID, "content": content,
+		})
+		return
+	}
+
+	out, err := c.buildDebateCommentFromCommentRow(ctx, row, &userID)
+	if err != nil {
+		respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+			"id": comment.ID, "debate_id": debateID, "content": content,
+		})
+		return
+	}
+	respondWithJSON(w, http.StatusCreated, out)
+}
+
+// buildDebateCommentFromCommentRow builds DebateComment from GetCommentRow (e.g. after create).
+func (c *Config) buildDebateCommentFromCommentRow(ctx context.Context, row database.GetCommentRow, currentUserID *int32) (DebateComment, error) {
+	r := database.GetCommentsRow{
+		ID: row.ID, DebateID: row.DebateID, ParentCommentID: row.ParentCommentID, UserID: row.UserID,
+		Content: row.Content, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Seeded: row.Seeded,
+		Firstname: row.Firstname, Lastname: row.Lastname,
+	}
+	return c.buildDebateComment(ctx, r, currentUserID)
+}
+
+// SetCommentVoteRequest is the body for PUT /api/comments/{comment_id}/vote.
+type SetCommentVoteRequest struct {
+	VoteType *string `json:"vote_type"` // "upvote", "downvote", or null to clear
+}
+
+// SetCommentVote handles PUT /api/comments/{comment_id}/vote. Requires auth.
+func (c *Config) SetCommentVote(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	commentIDStr := chi.URLParam(r, "commentId")
+	commentID, err := strconv.ParseInt(commentIDStr, 10, 32)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid comment ID")
+		return
+	}
+
+	var req SetCommentVoteRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	if req.VoteType == nil || *req.VoteType == "" || *req.VoteType == "null" {
+		_ = c.DB.DeleteCommentVote(ctx, database.DeleteCommentVoteParams{CommentID: int32(commentID), UserID: userID})
+		netScore, _ := c.DB.GetCommentVoteNetScore(ctx, int32(commentID))
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{"net_score": netScore, "vote_type": nil})
+		return
+	}
+
+	if *req.VoteType != "upvote" && *req.VoteType != "downvote" {
+		respondWithError(w, http.StatusBadRequest, "vote_type must be upvote or downvote")
+		return
+	}
+
+	_, err = c.DB.UpsertCommentVote(ctx, database.UpsertCommentVoteParams{
+		CommentID: int32(commentID),
+		UserID:    userID,
+		VoteType:  *req.VoteType,
+	})
+	if err != nil {
+		log.Printf("[comments] UpsertCommentVote error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to set vote")
+		return
+	}
+
+	netScore, _ := c.DB.GetCommentVoteNetScore(ctx, int32(commentID))
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"net_score": netScore, "vote_type": *req.VoteType})
+}
+
+// AddCommentReactionRequest is the body for POST /api/comments/{comment_id}/reactions.
+type AddCommentReactionRequest struct {
+	Emoji string `json:"emoji"`
+}
+
+// AddCommentReaction handles POST /api/comments/{comment_id}/reactions. Toggle: if exists remove, else add. Requires auth.
+func (c *Config) AddCommentReaction(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	commentIDStr := chi.URLParam(r, "commentId")
+	commentID, err := strconv.ParseInt(commentIDStr, 10, 32)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid comment ID")
+		return
+	}
+
+	var req AddCommentReactionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Emoji) == "" {
+		respondWithError(w, http.StatusBadRequest, "emoji is required")
+		return
+	}
+	emoji := strings.TrimSpace(req.Emoji)
+
+	_, err = c.DB.GetUserCommentReaction(ctx, database.GetUserCommentReactionParams{
+		CommentID: int32(commentID), UserID: userID, Emoji: emoji,
+	})
+	if err == nil {
+		_ = c.DB.RemoveCommentReaction(ctx, database.RemoveCommentReactionParams{
+			CommentID: int32(commentID), UserID: userID, Emoji: emoji,
+		})
+	} else {
+		_, err = c.DB.AddCommentReaction(ctx, database.AddCommentReactionParams{
+			CommentID: int32(commentID), UserID: userID, Emoji: emoji,
+		})
+		if err != nil {
+			log.Printf("[comments] AddCommentReaction error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to add reaction")
+			return
+		}
+	}
+
+	rows, _ := c.DB.GetCommentReactionsByCommentID(ctx, int32(commentID))
+	reactions := make([]ReactionCount, 0, len(rows))
+	for _, rr := range rows {
+		reactions = append(reactions, ReactionCount{Emoji: rr.Emoji, Count: rr.Count})
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"reactions": reactions})
+}
+
+// RemoveCommentReaction handles DELETE /api/comments/{comment_id}/reactions?emoji=. Requires auth.
+func (c *Config) RemoveCommentReaction(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	commentIDStr := chi.URLParam(r, "commentId")
+	commentID, err := strconv.ParseInt(commentIDStr, 10, 32)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid comment ID")
+		return
+	}
+
+	emoji := strings.TrimSpace(r.URL.Query().Get("emoji"))
+	if emoji == "" {
+		respondWithError(w, http.StatusBadRequest, "emoji query parameter is required")
+		return
+	}
+
+	_ = c.DB.RemoveCommentReaction(ctx, database.RemoveCommentReactionParams{
+		CommentID: int32(commentID), UserID: userID, Emoji: emoji,
+	})
+
+	rows, _ := c.DB.GetCommentReactionsByCommentID(ctx, int32(commentID))
+	reactions := make([]ReactionCount, 0, len(rows))
+	for _, rr := range rows {
+		reactions = append(reactions, ReactionCount{Emoji: rr.Emoji, Count: rr.Count})
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"reactions": reactions})
 }
 
 // buildDebateComment converts a GetCommentsRow to DebateComment (no seeded, no stance).
