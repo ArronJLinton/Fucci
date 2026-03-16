@@ -282,7 +282,10 @@ func (c *Config) SetCommentVote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req SetCommentVoteRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
 
 	if req.VoteType == nil || *req.VoteType == "" || *req.VoteType == "null" {
 		_ = c.DB.DeleteCommentVote(ctx, database.DeleteCommentVoteParams{CommentID: int32(commentID), UserID: userID})
