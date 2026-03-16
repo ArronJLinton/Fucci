@@ -162,13 +162,15 @@ type TeamManager struct {
 }
 
 type User struct {
-	ID        int32
-	Firstname string
-	Lastname  string
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	IsAdmin   bool
+	ID          int32
+	Firstname   string
+	Lastname    string
+	Email       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	IsAdmin     bool
+	DisplayName sql.NullString
+	AvatarUrl   sql.NullString
 }
 
 type UserFollow struct {

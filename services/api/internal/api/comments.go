@@ -254,6 +254,7 @@ func (c *Config) buildDebateCommentFromCommentRow(ctx context.Context, row datab
 		ID: row.ID, DebateID: row.DebateID, ParentCommentID: row.ParentCommentID, UserID: row.UserID,
 		Content: row.Content, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Seeded: row.Seeded,
 		Firstname: row.Firstname, Lastname: row.Lastname,
+		DisplayName: row.DisplayName, AvatarUrl: row.AvatarUrl,
 	}
 	return c.buildDebateComment(ctx, r, currentUserID)
 }
@@ -402,10 +403,22 @@ func (c *Config) RemoveCommentReaction(w http.ResponseWriter, r *http.Request) {
 
 // buildDebateComment converts a GetCommentsRow to DebateComment (no seeded, no stance).
 // currentUserVote is nil for unauthenticated list.
+// Uses users.display_name when set, else firstname+lastname; users.avatar_url for UserAvatarURL.
 func (c *Config) buildDebateComment(ctx context.Context, row database.GetCommentsRow, currentUserID *int32) (DebateComment, error) {
-	displayName := strings.TrimSpace(row.Firstname + " " + row.Lastname)
+	displayName := ""
+	if row.DisplayName.Valid && strings.TrimSpace(row.DisplayName.String) != "" {
+		displayName = strings.TrimSpace(row.DisplayName.String)
+	} else {
+		displayName = strings.TrimSpace(row.Firstname + " " + row.Lastname)
+	}
 	if displayName == "" {
 		displayName = "User"
+	}
+
+	var avatarURL *string
+	if row.AvatarUrl.Valid && strings.TrimSpace(row.AvatarUrl.String) != "" {
+		s := strings.TrimSpace(row.AvatarUrl.String)
+		avatarURL = &s
 	}
 
 	netScore, _ := c.DB.GetCommentVoteNetScore(ctx, row.ID)
@@ -421,14 +434,15 @@ func (c *Config) buildDebateComment(ctx context.Context, row database.GetComment
 	}
 
 	comment := DebateComment{
-		ID:              row.ID,
-		DebateID:        row.DebateID.Int32,
-		UserID:          row.UserID.Int32,
-		UserDisplayName: displayName,
-		Content:         row.Content,
-		CreatedAt:       createdAt,
-		NetScore:        netScore,
-		Reactions:       reactions,
+		ID:                row.ID,
+		DebateID:          row.DebateID.Int32,
+		UserID:            row.UserID.Int32,
+		UserDisplayName:   displayName,
+		UserAvatarURL:     avatarURL,
+		Content:           row.Content,
+		CreatedAt:         createdAt,
+		NetScore:          netScore,
+		Reactions:         reactions,
 	}
 	if row.ParentCommentID.Valid {
 		comment.ParentCommentID = &row.ParentCommentID.Int32

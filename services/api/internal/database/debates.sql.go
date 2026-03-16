@@ -256,7 +256,9 @@ const getComment = `-- name: GetComment :one
 SELECT 
     c.id, c.debate_id, c.parent_comment_id, c.user_id, c.content, c.created_at, c.updated_at, c.seeded,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.id = $1
@@ -273,6 +275,8 @@ type GetCommentRow struct {
 	Seeded          bool
 	Firstname       string
 	Lastname        string
+	DisplayName     sql.NullString
+	AvatarUrl       sql.NullString
 }
 
 func (q *Queries) GetComment(ctx context.Context, id int32) (GetCommentRow, error) {
@@ -289,6 +293,8 @@ func (q *Queries) GetComment(ctx context.Context, id int32) (GetCommentRow, erro
 		&i.Seeded,
 		&i.Firstname,
 		&i.Lastname,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -308,7 +314,9 @@ const getComments = `-- name: GetComments :many
 SELECT 
     c.id, c.debate_id, c.parent_comment_id, c.user_id, c.content, c.created_at, c.updated_at, c.seeded,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.debate_id = $1
@@ -326,6 +334,8 @@ type GetCommentsRow struct {
 	Seeded          bool
 	Firstname       string
 	Lastname        string
+	DisplayName     sql.NullString
+	AvatarUrl       sql.NullString
 }
 
 func (q *Queries) GetComments(ctx context.Context, debateID sql.NullInt32) ([]GetCommentsRow, error) {
@@ -348,6 +358,8 @@ func (q *Queries) GetComments(ctx context.Context, debateID sql.NullInt32) ([]Ge
 			&i.Seeded,
 			&i.Firstname,
 			&i.Lastname,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}

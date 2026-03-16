@@ -91,7 +91,9 @@ RETURNING *;
 SELECT 
     c.*,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.debate_id = $1
@@ -101,7 +103,9 @@ ORDER BY c.created_at ASC;
 SELECT 
     c.*,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.id = $1;

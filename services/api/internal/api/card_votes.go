@@ -86,13 +86,23 @@ func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// One vote per user per card: remove any existing swipe vote then insert
-	_ = c.DB.DeleteCardSwipeVotes(ctx, database.DeleteCardSwipeVotesParams{
+	// One vote per user per card: delete existing swipe vote then insert (atomic).
+	// Partial unique index idx_votes_swipe_one_per_user_card enforces at most one row per (card, user) when emoji IS NULL.
+	tx, err := c.DBConn.BeginTx(ctx, nil)
+	if err != nil {
+		log.Printf("[card_votes] BeginTx error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to save vote")
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	q := c.DB.WithTx(tx)
+	_ = q.DeleteCardSwipeVotes(ctx, database.DeleteCardSwipeVotesParams{
 		DebateCardID: sql.NullInt32{Int32: int32(cardID), Valid: true},
 		UserID:       sql.NullInt32{Int32: userID, Valid: true},
 	})
 
-	_, err = c.DB.CreateVote(ctx, database.CreateVoteParams{
+	_, err = q.CreateVote(ctx, database.CreateVoteParams{
 		DebateCardID: sql.NullInt32{Int32: int32(cardID), Valid: true},
 		UserID:       sql.NullInt32{Int32: userID, Valid: true},
 		VoteType:     req.VoteType,
@@ -105,11 +115,17 @@ func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 			case "23503": // foreign_key_violation
 				respondWithError(w, http.StatusBadRequest, "User or card not found")
 				return
-			case "23505": // unique_violation — race or duplicate
+			case "23505": // unique_violation — partial index or race
 				respondWithError(w, http.StatusConflict, "Vote already recorded")
 				return
 			}
 		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to save vote")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("[card_votes] Commit error: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to save vote")
 		return
 	}
