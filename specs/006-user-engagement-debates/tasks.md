@@ -3,7 +3,7 @@
 **Input**: Design documents from `specs/006-user-engagement-debates/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Progress**: Phase 1 (Setup), Phase 2 (Foundational), Phase 3 (US1), Phase 4 (US2), Phase 5 (US3 — Auth Gate Modal), and Phase 6 (US4) are complete. Remaining: Phase 7 (Polish T036–T037).
+**Progress**: All phases complete (Phase 1–7). T036–T037: quickstart updated; validation section and API build verified.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing. Tests are not explicitly requested in the spec; omit test-only tasks per template. **Clarifications** (spec Session 2026-02-15) are reflected: system user via one-time migration at deploy, 500-char limit for user comments, loading/error states with retry, rate-limit comment creation only, best-effort return-to-debate auto-init. **Feature 4 (Swipe Card Voting)** clarifications: live meter = one bar for whole debate + optional per-card breakdown on tap; after all three cards voted hide stack and show meter + headline + comments; card vote final once submitted; header shows score only when available (hide score pre-match); card votes not rate-limited.
 
@@ -126,8 +126,8 @@
 
 **Purpose**: Documentation and validation.
 
-- [ ] T036 [P] Update quickstart.md with any missing steps (e.g. system user creation, comment endpoints, swipe card voting, meter, header) in specs/006-user-engagement-debates/quickstart.md
-- [ ] T037 Run through quickstart.md test flows (view comments, reply, vote, reaction, auth gate, return-to-debate, swipe card voting, meter, header); fix any contract or environment gaps in apps/mobile and services/api
+- [x] T036 [P] Update quickstart.md with any missing steps (e.g. system user creation, comment endpoints, swipe card voting, meter, header) in specs/006-user-engagement-debates/quickstart.md
+- [x] T037 Run through quickstart.md test flows (view comments, reply, vote, reaction, auth gate, return-to-debate, swipe card voting, meter, header); fix any contract or environment gaps in apps/mobile and services/api
 
 ---
 
