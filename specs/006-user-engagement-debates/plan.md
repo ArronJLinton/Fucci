@@ -1,24 +1,25 @@
-# Implementation Plan: User Engagement for AI Powered Debates
+# Implementation Plan: User Engagement for AI Powered Debates (006)
 
-**Branch**: `006-user-engagement-debates` | **Date**: 2026-02-15 | **Spec**: [spec.md](./spec.md)
+**Branch**: `006-user-engagement-debates` | **Date**: 2026-02-15 | **Spec**: [spec.md](./spec.md)  
+**Input**: Feature specification from `/specs/006-user-engagement-debates/spec.md`
 
-**Input**: Feature specification from `specs/006-user-engagement-debates/spec.md`
+**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-Three enhancements to the AI Powered Debates experience: (1) **Debate structure**: headline + description + three AI-seeded comments (agree, disagree, wildcard) attributed to the **system user** (Fucci), stored as Comment rows with `seeded: true`; no stance labels — rendered and stored as regular comments; create system user if one does not exist; Fucci is the attributed author for moderation/liability. (2) **Comment interactions**: replies and subcomments (one level), comment-level upvotes/downvotes, emoji reactions (no max on emoji types per comment); unauthenticated users can **see** vote and reaction counts but cannot engage; all write actions require auth. (3) **Auth gate modal** (mobile only; web not available): when an unauthenticated user attempts reply, vote, or reaction, show a modal; after auth, deep-link back to the debate and auto-initiate the blocked action where feasible. Extends 004 (debates, generation) and 005 (auth, login/register).
+006 adds: (1) headline + three AI-seeded comments (no stance labels in UI); (2) comment interactions (replies, upvote/downvote, emoji reactions) with auth gate for unauthenticated writes; (3) **swipe card voting** — users vote on the three debate cards via swipe right (yes) / swipe left (no) on a stacked card UI with thumbs up/down overlay, plus a **live debate meter** at the top and **team badge + score** in the header. Backend: Go (chi), PostgreSQL, existing `votes` (debate_card_id) for card votes; comment_votes/comment_reactions for comment engagement. Mobile: React Native (Expo), TypeScript; swipe gestures and card stack UI for voting.
 
 ## Technical Context
 
-**Language/Version**: TypeScript (React Native/Expo), Go 1.22+ (backend)  
-**Primary Dependencies**: React Navigation, existing debate API (004), auth API (005), JWT  
-**Storage**: PostgreSQL; extend `comments` (add `seeded`); new tables `comment_votes`, `comment_reactions`  
-**Testing**: Jest / React Native Testing Library (mobile), Go tests (API); E2E for comment reply, vote, reaction and auth gate  
-**Target Platform**: iOS/Android via Expo (mobile only; web not available); API on existing Go service (chi)  
-**Project Type**: Mobile app + API (apps/mobile, services/api)  
-**Performance Goals**: List comments < 200ms p95; vote/reaction toggle < 100ms; auth gate modal instant  
-**Constraints**: One-level subcomments only; no max on emoji reaction types per comment; seeded flag and stance not exposed in UI; return-to-debate deep link on mobile only  
-**Scale/Scope**: Per-debate comments (hundreds per debate); comment_votes and comment_reactions indexed by comment_id; system user (Fucci) for all seeded comments
+**Language/Version**: Go 1.22+, TypeScript (React Native / Expo)  
+**Primary Dependencies**: chi (HTTP), React Navigation, expo; JWT auth (005)  
+**Storage**: PostgreSQL (debates, debate_cards, comments, votes, comment_votes, comment_reactions); Redis for cache  
+**Testing**: Go tests (internal/api, internal/ai); React Native / Jest for mobile  
+**Target Platform**: Mobile (iOS/Android via Expo); API (Linux/server)  
+**Project Type**: Monorepo — `apps/mobile`, `services/api`  
+**Performance Goals**: API &lt; 200ms p95; mobile &lt; 3s load, &lt; 1s navigation; smooth 60fps swipe animations  
+**Constraints**: One vote per user per debate_card (yes/no); auth required for card vote and comment writes  
+**Scale/Scope**: Single debate screen with card stack (3 cards), comment list, live meter, header badge/score
 
 ## Constitution Check
 
@@ -26,85 +27,92 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Code Quality Standards:**
 
-- [x] TypeScript strict mode compliance verified (mobile)
+- [x] TypeScript strict mode compliance verified (apps/mobile)
 - [x] ESLint configuration defined with zero warnings
 - [x] Function complexity ≤ 10, length ≤ 50 lines (target)
 - [x] Meaningful naming conventions established
 
 **Testing Standards:**
 
-- [x] TDD approach planned for new features (comment API, vote/reaction, auth gate)
-- [x] Unit test coverage target ≥ 80% for comment and vote/reaction logic
-- [x] Integration test requirements defined (comments CRUD, vote, reaction endpoints)
-- [x] E2E test scenarios for P1 user stories planned (reply, vote, react, auth gate return)
+- [x] TDD approach planned for new features (API handlers, swipe flow)
+- [x] Unit test coverage target ≥ 80% identified for business logic
+- [x] Integration test requirements defined (API contract tests)
+- [x] E2E test scenarios for P1 user stories planned (view debate, swipe vote, auth gate)
 
 **User Experience Consistency:**
 
-- [x] Design system compliance (debate UI, modal, buttons)
-- [x] Accessibility requirements (WCAG 2.1 AA) for modal and comment actions
-- [x] Loading states and error handling for comment/vote/reaction API calls
-- [x] Responsive design (mobile-first; modal and lists)
+- [x] Design system compliance verified; loading/error states for comments and votes
+- [x] Accessibility requirements (WCAG 2.1 AA) identified for swipe and focus
+- [x] Loading states and error handling planned (comments, card vote submit, meter)
+- [x] Responsive design considerations documented (mobile-first)
 
 **Performance Requirements:**
 
-- [x] Performance benchmarks defined (comment list, vote/reaction latency)
-- [x] Bundle size impact assessed (new screens/components minimal)
-- [x] Database query performance (indexes on comment_id for votes/reactions; comment list by debate_id)
-- [x] Caching strategy (optional: cache comment list per debate with invalidation on write)
+- [x] Performance benchmarks defined (API &lt; 200ms p95, mobile &lt; 3s load)
+- [x] Bundle size impact assessed (swipe/card stack components)
+- [x] Database query performance targets set (votes aggregate for meter)
+- [x] Caching strategy planned (debate + cards + vote counts)
 
 **Developer Experience:**
 
-- [x] Documentation requirements (quickstart, API contract in contracts/api.yaml)
-- [x] API documentation (OpenAPI for comments, vote, reaction)
-- [x] Development environment setup (existing quickstart; migrations for new tables)
-- [x] Code review guidelines (constitution)
+- [x] Documentation requirements identified (quickstart, API contract)
+- [x] API documentation needs defined (OpenAPI in contracts/)
+- [x] Development environment setup documented (quickstart.md)
+- [x] Code review guidelines established (constitution)
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/006-user-engagement-debates/
-├── plan.md              # This file
-├── spec.md              # Feature specification
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output (API contract)
-│   └── api.yaml
-└── tasks.md             # Phase 2 output (/speckit.tasks — not created by /speckit.plan)
+specs/[###-feature]/
+├── plan.md              # This file (/speckit.plan command output)
+├── research.md          # Phase 0 output (/speckit.plan command)
+├── data-model.md        # Phase 1 output (/speckit.plan command)
+├── quickstart.md        # Phase 1 output (/speckit.plan command)
+├── contracts/           # Phase 1 output (/speckit.plan command)
+└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
 ```
 
 ### Source Code (repository root)
 
-```text
-apps/mobile/
-├── src/
-│   ├── screens/
-│   │   ├── SingleDebateScreen.tsx   # Extend: comments list, reply, vote, reaction UI; auth gate modal
-│   │   └── ...
-│   ├── components/                 # Optional: CommentCard, VoteButtons, ReactionPicker, AuthGateModal
-│   ├── context/
-│   │   └── AuthContext.tsx         # Use for auth gate (005)
-│   └── services/
-│       └── api.ts                  # Add: listComments, createComment, setCommentVote, addCommentReaction
+<!--
+  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
+  for this feature. Delete unused options and expand the chosen structure with
+  real paths (e.g., apps/admin, packages/something). The delivered plan must
+  not include Option labels.
+-->
 
+```text
 services/api/
 ├── internal/
-│   └── api/
-│       ├── debates.go              # Extend: create seeded comments when generating debate; optional
-│       ├── comments.go             # New: list, create comment; enforce subcomment depth
-│       └── comment_engagement.go   # New or part of comments: vote, reaction handlers
-├── internal/
-│   └── database/                   # sqlc: comment_votes, comment_reactions queries
-└── sql/
-    └── schema/                     # Migrations: comments.seeded; comment_votes; comment_reactions
+│   ├── api/          # HTTP handlers (debates, comments, card votes)
+│   ├── ai/           # Prompt generation
+│   ├── auth/
+│   ├── database/     # sqlc generated
+│   └── cache/
+├── sql/
+│   ├── schema/       # Migrations (votes, comment_votes, comment_reactions)
+│   └── queries/
+└── cmd/
+
+apps/mobile/
+├── src/
+│   ├── screens/      # SingleDebateScreen (card stack, meter, header, comments)
+│   ├── components/   # Card stack, swipe overlay, debate meter, AuthGateModal
+│   ├── services/     # api.ts (listComments, submitCardVote, etc.)
+│   ├── navigation/
+│   └── types/
+└── __tests__/
 ```
 
-**Structure Decision**: Monorepo; mobile app in apps/mobile (extend SingleDebateScreen and API client), API in services/api (new comment and comment-engagement handlers, new tables). Auth gate is client-only (modal + navigation to login/register from 005).
+**Structure Decision**: Monorepo with `services/api` (Go) and `apps/mobile` (React Native/Expo). Swipe card voting lives in mobile screens/components; card vote submission and vote aggregates in API. Existing debate/cards/comments/votes schema extended for card yes/no votes and meter aggregates.
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| None | — | — |
+> **Fill ONLY if Constitution Check has violations that must be justified**
+
+| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
+| -------------------------- | ------------------ | ------------------------------------ |
+| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |

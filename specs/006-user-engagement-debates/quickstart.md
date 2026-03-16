@@ -2,7 +2,7 @@
 
 **Feature**: 006-user-engagement-debates  
 **Date**: 2026-02-15  
-**Target**: Developers testing debate comments, votes, reactions, and auth gate  
+**Target**: Developers testing debate comments, votes, reactions, auth gate, and swipe card voting  
 **See also**: [spec.md](./spec.md), [plan.md](./plan.md), [contracts/api.yaml](./contracts/api.yaml)
 
 ## Prerequisites
@@ -36,33 +36,41 @@ yarn migrate
 cd apps/mobile && npx expo start
 ```
 
-Open a match → Debates tab → open a debate. As an unauthenticated user, try Reply / Vote / React to see the auth gate modal. Log in or create account; confirm return to the same debate and (where implemented) auto-initiate of the action.
+Open a match → Debates tab → open a debate. Confirm **header** shows team badge(s) and match score. Confirm **live debate meter** at top shows aggregate card vote counts. As an unauthenticated user, try Reply / Vote / React or **swipe to vote** on a card to see the auth gate modal. Log in or create account; confirm return to the same debate and (where implemented) auto-initiate of the action.
 
 ## Test Flows
 
-### 1. View comments (no auth)
+### 1. Swipe card voting (auth required for submit)
+
+- Open a debate with three cards (agree, disagree, wildcard). Confirm cards are **stacked** with the top card active.
+- **Swipe right** on the top card: confirm **thumbs up** overlay; card moves away and next card is on top. **Swipe left**: confirm **thumbs down** overlay.
+- Confirm **live debate meter** at top updates (e.g. yes/no counts or distribution). Confirm **header** shows team badge(s) and match score.
+- As unauthenticated user, attempt swipe: confirm **auth gate** modal; after login, return to debate and vote.
+- API: `PUT /api/debates/{debate_id}/cards/{card_id}/vote` with `{ "vote_type": "upvote" }` (yes) or `"downvote"` (no).
+
+### 2. View comments (no auth)
 
 - Open a debate that has seeded comments (and optionally user comments). As unauthenticated user, confirm you can **see vote counts and reaction counts** (read-only; cannot engage).
 - Confirm headline, description, and three starter comments with author avatar/name and timestamp (no stance labels — they appear as regular comments, attributed to system user Fucci).
 - Confirm subcomments and net score / reactions visible.
 
-### 2. Reply (auth required)
+### 4. Reply (auth required)
 
 - As authenticated user, tap Reply on a comment, enter text, submit.
 - Expect 201 and new comment/subcomment in list.
 - As unauthenticated user, tap Reply → auth gate modal; after login, return to debate.
 
-### 3. Upvote / downvote (auth required)
+### 5. Upvote / downvote (auth required)
 
 - As authenticated user, tap upvote on a comment; confirm net score updates; tap again to toggle off.
 - As unauthenticated user, tap vote → auth gate modal.
 
-### 4. Emoji reaction (auth required)
+### 6. Emoji reaction (auth required)
 
 - As authenticated user, open reaction picker, add emoji; confirm count; add same emoji again to toggle off.
 - As unauthenticated user, tap reaction → auth gate modal.
 
-### 5. Seeded comments
+### 7. Seeded comments
 
 - Trigger debate generation (or use existing debate with seeded comments). Ensure system user (Fucci) exists.
 - Confirm three seeded comments appear as normal comments (no “AI” or stance labels); attributed to system user (Fucci). No max on emoji reaction types per comment.

@@ -68,3 +68,13 @@
 **Decision**: **Unauthenticated users can see vote counts and reaction counts** on comments; they cannot engage (reply, vote, or react) until authenticated. The auth gate modal is shown when they attempt any write action.
 
 **Rationale**: Clarification: “Yes. But they can't engage with the post until they are authenticated.” So list comments and counts are visible to all; only write operations are gated.
+
+---
+
+## 8. Swipe Card Voting UX and Data
+
+**Decision**: **Re-add card-level voting** with a **swipe UX**: three cards (agree, disagree, wildcard) stacked; user swipes **right = yes**, **left = no** on each card in order. Show **thumbs up / thumbs down overlay** on swipe. Use existing **`votes`** table keyed by `debate_card_id` and `user_id`; store swipe as `vote_type` **`yes`** or **`no`** (add if not present) or map to existing upvote/downvote for card scope. One vote per user per card; last swipe wins if user re-votes. **Live debate meter** at top shows aggregate (e.g. % yes/no per card or overall). **Header**: team badge(s) + match score from match context.
+
+**Rationale**: User request: “similar to dating app — swipe right yes, swipe left no; vote on 3 cards; stacked cards with overlay; live debate meter at top; team badge and score at top header.” Reusing `votes` avoids new tables; card votes are distinct from comment_votes (comment-level up/down). Auth required to submit card vote; unauthenticated can see meter and cards (read-only) and get auth gate on swipe.
+
+**Alternatives considered**: (a) New `card_votes` table — rejected to reuse existing `votes` with debate_card_id. (b) No meter — rejected; user asked for live debate meter. (c) Swipe only on first card — rejected; user said “vote on 3 cards” so all three get swipe.

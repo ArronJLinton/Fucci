@@ -3,12 +3,12 @@
 **Input**: Design documents from `specs/006-user-engagement-debates/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing. Tests are not explicitly requested in the spec; omit test-only tasks per template. **Clarifications** (spec Session 2026-02-15) are reflected: system user via one-time migration at deploy, 500-char limit for user comments, loading/error states with retry, rate-limit comment creation only, best-effort return-to-debate auto-init.
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing. Tests are not explicitly requested in the spec; omit test-only tasks per template. **Clarifications** (spec Session 2026-02-15) are reflected: system user via one-time migration at deploy, 500-char limit for user comments, loading/error states with retry, rate-limit comment creation only, best-effort return-to-debate auto-init. **Feature 4 (Swipe Card Voting)** clarifications: live meter = one bar for whole debate + optional per-card breakdown on tap; after all three cards voted hide stack and show meter + headline + comments; card vote final once submitted; header shows score only when available (hide score pre-match); card votes not rate-limited.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (US1, US2, US3)
+- **[Story]**: Which user story this task belongs to (US1, US2, US3, US4)
 - Include exact file paths in descriptions
 
 ## Path Conventions
@@ -98,12 +98,34 @@
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 6: User Story 4 — Swipe Card Voting (Priority: P2)
+
+**Goal**: Users vote on the three debate cards (agree, disagree, wildcard) by swiping right (yes) or left (no) on a stacked card UI with thumbs up/down overlay. A live debate meter at the top shows one bar for the whole debate (total yes vs no); optional per-card breakdown on tap. Header shows team badge(s) and match score when available (hide score pre-match). After voting on all three cards, hide the stack and show only meter, headline, and comments. Card vote is final once submitted; no rate limit. Unauthenticated users see cards and meter but get auth gate on swipe.
+
+**Independent Test**: Open a debate with three cards; confirm stacked card UI, swipe right (thumbs up) / left (thumbs down), vote submitted; meter updates; after three votes stack hides. Confirm header shows team badges and score when available, no score area when pre-match. As unauthenticated user, swipe triggers auth gate.
+
+### Implementation for User Story 4
+
+- [ ] T027 [P] [US4] Implement PUT /api/debates/{debate_id}/cards/{card_id}/vote handler: accept vote_type upvote|downvote (yes/no), require auth, one vote per user per card (replace existing row for same user+card), return CardVoteCounts (e.g. yes_count, no_count for meter); no rate limit; validate card belongs to debate in services/api/internal/api/ (e.g. card_votes.go or debates.go)
+- [ ] T028 [US4] Ensure GET debate (or GET debate by id) response includes card vote aggregates (total yes/no and optionally per-card yes/no) for live debate meter in services/api/internal/api/debates.go
+- [ ] T029 [US4] Register PUT /api/debates/{debate_id}/cards/{card_id}/vote route with auth middleware in services/api/internal/api/api.go
+- [ ] T030 [US4] Add setCardVote(debateId, cardId, voteType) and ensure fetchDebateById (or debate payload) returns vote counts per card and totals for meter in apps/mobile/src/services/api.ts
+- [ ] T031 [US4] Add header to SingleDebateScreen: team badge(s) and match score when available; when match has no score (pre-match), hide score area and show only team badges and "VS" in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [ ] T032 [US4] Add live debate meter at top of SingleDebateScreen: one bar for whole debate (total yes vs no across all 3 cards); optional per-card breakdown on tap or in secondary view in apps/mobile/src/screens/SingleDebateScreen.tsx or apps/mobile/src/components/
+- [ ] T033 [US4] Build stacked card UI (3 cards layered, only top card swipeable): swipe right = yes with thumbs up overlay, swipe left = no with thumbs down overlay; on swipe call setCardVote and advance to next card in apps/mobile/src/screens/SingleDebateScreen.tsx or apps/mobile/src/components/
+- [ ] T034 [US4] After user has voted on all three cards, hide card stack and show only live meter, headline, and comments in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [ ] T035 [US4] When unauthenticated user attempts swipe to vote, show AuthGateModal (reuse US3 component); pass pending action for return state in apps/mobile/src/screens/SingleDebateScreen.tsx
+
+**Checkpoint**: User Story 4 complete — swipe card voting, meter, header, and auth gate on swipe
+
+---
+
+## Phase 7: Polish & Cross-Cutting Concerns
 
 **Purpose**: Documentation and validation.
 
-- [ ] T025 [P] Update quickstart.md with any missing steps (e.g. system user creation, comment endpoints) in specs/006-user-engagement-debates/quickstart.md
-- [ ] T026 Run through quickstart.md test flows (view comments, reply, vote, reaction, auth gate, return-to-debate); fix any contract or environment gaps in apps/mobile and services/api
+- [ ] T036 [P] Update quickstart.md with any missing steps (e.g. system user creation, comment endpoints, swipe card voting, meter, header) in specs/006-user-engagement-debates/quickstart.md
+- [ ] T037 Run through quickstart.md test flows (view comments, reply, vote, reaction, auth gate, return-to-debate, swipe card voting, meter, header); fix any contract or environment gaps in apps/mobile and services/api
 
 ---
 
@@ -116,19 +138,22 @@
 - **Phase 3 (US1)**: Depends on Phase 2 — list comments and seeded comment creation
 - **Phase 4 (US2)**: Depends on Phase 2 and Phase 3 (list comments exists) — reply, vote, reaction
 - **Phase 5 (US3)**: Depends on Phase 4 (write actions exist to gate) — auth gate modal and return-to-debate
-- **Phase 6 (Polish)**: Depends on Phases 3–5 complete
+- **Phase 6 (US4)**: Depends on Phase 2 (votes table for cards) and Phase 3 (debate/cards from API); auth gate on swipe reuses US3 modal (Phase 5)
+- **Phase 7 (Polish)**: Depends on Phases 3–6 complete
 
 ### User Story Dependencies
 
 - **US1 (Match Debate Structure)**: After Foundational only — independently testable (see three seeded comments)
 - **US2 (Comment Interactions)**: After US1 (comments list in place) — reply/vote/react build on same comments API
 - **US3 (Auth Gate)**: After US2 — gates the write actions from US2
+- **US4 (Swipe Card Voting)**: After Phase 2 (votes table) and Phase 3 (debate + cards); swipe auth gate reuses US3 (Phase 5) when implemented
 
 ### Parallel Opportunities
 
 - Phase 2: T003 and T004 (two migrations) can run in parallel; T006 and T007 (two query files) can run in parallel after migrations
 - Phase 3: T009 (list handler) can be done in parallel with T011 (debate generation extension) once T008 is done
 - Phase 4: T014, T015, T016 (three handlers) can be implemented in parallel; T019–T021 (reply, vote, reaction UI) can be parallelized by component
+- Phase 6: T027 (card vote handler) and T028 (GET debate vote aggregates) can be done in parallel; T031 (header), T032 (meter), T033 (stack) can be parallelized by component where dependencies allow
 
 ---
 
@@ -147,16 +172,18 @@
 1. Foundation → US1 (see seeded comments) → MVP
 2. US2 (reply, vote, react) → test independently
 3. US3 (auth gate, return-to-debate) → test independently
-4. Polish (quickstart validation)
+4. US4 (swipe card voting, meter, header) → test independently (stack, meter, header, card vote API)
+5. Phase 7 Polish (quickstart validation including swipe flows)
 
 ### Task Summary
 
-| Phase        | Task IDs   | Count |
-|-------------|------------|-------|
-| Phase 1     | T001       | 1     |
-| Phase 2     | T002–T008  | 7     |
-| Phase 3 US1 | T009–T013  | 5     |
-| Phase 4 US2 | T014–T021  | 8     |
-| Phase 5 US3 | T022–T024  | 3     |
-| Phase 6     | T025–T026  | 2     |
-| **Total**   |            | **26**|
+| Phase        | Task IDs    | Count |
+|-------------|-------------|-------|
+| Phase 1     | T001        | 1     |
+| Phase 2     | T002–T008   | 7     |
+| Phase 3 US1 | T009–T013   | 5     |
+| Phase 4 US2 | T014–T021   | 8     |
+| Phase 5 US3 | T022–T024   | 3     |
+| Phase 6 US4 | T027–T035   | 9     |
+| Phase 7     | T036–T037   | 2     |
+| **Total**   |             | **35**|

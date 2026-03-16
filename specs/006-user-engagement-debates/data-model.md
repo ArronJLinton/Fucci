@@ -76,8 +76,14 @@ This document describes schema and entity changes for: (1) seeded comments on de
 ## Relationship to 004
 
 - **Debates / debate_cards**: Unchanged for 006; debate still has headline, description; cards may remain for backward compatibility or be phased out in favor of “seeded comments” as the only starter content.
-- **votes (existing)**: Stays on debate_cards (card-level voting if still used). Comment-level voting is in **comment_votes**.
+- **votes (existing)**: Used for **card-level swipe voting** (Feature 4): one vote per user per debate_card; store as `vote_type` **upvote** (swipe right / yes) or **downvote** (swipe left / no), `emoji` NULL. Application enforces one vote per user per card (replace on re-vote). Comment-level voting is in **comment_votes**.
 - **comments**: Extended with `seeded`; subcomment rule enforced in application (and optionally with a CHECK or trigger).
+
+## Card Vote (Swipe) Semantics
+
+- **votes** table: `debate_card_id`, `user_id`, `vote_type` in ('upvote', 'downvote') for card swipe; `emoji` NULL. **Upvote** = swipe right (yes), **downvote** = swipe left (no).
+- One vote per user per card: on submit, replace any existing row for (debate_card_id, user_id) so the user has at most one card vote per card.
+- **Live debate meter**: Aggregate counts per card (yes_count, no_count) or per debate (e.g. total yes vs no across all three cards) from `votes`; return in GET debate or GET debate cards response for the meter UI.
 
 ## Summary
 
@@ -87,4 +93,5 @@ This document describes schema and entity changes for: (1) seeded comments on de
 | comments | Extend | Add `seeded`; seeded comments use user_id = system user; no stance in API/UI |
 | comment_votes | New | comment_id, user_id, vote_type (upvote/downvote), UNIQUE(comment_id, user_id) |
 | comment_reactions | New | comment_id, user_id, emoji; no max on emoji types per comment; UNIQUE(comment_id, user_id, emoji) |
+| votes (debate_cards) | Use | Card swipe: upvote=yes, downvote=no; one per user per card; feed live debate meter |
 | Subcomment depth | Logic | Enforce parent is top-level only (parent_comment_id IS NULL) |

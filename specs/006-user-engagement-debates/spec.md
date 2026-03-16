@@ -14,6 +14,11 @@
 - Q: Require loading and error states for comment list and write actions? → A: Yes — require loading and error (with retry where appropriate) for comment list and for reply/vote/reaction.
 - Q: Rate-limit comment creation or vote/reaction? → A: Yes — rate-limit comment creation only (e.g. N per minute per user); votes/reactions not rate-limited for this release.
 - Q: After auth, must auto-init (reply focus / reaction picker) be guaranteed? → A: Best-effort — attempt auto-init when return params are present; if state is lost or init fails, show the debate only. No guarantee.
+- Q: What does the live debate meter show? → A: One bar for the whole debate (total yes vs no across all 3 cards), with optional per-card breakdown on tap or in a secondary view.
+- Q: After user has voted on all three cards, what should the UI show? → A: Hide the card stack; show only the live meter, headline, and comments (stack is for voting only).
+- Q: Can the user change a card vote after swiping? → A: Vote is final once submitted; no in-app way to change a card vote.
+- Q: When match has no score (pre-match / not started), what should the header show for score? → A: Hide the score area; show only team badges (and "VS" if desired).
+- Q: Should card vote (swipe) submission be rate-limited? → A: No — do not rate-limit card votes for this release.
 
 ## Relationship to Other Specs
 
@@ -30,7 +35,28 @@ This spec **extends** [004-ai-debate-generator](../004-ai-debate-generator/spec.
 3. **Feature 3 — Authentication Gate Modal**  
    When an unauthenticated user attempts reply, vote, or reaction, show a modal prompting log in or create account; return to the same debate after auth.
 
-## Out of Scope (This Release)
+4. **Feature 4 — Swipe Card Voting**  
+   Users vote on the three debate cards (agree, disagree, wildcard) by swiping right (yes) or left (no) on a stacked card UI, with overlay feedback (thumbs up/down). A live debate meter at the top and team badge + score in the header provide context.
+
+## Feature 4 — Swipe Card Voting (Re-added)
+
+Users vote on the **three debate cards** (agree, disagree, wildcard) via a **swipe gesture** similar to dating apps: **swipe right = yes**, **swipe left = no**. This is separate from comment-level upvotes/downvotes; it is a stance vote on each of the three starter cards.
+
+### UX Requirements
+
+- **Card stack**: The three cards are **stacked on top of one another**, layered so the user can see additional cards behind the top card. Only the top card is fully interactive for swiping.
+- **Swipe gestures**: User swipes **right** for yes (agree with this card’s stance) or **left** for no (disagree). On swipe, show an **overlay** with a **thumbs up** (yes) or **thumbs down** (no) emoji for clear feedback.
+- **Flow**: User votes on the top card (swipe left/right), then the next card comes to the front; repeat for all three cards (agree, disagree, wildcard). **After the user has voted on all three cards**, hide the card stack and show only the live meter, headline, and comments (stack is for voting only).
+- **Live debate meter**: A **live debate meter** at the **top** of the screen shows **one bar for the whole debate** (total yes vs no across all three cards), updating as users vote. An **optional per-card breakdown** (yes/no per stance) is available on tap or in a secondary view.
+- **Header**: The **top header** includes **team badge(s)** and, when available, **match score** (e.g. home vs away team logos and current or final score). When the match has no score yet (pre-match or not started), hide the score area and show only team badges (and "VS" if desired).
+
+### Data and API
+
+- One vote per user per **debate_card**: yes (swipe right) or no (swipe left). Reuse or extend existing card-level `votes` storage (e.g. vote_type `yes`/`no` or map to existing upvote/downvote). **Vote is final once submitted**; there is no in-app way to change a card vote.
+- API: Submit card vote (authenticated); GET debate or cards with aggregate counts for the live meter. Card vote submission is **not rate-limited** for this release.
+- Unauthenticated users can see the meter and cards but must authenticate to submit a swipe vote (auth gate).
+
+### Out of Scope (This Release)
 
 - Editing or deleting seeded comments
 - Reporting or flagging comments
@@ -174,3 +200,9 @@ This app is **mobile only** (web not available). After successful authentication
 - **As an unauthenticated visitor**, I want to read all debate content and **see vote counts and reaction counts** so that I can explore the feature before committing to an account; I cannot engage (reply, vote, react) until I am authenticated.
 - **As an unauthenticated visitor**, when I try to interact with a comment, I want to see a clear prompt to log in or register so that I understand what I need to do to participate.
 - **As a returning user**, after logging in from the auth gate (on mobile), I want to be taken back to the debate I was viewing so I don't lose my place.
+
+### Swipe Card Voting
+
+- **As a user** viewing a debate, I want to see the three stance cards stacked so I can swipe right (yes) or left (no) on each, with a thumbs up/down overlay, so that voting feels quick and engaging like a dating app.
+- **As a user**, I want to see a live debate meter at the top and team badge + score in the header so I have match context and aggregate sentiment at a glance.
+- **As an unauthenticated visitor**, I want to see the cards and the debate meter but when I try to swipe to vote I am prompted to log in or register (auth gate).

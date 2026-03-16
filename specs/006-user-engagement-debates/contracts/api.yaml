@@ -17,8 +17,63 @@ tags:
     description: Upvote/downvote on comments
   - name: Comment Reactions
     description: Emoji reactions on comments
+  - name: Card Votes
+    description: Swipe voting on debate cards (yes/no) for live debate meter
 
 paths:
+  # Card swipe vote (yes = upvote, no = downvote); one per user per card; feeds live debate meter
+  /api/debates/{debate_id}/cards/{card_id}/vote:
+    put:
+      summary: Set or replace swipe vote on a debate card
+      description: |
+        Submit swipe vote: upvote = swipe right (yes), downvote = swipe left (no).
+        One vote per user per card; re-vote replaces previous. Requires authentication.
+        Unauthenticated users see auth gate. Used by stacked card UI; counts feed live debate meter.
+      operationId: setCardVote
+      tags: [Card Votes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: debate_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: card_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vote_type]
+              properties:
+                vote_type:
+                  type: string
+                  enum: [upvote, downvote]
+                  description: upvote = yes (swipe right), downvote = no (swipe left)
+      responses:
+        '200':
+          description: Vote recorded; returns updated counts for meter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardVoteCounts'
+        '400':
+          description: Invalid vote_type or card not in debate
+        '401':
+          description: Unauthorized — show auth gate
+        '404':
+          description: Debate or card not found
+        '500':
+          description: Internal error
+
   # List comments for a debate (includes nested subcomments, vote/reaction counts)
   /api/debates/{debate_id}/comments:
     get:
@@ -250,6 +305,25 @@ components:
       bearerFormat: JWT
 
   schemas:
+    CardVoteCounts:
+      type: object
+      description: Aggregate counts for a card or debate for the live debate meter
+      properties:
+        card_id:
+          type: integer
+          format: int32
+        yes_count:
+          type: integer
+          description: Swipe right (upvote) count
+        no_count:
+          type: integer
+          description: Swipe left (downvote) count
+        # Optional: per-debate totals for meter
+        total_yes:
+          type: integer
+        total_no:
+          type: integer
+
     DebateComment:
       type: object
       description: Comment or subcomment with vote/reaction counts. Seeded comments appear as regular comments (no stance or seeded flag in API). No max on emoji reaction types per comment.
