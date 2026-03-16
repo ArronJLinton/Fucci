@@ -93,8 +93,7 @@ func New(c Config) http.Handler {
 	debateRouter.Get("/{id}", c.getDebate)
 	debateRouter.With(auth.RequireAuth).Put("/{debateId}/cards/{cardId}/vote", c.setCardVote)
 	debateRouter.Post("/cards", c.createDebateCard)
-	debateRouter.Post("/votes", c.createVote)
-	debateRouter.Post("/comments", c.createComment)
+	// Legacy POST /debates/votes and POST /debates/comments removed: they were unauthenticated and used hardcoded user_id. Use PUT /debates/{id}/cards/{cardId}/vote and POST /debates/{id}/comments (auth required) instead.
 	debateRouter.Get("/{debateId}/comments", c.ListDebateComments)
 	debateRouter.With(auth.RequireAuth).Post("/{debateId}/comments", c.CreateDebateComment)
 	// Admin routes for soft delete management

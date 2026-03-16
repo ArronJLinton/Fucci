@@ -55,18 +55,6 @@ type CreateDebateCardRequest struct {
 	AIGenerated bool   `json:"ai_generated"`
 }
 
-type CreateVoteRequest struct {
-	DebateCardID int32  `json:"debate_card_id"`
-	VoteType     string `json:"vote_type"` // "upvote", "downvote", "emoji"
-	Emoji        string `json:"emoji,omitempty"`
-}
-
-type CreateCommentRequest struct {
-	DebateID        int32  `json:"debate_id"`
-	ParentCommentID *int32 `json:"parent_comment_id,omitempty"`
-	Content         string `json:"content"`
-}
-
 // CardVoteTotals is debate-level aggregates for the live meter (006 swipe voting).
 type CardVoteTotals struct {
 	TotalYes int `json:"total_yes"`
@@ -509,97 +497,6 @@ func (c *Config) createDebateCard(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Debate card created successfully",
 		"card_id": card.ID,
-	})
-}
-
-func (c *Config) createVote(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req CreateVoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.DebateCardID == 0 || req.VoteType == "" {
-		respondWithError(w, http.StatusBadRequest, "debate_card_id and vote_type are required")
-		return
-	}
-
-	if req.VoteType != "upvote" && req.VoteType != "downvote" && req.VoteType != "emoji" {
-		respondWithError(w, http.StatusBadRequest, "vote_type must be 'upvote', 'downvote', or 'emoji'")
-		return
-	}
-
-	// Get user ID from context (you'll need to implement authentication)
-	userID := int32(1) // TODO: Get from auth context
-
-	// Create vote
-	vote, err := c.DB.CreateVote(ctx, database.CreateVoteParams{
-		DebateCardID: sql.NullInt32{Int32: req.DebateCardID, Valid: true},
-		UserID:       sql.NullInt32{Int32: userID, Valid: true},
-		VoteType:     req.VoteType,
-		Emoji:        sql.NullString{String: req.Emoji, Valid: req.Emoji != ""},
-	})
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create vote: %v", err))
-		return
-	}
-
-	// Update analytics
-	c.updateDebateAnalytics(ctx, req.DebateCardID)
-
-	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"message": "Vote created successfully",
-		"vote_id": vote.ID,
-	})
-}
-
-func (c *Config) createComment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req CreateCommentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.DebateID == 0 || req.Content == "" {
-		respondWithError(w, http.StatusBadRequest, "debate_id and content are required")
-		return
-	}
-
-	// Get user ID from context (you'll need to implement authentication)
-	userID := int32(1) // TODO: Get from auth context
-
-	// Create comment
-	var parentCommentID sql.NullInt32
-	if req.ParentCommentID != nil && *req.ParentCommentID > 0 {
-		parentCommentID = sql.NullInt32{Int32: *req.ParentCommentID, Valid: true}
-	} else {
-		parentCommentID = sql.NullInt32{Valid: false}
-	}
-
-	comment, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
-		DebateID:        sql.NullInt32{Int32: req.DebateID, Valid: true},
-		ParentCommentID: parentCommentID,
-		UserID:          sql.NullInt32{Int32: userID, Valid: true},
-		Content:         req.Content,
-		Seeded:          false,
-	})
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create comment: %v", err))
-		return
-	}
-
-	// Update analytics
-	c.updateDebateAnalytics(ctx, req.DebateID)
-
-	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"message":    "Comment created successfully",
-		"comment_id": comment.ID,
 	})
 }
 
