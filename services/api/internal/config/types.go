@@ -10,5 +10,5 @@ type Config struct {
 	PORT               string
 	ENVIRONMENT        string
 	JWT_SECRET         string
-	SYSTEM_USER_EMAIL  string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	SYSTEM_USER_EMAIL  string // Email for Fucci system user (006 seeded comments); default contact@magistri.dev
 }
