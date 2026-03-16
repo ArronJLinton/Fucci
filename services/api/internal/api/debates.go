@@ -93,6 +93,49 @@ type DebateCardResponse struct {
 	UserVote    *VoteResponse `json:"user_vote,omitempty"`
 }
 
+const defaultSystemUserEmail = "fucci@system.local"
+
+// getSystemUserID returns the system user (Fucci) ID for seeded comments. Uses Config.SystemUserEmail, or fucci@system.local if unset.
+func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
+	email := c.SystemUserEmail
+	if email == "" {
+		email = defaultSystemUserEmail
+	}
+	user, err := c.DB.GetUserByEmail(ctx, email)
+	if err != nil {
+		return 0, err
+	}
+	return user.ID, nil
+}
+
+// insertSeededComments creates one comment per card for the debate, attributed to the system user (Fucci).
+func (c *Config) insertSeededComments(ctx context.Context, debateID int32, cards []ai.DebateCard) {
+	systemUserID, err := c.getSystemUserID(ctx)
+	if err != nil {
+		log.Printf("[debate] seeded comments skipped: system user not found (set SYSTEM_USER_EMAIL to your system user email, e.g. contact@magistri.dev): %v", err)
+		return
+	}
+	for _, card := range cards {
+		content := card.Description
+		if content == "" {
+			content = card.Title
+		}
+		if content == "" {
+			continue
+		}
+		_, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
+			DebateID:        sql.NullInt32{Int32: debateID, Valid: true},
+			ParentCommentID: sql.NullInt32{Valid: false},
+			UserID:          sql.NullInt32{Int32: systemUserID, Valid: true},
+			Content:         content,
+			Seeded:          true,
+		})
+		if err != nil {
+			log.Printf("[debate] insertSeededComments: %v", err)
+		}
+	}
+}
+
 type VoteCounts struct {
 	Upvotes   int            `json:"upvotes"`
 	Downvotes int            `json:"downvotes"`
@@ -865,6 +908,9 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		cardResponses = append(cardResponses, cardResponse)
 	}
 
+	// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
+	c.insertSeededComments(ctx, debate.ID, prompt.Cards)
+
 	// Ensure we have at least one card
 	if len(cardResponses) == 0 {
 		respondWithError(w, http.StatusInternalServerError, "No valid debate cards were created")
@@ -1163,6 +1209,8 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 			continue
 		}
+		// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
+		c.insertSeededComments(ctx, debate.ID, prompt.Cards)
 		responses = append(responses, DebateResponse{
 			ID:          debate.ID,
 			MatchID:     debate.MatchID,

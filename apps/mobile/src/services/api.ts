@@ -304,6 +304,14 @@ export const fetchDebateById = async (
   }
 };
 
+/** GET /debates/:id/comments — list top-level comments with subcomments, net_score, reactions (006) */
+export const listComments = async (
+  debateId: number,
+): Promise<import('../types/debate').DebateComment[]> => {
+  const data = await makeApiRequest(`/debates/${debateId}/comments`, 'GET');
+  return Array.isArray(data) ? data : [];
+};
+
 /** POST /debates/generate — create debate (body: match_id, debate_type) */
 export const createDebate = async (
   matchId: string | number,

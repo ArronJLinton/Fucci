@@ -29,6 +29,7 @@ type Config struct {
 	OpenAIKey          string
 	OpenAIBaseURL      string
 	AIPromptGenerator  *ai.PromptGenerator
+	SystemUserEmail    string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 }
 
 func New(c Config) http.Handler {
@@ -93,7 +94,7 @@ func New(c Config) http.Handler {
 	debateRouter.Post("/cards", c.createDebateCard)
 	debateRouter.Post("/votes", c.createVote)
 	debateRouter.Post("/comments", c.createComment)
-	debateRouter.Get("/{debateId}/comments", c.getComments)
+	debateRouter.Get("/{debateId}/comments", c.ListDebateComments)
 	// Admin routes for soft delete management
 	debateRouter.Delete("/{id}/hard", c.hardDeleteDebate) // Permanent deletion
 	debateRouter.Post("/{id}/restore", c.restoreDebate)   // Restore soft-deleted debate

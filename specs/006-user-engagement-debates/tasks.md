@@ -51,11 +51,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [P] [US1] Implement GET /api/debates/{debate_id}/comments handler: list top-level comments with subcomments (one level), net_score per comment, reaction counts, user display_name and avatar_url; do not expose seeded flag; public (no auth) in services/api/internal/api/comments.go
-- [ ] T010 [US1] Register GET /api/debates/{debate_id}/comments route (and mount comments router if needed) in services/api/internal/api/api.go
-- [ ] T011 [US1] Extend AI prompt and debate generation to return three comment texts (agree, disagree, wildcard); after creating a debate in generate-set/create flow, insert three comments with debate_id, user_id = system user (Fucci), content from AI, seeded = true in services/api/internal/api/debates.go and services/api/internal/ai/prompt_generator.go
-- [ ] T012 [US1] Add listComments(debateId) API client function in apps/mobile/src/services/api.ts
-- [ ] T013 [US1] Display comments list (with net_score, reactions, author avatar/name, no stance labels) on SingleDebateScreen; include loading state while fetching and on error show user-friendly message with Retry in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T009 [P] [US1] Implement GET /api/debates/{debate_id}/comments handler: list top-level comments with subcomments (one level), net_score per comment, reaction counts, user display_name and avatar_url; do not expose seeded flag; public (no auth) in services/api/internal/api/comments.go
+- [x] T010 [US1] Register GET /api/debates/{debate_id}/comments route (and mount comments router if needed) in services/api/internal/api/api.go
+- [x] T011 [US1] Extend AI prompt and debate generation to return three comment texts (agree, disagree, wildcard); after creating a debate in generate-set/create flow, insert three comments with debate_id, user_id = system user (Fucci), content from AI, seeded = true in services/api/internal/api/debates.go and services/api/internal/ai/prompt_generator.go
+- [x] T012 [US1] Add listComments(debateId) API client function in apps/mobile/src/services/api.ts
+- [x] T013 [US1] Display comments list (with net_score, reactions, author avatar/name, no stance labels) on SingleDebateScreen; include loading state while fetching and on error show user-friendly message with Retry in apps/mobile/src/screens/SingleDebateScreen.tsx
 
 **Checkpoint**: User Story 1 complete — users can see headline, description, and three seeded comments
 

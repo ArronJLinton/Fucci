@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -9,43 +9,18 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import type {RootStackParamList} from '../types/navigation';
-import type {DebateCard, MockComment} from '../types/debate';
+import type {DebateComment} from '../types/debate';
+import {listComments} from '../services/api';
 
 type SingleDebateRouteProp = RouteProp<RootStackParamList, 'SingleDebate'>;
 
-const MOCK_COMMENTS: (MockComment & {views?: number})[] = [
-  {
-    id: '1',
-    username: 'MrAficionado',
-    content: "He's more impactful and is a game changer for Madrid!",
-    upvotes: 2700,
-    replies: 12,
-    views: 365,
-  },
-  {
-    id: '2',
-    username: 'GoPSG',
-    content: 'Haaland is a goal machine.',
-    upvotes: 1100,
-    replies: 5,
-    views: 212,
-  },
-  {
-    id: '3',
-    username: 'FutbolExpert',
-    content: 'Both are world class—depends on the system.',
-    upvotes: 827,
-    replies: 0,
-    views: 180,
-  },
-];
-
-function formatUpvotes(n: number): string {
+function formatScore(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
 }
@@ -56,80 +31,70 @@ const SingleDebateScreen = () => {
   const insets = useSafeAreaInsets();
   const {match, debate} = route.params;
 
-  const [mockComments, setMockComments] = useState(MOCK_COMMENTS);
+  const [comments, setComments] = useState<DebateComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
-  const [sideAPct, setSideAPct] = useState(61);
-  const [sideBPct, setSideBPct] = useState(39);
-  const [cardVotePcts, setCardVotePcts] = useState<Record<string, number>>({
-    agree: 55,
-    disagree: 45,
-    wildcard: 0,
-  });
+
+  const loadComments = useCallback(async () => {
+    const debateId = debate?.id;
+    if (debateId == null) return;
+    setCommentsError(null);
+    setCommentsLoading(true);
+    try {
+      const list = await listComments(debateId);
+      setComments(list);
+    } catch (_e) {
+      setCommentsError('Could not load comments. Tap Retry to try again.');
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [debate?.id]);
+
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
 
   const headline = debate?.headline ?? 'Debate';
-  const sideALabel = match?.teams?.home?.name ?? 'Yes';
-  const sideBLabel = match?.teams?.away?.name ?? 'No';
-  const cards: DebateCard[] = debate?.cards ?? [];
-
-  const getStanceColor = (stance: string) => {
-    switch (stance) {
-      case 'agree':
-        return '#4CAF50';
-      case 'disagree':
-        return '#F44336';
-      case 'wildcard':
-        return '#FF9800';
-      default:
-        return '#6b7280';
-    }
-  };
-
-  const getStanceIcon = (stance: string) => {
-    switch (stance) {
-      case 'agree':
-        return '👍';
-      case 'disagree':
-        return '👎';
-      case 'wildcard':
-        return '🎯';
-      default:
-        return '❓';
-    }
-  };
-
-  const handleCardVote = (stance: string) => {
-    const key = stance as keyof typeof cardVotePcts;
-    setCardVotePcts(prev => {
-      const next = {...prev};
-      next[key] = (next[key] ?? 0) + 5;
-      const total = Object.values(next).reduce((a, b) => a + b, 0);
-      Object.keys(next).forEach(k => {
-        next[k] = Math.round((next[k] / total) * 100);
-      });
-      return next;
-    });
-  };
-
-  const handleVoteNow = () => {
-    setSideAPct(p => Math.min(100, p + 2));
-    setSideBPct(p => Math.max(0, p - 2));
-  };
 
   const handleAddComment = () => {
     if (!commentInput.trim()) return;
-    setMockComments(prev => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        username: 'You',
-        content: commentInput.trim(),
-        upvotes: 0,
-        replies: 0,
-        views: 0,
-      },
-    ]);
+    // TODO Phase 4: POST comment via API
     setCommentInput('');
   };
+
+  const renderComment = (c: DebateComment, isSub?: boolean) => (
+    <View key={c.id} style={[styles.commentRow, isSub && styles.subcommentRow]}>
+      <View style={styles.commentAvatar}>
+        {c.user_avatar_url ? (
+          <Image source={{uri: c.user_avatar_url}} style={styles.commentAvatarImage} />
+        ) : (
+          <Text style={styles.commentAvatarText}>
+            {(c.user_display_name || '?').charAt(0).toUpperCase()}
+          </Text>
+        )}
+      </View>
+      <View style={styles.commentBody}>
+        <View style={styles.commentMetaRow}>
+          <Text style={styles.commentUsername}>{c.user_display_name || 'User'}</Text>
+          <Text style={styles.commentUpvotes}>
+            {c.net_score >= 0 ? '+' : ''}{formatScore(c.net_score)}
+          </Text>
+        </View>
+        <Text style={styles.commentContent}>{c.content}</Text>
+        {c.reactions && c.reactions.length > 0 && (
+          <View style={styles.reactionsRow}>
+            {c.reactions.map((r, i) => (
+              <Text key={`${c.id}-${i}`} style={styles.reactionChip}>
+                {r.emoji} {r.count}
+              </Text>
+            ))}
+          </View>
+        )}
+        {c.subcomments && c.subcomments.length > 0 && c.subcomments.map(sub => renderComment(sub, true))}
+      </View>
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -165,130 +130,7 @@ const SingleDebateScreen = () => {
         {/* Debate question */}
         <Text style={styles.headline}>{headline}</Text>
 
-        {/* Two sides with VS */}
-        <View style={styles.vsRow}>
-          <View style={styles.playerBlock}>
-            <View style={styles.avatarCircle}>
-              {match?.teams?.home?.logo ? (
-                <Image
-                  source={{uri: match.teams.home.logo}}
-                  style={styles.avatarImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <Ionicons name="shirt-outline" size={40} color="#6b7280" />
-              )}
-            </View>
-            <Text style={styles.playerName} numberOfLines={1}>
-              {sideALabel}
-            </Text>
-            <View style={styles.voteBarBg}>
-              <View
-                style={[
-                  styles.voteBarFill,
-                  {width: `${sideAPct}%`, backgroundColor: '#3B82F6'},
-                ]}
-              />
-            </View>
-            <Text style={styles.votePct}>{sideAPct}%</Text>
-          </View>
-
-          <View style={styles.vsBadge}>
-            <Text style={styles.vsText}>VS</Text>
-          </View>
-
-          <View style={styles.playerBlock}>
-            <View style={styles.avatarCircle}>
-              {match?.teams?.away?.logo ? (
-                <Image
-                  source={{uri: match.teams.away.logo}}
-                  style={styles.avatarImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <Ionicons name="shirt-outline" size={40} color="#6b7280" />
-              )}
-            </View>
-            <Text style={styles.playerName} numberOfLines={1}>
-              {sideBLabel}
-            </Text>
-            <View style={styles.voteBarBg}>
-              <View
-                style={[
-                  styles.voteBarFill,
-                  {width: `${sideBPct}%`, backgroundColor: '#3B82F6'},
-                ]}
-              />
-            </View>
-            <Text style={styles.votePct}>{sideBPct}%</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.voteNowLinkRow}
-          activeOpacity={0.7}
-          onPress={handleVoteNow}
-        >
-          <Text style={styles.voteNowLinkLabel}>Vote Now</Text>
-          <Ionicons name="chevron-forward" size={18} color="#007AFF" />
-        </TouchableOpacity>
-
-        {/* Agree / Disagree / Wildcard cards */}
-        {cards.length > 0 && (
-          <View style={styles.stanceCardsSection}>
-            {cards.map(card => {
-              const pct = cardVotePcts[card.stance] ?? 0;
-              return (
-                <View key={card.stance} style={styles.stanceCard}>
-                  <View style={styles.stanceCardHeader}>
-                    <Text style={styles.stanceCardIcon}>
-                      {getStanceIcon(card.stance)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.stanceBadge,
-                        {backgroundColor: getStanceColor(card.stance)},
-                      ]}>
-                      <Text style={styles.stanceBadgeText}>
-                        {card.stance.charAt(0).toUpperCase() +
-                          card.stance.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.stanceCardTitle}>{card.title}</Text>
-                  <Text style={styles.stanceCardDescription}>
-                    {card.description}
-                  </Text>
-                  <View style={styles.stanceVoteBarBg}>
-                    <View
-                      style={[
-                        styles.stanceVoteBarFill,
-                        {
-                          width: `${pct}%`,
-                          backgroundColor: getStanceColor(card.stance),
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.stanceVotePct}>{pct}%</Text>
-                  <TouchableOpacity
-                    style={styles.stanceVoteNowRow}
-                    activeOpacity={0.7}
-                    onPress={() => handleCardVote(card.stance)}>
-                    <Text style={styles.stanceVoteNowLabel}>Vote Now</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color="#007AFF"
-                    />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Top Comments header */}
+        {/* Comments — seeded viewpoints appear here as comments (no voting UI) */}
         <View style={styles.commentsHeader}>
           <TouchableOpacity style={styles.sortRow}>
             <Text style={styles.sortLabel}>Top Comments</Text>
@@ -299,48 +141,25 @@ const SingleDebateScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Comment list */}
-        {mockComments.map(c => (
-          <View key={c.id} style={styles.commentRow}>
-            <View style={styles.commentAvatar}>
-              <Text style={styles.commentAvatarText}>
-                {(c.username || '?').charAt(0)}
-              </Text>
-            </View>
-            <View style={styles.commentBody}>
-              <View style={styles.commentMetaRow}>
-                <Text style={styles.commentUsername}>{c.username}</Text>
-                <Text style={styles.commentUpvotes}>
-                  + {formatUpvotes(c.upvotes)}
-                </Text>
-              </View>
-              <Text style={styles.commentContent}>{c.content}</Text>
-              <View style={styles.commentActions}>
-                <View style={styles.commentActionItem}>
-                  <Ionicons name="eye-outline" size={14} color="#6b7280" />
-                  <Text style={styles.commentActionText}>{c.views ?? 0}</Text>
-                </View>
-                <View style={styles.commentActionItem}>
-                  <Ionicons
-                    name="chatbubble-outline"
-                    size={14}
-                    color="#6b7280"
-                  />
-                  <Text style={styles.commentActionText}>{c.replies ?? 0}</Text>
-                </View>
-                <TouchableOpacity style={styles.commentActionItem}>
-                  <Ionicons name="chevron-up" size={16} color="#6b7280" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.commentActionItem}>
-                  <Ionicons name="chevron-down" size={16} color="#6b7280" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.commentActionItem}>
-                  <Ionicons name="chevron-down" size={14} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-            </View>
+        {/* Comment list — loading, error with Retry, or list (006 US1) */}
+        {commentsLoading && (
+          <View style={styles.commentsLoading}>
+            <ActivityIndicator size="small" color="#6b7280" />
+            <Text style={styles.commentsLoadingText}>Loading comments...</Text>
           </View>
-        ))}
+        )}
+        {!commentsLoading && commentsError && (
+          <View style={styles.commentsError}>
+            <Text style={styles.commentsErrorText}>{commentsError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadComments}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {!commentsLoading && !commentsError && comments.length === 0 && debate?.id != null && (
+          <Text style={styles.commentsEmpty}>No comments yet.</Text>
+        )}
+        {!commentsLoading && !commentsError && comments.map(c => renderComment(c))}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -598,6 +417,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 20,
   },
+  subcommentRow: {
+    marginLeft: 24,
+    marginBottom: 12,
+  },
   commentAvatar: {
     width: 36,
     height: 36,
@@ -606,6 +429,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+  },
+  commentAvatarImage: {
+    width: 36,
+    height: 36,
   },
   commentAvatarText: {
     fontSize: 14,
@@ -636,6 +464,54 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     lineHeight: 20,
     marginBottom: 8,
+  },
+  reactionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  reactionChip: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  commentsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 24,
+  },
+  commentsLoadingText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  commentsError: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  commentsErrorText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  commentsEmpty: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    paddingVertical: 24,
   },
   commentActions: {
     flexDirection: 'row',

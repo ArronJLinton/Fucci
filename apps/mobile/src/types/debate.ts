@@ -55,3 +55,25 @@ export interface MockComment {
   upvotes: number;
   replies?: number;
 }
+
+/** Reaction count per emoji (006 GET /debates/:id/comments) */
+export interface ReactionCount {
+  emoji: string;
+  count: number;
+}
+
+/** Comment from GET /debates/:id/comments — top-level and subcomments, no stance/seeded in API */
+export interface DebateComment {
+  id: number;
+  debate_id: number;
+  parent_comment_id?: number | null;
+  user_id: number;
+  user_display_name: string;
+  user_avatar_url?: string | null;
+  content: string;
+  created_at: string;
+  net_score: number;
+  current_user_vote?: 'upvote' | 'downvote' | null;
+  reactions: ReactionCount[];
+  subcomments?: DebateComment[];
+}

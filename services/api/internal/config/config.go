@@ -44,6 +44,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 	viper.SetDefault("openai_base_url", "https://api.openai.com/v1")
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("environment", "development")
+	viper.SetDefault("system_user_email", "contact@magistri.dev")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -56,15 +57,16 @@ func InitConfig(logger *otelzap.Logger) Config {
 	}
 
 	cfg := Config{
-		DB_URL:           viper.GetString("db_url"),
-		FOOTBALL_API_KEY: viper.GetString("football_api_key"),
-		RAPID_API_KEY:    viper.GetString("rapid_api_key"),
-		REDIS_URL:        viper.GetString("redis_url"),
-		OPENAI_API_KEY:   viper.GetString("openai_api_key"),
-		OPENAI_BASE_URL:  viper.GetString("openai_base_url"),
-		PORT:             viper.GetString("port"),
-		ENVIRONMENT:      viper.GetString("environment"),
-		JWT_SECRET:       viper.GetString("jwt_secret"),
+		DB_URL:            viper.GetString("db_url"),
+		FOOTBALL_API_KEY:  viper.GetString("football_api_key"),
+		RAPID_API_KEY:     viper.GetString("rapid_api_key"),
+		REDIS_URL:         viper.GetString("redis_url"),
+		OPENAI_API_KEY:    viper.GetString("openai_api_key"),
+		OPENAI_BASE_URL:   viper.GetString("openai_base_url"),
+		PORT:              viper.GetString("port"),
+		ENVIRONMENT:       viper.GetString("environment"),
+		JWT_SECRET:        viper.GetString("jwt_secret"),
+		SYSTEM_USER_EMAIL: viper.GetString("system_user_email"),
 	}
 
 	return cfg
