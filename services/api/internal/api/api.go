@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -12,6 +13,21 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 )
+
+// CardVoteReader is used for unit tests; when set, setCardVote uses it for GetUser and GetDebateCard.
+// Production leaves this nil (handler falls back to DB).
+type CardVoteReader interface {
+	GetUser(ctx context.Context, id int32) (database.User, error)
+	GetDebateCard(ctx context.Context, id int32) (database.DebateCard, error)
+}
+
+// CommentReader is used for unit tests; when set, comment handlers use it for GetDebate, GetComments, GetComment.
+// Production leaves this nil (handler falls back to DB).
+type CommentReader interface {
+	GetDebate(ctx context.Context, id int32) (database.Debate, error)
+	GetComments(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error)
+	GetComment(ctx context.Context, id int32) (database.GetCommentRow, error)
+}
 
 // InitJWT initializes JWT authentication with the provided secret
 func InitJWT(secret string) error {
@@ -30,6 +46,10 @@ type Config struct {
 	OpenAIBaseURL      string
 	AIPromptGenerator  *ai.PromptGenerator
 	SystemUserEmail    string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+
+	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
+	CardVoteReader CardVoteReader
+	CommentReader  CommentReader
 }
 
 func New(c Config) http.Handler {

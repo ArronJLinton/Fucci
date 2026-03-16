@@ -39,7 +39,11 @@ func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure user exists (e.g. DB was reset or token from another env) to avoid votes_user_id_fkey violation
-	if _, err := c.DB.GetUser(ctx, userID); err != nil {
+	userReader := CardVoteReader(c.DB)
+	if c.CardVoteReader != nil {
+		userReader = c.CardVoteReader
+	}
+	if _, err := userReader.GetUser(ctx, userID); err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusUnauthorized, "Account not found. Please log in again.")
 			return
@@ -72,7 +76,11 @@ func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	card, err := c.DB.GetDebateCard(ctx, int32(cardID))
+	cardReader := CardVoteReader(c.DB)
+	if c.CardVoteReader != nil {
+		cardReader = c.CardVoteReader
+	}
+	card, err := cardReader.GetDebateCard(ctx, int32(cardID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusNotFound, "Card not found")

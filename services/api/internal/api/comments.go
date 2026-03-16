@@ -88,7 +88,11 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Optional: verify debate exists
-	_, err = c.DB.GetDebate(ctx, int32(debateID))
+	debateReader := CommentReader(c.DB)
+	if c.CommentReader != nil {
+		debateReader = c.CommentReader
+	}
+	_, err = debateReader.GetDebate(ctx, int32(debateID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusNotFound, "Debate not found")
@@ -98,7 +102,7 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := c.DB.GetComments(ctx, sql.NullInt32{Int32: int32(debateID), Valid: true})
+	rows, err := debateReader.GetComments(ctx, sql.NullInt32{Int32: int32(debateID), Valid: true})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get comments: %v", err))
 		return
@@ -185,7 +189,11 @@ func (c *Config) CreateDebateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = c.DB.GetDebate(ctx, int32(debateID))
+	commentReader := CommentReader(c.DB)
+	if c.CommentReader != nil {
+		commentReader = c.CommentReader
+	}
+	_, err = commentReader.GetDebate(ctx, int32(debateID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusNotFound, "Debate not found")
@@ -197,7 +205,7 @@ func (c *Config) CreateDebateComment(w http.ResponseWriter, r *http.Request) {
 
 	var parentCommentID sql.NullInt32
 	if req.ParentCommentID != nil && *req.ParentCommentID > 0 {
-		parent, err := c.DB.GetComment(ctx, *req.ParentCommentID)
+		parent, err := commentReader.GetComment(ctx, *req.ParentCommentID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				respondWithError(w, http.StatusNotFound, "Parent comment not found")
