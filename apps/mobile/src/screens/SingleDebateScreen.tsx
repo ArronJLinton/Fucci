@@ -10,14 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Modal,
   PanResponder,
   Dimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
-import type {RootStackParamList} from '../types/navigation';
+import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
 import type {DebateComment, DebateCard, CardVoteTotals, ReactionCount} from '../types/debate';
 import {
   listComments,
@@ -28,6 +27,7 @@ import {
 } from '../services/api';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate} from '../navigation/rootNavigation';
+import {AuthGateModal} from '../components/AuthGateModal';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const SWIPE_THRESHOLD = 80;
@@ -56,7 +56,8 @@ const SingleDebateScreen = () => {
   const [voteLoadingCommentId, setVoteLoadingCommentId] = useState<number | null>(null);
   const [reactionLoadingCommentId, setReactionLoadingCommentId] = useState<number | null>(null);
   const [showReactionPickerCommentId, setShowReactionPickerCommentId] = useState<number | null>(null);
-  const [showCommentAuthGate, setShowCommentAuthGate] = useState(false);
+  /** When non-null, show AuthGateModal; value is the pending action for return-to-debate */
+  const [authGatePendingAction, setAuthGatePendingAction] = useState<AuthPendingAction | null>(null);
 
   // Card vote (swipe) state — totals for meter, and which cards user has voted this session
   const [cardVoteTotals, setCardVoteTotals] = useState<CardVoteTotals | null>(
@@ -68,7 +69,6 @@ const SingleDebateScreen = () => {
   >({});
   const [votedCardIds, setVotedCardIds] = useState<Set<number>>(new Set());
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [showAuthGate, setShowAuthGate] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipeOverlay, setSwipeOverlay] = useState<'yes' | 'no' | null>(null);
   const [voteSubmitting, setVoteSubmitting] = useState(false);
@@ -119,7 +119,34 @@ const SingleDebateScreen = () => {
     loadComments();
   }, [loadComments]);
 
+  // After return from Login/SignUp: best-effort auto-initiate pending action (T024)
+  const pendingFromAuth = route.params?.pendingAction;
+  const consumedPendingRef = useRef(false);
+  useEffect(() => {
+    if (!isLoggedIn || !pendingFromAuth || !match || !debate || consumedPendingRef.current) return;
+    consumedPendingRef.current = true;
+    if (pendingFromAuth === 'reply') {
+      setReplyingToCommentId(-1);
+    } else if (pendingFromAuth === 'reaction' && comments.length > 0 && comments[0].id != null) {
+      setShowReactionPickerCommentId(comments[0].id);
+    }
+    (navigation as any).setParams({pendingAction: undefined});
+  }, [isLoggedIn, pendingFromAuth, match, debate, comments.length, navigation]);
+
   const headline = debate?.headline ?? 'Debate';
+
+  const authGateContent = useMemo(() => {
+    if (authGatePendingAction === 'swipe') {
+      return {
+        title: 'Login to vote',
+        message: 'Sign in or create an account to vote on debate cards.',
+      };
+    }
+    return {
+      title: 'Join the conversation',
+      message: 'Sign in or create an account to reply, vote, or react on comments.',
+    };
+  }, [authGatePendingAction]);
 
   const submitCardVote = useCallback(
     async (cardId: number, voteType: 'upvote' | 'downvote') => {
@@ -153,7 +180,7 @@ const SingleDebateScreen = () => {
   const handleSwipeVote = useCallback(
     (voteType: 'upvote' | 'downvote') => {
       if (!isLoggedIn) {
-        setShowAuthGate(true);
+        setAuthGatePendingAction('swipe');
         return;
       }
       const card = cards[currentCardIndex];
@@ -199,7 +226,7 @@ const SingleDebateScreen = () => {
       return;
     }
     if (!isLoggedIn || !token) {
-      setShowCommentAuthGate(true);
+      setAuthGatePendingAction('reply');
       return;
     }
     setCommentSubmitError(null);
@@ -207,7 +234,7 @@ const SingleDebateScreen = () => {
     try {
       const created = await apiCreateComment(token, debate.id, {
         content,
-        parent_comment_id: replyingToCommentId ?? undefined,
+        parent_comment_id: replyingToCommentId != null && replyingToCommentId > 0 ? replyingToCommentId : undefined,
       });
       if (created) {
         setCommentInput('');
@@ -225,7 +252,7 @@ const SingleDebateScreen = () => {
 
   const handleCommentVote = async (commentId: number, newVote: 'upvote' | 'downvote' | null) => {
     if (!isLoggedIn || !token) {
-      setShowCommentAuthGate(true);
+      setAuthGatePendingAction('vote');
       return;
     }
     const c = comments.find(x => x.id === commentId) ?? [...comments, ...comments.flatMap(x => x.subcomments ?? [])].find(x => x.id === commentId);
@@ -261,7 +288,7 @@ const SingleDebateScreen = () => {
 
   const handleCommentReaction = async (commentId: number, emoji: string) => {
     if (!isLoggedIn || !token) {
-      setShowCommentAuthGate(true);
+      setAuthGatePendingAction('reaction');
       return;
     }
     setShowReactionPickerCommentId(null);
@@ -345,7 +372,7 @@ const SingleDebateScreen = () => {
             {!isSub && (
               <TouchableOpacity
                 onPress={() => {
-                  if (!isLoggedIn) setShowCommentAuthGate(true);
+                  if (!isLoggedIn) setAuthGatePendingAction('reply');
                   else {
                     setReplyingToCommentId(c.id);
                     setCommentInput('');
@@ -368,7 +395,7 @@ const SingleDebateScreen = () => {
               ))}
               <TouchableOpacity
                 onPress={() => {
-                  if (!isLoggedIn) setShowCommentAuthGate(true);
+                  if (!isLoggedIn) setAuthGatePendingAction('reaction');
                   else setShowReactionPickerCommentId(prev => (prev === c.id ? null : c.id));
                 }}
                 style={styles.reactionAddBtn}>
@@ -625,7 +652,7 @@ const SingleDebateScreen = () => {
           {replyingToCommentId != null && (
             <View style={styles.replyHintRow}>
               <Text style={styles.replyHintText}>
-                Replying to {comments.find(x => x.id === replyingToCommentId)?.user_display_name ?? 'comment'}
+                Replying to {replyingToCommentId > 0 ? (comments.find(x => x.id === replyingToCommentId)?.user_display_name ?? 'comment') : 'comment'}
               </Text>
               <TouchableOpacity onPress={() => setReplyingToCommentId(null)} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
                 <Ionicons name="close" size={18} color="#6b7280" />
@@ -658,89 +685,26 @@ const SingleDebateScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Auth gate: when unauthenticated user tries to swipe to vote */}
-      <Modal
-        visible={showAuthGate}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAuthGate(false)}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.authGateBackdrop}
-          onPress={() => setShowAuthGate(false)}>
-          <View style={styles.authGateBox}>
-            <Text style={styles.authGateTitle}>Login to vote</Text>
-            <Text style={styles.authGateMessage}>
-              Sign in or create an account to vote on debate cards.
-            </Text>
-            <View style={styles.authGateButtons}>
-              <TouchableOpacity
-                style={styles.authGateButtonSecondary}
-                onPress={() => {
-                  setShowAuthGate(false);
-                  rootNavigate('Login');
-                }}>
-                <Text style={styles.authGateButtonSecondaryText}>Login</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.authGateButtonPrimary}
-                onPress={() => {
-                  setShowAuthGate(false);
-                  rootNavigate('SignUp');
-                }}>
-                <Text style={styles.authGateButtonPrimaryText}>Sign up</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.authGateCancel}
-              onPress={() => setShowAuthGate(false)}>
-              <Text style={styles.authGateCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Auth gate: when unauthenticated user tries to reply, vote, or react on a comment */}
-      <Modal
-        visible={showCommentAuthGate}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCommentAuthGate(false)}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.authGateBackdrop}
-          onPress={() => setShowCommentAuthGate(false)}>
-          <View style={styles.authGateBox}>
-            <Text style={styles.authGateTitle}>Join the conversation</Text>
-            <Text style={styles.authGateMessage}>
-              Sign in or create an account to reply, vote, or react on comments.
-            </Text>
-            <View style={styles.authGateButtons}>
-              <TouchableOpacity
-                style={styles.authGateButtonSecondary}
-                onPress={() => {
-                  setShowCommentAuthGate(false);
-                  rootNavigate('Login');
-                }}>
-                <Text style={styles.authGateButtonSecondaryText}>Login</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.authGateButtonPrimary}
-                onPress={() => {
-                  setShowCommentAuthGate(false);
-                  rootNavigate('SignUp');
-                }}>
-                <Text style={styles.authGateButtonPrimaryText}>Create account</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.authGateCancel}
-              onPress={() => setShowCommentAuthGate(false)}>
-              <Text style={styles.authGateCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <AuthGateModal
+        visible={authGatePendingAction != null}
+        onDismiss={() => setAuthGatePendingAction(null)}
+        onLogin={() => {
+          const pending = authGatePendingAction;
+          setAuthGatePendingAction(null);
+          rootNavigate('Login', {
+            returnToDebate: match && debate ? {match, debate, pendingAction: pending ?? undefined} : undefined,
+          });
+        }}
+        onSignUp={() => {
+          const pending = authGatePendingAction;
+          setAuthGatePendingAction(null);
+          rootNavigate('SignUp', {
+            returnToDebate: match && debate ? {match, debate, pendingAction: pending ?? undefined} : undefined,
+          });
+        }}
+        title={authGateContent.title}
+        message={authGateContent.message}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -977,66 +941,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4b5563',
     lineHeight: 20,
-  },
-  authGateBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  authGateBox: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-  },
-  authGateTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  authGateMessage: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  authGateButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  authGateButtonPrimary: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-  },
-  authGateButtonSecondary: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 10,
-  },
-  authGateButtonPrimaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  authGateButtonSecondaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  authGateCancel: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  authGateCancelText: {
-    fontSize: 14,
-    color: '#6b7280',
   },
   headline: {
     fontSize: 20,

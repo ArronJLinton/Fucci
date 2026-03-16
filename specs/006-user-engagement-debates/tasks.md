@@ -3,7 +3,7 @@
 **Input**: Design documents from `specs/006-user-engagement-debates/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Progress**: Phase 1 (Setup), Phase 2 (Foundational), Phase 3 (US1 — Match Debate Structure), Phase 4 (US2 — Comment Interactions), and Phase 6 (US4 — Swipe Card Voting) are complete. Remaining: Phase 5 (US3 — Auth Gate Modal T022–T024), Phase 7 (Polish T036–T037).
+**Progress**: Phase 1 (Setup), Phase 2 (Foundational), Phase 3 (US1), Phase 4 (US2), Phase 5 (US3 — Auth Gate Modal), and Phase 6 (US4) are complete. Remaining: Phase 7 (Polish T036–T037).
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing. Tests are not explicitly requested in the spec; omit test-only tasks per template. **Clarifications** (spec Session 2026-02-15) are reflected: system user via one-time migration at deploy, 500-char limit for user comments, loading/error states with retry, rate-limit comment creation only, best-effort return-to-debate auto-init. **Feature 4 (Swipe Card Voting)** clarifications: live meter = one bar for whole debate + optional per-card breakdown on tap; after all three cards voted hide stack and show meter + headline + comments; card vote final once submitted; header shows score only when available (hide score pre-match); card votes not rate-limited.
 
@@ -92,9 +92,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Create AuthGateModal component: title "Join the conversation", body text, primary "Log in", secondary "Create account", dismiss; overlay with darkened backdrop in apps/mobile/src/components/AuthGateModal.tsx (or in screens)
-- [ ] T023 [US3] On SingleDebateScreen, when user is unauthenticated and taps Reply / Vote / React, show AuthGateModal instead of performing action; pass pending action type (reply | vote | reaction) for return state in apps/mobile/src/screens/SingleDebateScreen.tsx
-- [ ] T024 [US3] On "Log in" / "Create account", navigate to Login or SignUp with return params (debateId, pendingAction); after successful auth (use AuthContext), navigate back to debate and best-effort auto-initiate pending action (e.g. focus reply input or open reaction picker); if state lost or init fails, showing debate only is acceptable in apps/mobile/src/screens/SingleDebateScreen.tsx and apps/mobile/src/navigation/rootNavigation.ts or equivalent
+- [x] T022 [US3] Create AuthGateModal component: title "Join the conversation", body text, primary "Log in", secondary "Create account", dismiss; overlay with darkened backdrop in apps/mobile/src/components/AuthGateModal.tsx (or in screens)
+- [x] T023 [US3] On SingleDebateScreen, when user is unauthenticated and taps Reply / Vote / React, show AuthGateModal instead of performing action; pass pending action type (reply | vote | reaction) for return state in apps/mobile/src/screens/SingleDebateScreen.tsx
+- [x] T024 [US3] On "Log in" / "Create account", navigate to Login or SignUp with return params (debateId, pendingAction); after successful auth (use AuthContext), navigate back to debate and best-effort auto-initiate pending action (e.g. focus reply input or open reaction picker); if state lost or init fails, showing debate only is acceptable in apps/mobile/src/screens/SingleDebateScreen.tsx and apps/mobile/src/navigation/rootNavigation.ts or equivalent
 
 **Checkpoint**: User Story 3 complete — auth gate and return-to-debate work on mobile
 
