@@ -7,6 +7,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/lib/pq"
 )
 
 const addCommentReaction = `-- name: AddCommentReaction :one
@@ -58,6 +60,42 @@ func (q *Queries) GetCommentReactionsByCommentID(ctx context.Context, commentID 
 	for rows.Next() {
 		var i GetCommentReactionsByCommentIDRow
 		if err := rows.Scan(&i.Emoji, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCommentReactionsByCommentIDsBatch = `-- name: GetCommentReactionsByCommentIDsBatch :many
+SELECT comment_id, emoji, COUNT(*)::int AS count
+FROM comment_reactions
+WHERE comment_id = ANY($1::int[])
+GROUP BY comment_id, emoji
+`
+
+type GetCommentReactionsByCommentIDsBatchRow struct {
+	CommentID int32
+	Emoji     string
+	Count     int32
+}
+
+func (q *Queries) GetCommentReactionsByCommentIDsBatch(ctx context.Context, dollar_1 []int32) ([]GetCommentReactionsByCommentIDsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCommentReactionsByCommentIDsBatch, pq.Array(dollar_1))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCommentReactionsByCommentIDsBatchRow
+	for rows.Next() {
+		var i GetCommentReactionsByCommentIDsBatchRow
+		if err := rows.Scan(&i.CommentID, &i.Emoji, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

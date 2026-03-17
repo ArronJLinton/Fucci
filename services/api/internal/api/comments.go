@@ -149,18 +149,45 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 		subByParent[parentID] = append(subByParent[parentID], row)
 	}
 
-	// Build response: for each top-level comment, add net_score, reactions, subcomments
+	// Collect all comment IDs for batch fetch (avoids N+1)
+	commentIDs := make([]int32, 0, len(rows))
+	for _, row := range topLevel {
+		commentIDs = append(commentIDs, row.ID)
+		if subs := subByParent[row.ID]; len(subs) > 0 {
+			for _, subRow := range subs {
+				commentIDs = append(commentIDs, subRow.ID)
+			}
+		}
+	}
+
+	var netScoreByComment map[int32]int32
+	var reactionsByComment map[int32][]ReactionCount
+	if len(commentIDs) > 0 {
+		netScoreByComment = make(map[int32]int32)
+		if batchScores, err := c.DB.GetCommentVoteNetScoresBatch(ctx, commentIDs); err == nil {
+			for _, r := range batchScores {
+				netScoreByComment[r.CommentID] = r.NetScore
+			}
+		}
+		reactionsByComment = make(map[int32][]ReactionCount)
+		if batchReactions, err := c.DB.GetCommentReactionsByCommentIDsBatch(ctx, commentIDs); err == nil {
+			for _, r := range batchReactions {
+				reactionsByComment[r.CommentID] = append(reactionsByComment[r.CommentID], ReactionCount{Emoji: r.Emoji, Count: r.Count})
+			}
+		}
+	}
+
+	// Build response: for each top-level comment, add net_score, reactions, subcomments (from preloaded maps)
 	out := make([]DebateComment, 0, len(topLevel))
 	for _, row := range topLevel {
-		comment, err := c.buildDebateComment(ctx, row, nil)
+		comment, err := c.buildDebateCommentFromRowWithPreloaded(row, netScoreByComment[row.ID], reactionsByComment[row.ID], nil)
 		if err != nil {
 			continue
 		}
-		// Attach subcomments (one level)
 		if subs, ok := subByParent[row.ID]; ok {
 			comment.Subcomments = make([]DebateComment, 0, len(subs))
 			for _, subRow := range subs {
-				subComment, err := c.buildDebateComment(ctx, subRow, nil)
+				subComment, err := c.buildDebateCommentFromRowWithPreloaded(subRow, netScoreByComment[subRow.ID], reactionsByComment[subRow.ID], nil)
 				if err != nil {
 					continue
 				}
@@ -469,10 +496,15 @@ func (c *Config) RemoveCommentReaction(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{"reactions": reactions})
 }
 
-// buildDebateComment converts a GetCommentsRow to DebateComment (no seeded, no stance).
-// currentUserVote is nil for unauthenticated list.
-// Uses users.display_name when set, else firstname+lastname; users.avatar_url for UserAvatarURL.
-func (c *Config) buildDebateComment(ctx context.Context, row database.GetCommentsRow, currentUserID *int32) (DebateComment, error) {
+// buildDebateCommentFromRowWithPreloaded builds a DebateComment from a GetCommentsRow using
+// preloaded net score, reactions, and optional current-user vote (no DB calls). Used by ListDebateComments
+// after batch-fetching scores and reactions.
+func (c *Config) buildDebateCommentFromRowWithPreloaded(
+	row database.GetCommentsRow,
+	netScore int32,
+	reactions []ReactionCount,
+	currentUserVote *string,
+) (DebateComment, error) {
 	displayName := ""
 	if row.DisplayName.Valid && strings.TrimSpace(row.DisplayName.String) != "" {
 		displayName = strings.TrimSpace(row.DisplayName.String)
@@ -482,25 +514,18 @@ func (c *Config) buildDebateComment(ctx context.Context, row database.GetComment
 	if displayName == "" {
 		displayName = "User"
 	}
-
 	var avatarURL *string
 	if row.AvatarUrl.Valid && strings.TrimSpace(row.AvatarUrl.String) != "" {
 		s := strings.TrimSpace(row.AvatarUrl.String)
 		avatarURL = &s
 	}
-
-	netScore, _ := c.DB.GetCommentVoteNetScore(ctx, row.ID)
-	reactionRows, _ := c.DB.GetCommentReactionsByCommentID(ctx, row.ID)
-	reactions := make([]ReactionCount, 0, len(reactionRows))
-	for _, rr := range reactionRows {
-		reactions = append(reactions, ReactionCount{Emoji: rr.Emoji, Count: rr.Count})
-	}
-
 	var createdAt time.Time
 	if row.CreatedAt.Valid {
 		createdAt = row.CreatedAt.Time
 	}
-
+	if reactions == nil {
+		reactions = []ReactionCount{}
+	}
 	comment := DebateComment{
 		ID:                row.ID,
 		DebateID:          row.DebateID.Int32,
@@ -511,16 +536,29 @@ func (c *Config) buildDebateComment(ctx context.Context, row database.GetComment
 		CreatedAt:         createdAt,
 		NetScore:          netScore,
 		Reactions:         reactions,
+		CurrentUserVote:   currentUserVote,
 	}
 	if row.ParentCommentID.Valid {
 		comment.ParentCommentID = &row.ParentCommentID.Int32
 	}
-	// current_user_vote: when we have auth, look up vote for currentUserID; for now leave nil
+	return comment, nil
+}
+
+// buildDebateComment converts a GetCommentsRow to DebateComment (no seeded, no stance).
+// Fetches net_score, reactions, and optionally current_user_vote from DB (use buildDebateCommentFromRowWithPreloaded when listing with batch data).
+func (c *Config) buildDebateComment(ctx context.Context, row database.GetCommentsRow, currentUserID *int32) (DebateComment, error) {
+	netScore, _ := c.DB.GetCommentVoteNetScore(ctx, row.ID)
+	reactionRows, _ := c.DB.GetCommentReactionsByCommentID(ctx, row.ID)
+	reactions := make([]ReactionCount, 0, len(reactionRows))
+	for _, rr := range reactionRows {
+		reactions = append(reactions, ReactionCount{Emoji: rr.Emoji, Count: rr.Count})
+	}
+	var currentUserVote *string
 	if currentUserID != nil {
 		vote, err := c.DB.GetCommentVoteByUser(ctx, database.GetCommentVoteByUserParams{CommentID: row.ID, UserID: *currentUserID})
 		if err == nil {
-			comment.CurrentUserVote = &vote.VoteType
+			currentUserVote = &vote.VoteType
 		}
 	}
-	return comment, nil
+	return c.buildDebateCommentFromRowWithPreloaded(row, netScore, reactions, currentUserVote)
 }

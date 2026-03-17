@@ -7,6 +7,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/lib/pq"
 )
 
 const deleteCommentVote = `-- name: DeleteCommentVote :exec
@@ -59,6 +61,81 @@ func (q *Queries) GetCommentVoteNetScore(ctx context.Context, commentID int32) (
 	var net_score int32
 	err := row.Scan(&net_score)
 	return net_score, err
+}
+
+const getCommentVoteNetScoresBatch = `-- name: GetCommentVoteNetScoresBatch :many
+SELECT comment_id,
+    (COUNT(*) FILTER (WHERE vote_type = 'upvote') - COUNT(*) FILTER (WHERE vote_type = 'downvote'))::int AS net_score
+FROM comment_votes
+WHERE comment_id = ANY($1::int[])
+GROUP BY comment_id
+`
+
+type GetCommentVoteNetScoresBatchRow struct {
+	CommentID int32
+	NetScore  int32
+}
+
+func (q *Queries) GetCommentVoteNetScoresBatch(ctx context.Context, dollar_1 []int32) ([]GetCommentVoteNetScoresBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCommentVoteNetScoresBatch, pq.Array(dollar_1))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCommentVoteNetScoresBatchRow
+	for rows.Next() {
+		var i GetCommentVoteNetScoresBatchRow
+		if err := rows.Scan(&i.CommentID, &i.NetScore); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCommentVotesByUserForComments = `-- name: GetCommentVotesByUserForComments :many
+SELECT comment_id, vote_type
+FROM comment_votes
+WHERE comment_id = ANY($1::int[]) AND user_id = $2
+`
+
+type GetCommentVotesByUserForCommentsParams struct {
+	Column1 []int32
+	UserID  int32
+}
+
+type GetCommentVotesByUserForCommentsRow struct {
+	CommentID int32
+	VoteType  string
+}
+
+func (q *Queries) GetCommentVotesByUserForComments(ctx context.Context, arg GetCommentVotesByUserForCommentsParams) ([]GetCommentVotesByUserForCommentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCommentVotesByUserForComments, pq.Array(arg.Column1), arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCommentVotesByUserForCommentsRow
+	for rows.Next() {
+		var i GetCommentVotesByUserForCommentsRow
+		if err := rows.Scan(&i.CommentID, &i.VoteType); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertCommentVote = `-- name: UpsertCommentVote :one
