@@ -70,6 +70,10 @@ const SingleDebateScreen = () => {
   >(null);
   const [showReactionPickerCommentId, setShowReactionPickerCommentId] =
     useState<number | null>(null);
+  /** Comment IDs whose reply threads are collapsed (subcomments hidden) */
+  const [collapsedReplyIds, setCollapsedReplyIds] = useState<Set<number>>(
+    new Set(),
+  );
   /** When non-null, show AuthGateModal; value is the pending action for return-to-debate */
   const [authGatePendingAction, setAuthGatePendingAction] =
     useState<AuthPendingAction | null>(null);
@@ -260,19 +264,56 @@ const SingleDebateScreen = () => {
       return;
     }
     setCommentSubmitError(null);
+    const parentIdForApi =
+      replyingToCommentId != null && replyingToCommentId > 0
+        ? replyingToCommentId
+        : undefined;
+    setCommentInput('');
+    setReplyingToCommentId(null);
     setCommentSubmitting(true);
     try {
       const created = await apiCreateComment(token, debate.id, {
         content,
-        parent_comment_id:
-          replyingToCommentId != null && replyingToCommentId > 0
-            ? replyingToCommentId
-            : undefined,
+        parent_comment_id: parentIdForApi,
       });
       if (created) {
-        setCommentInput('');
-        setReplyingToCommentId(null);
-        await loadComments();
+        const parentId = created.parent_comment_id ?? null;
+        const newComment = {
+          ...created,
+          reactions: created.reactions ?? [],
+          subcomments: created.subcomments ?? [],
+        };
+        if (parentId != null) {
+          setComments(prev =>
+            prev.map(c => {
+              if (c.id === parentId) {
+                return {
+                  ...c,
+                  subcomments: [...(c.subcomments ?? []), newComment],
+                };
+              }
+              if (c.subcomments?.length) {
+                return {
+                  ...c,
+                  subcomments: c.subcomments.map(sub =>
+                    sub.id === parentId
+                      ? {
+                          ...sub,
+                          subcomments: [
+                            ...(sub.subcomments ?? []),
+                            newComment,
+                          ],
+                        }
+                      : sub,
+                  ),
+                };
+              }
+              return c;
+            }),
+          );
+        } else {
+          setComments(prev => [...prev, newComment]);
+        }
       } else {
         setCommentSubmitError('Failed to post comment. Tap to retry.');
       }
@@ -492,9 +533,37 @@ const SingleDebateScreen = () => {
               ))}
             </View>
           )}
-          {c.subcomments &&
-            c.subcomments.length > 0 &&
-            c.subcomments.map(sub => renderComment(sub, true))}
+          {!isSub && c.subcomments && c.subcomments.length > 0 && (
+            <>
+              <TouchableOpacity
+                onPress={() => {
+                  setCollapsedReplyIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(c.id)) next.delete(c.id);
+                    else next.add(c.id);
+                    return next;
+                  });
+                }}
+                style={styles.collapseRepliesRow}
+                activeOpacity={0.7}>
+                <Ionicons
+                  name={collapsedReplyIds.has(c.id) ? 'chevron-down' : 'chevron-up'}
+                  size={16}
+                  color="#6b7280"
+                />
+                <Text style={styles.collapseRepliesText}>
+                  {collapsedReplyIds.has(c.id)
+                    ? `Show ${c.subcomments.length} ${c.subcomments.length === 1 ? 'reply' : 'replies'}`
+                    : 'Hide replies'}
+                </Text>
+              </TouchableOpacity>
+              {!collapsedReplyIds.has(c.id) &&
+                c.subcomments.map(sub => renderComment(sub, true))}
+            </>
+          )}
+          {isSub && c.subcomments && c.subcomments.length > 0 && (
+            c.subcomments.map(sub => renderComment(sub, true))
+          )}
         </View>
       </View>
     );
@@ -1360,6 +1429,18 @@ const styles = StyleSheet.create({
   },
   reactionPickerEmojiText: {
     fontSize: 20,
+  },
+  collapseRepliesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  collapseRepliesText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   commentsLoading: {
     flexDirection: 'row',
