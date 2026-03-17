@@ -67,6 +67,11 @@ SELECT * FROM votes WHERE debate_card_id = $1 AND user_id = $2 AND vote_type = $
 -- name: DeleteVote :exec
 DELETE FROM votes WHERE debate_card_id = $1 AND user_id = $2 AND vote_type = $3;
 
+-- name: DeleteCardSwipeVotes :exec
+DELETE FROM votes
+WHERE debate_card_id = $1 AND user_id = $2
+  AND vote_type IN ('upvote', 'downvote') AND emoji IS NULL;
+
 -- name: GetVoteCounts :many
 SELECT 
     debate_card_id,
@@ -78,15 +83,17 @@ WHERE debate_card_id = ANY($1::int[])
 GROUP BY debate_card_id, vote_type, emoji;
 
 -- name: CreateComment :one
-INSERT INTO comments (debate_id, parent_comment_id, user_id, content)
-VALUES ($1, $2, $3, $4)
+INSERT INTO comments (debate_id, parent_comment_id, user_id, content, seeded)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetComments :many
 SELECT 
     c.*,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.debate_id = $1
@@ -96,7 +103,9 @@ ORDER BY c.created_at ASC;
 SELECT 
     c.*,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.id = $1;

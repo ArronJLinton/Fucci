@@ -13,9 +13,9 @@ import (
 )
 
 const createComment = `-- name: CreateComment :one
-INSERT INTO comments (debate_id, parent_comment_id, user_id, content)
-VALUES ($1, $2, $3, $4)
-RETURNING id, debate_id, parent_comment_id, user_id, content, created_at, updated_at
+INSERT INTO comments (debate_id, parent_comment_id, user_id, content, seeded)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, debate_id, parent_comment_id, user_id, content, created_at, updated_at, seeded
 `
 
 type CreateCommentParams struct {
@@ -23,6 +23,7 @@ type CreateCommentParams struct {
 	ParentCommentID sql.NullInt32
 	UserID          sql.NullInt32
 	Content         string
+	Seeded          bool
 }
 
 func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error) {
@@ -31,6 +32,7 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		arg.ParentCommentID,
 		arg.UserID,
 		arg.Content,
+		arg.Seeded,
 	)
 	var i Comment
 	err := row.Scan(
@@ -41,6 +43,7 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Seeded,
 	)
 	return i, err
 }
@@ -191,6 +194,22 @@ func (q *Queries) CreateVote(ctx context.Context, arg CreateVoteParams) (Vote, e
 	return i, err
 }
 
+const deleteCardSwipeVotes = `-- name: DeleteCardSwipeVotes :exec
+DELETE FROM votes
+WHERE debate_card_id = $1 AND user_id = $2
+  AND vote_type IN ('upvote', 'downvote') AND emoji IS NULL
+`
+
+type DeleteCardSwipeVotesParams struct {
+	DebateCardID sql.NullInt32
+	UserID       sql.NullInt32
+}
+
+func (q *Queries) DeleteCardSwipeVotes(ctx context.Context, arg DeleteCardSwipeVotesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCardSwipeVotes, arg.DebateCardID, arg.UserID)
+	return err
+}
+
 const deleteComment = `-- name: DeleteComment :exec
 DELETE FROM comments WHERE id = $1
 `
@@ -235,9 +254,11 @@ func (q *Queries) DeleteVote(ctx context.Context, arg DeleteVoteParams) error {
 
 const getComment = `-- name: GetComment :one
 SELECT 
-    c.id, c.debate_id, c.parent_comment_id, c.user_id, c.content, c.created_at, c.updated_at,
+    c.id, c.debate_id, c.parent_comment_id, c.user_id, c.content, c.created_at, c.updated_at, c.seeded,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.id = $1
@@ -251,8 +272,11 @@ type GetCommentRow struct {
 	Content         string
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
+	Seeded          bool
 	Firstname       string
 	Lastname        string
+	DisplayName     sql.NullString
+	AvatarUrl       sql.NullString
 }
 
 func (q *Queries) GetComment(ctx context.Context, id int32) (GetCommentRow, error) {
@@ -266,8 +290,11 @@ func (q *Queries) GetComment(ctx context.Context, id int32) (GetCommentRow, erro
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Seeded,
 		&i.Firstname,
 		&i.Lastname,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -285,9 +312,11 @@ func (q *Queries) GetCommentCount(ctx context.Context, debateID sql.NullInt32) (
 
 const getComments = `-- name: GetComments :many
 SELECT 
-    c.id, c.debate_id, c.parent_comment_id, c.user_id, c.content, c.created_at, c.updated_at,
+    c.id, c.debate_id, c.parent_comment_id, c.user_id, c.content, c.created_at, c.updated_at, c.seeded,
     u.firstname,
-    u.lastname
+    u.lastname,
+    u.display_name,
+    u.avatar_url
 FROM comments c
 JOIN users u ON c.user_id = u.id
 WHERE c.debate_id = $1
@@ -302,8 +331,11 @@ type GetCommentsRow struct {
 	Content         string
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
+	Seeded          bool
 	Firstname       string
 	Lastname        string
+	DisplayName     sql.NullString
+	AvatarUrl       sql.NullString
 }
 
 func (q *Queries) GetComments(ctx context.Context, debateID sql.NullInt32) ([]GetCommentsRow, error) {
@@ -323,8 +355,11 @@ func (q *Queries) GetComments(ctx context.Context, debateID sql.NullInt32) ([]Ge
 			&i.Content,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Seeded,
 			&i.Firstname,
 			&i.Lastname,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -703,7 +738,7 @@ const updateComment = `-- name: UpdateComment :one
 UPDATE comments 
 SET content = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, debate_id, parent_comment_id, user_id, content, created_at, updated_at
+RETURNING id, debate_id, parent_comment_id, user_id, content, created_at, updated_at, seeded
 `
 
 type UpdateCommentParams struct {
@@ -722,6 +757,7 @@ func (q *Queries) UpdateComment(ctx context.Context, arg UpdateCommentParams) (C
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Seeded,
 	)
 	return i, err
 }

@@ -55,29 +55,24 @@ type CreateDebateCardRequest struct {
 	AIGenerated bool   `json:"ai_generated"`
 }
 
-type CreateVoteRequest struct {
-	DebateCardID int32  `json:"debate_card_id"`
-	VoteType     string `json:"vote_type"` // "upvote", "downvote", "emoji"
-	Emoji        string `json:"emoji,omitempty"`
-}
-
-type CreateCommentRequest struct {
-	DebateID        int32  `json:"debate_id"`
-	ParentCommentID *int32 `json:"parent_comment_id,omitempty"`
-	Content         string `json:"content"`
+// CardVoteTotals is debate-level aggregates for the live meter (006 swipe voting).
+type CardVoteTotals struct {
+	TotalYes int `json:"total_yes"`
+	TotalNo  int `json:"total_no"`
 }
 
 type DebateResponse struct {
-	ID          int32                    `json:"id"`
-	MatchID     string                   `json:"match_id"`
-	DebateType  string                   `json:"debate_type"`
-	Headline    string                   `json:"headline"`
-	Description string                   `json:"description"`
-	AIGenerated bool                     `json:"ai_generated"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
-	Cards       []DebateCardResponse     `json:"cards,omitempty"`
-	Analytics   *DebateAnalyticsResponse `json:"analytics,omitempty"`
+	ID              int32                    `json:"id"`
+	MatchID         string                   `json:"match_id"`
+	DebateType      string                   `json:"debate_type"`
+	Headline        string                   `json:"headline"`
+	Description     string                   `json:"description"`
+	AIGenerated     bool                     `json:"ai_generated"`
+	CreatedAt       time.Time                `json:"created_at"`
+	UpdatedAt       time.Time                `json:"updated_at"`
+	Cards           []DebateCardResponse     `json:"cards,omitempty"`
+	CardVoteTotals  *CardVoteTotals          `json:"card_vote_totals,omitempty"`
+	Analytics       *DebateAnalyticsResponse `json:"analytics,omitempty"`
 }
 
 type DebateCardResponse struct {
@@ -91,6 +86,49 @@ type DebateCardResponse struct {
 	UpdatedAt   time.Time     `json:"updated_at"`
 	VoteCounts  VoteCounts    `json:"vote_counts"`
 	UserVote    *VoteResponse `json:"user_vote,omitempty"`
+}
+
+const defaultSystemUserEmail = "contact@magistri.dev"
+
+// getSystemUserID returns the system user (Fucci) ID for seeded comments. Uses Config.SystemUserEmail, or contact@magistri.dev if unset.
+func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
+	email := c.SystemUserEmail
+	if email == "" {
+		email = defaultSystemUserEmail
+	}
+	user, err := c.DB.GetUserByEmail(ctx, email)
+	if err != nil {
+		return 0, err
+	}
+	return user.ID, nil
+}
+
+// insertSeededComments creates one comment per card for the debate, attributed to the system user (Fucci).
+func (c *Config) insertSeededComments(ctx context.Context, debateID int32, cards []ai.DebateCard) {
+	systemUserID, err := c.getSystemUserID(ctx)
+	if err != nil {
+		log.Printf("[debate] seeded comments skipped: system user not found (set SYSTEM_USER_EMAIL to your system user email, e.g. contact@magistri.dev): %v", err)
+		return
+	}
+	for _, card := range cards {
+		content := card.Description
+		if content == "" {
+			content = card.Title
+		}
+		if content == "" {
+			continue
+		}
+		_, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
+			DebateID:        sql.NullInt32{Int32: debateID, Valid: true},
+			ParentCommentID: sql.NullInt32{Valid: false},
+			UserID:          sql.NullInt32{Int32: systemUserID, Valid: true},
+			Content:         content,
+			Seeded:          true,
+		})
+		if err != nil {
+			log.Printf("[debate] insertSeededComments: %v", err)
+		}
+	}
 }
 
 type VoteCounts struct {
@@ -462,96 +500,6 @@ func (c *Config) createDebateCard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (c *Config) createVote(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req CreateVoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.DebateCardID == 0 || req.VoteType == "" {
-		respondWithError(w, http.StatusBadRequest, "debate_card_id and vote_type are required")
-		return
-	}
-
-	if req.VoteType != "upvote" && req.VoteType != "downvote" && req.VoteType != "emoji" {
-		respondWithError(w, http.StatusBadRequest, "vote_type must be 'upvote', 'downvote', or 'emoji'")
-		return
-	}
-
-	// Get user ID from context (you'll need to implement authentication)
-	userID := int32(1) // TODO: Get from auth context
-
-	// Create vote
-	vote, err := c.DB.CreateVote(ctx, database.CreateVoteParams{
-		DebateCardID: sql.NullInt32{Int32: req.DebateCardID, Valid: true},
-		UserID:       sql.NullInt32{Int32: userID, Valid: true},
-		VoteType:     req.VoteType,
-		Emoji:        sql.NullString{String: req.Emoji, Valid: req.Emoji != ""},
-	})
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create vote: %v", err))
-		return
-	}
-
-	// Update analytics
-	c.updateDebateAnalytics(ctx, req.DebateCardID)
-
-	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"message": "Vote created successfully",
-		"vote_id": vote.ID,
-	})
-}
-
-func (c *Config) createComment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req CreateCommentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.DebateID == 0 || req.Content == "" {
-		respondWithError(w, http.StatusBadRequest, "debate_id and content are required")
-		return
-	}
-
-	// Get user ID from context (you'll need to implement authentication)
-	userID := int32(1) // TODO: Get from auth context
-
-	// Create comment
-	var parentCommentID sql.NullInt32
-	if req.ParentCommentID != nil && *req.ParentCommentID > 0 {
-		parentCommentID = sql.NullInt32{Int32: *req.ParentCommentID, Valid: true}
-	} else {
-		parentCommentID = sql.NullInt32{Valid: false}
-	}
-
-	comment, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
-		DebateID:        sql.NullInt32{Int32: req.DebateID, Valid: true},
-		ParentCommentID: parentCommentID,
-		UserID:          sql.NullInt32{Int32: userID, Valid: true},
-		Content:         req.Content,
-	})
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create comment: %v", err))
-		return
-	}
-
-	// Update analytics
-	c.updateDebateAnalytics(ctx, req.DebateID)
-
-	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"message":    "Comment created successfully",
-		"comment_id": comment.ID,
-	})
-}
-
 func (c *Config) getComments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -864,6 +812,9 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		cardResponses = append(cardResponses, cardResponse)
 	}
 
+	// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
+	c.insertSeededComments(ctx, debate.ID, prompt.Cards)
+
 	// Ensure we have at least one card
 	if len(cardResponses) == 0 {
 		respondWithError(w, http.StatusInternalServerError, "No valid debate cards were created")
@@ -1162,6 +1113,8 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 			continue
 		}
+		// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
+		c.insertSeededComments(ctx, debate.ID, prompt.Cards)
 		responses = append(responses, DebateResponse{
 			ID:          debate.ID,
 			MatchID:     debate.MatchID,
@@ -1234,6 +1187,7 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 	}
 
 	var voteCountsMap map[int32]VoteCounts
+	var totalYesSwipe, totalNoSwipe int
 	if len(cardIDs) > 0 {
 		voteCounts, err := c.DB.GetVoteCounts(ctx, cardIDs)
 		if err != nil {
@@ -1246,8 +1200,14 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 				switch vc.VoteType {
 				case "upvote":
 					counts.Upvotes = int(vc.Count)
+					if !vc.Emoji.Valid {
+						totalYesSwipe += int(vc.Count)
+					}
 				case "downvote":
 					counts.Downvotes = int(vc.Count)
+					if !vc.Emoji.Valid {
+						totalNoSwipe += int(vc.Count)
+					}
 				case "emoji":
 					if counts.Emojis == nil {
 						counts.Emojis = make(map[string]int)
@@ -1279,15 +1239,16 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 	}
 
 	resp := &DebateResponse{
-		ID:          debate.ID,
-		MatchID:     debate.MatchID,
-		DebateType:  debate.DebateType,
-		Headline:    debate.Headline,
-		Description: debate.Description.String,
-		AIGenerated: debate.AiGenerated.Bool,
-		CreatedAt:   debate.CreatedAt.Time,
-		UpdatedAt:   debate.UpdatedAt.Time,
-		Cards:       cardResponses,
+		ID:             debate.ID,
+		MatchID:        debate.MatchID,
+		DebateType:     debate.DebateType,
+		Headline:       debate.Headline,
+		Description:    debate.Description.String,
+		AIGenerated:    debate.AiGenerated.Bool,
+		CreatedAt:      debate.CreatedAt.Time,
+		UpdatedAt:      debate.UpdatedAt.Time,
+		Cards:          cardResponses,
+		CardVoteTotals: &CardVoteTotals{TotalYes: totalYesSwipe, TotalNo: totalNoSwipe},
 	}
 
 	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})

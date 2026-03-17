@@ -10,8 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useRoute, useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '../types/navigation';
 import {useAuth} from '../context/AuthContext';
 import {register, type RegisterRequest} from '../services/api';
@@ -28,9 +29,11 @@ function validatePassword(password: string): string | null {
 }
 
 export default function SignUpScreen() {
+  const route = useRoute<RouteProp<RootStackParamList, 'SignUp'>>();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {setAuth} = useAuth();
+  const returnToDebate = route.params?.returnToDebate;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -73,10 +76,24 @@ export default function SignUpScreen() {
 
       if (result.ok) {
         await setAuth(result.data.token, result.data.user);
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'Main'}],
-        });
+        if (returnToDebate?.match && returnToDebate?.debate) {
+          navigation.reset({
+            index: 0,
+            routes: [{
+              name: 'SingleDebate',
+              params: {
+                match: returnToDebate.match,
+                debate: returnToDebate.debate,
+                pendingAction: returnToDebate.pendingAction,
+              },
+            }],
+          });
+        } else {
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'Main'}],
+          });
+        }
         return;
       }
 

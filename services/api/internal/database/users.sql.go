@@ -12,7 +12,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (firstname, lastname, email, is_admin)
 VALUES ($1, $2, $3, $4)
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url
 `
 
 type CreateUserParams struct {
@@ -38,6 +38,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -52,7 +54,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin FROM users WHERE id = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
@@ -66,12 +68,14 @@ func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin FROM users WHERE email = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -85,12 +89,14 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin FROM users ORDER BY created_at DESC
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users ORDER BY created_at DESC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -110,6 +116,8 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.IsAdmin,
+			&i.DisplayName,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -128,7 +136,7 @@ const updateUser = `-- name: UpdateUser :one
 UPDATE users 
 SET firstname = $2, lastname = $3, email = $4, is_admin = $5, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url
 `
 
 type UpdateUserParams struct {
@@ -156,6 +164,8 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
 	)
 	return i, err
 }

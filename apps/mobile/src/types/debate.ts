@@ -34,6 +34,21 @@ export interface DebateListItem {
   updated_at: string;
 }
 
+/** Card vote totals for live meter (006 swipe voting) */
+export interface CardVoteTotals {
+  total_yes: number;
+  total_no: number;
+}
+
+/** Response from PUT /debates/:id/cards/:cardId/vote */
+export interface CardVoteCounts {
+  card_id: number;
+  yes_count: number;
+  no_count: number;
+  total_yes?: number;
+  total_no?: number;
+}
+
 /** Full debate with cards (GET /debates/:id or POST /debates/generate response) */
 export interface DebateResponse extends DebateContent {
   id?: number;
@@ -43,6 +58,7 @@ export interface DebateResponse extends DebateContent {
   created_at?: string;
   updated_at?: string;
   cards: DebateCard[];
+  card_vote_totals?: CardVoteTotals;
 }
 
 export type DebateType = 'pre_match' | 'post_match';
@@ -54,4 +70,26 @@ export interface MockComment {
   content: string;
   upvotes: number;
   replies?: number;
+}
+
+/** Reaction count per emoji (006 GET /debates/:id/comments) */
+export interface ReactionCount {
+  emoji: string;
+  count: number;
+}
+
+/** Comment from GET /debates/:id/comments — top-level and subcomments, no stance/seeded in API */
+export interface DebateComment {
+  id: number;
+  debate_id: number;
+  parent_comment_id?: number | null;
+  user_id: number;
+  user_display_name: string;
+  user_avatar_url?: string | null;
+  content: string;
+  created_at: string;
+  net_score: number;
+  current_user_vote?: 'upvote' | 'downvote' | null;
+  reactions: ReactionCount[];
+  subcomments?: DebateComment[];
 }

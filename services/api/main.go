@@ -71,13 +71,14 @@ func main() {
 	v1Router := chi.NewRouter()
 	dbQueries := database.New(conn)
 	apiCfg := api.Config{
-		DB:             dbQueries,
-		DBConn:         conn,
-		FootballAPIKey: c.FOOTBALL_API_KEY,
-		RapidAPIKey:    c.RAPID_API_KEY,
-		Cache:          redisCache,
-		OpenAIKey:      c.OPENAI_API_KEY,
-		OpenAIBaseURL:  c.OPENAI_BASE_URL,
+		DB:               dbQueries,
+		DBConn:           conn,
+		FootballAPIKey:   c.FOOTBALL_API_KEY,
+		RapidAPIKey:     c.RAPID_API_KEY,
+		Cache:            redisCache,
+		OpenAIKey:        c.OPENAI_API_KEY,
+		OpenAIBaseURL:    c.OPENAI_BASE_URL,
+		SystemUserEmail:  c.SYSTEM_USER_EMAIL,
 	}
 	apiRouter := api.New(apiCfg)
 	v1Router.Mount("/api", apiRouter)

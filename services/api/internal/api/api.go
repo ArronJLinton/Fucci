@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -12,6 +13,21 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 )
+
+// CardVoteReader is used for unit tests; when set, setCardVote uses it for GetUser and GetDebateCard.
+// Production leaves this nil (handler falls back to DB).
+type CardVoteReader interface {
+	GetUser(ctx context.Context, id int32) (database.User, error)
+	GetDebateCard(ctx context.Context, id int32) (database.DebateCard, error)
+}
+
+// CommentReader is used for unit tests; when set, comment handlers use it for GetDebate, GetComments, GetComment.
+// Production leaves this nil (handler falls back to DB).
+type CommentReader interface {
+	GetDebate(ctx context.Context, id int32) (database.Debate, error)
+	GetComments(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error)
+	GetComment(ctx context.Context, id int32) (database.GetCommentRow, error)
+}
 
 // InitJWT initializes JWT authentication with the provided secret
 func InitJWT(secret string) error {
@@ -29,6 +45,11 @@ type Config struct {
 	OpenAIKey          string
 	OpenAIBaseURL      string
 	AIPromptGenerator  *ai.PromptGenerator
+	SystemUserEmail    string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+
+	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
+	CardVoteReader CardVoteReader
+	CommentReader  CommentReader
 }
 
 func New(c Config) http.Handler {
@@ -90,10 +111,11 @@ func New(c Config) http.Handler {
 	debateRouter.Get("/health", c.checkDebateGenerationHealth)
 	debateRouter.Get("/match", c.getDebatesByMatch)
 	debateRouter.Get("/{id}", c.getDebate)
+	debateRouter.With(auth.RequireAuth).Put("/{debateId}/cards/{cardId}/vote", c.setCardVote)
 	debateRouter.Post("/cards", c.createDebateCard)
-	debateRouter.Post("/votes", c.createVote)
-	debateRouter.Post("/comments", c.createComment)
-	debateRouter.Get("/{debateId}/comments", c.getComments)
+	// Legacy POST /debates/votes and POST /debates/comments removed: they were unauthenticated and used hardcoded user_id. Use PUT /debates/{id}/cards/{cardId}/vote and POST /debates/{id}/comments (auth required) instead.
+	debateRouter.Get("/{debateId}/comments", c.ListDebateComments)
+	debateRouter.With(auth.RequireAuth).Post("/{debateId}/comments", c.CreateDebateComment)
 	// Admin routes for soft delete management
 	debateRouter.Delete("/{id}/hard", c.hardDeleteDebate) // Permanent deletion
 	debateRouter.Post("/{id}/restore", c.restoreDebate)   // Restore soft-deleted debate
@@ -138,8 +160,14 @@ func New(c Config) http.Handler {
 	verificationsRouter.Delete("/{id}", verificationsService.RemoveVerification)
 	verificationsRouter.Get("/player/{playerId}", verificationsService.ListVerifications)
 
+	commentsRouter := chi.NewRouter()
+	commentsRouter.With(auth.RequireAuth).Put("/{commentId}/vote", c.SetCommentVote)
+	commentsRouter.With(auth.RequireAuth).Post("/{commentId}/reactions", c.AddCommentReaction)
+	commentsRouter.With(auth.RequireAuth).Delete("/{commentId}/reactions", c.RemoveCommentReaction)
+
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)
+	router.Mount("/comments", commentsRouter)
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)
 	router.Mount("/news", newsRouter)
