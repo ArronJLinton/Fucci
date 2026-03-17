@@ -88,9 +88,9 @@ type DebateCardResponse struct {
 	UserVote    *VoteResponse `json:"user_vote,omitempty"`
 }
 
-const defaultSystemUserEmail = "fucci@system.local"
+const defaultSystemUserEmail = "contact@magistri.dev"
 
-// getSystemUserID returns the system user (Fucci) ID for seeded comments. Uses Config.SystemUserEmail, or fucci@system.local if unset.
+// getSystemUserID returns the system user (Fucci) ID for seeded comments. Uses Config.SystemUserEmail, or contact@magistri.dev if unset.
 func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
 	email := c.SystemUserEmail
 	if email == "" {
