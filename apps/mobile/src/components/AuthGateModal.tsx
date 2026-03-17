@@ -34,43 +34,53 @@ export function AuthGateModal({
       transparent
       animationType="fade"
       onRequestClose={onDismiss}>
-      <TouchableOpacity
-        activeOpacity={1}
-        style={styles.backdrop}
-        onPress={onDismiss}>
-        <View style={styles.box}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
-          <View style={styles.buttons}>
+      <View style={styles.container}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.backdrop}
+          onPress={onDismiss}
+        />
+        <View style={styles.boxWrapper} pointerEvents="box-none">
+          <View style={styles.box}>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.message}>{message}</Text>
+            <View style={styles.buttons}>
+              <TouchableOpacity
+                style={styles.buttonPrimary}
+                onPress={onLogin}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonPrimaryText}>Log in</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.buttonSecondary}
+                onPress={onSignUp}
+                activeOpacity={0.8}>
+                <Text style={styles.buttonSecondaryText}>Create account</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
-              style={styles.buttonSecondary}
-              onPress={onLogin}
+              style={styles.cancel}
+              onPress={onDismiss}
               activeOpacity={0.8}>
-              <Text style={styles.buttonSecondaryText}>Log in</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.buttonPrimary}
-              onPress={onSignUp}
-              activeOpacity={0.8}>
-              <Text style={styles.buttonPrimaryText}>Create account</Text>
+              <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.cancel}
-            onPress={onDismiss}
-            activeOpacity={0.8}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  container: {
     flex: 1,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  boxWrapper: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     padding: 24,
   },
