@@ -1,0 +1,260 @@
+openapi: 3.0.3
+info:
+  title: Fucci Player Profile API
+  version: 0.1.0
+  description: Endpoints for managing the authenticated user's player profile, traits, photo, and career teams.
+
+paths:
+  /api/me/player-profile:
+    get:
+      summary: Get current user's player profile
+      responses:
+        '200':
+          description: Player profile found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerProfile'
+        '404':
+          description: Profile not found
+    post:
+      summary: Create or upsert current user's player profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerProfileInput'
+      responses:
+        '200':
+          description: Profile created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerProfile'
+    put:
+      summary: Update current user's player profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerProfileInput'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerProfile'
+
+  /api/me/player-profile/traits:
+    put:
+      summary: Replace selected traits for current user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                traits:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TraitCode'
+                  maxItems: 5
+      responses:
+        '200':
+          description: Traits updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  traits:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TraitCode'
+
+  /api/me/player-profile/photo:
+    post:
+      summary: Upload or update profile photo for current user
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Photo uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photo_url:
+                    type: string
+        '400':
+          description: Invalid file
+
+  /api/me/player-profile/career-teams:
+    get:
+      summary: List career teams for current user's profile
+      responses:
+        '200':
+          description: List of career teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CareerTeam'
+    post:
+      summary: Add a career team entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CareerTeamInput'
+      responses:
+        '201':
+          description: Career team created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CareerTeam'
+
+  /api/me/player-profile/career-teams/{career_team_id}:
+    put:
+      summary: Update a career team entry
+      parameters:
+        - name: career_team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CareerTeamInput'
+      responses:
+        '200':
+          description: Career team updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CareerTeam'
+    delete:
+      summary: Delete a career team entry
+      parameters:
+        - name: career_team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+
+components:
+  schemas:
+    TraitCode:
+      type: string
+      enum:
+        - LEADERSHIP
+        - FINESSE_SHOT
+        - PLAYMAKER
+        - SPEED_DRIBBLER
+        - LONG_SHOT_TAKER
+        - OUTSIDE_FOOT_SHOT
+        - POWER_HEADER
+        - FLAIR
+        - POWER_FREE_KICK
+
+    PlayerProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        age:
+          type: integer
+          nullable: true
+        country:
+          type: string
+        club:
+          type: string
+          nullable: true
+        is_free_agent:
+          type: boolean
+        position:
+          type: string
+          enum: [GK, DEF, MID, FWD]
+        photo_url:
+          type: string
+          nullable: true
+        traits:
+          type: array
+          items:
+            $ref: '#/components/schemas/TraitCode'
+        career_teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/CareerTeam'
+
+    PlayerProfileInput:
+      type: object
+      required:
+        - age
+        - country
+        - position
+      properties:
+        age:
+          type: integer
+          minimum: 13
+          maximum: 60
+        country:
+          type: string
+        club:
+          type: string
+          nullable: true
+        is_free_agent:
+          type: boolean
+        position:
+          type: string
+          enum: [GK, DEF, MID, FWD]
+
+    CareerTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+        team_name:
+          type: string
+        start_year:
+          type: integer
+        end_year:
+          type: integer
+          nullable: true
+
+    CareerTeamInput:
+      type: object
+      required:
+        - team_name
+        - start_year
+      properties:
+        team_name:
+          type: string
+        start_year:
+          type: integer
+        end_year:
+          type: integer
+          nullable: true
+
