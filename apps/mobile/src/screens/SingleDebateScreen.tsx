@@ -17,7 +17,12 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
-import type {DebateComment, DebateCard, CardVoteTotals, ReactionCount} from '../types/debate';
+import type {
+  DebateComment,
+  DebateCard,
+  CardVoteTotals,
+  ReactionCount,
+} from '../types/debate';
 import {
   listComments,
   setCardVote,
@@ -50,14 +55,24 @@ const SingleDebateScreen = () => {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
-  const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(null);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(
+    null,
+  );
   const [commentSubmitting, setCommentSubmitting] = useState(false);
-  const [commentSubmitError, setCommentSubmitError] = useState<string | null>(null);
-  const [voteLoadingCommentId, setVoteLoadingCommentId] = useState<number | null>(null);
-  const [reactionLoadingCommentId, setReactionLoadingCommentId] = useState<number | null>(null);
-  const [showReactionPickerCommentId, setShowReactionPickerCommentId] = useState<number | null>(null);
+  const [commentSubmitError, setCommentSubmitError] = useState<string | null>(
+    null,
+  );
+  const [voteLoadingCommentId, setVoteLoadingCommentId] = useState<
+    number | null
+  >(null);
+  const [reactionLoadingCommentId, setReactionLoadingCommentId] = useState<
+    number | null
+  >(null);
+  const [showReactionPickerCommentId, setShowReactionPickerCommentId] =
+    useState<number | null>(null);
   /** When non-null, show AuthGateModal; value is the pending action for return-to-debate */
-  const [authGatePendingAction, setAuthGatePendingAction] = useState<AuthPendingAction | null>(null);
+  const [authGatePendingAction, setAuthGatePendingAction] =
+    useState<AuthPendingAction | null>(null);
 
   // Card vote (swipe) state — totals for meter, and which cards user has voted this session
   const [cardVoteTotals, setCardVoteTotals] = useState<CardVoteTotals | null>(
@@ -65,7 +80,7 @@ const SingleDebateScreen = () => {
   );
   /** Per-card vote counts for live Debate Pulse; updated when user votes (setCardVote response) */
   const [localCardVoteCounts, setLocalCardVoteCounts] = useState<
-    Record<number, { upvotes: number; downvotes: number }>
+    Record<number, {upvotes: number; downvotes: number}>
   >({});
   const [votedCardIds, setVotedCardIds] = useState<Set<number>>(new Set());
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -75,13 +90,14 @@ const SingleDebateScreen = () => {
   const swipeStartX = useRef(0);
 
   const cards: DebateCard[] = debate?.cards ?? [];
-  const hasVotedAll = votedCardIds.size >= 3 || currentCardIndex >= cards.length;
+  const hasVotedAll =
+    votedCardIds.size >= 3 || currentCardIndex >= cards.length;
   const showCardStack = cards.length > 0 && !hasVotedAll;
 
   // Initialize per-card counts from debate when debate loads (e.g. new debate)
   useEffect(() => {
     if (!debate?.id || !debate?.cards?.length) return;
-    const next: Record<number, { upvotes: number; downvotes: number }> = {};
+    const next: Record<number, {upvotes: number; downvotes: number}> = {};
     debate.cards.forEach(c => {
       if (c.id != null) {
         next[c.id] = {
@@ -123,11 +139,22 @@ const SingleDebateScreen = () => {
   const pendingFromAuth = route.params?.pendingAction;
   const consumedPendingRef = useRef(false);
   useEffect(() => {
-    if (!isLoggedIn || !pendingFromAuth || !match || !debate || consumedPendingRef.current) return;
+    if (
+      !isLoggedIn ||
+      !pendingFromAuth ||
+      !match ||
+      !debate ||
+      consumedPendingRef.current
+    )
+      return;
     consumedPendingRef.current = true;
     if (pendingFromAuth === 'reply') {
       setReplyingToCommentId(-1);
-    } else if (pendingFromAuth === 'reaction' && comments.length > 0 && comments[0].id != null) {
+    } else if (
+      pendingFromAuth === 'reaction' &&
+      comments.length > 0 &&
+      comments[0].id != null
+    ) {
       setShowReactionPickerCommentId(comments[0].id);
     }
     (navigation as any).setParams({pendingAction: undefined});
@@ -144,7 +171,8 @@ const SingleDebateScreen = () => {
     }
     return {
       title: 'Join the conversation',
-      message: 'Sign in or create an account to reply, vote, or react on comments.',
+      message:
+        'Sign in or create an account to reply, vote, or react on comments.',
     };
   }, [authGatePendingAction]);
 
@@ -222,7 +250,9 @@ const SingleDebateScreen = () => {
     const content = commentInput.trim();
     if (!content || !debate?.id) return;
     if (content.length > COMMENT_MAX_LENGTH) {
-      setCommentSubmitError(`Comment must be at most ${COMMENT_MAX_LENGTH} characters`);
+      setCommentSubmitError(
+        `Comment must be at most ${COMMENT_MAX_LENGTH} characters`,
+      );
       return;
     }
     if (!isLoggedIn || !token) {
@@ -234,7 +264,10 @@ const SingleDebateScreen = () => {
     try {
       const created = await apiCreateComment(token, debate.id, {
         content,
-        parent_comment_id: replyingToCommentId != null && replyingToCommentId > 0 ? replyingToCommentId : undefined,
+        parent_comment_id:
+          replyingToCommentId != null && replyingToCommentId > 0
+            ? replyingToCommentId
+            : undefined,
       });
       if (created) {
         setCommentInput('');
@@ -250,12 +283,19 @@ const SingleDebateScreen = () => {
     }
   };
 
-  const handleCommentVote = async (commentId: number, newVote: 'upvote' | 'downvote' | null) => {
+  const handleCommentVote = async (
+    commentId: number,
+    newVote: 'upvote' | 'downvote' | null,
+  ) => {
     if (!isLoggedIn || !token) {
       setAuthGatePendingAction('vote');
       return;
     }
-    const c = comments.find(x => x.id === commentId) ?? [...comments, ...comments.flatMap(x => x.subcomments ?? [])].find(x => x.id === commentId);
+    const c =
+      comments.find(x => x.id === commentId) ??
+      [...comments, ...comments.flatMap(x => x.subcomments ?? [])].find(
+        x => x.id === commentId,
+      );
     const current = c?.current_user_vote ?? null;
     const toSend = current === newVote ? null : newVote;
     setVoteLoadingCommentId(commentId);
@@ -265,14 +305,22 @@ const SingleDebateScreen = () => {
         setComments(prev =>
           prev.map(top => {
             if (top.id === commentId) {
-              return { ...top, net_score: res.net_score, current_user_vote: toSend ?? undefined };
+              return {
+                ...top,
+                net_score: res.net_score,
+                current_user_vote: toSend ?? undefined,
+              };
             }
             if (top.subcomments) {
               return {
                 ...top,
                 subcomments: top.subcomments.map(sub =>
                   sub.id === commentId
-                    ? { ...sub, net_score: res.net_score, current_user_vote: toSend ?? undefined }
+                    ? {
+                        ...sub,
+                        net_score: res.net_score,
+                        current_user_vote: toSend ?? undefined,
+                      }
                     : sub,
                 ),
               };
@@ -298,12 +346,14 @@ const SingleDebateScreen = () => {
       if (res != null) {
         setComments(prev =>
           prev.map(top => {
-            if (top.id === commentId) return { ...top, reactions: res.reactions };
+            if (top.id === commentId) return {...top, reactions: res.reactions};
             if (top.subcomments) {
               return {
                 ...top,
                 subcomments: top.subcomments.map(sub =>
-                  sub.id === commentId ? { ...sub, reactions: res.reactions } : sub,
+                  sub.id === commentId
+                    ? {...sub, reactions: res.reactions}
+                    : sub,
                 ),
               };
             }
@@ -322,10 +372,15 @@ const SingleDebateScreen = () => {
     const showPicker = showReactionPickerCommentId === c.id;
     const currentVote = c.current_user_vote ?? null;
     return (
-      <View key={c.id} style={[styles.commentRow, isSub && styles.subcommentRow]}>
+      <View
+        key={c.id}
+        style={[styles.commentRow, isSub && styles.subcommentRow]}>
         <View style={styles.commentAvatar}>
           {c.user_avatar_url ? (
-            <Image source={{uri: c.user_avatar_url}} style={styles.commentAvatarImage} />
+            <Image
+              source={{uri: c.user_avatar_url}}
+              style={styles.commentAvatarImage}
+            />
           ) : (
             <Text style={styles.commentAvatarText}>
               {(c.user_display_name || '?').charAt(0).toUpperCase()}
@@ -334,12 +389,17 @@ const SingleDebateScreen = () => {
         </View>
         <View style={styles.commentBody}>
           <View style={styles.commentMetaRow}>
-            <Text style={styles.commentUsername}>{c.user_display_name || 'User'}</Text>
+            <Text style={styles.commentUsername}>
+              {c.user_display_name || 'User'}
+            </Text>
             <View style={styles.commentVoteRow}>
               <TouchableOpacity
                 onPress={() => handleCommentVote(c.id, 'upvote')}
                 disabled={voteLoading}
-                style={[styles.commentVoteBtn, currentVote === 'upvote' && styles.commentVoteBtnActive]}
+                style={[
+                  styles.commentVoteBtn,
+                  currentVote === 'upvote' && styles.commentVoteBtnActive,
+                ]}
                 hitSlop={{top: 6, bottom: 6, left: 6, right: 6}}>
                 {voteLoading ? (
                   <ActivityIndicator size="small" color="#6b7280" />
@@ -352,12 +412,16 @@ const SingleDebateScreen = () => {
                 )}
               </TouchableOpacity>
               <Text style={styles.commentUpvotes}>
-                {c.net_score >= 0 ? '+' : ''}{formatScore(c.net_score)}
+                {c.net_score >= 0 ? '+' : ''}
+                {formatScore(c.net_score)}
               </Text>
               <TouchableOpacity
                 onPress={() => handleCommentVote(c.id, 'downvote')}
                 disabled={voteLoading}
-                style={[styles.commentVoteBtn, currentVote === 'downvote' && styles.commentVoteBtnActive]}
+                style={[
+                  styles.commentVoteBtn,
+                  currentVote === 'downvote' && styles.commentVoteBtnActive,
+                ]}
                 hitSlop={{top: 6, bottom: 6, left: 6, right: 6}}>
                 <Ionicons
                   name="chevron-down"
@@ -390,19 +454,28 @@ const SingleDebateScreen = () => {
                   onPress={() => handleCommentReaction(c.id, r.emoji)}
                   disabled={reactionLoading}
                   style={styles.reactionChipTouch}>
-                  <Text style={styles.reactionChip}>{r.emoji} {r.count}</Text>
+                  <Text style={styles.reactionChip}>
+                    {r.emoji} {r.count}
+                  </Text>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
                 onPress={() => {
                   if (!isLoggedIn) setAuthGatePendingAction('reaction');
-                  else setShowReactionPickerCommentId(prev => (prev === c.id ? null : c.id));
+                  else
+                    setShowReactionPickerCommentId(prev =>
+                      prev === c.id ? null : c.id,
+                    );
                 }}
                 style={styles.reactionAddBtn}>
                 {reactionLoading ? (
                   <ActivityIndicator size="small" color="#6b7280" />
                 ) : (
-                  <Ionicons name="add-circle-outline" size={18} color="#6b7280" />
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={18}
+                    color="#6b7280"
+                  />
                 )}
               </TouchableOpacity>
             </View>
@@ -419,7 +492,9 @@ const SingleDebateScreen = () => {
               ))}
             </View>
           )}
-          {c.subcomments && c.subcomments.length > 0 && c.subcomments.map(sub => renderComment(sub, true))}
+          {c.subcomments &&
+            c.subcomments.length > 0 &&
+            c.subcomments.map(sub => renderComment(sub, true))}
         </View>
       </View>
     );
@@ -513,7 +588,11 @@ const SingleDebateScreen = () => {
           });
           const totalYesVotes = cardYesVotes.reduce((a, b) => a + b, 0);
           const stanceColor = (stance: string) =>
-            stance === 'agree' ? '#22c55e' : stance === 'disagree' ? '#ef4444' : '#eab308';
+            stance === 'agree'
+              ? '#22c55e'
+              : stance === 'disagree'
+                ? '#ef4444'
+                : '#eab308';
           return (
             <View style={styles.meterSection}>
               {/* Debate Pulse only — percentages per card, no separate summary bar */}
@@ -522,14 +601,27 @@ const SingleDebateScreen = () => {
                   <Text style={styles.debatePulseTitle}>Debate Pulse</Text>
                   {cards.map((card, i) => {
                     const yesVotes = cardYesVotes[i] ?? 0;
-                    const pct = totalYesVotes > 0 ? Math.round((yesVotes / totalYesVotes) * 100) : 0;
+                    const pct =
+                      totalYesVotes > 0
+                        ? Math.round((yesVotes / totalYesVotes) * 100)
+                        : 0;
                     const color = stanceColor(card.stance ?? 'wildcard');
                     return (
                       <View key={card.id ?? i} style={styles.debatePulseRow}>
                         <View style={styles.debatePulseLabelRow}>
-                          <View style={[styles.debatePulseDot, {backgroundColor: color}]} />
+                          <View
+                            style={[
+                              styles.debatePulseDot,
+                              {backgroundColor: color},
+                            ]}
+                          />
                           <Text style={styles.debatePulseLabel}>
-                            {card.title || (card.stance === 'agree' ? 'Agree' : card.stance === 'disagree' ? 'Disagree' : 'Wildcard')}
+                            {card.title ||
+                              (card.stance === 'agree'
+                                ? 'Agree'
+                                : card.stance === 'disagree'
+                                  ? 'Disagree'
+                                  : 'Wildcard')}
                           </Text>
                         </View>
                         <View style={styles.debatePulseBarRow}>
@@ -537,7 +629,10 @@ const SingleDebateScreen = () => {
                             <View
                               style={[
                                 styles.debatePulseBarFill,
-                                {backgroundColor: color, width: `${Math.min(100, pct)}%`},
+                                {
+                                  backgroundColor: color,
+                                  width: `${Math.min(100, pct)}%`,
+                                },
                               ]}
                             />
                           </View>
@@ -556,20 +651,22 @@ const SingleDebateScreen = () => {
         {showCardStack && cards[currentCardIndex] && (
           <View style={styles.cardStackSection}>
             {/* Back cards (peek) — layered behind */}
-            {cards.slice(currentCardIndex + 1, currentCardIndex + 3).map((card, i) => (
-              <View
-                key={card.id ?? i}
-                style={[
-                  styles.stackedCard,
-                  styles.stackedCardBack,
-                  {top: 8 + i * 8, zIndex: 2 + i},
-                ]}>
-                <Text style={styles.stackedCardTitle}>{card.title}</Text>
-                <Text style={styles.stackedCardDesc} numberOfLines={2}>
-                  {card.description}
-                </Text>
-              </View>
-            ))}
+            {cards
+              .slice(currentCardIndex + 1, currentCardIndex + 3)
+              .map((card, i) => (
+                <View
+                  key={card.id ?? i}
+                  style={[
+                    styles.stackedCard,
+                    styles.stackedCardBack,
+                    {top: 8 + i * 8, zIndex: 2 + i},
+                  ]}>
+                  <Text style={styles.stackedCardTitle}>{card.title}</Text>
+                  <Text style={styles.stackedCardDesc} numberOfLines={2}>
+                    {card.description}
+                  </Text>
+                </View>
+              ))}
             {/* Top card — swipeable */}
             <View
               style={[
@@ -582,7 +679,13 @@ const SingleDebateScreen = () => {
               ]}
               {...panResponder.panHandlers}>
               {swipeOverlay && (
-                <View style={[styles.swipeOverlay, swipeOverlay === 'yes' ? styles.swipeOverlayYes : styles.swipeOverlayNo]}>
+                <View
+                  style={[
+                    styles.swipeOverlay,
+                    swipeOverlay === 'yes'
+                      ? styles.swipeOverlayYes
+                      : styles.swipeOverlayNo,
+                  ]}>
                   <Ionicons
                     name={swipeOverlay === 'yes' ? 'thumbs-up' : 'thumbs-down'}
                     size={64}
@@ -590,8 +693,12 @@ const SingleDebateScreen = () => {
                   />
                 </View>
               )}
-              <Text style={styles.stackedCardTitle}>{cards[currentCardIndex].title}</Text>
-              <Text style={styles.stackedCardDesc}>{cards[currentCardIndex].description}</Text>
+              <Text style={styles.stackedCardTitle}>
+                {cards[currentCardIndex].title}
+              </Text>
+              <Text style={styles.stackedCardDesc}>
+                {cards[currentCardIndex].description}
+              </Text>
               <Text style={styles.swipeHint}>Swipe right 👍 or left 👎</Text>
             </View>
           </View>
@@ -623,10 +730,15 @@ const SingleDebateScreen = () => {
             </TouchableOpacity>
           </View>
         )}
-        {!commentsLoading && !commentsError && comments.length === 0 && debate?.id != null && (
-          <Text style={styles.commentsEmpty}>No comments yet.</Text>
-        )}
-        {!commentsLoading && !commentsError && comments.map(c => renderComment(c))}
+        {!commentsLoading &&
+          !commentsError &&
+          comments.length === 0 &&
+          debate?.id != null && (
+            <Text style={styles.commentsEmpty}>No comments yet.</Text>
+          )}
+        {!commentsLoading &&
+          !commentsError &&
+          comments.map(c => renderComment(c))}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -634,7 +746,9 @@ const SingleDebateScreen = () => {
       {/* Fixed comment input */}
       {commentSubmitError && (
         <View style={styles.commentSubmitError}>
-          <Text style={styles.commentSubmitErrorText}>{commentSubmitError}</Text>
+          <Text style={styles.commentSubmitErrorText}>
+            {commentSubmitError}
+          </Text>
           <TouchableOpacity onPress={() => setCommentSubmitError(null)}>
             <Text style={styles.commentSubmitErrorDismiss}>Dismiss</Text>
           </TouchableOpacity>
@@ -652,16 +766,26 @@ const SingleDebateScreen = () => {
           {replyingToCommentId != null && (
             <View style={styles.replyHintRow}>
               <Text style={styles.replyHintText}>
-                Replying to {replyingToCommentId > 0 ? (comments.find(x => x.id === replyingToCommentId)?.user_display_name ?? 'comment') : 'comment'}
+                Replying to{' '}
+                {replyingToCommentId > 0
+                  ? (comments.find(x => x.id === replyingToCommentId)
+                      ?.user_display_name ?? 'comment')
+                  : 'comment'}
               </Text>
-              <TouchableOpacity onPress={() => setReplyingToCommentId(null)} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+              <TouchableOpacity
+                onPress={() => setReplyingToCommentId(null)}
+                hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
                 <Ionicons name="close" size={18} color="#6b7280" />
               </TouchableOpacity>
             </View>
           )}
           <TextInput
             style={styles.input}
-            placeholder={replyingToCommentId != null ? 'Write a reply...' : 'Write a comment...'}
+            placeholder={
+              replyingToCommentId != null
+                ? 'Write a reply...'
+                : 'Write a comment...'
+            }
             placeholderTextColor="#9ca3af"
             value={commentInput}
             onChangeText={setCommentInput}
@@ -675,7 +799,11 @@ const SingleDebateScreen = () => {
         </View>
         <TouchableOpacity
           onPress={handleAddComment}
-          style={[styles.sendButton, (!commentInput.trim() || commentSubmitting) && styles.sendButtonDisabled]}
+          style={[
+            styles.sendButton,
+            (!commentInput.trim() || commentSubmitting) &&
+              styles.sendButtonDisabled,
+          ]}
           disabled={!commentInput.trim() || commentSubmitting}>
           {commentSubmitting ? (
             <ActivityIndicator size="small" color="#007AFF" />
@@ -692,14 +820,20 @@ const SingleDebateScreen = () => {
           const pending = authGatePendingAction;
           setAuthGatePendingAction(null);
           rootNavigate('Login', {
-            returnToDebate: match && debate ? {match, debate, pendingAction: pending ?? undefined} : undefined,
+            returnToDebate:
+              match && debate
+                ? {match, debate, pendingAction: pending ?? undefined}
+                : undefined,
           });
         }}
         onSignUp={() => {
           const pending = authGatePendingAction;
           setAuthGatePendingAction(null);
           rootNavigate('SignUp', {
-            returnToDebate: match && debate ? {match, debate, pendingAction: pending ?? undefined} : undefined,
+            returnToDebate:
+              match && debate
+                ? {match, debate, pendingAction: pending ?? undefined}
+                : undefined,
           });
         }}
         title={authGateContent.title}
