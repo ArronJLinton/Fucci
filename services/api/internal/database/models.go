@@ -104,6 +104,35 @@ type Match struct {
 	UpdatedAt         sql.NullTime
 }
 
+type MePlayerProfile struct {
+	ID          int32
+	UserID      int32
+	Age         sql.NullInt32
+	CountryCode string
+	ClubName    sql.NullString
+	IsFreeAgent bool
+	Position    string
+	PhotoUrl    sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type MePlayerProfileCareerTeam struct {
+	ID                int32
+	MePlayerProfileID int32
+	TeamName          string
+	StartYear         int32
+	EndYear           sql.NullInt32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type MePlayerProfileTrait struct {
+	ID                int32
+	MePlayerProfileID int32
+	TraitCode         string
+}
+
 type Medium struct {
 	ID        int32
 	MatchID   string

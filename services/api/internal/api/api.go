@@ -87,6 +87,14 @@ func New(c Config) http.Handler {
 	// Temp route for listing all users
 	userRouter.Get("/all", c.handleListAllUsers)
 
+	// 007: current user's player profile (GET/POST/PUT/DELETE /api/me/player-profile)
+	meRouter := chi.NewRouter()
+	meRouter.Use(auth.RequireAuth)
+	meRouter.Get("/player-profile", c.getMePlayerProfile)
+	meRouter.Post("/player-profile", c.postMePlayerProfile)
+	meRouter.Put("/player-profile", c.putMePlayerProfile)
+	meRouter.Delete("/player-profile", c.deleteMePlayerProfile)
+
 	futbolRouter := chi.NewRouter()
 	futbolRouter.Get("/matches", c.getMatches)
 	futbolRouter.Get("/lineup", c.getMatchLineup)
@@ -167,6 +175,7 @@ func New(c Config) http.Handler {
 
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)
+	router.Mount("/me", meRouter)
 	router.Mount("/comments", commentsRouter)
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)

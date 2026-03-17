@@ -22,7 +22,7 @@
 
 **Purpose**: Ensure feature branch and docs are ready; no new project init.
 
-- [ ] T001 Verify feature branch `007-player-profile` and that specs/007-player-profile/ (spec.md, plan.md, data-model.md, contracts/api.yaml, research.md, quickstart.md) exist
+- [x] T001 Verify feature branch `007-player-profile` and that specs/007-player-profile/ (spec.md, plan.md, data-model.md, contracts/api.yaml, research.md, quickstart.md) exist
 
 ---
 
@@ -32,12 +32,12 @@
 
 **Independent Test**: Run migrations; `GET /api/me/player-profile` returns 404 when no profile; authenticated routes require token.
 
-- [ ] T002 Add migration file in services/api/sql/schema/ for 007: player_profiles columns (country_code, club_name, is_free_agent, position enum GK/DEF/MID/FWD, photo_url per data-model.md); add player_profile_traits and player_career_teams tables
-- [ ] T003 Add sqlc queries in services/api/sql/queries/ (new or extend player_profiles.sql): get/create/update/delete profile by user_id; traits and career_teams CRUD; align with new schema
-- [ ] T004 Run sqlc generate and goose up; fix compile errors in services/api/internal/database/
-- [ ] T005 Register authenticated /api/me (or /users/me) router in services/api/internal/api/api.go with RequireAuth; mount GET/POST/PUT/DELETE player-profile routes delegating to new handlers
-- [ ] T006 Implement GET and POST /api/me/player-profile in services/api/internal/api/player_profile.go: user from auth context, 404 when no profile; create with age, country_code, club_name, is_free_agent, position; return PlayerProfile DTO (traits/career_teams empty initially)
-- [ ] T007 Implement PUT and DELETE /api/me/player-profile in services/api/internal/api/player_profile.go: update fields; delete profile (cascade traits/career_teams); return 404 when no profile
+- [x] T002 Add migration file in services/api/sql/schema/ for 007: player_profiles columns (country_code, club_name, is_free_agent, position enum GK/DEF/MID/FWD, photo_url per data-model.md); add player_profile_traits and player_career_teams tables
+- [x] T003 Add sqlc queries in services/api/sql/queries/ (new or extend player_profiles.sql): get/create/update/delete profile by user_id; traits and career_teams CRUD; align with new schema
+- [x] T004 Run sqlc generate and goose up; fix compile errors in services/api/internal/database/
+- [x] T005 Register authenticated /api/me (or /users/me) router in services/api/internal/api/api.go with RequireAuth; mount GET/POST/PUT/DELETE player-profile routes delegating to new handlers
+- [x] T006 Implement GET and POST /api/me/player-profile in services/api/internal/api/player_profile.go: user from auth context, 404 when no profile; create with age, country_code, club_name, is_free_agent, position; return PlayerProfile DTO (traits/career_teams empty initially)
+- [x] T007 Implement PUT and DELETE /api/me/player-profile in services/api/internal/api/player_profile.go: update fields; delete profile (cascade traits/career_teams); return 404 when no profile
 - [ ] T008 Add types in apps/mobile/src/types/playerProfile.ts and API client in apps/mobile/src/services/playerProfile.ts: PlayerProfile, PlayerProfileInput, trait codes, CareerTeam; getPlayerProfile, createPlayerProfile, updatePlayerProfile, deletePlayerProfile using makeAuthRequest
 
 **Checkpoint**: Backend supports create/read/update/delete for current user’s profile; mobile can call API with auth.
