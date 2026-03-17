@@ -27,7 +27,7 @@ type commentRateEntry struct {
 	windowStart time.Time
 }
 
-// commentRateLimiter is in-memory per-user rate limit for comment creation (e.g. N per minute).
+// commentRateLimiter is in-memory per-user rate limit for comment creation (fallback when Redis unavailable).
 type commentRateLimiter struct {
 	mu     sync.Mutex
 	byUser map[int32]commentRateEntry
@@ -51,6 +51,35 @@ func (r *commentRateLimiter) allow(userID int32) bool {
 }
 
 var defaultCommentRateLimiter commentRateLimiter
+
+// checkCommentRateLimit returns true if the user is within the comment-creation rate limit (N per minute).
+// Uses Redis-backed Cache (Incr/Expire/TTL) when available for consistent enforcement across API instances;
+// falls back to in-memory per-process limiter when cache is nil or unavailable.
+func checkCommentRateLimit(ctx context.Context, c *Config, userID int32) bool {
+	if c.Cache != nil {
+		key := fmt.Sprintf("comment_rate:%d", userID)
+		n, err := c.Cache.Incr(ctx, key)
+		if err == nil {
+			if n == 1 {
+				if err := c.Cache.Expire(ctx, key, commentRateWindow); err != nil {
+					log.Printf("[comments] rate limit Redis Expire failed: %v", err)
+				}
+			} else {
+				ttl, err := c.Cache.TTL(ctx, key)
+				if err != nil {
+					log.Printf("[comments] rate limit Redis TTL failed: %v", err)
+				} else if ttl < 0 {
+					if err := c.Cache.Expire(ctx, key, commentRateWindow); err != nil {
+						log.Printf("[comments] rate limit Redis fallback Expire failed: %v", err)
+					}
+				}
+			}
+			return n <= int64(commentRateLimitN)
+		}
+		log.Printf("[comments] rate limit Redis Incr failed: %v; using in-memory fallback", err)
+	}
+	return defaultCommentRateLimiter.allow(userID)
+}
 
 // DebateComment is the public API shape for a comment (006 spec). Seeded flag is not exposed.
 type DebateComment struct {
@@ -184,7 +213,7 @@ func (c *Config) CreateDebateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !defaultCommentRateLimiter.allow(userID) {
+	if !checkCommentRateLimit(ctx, c, userID) {
 		respondWithError(w, http.StatusTooManyRequests, "Rate limit exceeded; try again later")
 		return
 	}
