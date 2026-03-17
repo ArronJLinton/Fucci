@@ -218,8 +218,8 @@ paths:
     post:
       summary: Add emoji reaction to a comment
       description: |
-        Add a reaction with the given emoji (from allowed set). If user already
-        reacted with this emoji, toggles off (removes). Requires authentication.
+        Add a reaction with the given emoji. If user already reacted with this
+        emoji, toggles off (removes). Requires authentication.
       operationId: addCommentReaction
       tags: [Comment Reactions]
       security:
@@ -241,7 +241,7 @@ paths:
               properties:
                 emoji:
                   type: string
-                  description: Emoji code from allowed set (e.g. thumbs up, heart, fire)
+                  description: Emoji code (e.g. thumbs up, heart, fire)
       responses:
         '200':
           description: Reaction added or toggled off; returns updated reaction counts
@@ -259,8 +259,6 @@ paths:
                           type: string
                         count:
                           type: integer
-        '400':
-          description: Emoji not in allowed set
         '401':
           description: Unauthorized — show auth gate
         '404':
