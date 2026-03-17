@@ -546,6 +546,7 @@ func (c *Config) buildDebateCommentFromRowWithPreloaded(
 
 // buildDebateComment converts a GetCommentsRow to DebateComment (no seeded, no stance).
 // Fetches net_score, reactions, and optionally current_user_vote from DB (use buildDebateCommentFromRowWithPreloaded when listing with batch data).
+// User display name and avatar come from the row: GetComments/GetComment select u.display_name and u.avatar_url; the shared helper prefers display_name over firstname+lastname and sets user_avatar_url.
 func (c *Config) buildDebateComment(ctx context.Context, row database.GetCommentsRow, currentUserID *int32) (DebateComment, error) {
 	netScore, _ := c.DB.GetCommentVoteNetScore(ctx, row.ID)
 	reactionRows, _ := c.DB.GetCommentReactionsByCommentID(ctx, row.ID)
