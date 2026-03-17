@@ -302,6 +302,8 @@ type SetCommentVoteRequest struct {
 }
 
 // SetCommentVote handles PUT /api/comments/{comment_id}/vote. Requires auth.
+// API-level toggle: sending the same vote again clears it (delete and return vote_type: null).
+// Explicit clear: send vote_type null/empty to remove vote. Returns 404 if comment does not exist.
 func (c *Config) SetCommentVote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -324,6 +326,23 @@ func (c *Config) SetCommentVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify comment exists so we return 404 instead of 200 with net_score: 0 for invalid comment_id
+	commentGetter := CommentReader(c.DB)
+	if c.CommentReader != nil {
+		commentGetter = c.CommentReader
+	}
+	_, err = commentGetter.GetComment(ctx, int32(commentID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Comment not found")
+			return
+		}
+		log.Printf("[comments] GetComment error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get comment")
+		return
+	}
+
+	// Explicit clear: client sent null/empty/"null"
 	if req.VoteType == nil || *req.VoteType == "" || *req.VoteType == "null" {
 		_ = c.DB.DeleteCommentVote(ctx, database.DeleteCommentVoteParams{CommentID: int32(commentID), UserID: userID})
 		netScore, _ := c.DB.GetCommentVoteNetScore(ctx, int32(commentID))
@@ -333,6 +352,15 @@ func (c *Config) SetCommentVote(w http.ResponseWriter, r *http.Request) {
 
 	if *req.VoteType != "upvote" && *req.VoteType != "downvote" {
 		respondWithError(w, http.StatusBadRequest, "vote_type must be upvote or downvote")
+		return
+	}
+
+	// Toggle: same vote again clears it (API-level semantics; client can send vote_type and server clears if already set)
+	existing, err := c.DB.GetCommentVoteByUser(ctx, database.GetCommentVoteByUserParams{CommentID: int32(commentID), UserID: userID})
+	if err == nil && existing.VoteType == *req.VoteType {
+		_ = c.DB.DeleteCommentVote(ctx, database.DeleteCommentVoteParams{CommentID: int32(commentID), UserID: userID})
+		netScore, _ := c.DB.GetCommentVoteNetScore(ctx, int32(commentID))
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{"net_score": netScore, "vote_type": nil})
 		return
 	}
 

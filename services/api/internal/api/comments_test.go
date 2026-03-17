@@ -247,7 +247,13 @@ func TestSetCommentVote_InvalidCommentID(t *testing.T) {
 
 func TestSetCommentVote_InvalidBody(t *testing.T) {
 	userID := int32(1)
-	config := &Config{}
+	config := &Config{
+		CommentReader: &mockCommentReader{
+			getCommentFunc: func(ctx context.Context, id int32) (database.GetCommentRow, error) {
+				return database.GetCommentRow{ID: id}, nil
+			},
+		},
+	}
 	req := commentRequestWithChiParams("PUT", "/comments/1/vote", nil, map[string]string{"commentId": "1"}, &userID)
 	req.Body = http.NoBody
 	req.Header.Set("Content-Type", "application/json")
@@ -263,7 +269,13 @@ func TestSetCommentVote_InvalidBody(t *testing.T) {
 
 func TestSetCommentVote_InvalidVoteType(t *testing.T) {
 	userID := int32(1)
-	config := &Config{}
+	config := &Config{
+		CommentReader: &mockCommentReader{
+			getCommentFunc: func(ctx context.Context, id int32) (database.GetCommentRow, error) {
+				return database.GetCommentRow{ID: id}, nil
+			},
+		},
+	}
 	req := commentRequestWithChiParams("PUT", "/comments/1/vote", map[string]interface{}{"vote_type": "invalid"}, map[string]string{"commentId": "1"}, &userID)
 	rec := httptest.NewRecorder()
 
@@ -273,6 +285,26 @@ func TestSetCommentVote_InvalidVoteType(t *testing.T) {
 	var out map[string]string
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
 	assert.Contains(t, out["error"], "upvote or downvote")
+}
+
+func TestSetCommentVote_CommentNotFound(t *testing.T) {
+	userID := int32(1)
+	config := &Config{
+		CommentReader: &mockCommentReader{
+			getCommentFunc: func(ctx context.Context, id int32) (database.GetCommentRow, error) {
+				return database.GetCommentRow{}, sql.ErrNoRows
+			},
+		},
+	}
+	req := commentRequestWithChiParams("PUT", "/comments/999/vote", map[string]interface{}{"vote_type": "upvote"}, map[string]string{"commentId": "999"}, &userID)
+	rec := httptest.NewRecorder()
+
+	config.SetCommentVote(rec, req)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	var out map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	assert.Contains(t, out["error"], "Comment not found")
 }
 
 // ---- AddCommentReaction ----
