@@ -860,6 +860,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 14,
     elevation: 8,
+    opacity: 0.7,
   },
   heroInfoCardRow: {
     flexDirection: 'row',
