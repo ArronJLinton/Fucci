@@ -93,6 +93,7 @@ func New(c Config) http.Handler {
 	meRouter.Get("/player-profile", c.getMePlayerProfile)
 	meRouter.Post("/player-profile", c.postMePlayerProfile)
 	meRouter.Put("/player-profile", c.putMePlayerProfile)
+	meRouter.Put("/player-profile/traits", c.putMePlayerProfileTraits)
 	meRouter.Delete("/player-profile", c.deleteMePlayerProfile)
 
 	futbolRouter := chi.NewRouter()

@@ -266,6 +266,72 @@ func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, meProfileToResponse(updated, traits, careerTeams))
 }
 
+// allowedTraitCodes is the enum for PUT /api/me/player-profile/traits (007 spec).
+var allowedTraitCodes = map[string]bool{
+	"LEADERSHIP": true, "FINESSE_SHOT": true, "PLAYMAKER": true,
+	"SPEED_DRIBBLER": true, "LONG_SHOT_TAKER": true, "OUTSIDE_FOOT_SHOT": true,
+	"POWER_HEADER": true, "FLAIR": true, "POWER_FREE_KICK": true,
+}
+
+func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+
+	var req struct {
+		Traits []string `json:"traits"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if len(req.Traits) > 5 {
+		respondWithError(w, http.StatusBadRequest, "Maximum 5 traits allowed")
+		return
+	}
+	for _, t := range req.Traits {
+		if !allowedTraitCodes[t] {
+			respondWithError(w, http.StatusBadRequest, "Invalid trait code: "+t)
+			return
+		}
+	}
+
+	profile, err := c.DB.GetMePlayerProfileByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		log.Printf("[me_player_profile] GetMePlayerProfileByUserID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+
+	if err := c.DB.DeleteMePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
+		log.Printf("[me_player_profile] DeleteMePlayerProfileTraitsByProfileID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+		return
+	}
+	for _, traitCode := range req.Traits {
+		if _, err := c.DB.InsertMePlayerProfileTrait(ctx, database.InsertMePlayerProfileTraitParams{
+			MePlayerProfileID: profile.ID,
+			TraitCode:         traitCode,
+		}); err != nil {
+			log.Printf("[me_player_profile] InsertMePlayerProfileTrait error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to save traits")
+			return
+		}
+	}
+	traits, _ := c.DB.ListMePlayerProfileTraits(ctx, profile.ID)
+	if traits == nil {
+		traits = []string{}
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"traits": traits})
+}
+
 func (c *Config) deleteMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("user_id").(int32)
 	if !ok || userID == 0 {

@@ -38,7 +38,7 @@
 - [x] T005 Register authenticated /api/me (or /users/me) router in services/api/internal/api/api.go with RequireAuth; mount GET/POST/PUT/DELETE player-profile routes delegating to new handlers
 - [x] T006 Implement GET and POST /api/me/player-profile in services/api/internal/api/player_profile.go: user from auth context, 404 when no profile; create with age, country_code, club_name, is_free_agent, position; return PlayerProfile DTO (traits/career_teams empty initially)
 - [x] T007 Implement PUT and DELETE /api/me/player-profile in services/api/internal/api/player_profile.go: update fields; delete profile (cascade traits/career_teams); return 404 when no profile
-- [ ] T008 Add types in apps/mobile/src/types/playerProfile.ts and API client in apps/mobile/src/services/playerProfile.ts: PlayerProfile, PlayerProfileInput, trait codes, CareerTeam; getPlayerProfile, createPlayerProfile, updatePlayerProfile, deletePlayerProfile using makeAuthRequest
+- [x] T008 Add types in apps/mobile/src/types/playerProfile.ts and API client in apps/mobile/src/services/playerProfile.ts: PlayerProfile, PlayerProfileInput, trait codes, CareerTeam; getPlayerProfile, createPlayerProfile, updatePlayerProfile, deletePlayerProfile using makeAuthRequest
 
 **Checkpoint**: Backend supports create/read/update/delete for current user’s profile; mobile can call API with auth.
 
@@ -50,12 +50,12 @@
 
 **Independent Test**: Log in, open Player Profile; if no profile see Create screen; submit valid form → profile created and view shows; edit and save; delete with confirm → Create screen again.
 
-- [ ] T009 [P] [US1] Add reusable CountryPicker component in apps/mobile/src/components/CountryPicker.tsx: searchable list, ISO 3166-1 alpha-2 codes, optional flags; export selected country code and display name
-- [ ] T010 [US1] Add Create Player Profile screen in apps/mobile/src/screens/CreatePlayerProfileScreen.tsx: form fields Age (13–60), Country (CountryPicker), Club or Free Agent (text + toggle), Position (GK/DEF/MID/FWD); Next (validate, call createPlayerProfile, navigate to profile); Or Maybe Later (dismiss)
-- [ ] T011 [US1] Add Player Profile screen in apps/mobile/src/screens/PlayerProfileScreen.tsx: tabs Profile / Stats (placeholder) / Career; Profile tab shows avatar placeholder, age, country, club, position, “Save Profile” for edits; load profile via getPlayerProfile (404 → show Create flow or redirect to CreatePlayerProfileScreen)
-- [ ] T012 [US1] Wire navigation: add route and entry point (e.g. profile icon or “Player Profile”) in apps/mobile to CreatePlayerProfileScreen when no profile and PlayerProfileScreen when profile exists; after create/delete update nav state
-- [ ] T013 [US1] Add delete profile flow in apps/mobile: confirm dialog in PlayerProfileScreen (or settings), call deletePlayerProfile, then navigate to Create flow or clear profile state
-- [ ] T014 [US1] Add edit-profile form or inline edit in PlayerProfileScreen for age, country, club, position; persist via updatePlayerProfile; validation same as create (age 13–60, required country and position)
+- [x] T009 [P] [US1] Add reusable CountryPicker component in apps/mobile/src/components/CountryPicker.tsx: searchable list, ISO 3166-1 alpha-2 codes, optional flags; export selected country code and display name
+- [x] T010 [US1] Add Create Player Profile screen in apps/mobile/src/screens/CreatePlayerProfileScreen.tsx: form fields Age (13–60), Country (CountryPicker), Club or Free Agent (text + toggle), Position (GK/DEF/MID/FWD); Next (validate, call createPlayerProfile, navigate to profile); Or Maybe Later (dismiss)
+- [x] T011 [US1] Add Player Profile screen in apps/mobile/src/screens/PlayerProfileScreen.tsx: tabs Profile / Stats (placeholder) / Career; Profile tab shows avatar placeholder, age, country, club, position, “Save Profile” for edits; load profile via getPlayerProfile (404 → show Create flow or redirect to CreatePlayerProfileScreen)
+- [x] T012 [US1] Wire navigation: add route and entry point (e.g. profile icon or “Player Profile”) in apps/mobile to CreatePlayerProfileScreen when no profile and PlayerProfileScreen when profile exists; after create/delete update nav state
+- [x] T013 [US1] Add delete profile flow in apps/mobile: confirm dialog in PlayerProfileScreen (or settings), call deletePlayerProfile, then navigate to Create flow or clear profile state
+- [x] T014 [US1] Add edit-profile form or inline edit in PlayerProfileScreen for age, country, club, position; persist via updatePlayerProfile; validation same as create (age 13–60, required country and position)
 
 **Checkpoint**: User can create, view, edit, and delete their single player profile; country picker is reusable.
 
@@ -67,10 +67,10 @@
 
 **Independent Test**: Open profile → Add Traits → select up to 5 → Save; chips appear; reopen modal, change selection, Save; chips update.
 
-- [ ] T015 [P] [US2] Implement PUT /api/me/player-profile/traits handler in services/api/internal/api/player_profile.go: body { traits: string[] } (max 5); validate trait codes against allowed enum; replace all traits for current user’s profile; return updated traits
-- [ ] T016 [US2] Add get-traits (or include traits in GET profile) in API and in apps/mobile/src/services/playerProfile.ts: setPlayerProfileTraits(traits); ensure GET profile returns traits array
-- [ ] T017 [P] [US2] Add PlayerTraitsModal in apps/mobile/src/components/PlayerTraitsModal.tsx: full-screen modal, title “Select Player Traits”, list of 9 traits with icon + name + checkbox, max 5 selected; Save (call API, close); Back/Close dismiss without saving
-- [ ] T018 [US2] On PlayerProfileScreen Profile tab add “Add Traits” button and trait chips (horizontal wrap); open PlayerTraitsModal on tap; after save refresh profile or local state to show updated traits
+- [x] T015 [P] [US2] Implement PUT /api/me/player-profile/traits handler in services/api/internal/api/me_player_profile.go: body { traits: string[] } (max 5); validate trait codes against allowed enum; replace all traits for current user’s profile; return updated traits
+- [x] T016 [US2] Add get-traits (or include traits in GET profile) in API and in apps/mobile/src/services/playerProfile.ts: setPlayerProfileTraits(traits); ensure GET profile returns traits array
+- [x] T017 [P] [US2] Add PlayerTraitsModal in apps/mobile/src/components/PlayerTraitsModal.tsx: full-screen modal, title “Select Player Traits”, list of 9 traits with icon + name + checkbox, max 5 selected; Save (call API, close); Back/Close dismiss without saving
+- [x] T018 [US2] On PlayerProfileScreen Profile tab add “Add Traits” button and trait chips (horizontal wrap); open PlayerTraitsModal on tap; after save refresh profile or local state to show updated traits
 
 **Checkpoint**: Traits persist and display; modal enforces max 5.
 

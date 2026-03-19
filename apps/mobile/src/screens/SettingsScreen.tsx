@@ -257,6 +257,16 @@ export default function SettingsScreen({
 
             {activeTab === 'profile' && (
               <View style={styles.section}>
+                <TouchableOpacity
+                  style={styles.playerProfileEntry}
+                  onPress={() => rootNavigate('PlayerProfile')}
+                  accessibilityLabel="Open Player Profile">
+                  <Ionicons name="person-circle-outline" size={24} color="#22c55e" />
+                  <Text style={styles.playerProfileEntryText}>
+                    Player Profile (age, country, club, traits)
+                  </Text>
+                  <Ionicons name="chevron-forward" size={20} color="#999" />
+                </TouchableOpacity>
                 {saveError ? (
                   <Text style={styles.saveErrorText}>{saveError}</Text>
                 ) : null}
@@ -480,6 +490,21 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+  },
+  playerProfileEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    marginBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+  },
+  playerProfileEntryText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#000',
   },
   label: {
     fontSize: 14,
