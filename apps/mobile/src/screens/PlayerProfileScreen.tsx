@@ -17,6 +17,7 @@ import {
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import type {NavigationProp} from '../types/navigation';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {LinearGradient} from 'expo-linear-gradient';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {countryCodeToFlag, COUNTRIES} from '../data/countries';
@@ -304,8 +305,26 @@ export default function PlayerProfileScreen() {
             ? 'Free Agent'
             : 'Rising Star';
 
-  const clubOrStatus = profile.is_free_agent ? 'Free Agent' : (profile.club ?? 'Club');
-  const metaInfo = [flag ? `${flag} ${countryName}` : countryName, clubOrStatus, posAbbrev].filter(Boolean).join(' • ');
+  const clubOrStatus = profile.is_free_agent
+    ? 'Free Agent'
+    : (profile.club ?? 'Club');
+  const metaInfo = [
+    flag ? `${flag} ${countryName}` : countryName,
+    clubOrStatus,
+    posAbbrev,
+  ]
+    .filter(Boolean)
+    .join(' • ');
+
+  // Position dot on mini pitch: GK=bottom, DEF, MID, FWD=top (percent from bottom)
+  const positionDotBottom =
+    profile.position === 'GK'
+      ? '8%'
+      : profile.position === 'DEF'
+        ? '28%'
+        : profile.position === 'MID'
+          ? '50%'
+          : '72%';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -315,12 +334,13 @@ export default function PlayerProfileScreen() {
           style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Player Profile</Text>
         <View style={styles.headerIconWrap}>
           <Ionicons name="person-circle-outline" size={26} color="#374151" />
           <View style={styles.headerBadge} />
         </View>
       </View>
-
+      {/* Tabs */}
       <View style={styles.tabs}>
         {(['profile', 'stats', 'career'] as const).map(tab => (
           <TouchableOpacity
@@ -344,56 +364,59 @@ export default function PlayerProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {/* HERO SECTION (Top ~45%) — Figma layers */}
+          {/* HERO SECTION — full-width player image + gradient fade to white */}
           <View style={[styles.heroSection, {height: HERO_HEIGHT}]}>
-            {/* bg_gradient — gradient / stadium background */}
-            <View style={[styles.bg_gradient, {backgroundColor: theme.a}]} />
-            <View style={[styles.bg_gradient_bottom, {backgroundColor: theme.b}]} />
-
-            {/* bg_particles — optional overlay */}
-            <View style={styles.bg_particles} pointerEvents="none">
-              {Array.from({length: 24}, (_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.particle,
-                    {
-                      left: `${(i * 17) % 100}%`,
-                      top: `${(i * 13) % 100}%`,
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-
-            {/* player_image_cutout */}
             <View style={styles.player_image_cutout}>
               <Image
                 source={require('./player_profile_action.png')}
                 style={styles.playerCutoutImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             </View>
+            {/* Smooth linear gradient — transparent at top to white at bottom */}
+            <LinearGradient
+              colors={['transparent', 'rgba(255,255,255,0.4)', '#fff']}
+              locations={[0, 0.5, 1]}
+              style={styles.heroGradientFade}
+              pointerEvents="none"
+            />
+          </View>
 
-            {/* Bottom strip: rating_badge, player_name, meta_info, archetype_label */}
-            <View style={styles.heroInfoStrip}>
-              <View style={styles.heroNameRow}>
-                <Text style={styles.player_name} numberOfLines={1}>
-                  {user?.display_name ?? 'Player'}
+          {/* White info card — overlaps hero with shadow, sits on gradient */}
+          {!editMode && (
+            <View style={styles.heroInfoCard}>
+              <View style={styles.heroInfoCardRow}>
+                <Text style={styles.heroInfoCardLabel}>Age</Text>
+                <Text style={styles.heroInfoCardValue}>
+                  {profile.age ?? '—'}
                 </Text>
-                <View style={styles.rating_badge}>
-                  <Text style={styles.ratingValue}>{overallClamped}</Text>
-                  <Ionicons name="star" size={14} color="#fbbf24" />
+              </View>
+              <View style={styles.heroInfoCardRow}>
+                <Text style={styles.heroInfoCardLabel}>Country</Text>
+                <Text style={styles.heroInfoCardValue}>
+                  {flag ? `${flag} ` : ''}
+                  {countryName}
+                </Text>
+              </View>
+              <View style={styles.heroInfoCardRow}>
+                <Text style={styles.heroInfoCardLabel}>Club</Text>
+                <Text style={styles.heroInfoCardValue}>
+                  {profile.is_free_agent ? 'Free Agent' : (profile.club ?? '—')}
+                </Text>
+              </View>
+              <View style={styles.heroInfoCardRow}>
+                <Text style={styles.heroInfoCardLabel}>Position</Text>
+                <View style={styles.positionPitchWrap}>
+                  <View style={styles.positionPitch}>
+                    <View
+                      style={[styles.positionDot, {bottom: positionDotBottom}]}
+                    />
+                  </View>
+                  <Text style={styles.heroInfoCardValue}>{posAbbrev}</Text>
                 </View>
               </View>
-              <Text style={styles.meta_info} numberOfLines={1}>
-                {metaInfo}
-              </Text>
-              <Text style={styles.archetype_label} numberOfLines={1}>
-                {archetype}
-              </Text>
             </View>
-          </View>
+          )}
 
           {editMode ? (
             <View style={styles.editFormCard}>
@@ -478,7 +501,9 @@ export default function PlayerProfileScreen() {
               {(profile.traits ?? []).length === 0 ? (
                 <View style={styles.traitsEmptyCard}>
                   <Text style={styles.traitsEmpty}>No traits yet</Text>
-                  <Text style={styles.traitsEmptyHint}>Tap "Add Traits" to choose up to 5</Text>
+                  <Text style={styles.traitsEmptyHint}>
+                    Tap "Add Traits" to choose up to 5
+                  </Text>
                 </View>
               ) : (
                 (profile.traits ?? []).map((code: string) => {
@@ -508,9 +533,7 @@ export default function PlayerProfileScreen() {
                           color="#fff"
                         />
                       </View>
-                      <Text
-                        style={styles.traitBadgeLabel}
-                        numberOfLines={2}>
+                      <Text style={styles.traitBadgeLabel} numberOfLines={2}>
                         {TRAIT_LABELS[code] ?? code.replace(/_/g, ' ')}
                       </Text>
                     </View>
@@ -690,6 +713,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   backBtn: {padding: 4},
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
   title: {fontSize: 18, fontWeight: '700', color: '#111827'},
   headerIconWrap: {
     width: 32,
@@ -752,49 +782,24 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 6,
   },
-  bg_gradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: '60%',
-    opacity: 0.92,
-  },
-  bg_gradient_bottom: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '50%',
-    opacity: 0.88,
-  },
-  bg_particles: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    opacity: 0.12,
-  },
-  particle: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-  },
   player_image_cutout: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: '100%',
   },
   playerCutoutImage: {
     width: '100%',
     height: '100%',
+  },
+  heroGradientFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 140,
   },
   heroInfoStrip: {
     position: 'absolute',
@@ -842,6 +847,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.75)',
+  },
+  heroInfoCard: {
+    marginTop: -72,
+    marginBottom: 18,
+    marginHorizontal: 4,
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  heroInfoCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  heroInfoCardLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  heroInfoCardValue: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  positionPitchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  positionPitch: {
+    width: 56,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#22c55e',
+    opacity: 0.9,
+    position: 'relative',
+  },
+  positionDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#fff',
+    left: '50%',
+    marginLeft: -5,
   },
   editForm: {marginBottom: 16},
   editFormRow: {marginBottom: 16},
