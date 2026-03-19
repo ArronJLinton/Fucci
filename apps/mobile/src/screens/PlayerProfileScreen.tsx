@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useRef} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,6 @@ import {
   Alert,
   TextInput,
   Switch,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
   Dimensions,
 } from 'react-native';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
@@ -84,8 +82,6 @@ export default function PlayerProfileScreen() {
   >(null);
   const [editMode, setEditMode] = useState(false);
   const [showPositionPicker, setShowPositionPicker] = useState(false);
-  const traitsScrollRef = useRef<ScrollView>(null);
-  const [traitsPageIndex, setTraitsPageIndex] = useState(0);
 
   const POSITIONS: {value: PlayerProfileType['position']; label: string}[] = [
     {value: 'GK', label: 'Goalkeeper'},
@@ -223,7 +219,7 @@ export default function PlayerProfileScreen() {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color="#e5e7eb" />
           </TouchableOpacity>
           <View style={styles.headerSpacer} />
         </View>
@@ -241,13 +237,6 @@ export default function PlayerProfileScreen() {
     return null;
   }
 
-  const traits = profile.traits ?? [];
-  const traitsNumPages = Math.max(1, Math.ceil(traits.length / 3));
-  const onTraitsScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const x = e.nativeEvent.contentOffset.x;
-    const page = Math.round(x / (SCREEN_WIDTH - 48)) || 0;
-    setTraitsPageIndex(Math.min(page, traitsNumPages - 1));
-  };
   const flag =
     editCountryCode || profile.country
       ? countryCodeToFlag(editCountryCode || profile.country)
@@ -281,17 +270,6 @@ export default function PlayerProfileScreen() {
   const overall = Math.round(stats.reduce((s, v) => s + v, 0) / stats.length);
   const overallClamped = Math.max(1, Math.min(99, overall));
 
-  const clubKey = (profile.club ?? '').toLowerCase();
-  const theme = profile.is_free_agent
-    ? {a: '#f59e0b', b: '#16a34a'} // gold/green “special”
-    : clubKey.includes('juventus')
-      ? {a: '#111827', b: '#f59e0b'}
-      : clubKey.includes('manchester')
-        ? {a: '#b91c1c', b: '#111827'}
-        : clubKey.includes('barcelona')
-          ? {a: '#7c3aed', b: '#b91c1c'}
-          : {a: '#16a34a', b: '#0ea5e9'};
-
   const selectedTraitsSet = new Set(profile.traits ?? []);
   const archetype = selectedTraitsSet.has('SPEED_DRIBBLER')
     ? 'Speed Demon'
@@ -316,15 +294,14 @@ export default function PlayerProfileScreen() {
     .filter(Boolean)
     .join(' • ');
 
-  // Position dot on mini pitch: GK=bottom, DEF, MID, FWD=top (percent from bottom)
-  const positionDotBottom =
+  const positionLabel =
     profile.position === 'GK'
-      ? '8%'
+      ? 'GOALKEEPER'
       : profile.position === 'DEF'
-        ? '28%'
+        ? 'DEFENDER'
         : profile.position === 'MID'
-          ? '50%'
-          : '72%';
+          ? 'MIDFIELDER'
+          : 'FORWARD';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -332,11 +309,11 @@ export default function PlayerProfileScreen() {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color="#e5e7eb" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Player Profile</Text>
         <View style={styles.headerIconWrap}>
-          <Ionicons name="person-circle-outline" size={26} color="#374151" />
+          <Ionicons name="person-circle-outline" size={26} color="#cbd5e1" />
           <View style={styles.headerBadge} />
         </View>
       </View>
@@ -364,7 +341,7 @@ export default function PlayerProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {/* HERO SECTION — full-width player image + gradient fade to white */}
+          {/* HERO SECTION — stadium pulse portal */}
           <View style={[styles.heroSection, {height: HERO_HEIGHT}]}>
             <View style={styles.player_image_cutout}>
               <Image
@@ -373,46 +350,72 @@ export default function PlayerProfileScreen() {
                 resizeMode="cover"
               />
             </View>
-            {/* Smooth linear gradient — transparent at top to white at bottom */}
             <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.4)', '#fff']}
-              locations={[0, 0.5, 1]}
+              colors={[
+                'rgba(2,6,23,0.25)',
+                'rgba(2,6,23,0.8)',
+                'rgba(2,6,23,1)',
+              ]}
+              locations={[0, 0.58, 1]}
+              style={styles.heroNightOverlay}
+              pointerEvents="none"
+            />
+            <LinearGradient
+              colors={[
+                'transparent',
+                'rgba(56,189,248,0.16)',
+                'rgba(2,132,199,0.26)',
+              ]}
+              locations={[0.35, 0.75, 1]}
               style={styles.heroGradientFade}
               pointerEvents="none"
             />
+
+            <View style={styles.heroPortalHeader}>
+              <Text style={styles.heroPortalName} numberOfLines={1}>
+                {user?.display_name ?? 'Player'}
+              </Text>
+            </View>
           </View>
 
-          {/* White info card — overlaps hero with shadow, sits on gradient */}
+          {/* Neon stats strip */}
           {!editMode && (
             <View style={styles.heroInfoCard}>
-              <View style={styles.heroInfoCardRow}>
-                <Text style={styles.heroInfoCardLabel}>Age</Text>
-                <Text style={styles.heroInfoCardValue}>
-                  {profile.age ?? '—'}
-                </Text>
-              </View>
-              <View style={styles.heroInfoCardRow}>
-                <Text style={styles.heroInfoCardLabel}>Country</Text>
-                <Text style={styles.heroInfoCardValue}>
-                  {flag ? `${flag} ` : ''}
-                  {countryName}
-                </Text>
-              </View>
-              <View style={styles.heroInfoCardRow}>
-                <Text style={styles.heroInfoCardLabel}>Club</Text>
-                <Text style={styles.heroInfoCardValue}>
-                  {profile.is_free_agent ? 'Free Agent' : (profile.club ?? '—')}
-                </Text>
-              </View>
-              <View style={styles.heroInfoCardRow}>
-                <Text style={styles.heroInfoCardLabel}>Position</Text>
-                <View style={styles.positionPitchWrap}>
-                  <View style={styles.positionPitch}>
-                    <View
-                      style={[styles.positionDot, {bottom: positionDotBottom}]}
-                    />
-                  </View>
-                  <Text style={styles.heroInfoCardValue}>{posAbbrev}</Text>
+              <View style={styles.portalStatsRow}>
+                <View
+                  style={[styles.portalStatCol, styles.portalStatColTopLeft]}>
+                  <Text style={styles.portalStatLabel}>Age</Text>
+                  <Text style={styles.portalStatValue}>
+                    {profile.age ?? '—'}
+                  </Text>
+                </View>
+                <View
+                  style={[styles.portalStatCol, styles.portalStatColTopRight]}>
+                  <Text style={styles.portalStatLabel}>Country</Text>
+                  <Text style={styles.portalStatValueSmall} numberOfLines={1}>
+                    {flag ? `${flag} ` : ''}
+                    {countryName}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.portalStatCol,
+                    styles.portalStatColBottomLeft,
+                  ]}>
+                  <Text style={styles.portalStatLabel}>Team</Text>
+                  <Text style={styles.portalStatValueSmall} numberOfLines={1}>
+                    {clubOrStatus}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.portalStatCol,
+                    styles.portalStatColBottomRight,
+                  ]}>
+                  <Text style={styles.portalStatLabel}>Position</Text>
+                  <Text style={styles.portalStatValueSmall} numberOfLines={1}>
+                    {posAbbrev}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -700,7 +703,7 @@ export default function PlayerProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#030712',
   },
   header: {
     flexDirection: 'row',
@@ -708,9 +711,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: '#030712',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#111827',
   },
   backBtn: {padding: 4},
   headerTitle: {
@@ -718,7 +721,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: '#e5e7eb',
   },
   title: {fontSize: 18, fontWeight: '700', color: '#111827'},
   headerIconWrap: {
@@ -737,14 +740,14 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#ef4444',
     borderWidth: 1.5,
-    borderColor: '#fff',
+    borderColor: '#030712',
   },
   headerSpacer: {width: 32},
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: '#030712',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#111827',
   },
   tab: {
     flex: 1,
@@ -752,13 +755,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabActive: {
-    borderBottomWidth: 3,
-    borderBottomColor: '#16a34a',
+    borderBottomWidth: 2,
+    borderBottomColor: '#84cc16',
   },
   tabText: {fontSize: 15, color: '#6b7280', fontWeight: '500'},
-  tabTextActive: {fontSize: 15, fontWeight: '700', color: '#16a34a'},
+  tabTextActive: {fontSize: 15, fontWeight: '700', color: '#84cc16'},
   scroll: {flex: 1},
-  scrollContent: {padding: 20, paddingBottom: 48},
+  scrollContent: {padding: 14, paddingBottom: 48},
   loadingWrap: {
     flex: 1,
     justifyContent: 'center',
@@ -773,14 +776,16 @@ const styles = StyleSheet.create({
   heroSection: {
     width: '100%',
     marginBottom: 18,
-    borderRadius: 22,
+    borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
+    shadowColor: '#0284c7',
     shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 8,
   },
   player_image_cutout: {
     position: 'absolute',
@@ -799,7 +804,36 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 140,
+    height: 190,
+  },
+  heroNightOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroPortalHeader: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 132,
+  },
+  heroPortalName: {
+    fontSize: 46,
+    fontWeight: '900',
+    color: '#f8fafc',
+    letterSpacing: -1,
+    textTransform: 'uppercase',
+  },
+  heroPortalRole: {
+    marginTop: -2,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#84cc16',
+    letterSpacing: 0.8,
+  },
+  heroPortalMeta: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#cbd5e1',
   },
   heroInfoStrip: {
     position: 'absolute',
@@ -849,18 +883,65 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
   },
   heroInfoCard: {
-    marginTop: -72,
+    marginTop: -108,
     marginBottom: 18,
-    marginHorizontal: 4,
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 8,
-    opacity: 0.7,
+    marginHorizontal: 6,
+    backgroundColor: 'rgba(2, 6, 23, 0.76)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.45)',
+    shadowColor: '#0ea5e9',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  portalStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+  },
+  portalStatCol: {
+    width: '50%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 82,
+    paddingVertical: 8,
+    borderColor: 'rgba(56, 189, 248, 0.28)',
+    borderBottomWidth: 1,
+  },
+  portalStatColTopLeft: {
+    borderRightWidth: 1,
+  },
+  portalStatColTopRight: {},
+  portalStatColBottomLeft: {
+    borderRightWidth: 1,
+    borderBottomWidth: 0,
+  },
+  portalStatColBottomRight: {
+    borderBottomWidth: 0,
+  },
+  portalStatLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#93c5fd',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  portalStatValue: {
+    marginTop: 4,
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#d9f99d',
+    lineHeight: 44,
+  },
+  portalStatValueSmall: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#e2e8f0',
   },
   heroInfoCardRow: {
     flexDirection: 'row',
@@ -913,15 +994,12 @@ const styles = StyleSheet.create({
   flag: {fontSize: 20, marginRight: 8},
   traitsSection: {
     marginBottom: 24,
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: '#0b1224',
+    borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
   traitsHeader: {
     flexDirection: 'row',
@@ -929,9 +1007,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  sectionTitle: {fontSize: 17, fontWeight: '700', color: '#111827'},
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#f8fafc',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
   addTraitsBtn: {flexDirection: 'row', alignItems: 'center', gap: 6},
-  addTraitsText: {fontSize: 14, color: '#16a34a', fontWeight: '600'},
+  addTraitsText: {fontSize: 12, color: '#22d3ee', fontWeight: '700'},
   traitsBadgesRow: {
     marginTop: 10,
     flexDirection: 'row',
@@ -947,27 +1031,24 @@ const styles = StyleSheet.create({
   traitBadgeHex: {
     width: 64,
     height: 64,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
+    backgroundColor: '#111827',
   },
   traitBadgeCommon: {
-    backgroundColor: '#f9fafb',
-    borderColor: '#e5e7eb',
+    borderColor: '#22d3ee',
   },
   traitBadgeRare: {
-    backgroundColor: '#e0f2fe',
     borderColor: '#38bdf8',
   },
   traitBadgeElite: {
-    backgroundColor: '#ede9fe',
-    borderColor: '#a855f7',
+    borderColor: '#818cf8',
   },
   traitBadgeLegendary: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#f59e0b',
+    borderColor: '#84cc16',
   },
   traitBadgeLocked: {
     opacity: 0.55,
@@ -975,7 +1056,7 @@ const styles = StyleSheet.create({
   traitBadgeLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#111827',
+    color: '#e2e8f0',
     textAlign: 'center',
   },
   traitBadgeLabelLocked: {
@@ -986,30 +1067,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#111827',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#374151',
     borderStyle: 'dashed',
   },
-  traitsEmpty: {fontSize: 14, color: '#9ca3af'},
-  traitsEmptyHint: {fontSize: 12, color: '#9ca3af', marginTop: 4},
+  traitsEmpty: {fontSize: 14, color: '#cbd5e1'},
+  traitsEmptyHint: {fontSize: 12, color: '#94a3b8', marginTop: 4},
   careerSection: {
     marginBottom: 24,
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: '#0b1224',
+    borderRadius: 14,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
   careerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#1f2937',
   },
   careerRowLast: {
     borderBottomWidth: 0,
@@ -1028,16 +1106,16 @@ const styles = StyleSheet.create({
   careerLogo: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    backgroundColor: '#111827',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
   },
   careerInfo: {flex: 1},
-  careerTeamName: {fontSize: 16, fontWeight: '600', color: '#111827'},
-  careerTenure: {fontSize: 13, color: '#6b7280', marginTop: 2},
-  careerEmpty: {fontSize: 14, color: '#9ca3af', paddingVertical: 12},
+  careerTeamName: {fontSize: 14, fontWeight: '700', color: '#e2e8f0'},
+  careerTenure: {fontSize: 12, color: '#93c5fd', marginTop: 2},
+  careerEmpty: {fontSize: 14, color: '#94a3b8', paddingVertical: 12},
   saveError: {color: '#dc2626', fontSize: 14, marginBottom: 8},
   ctaBtn: {
     borderRadius: 14,
@@ -1046,21 +1124,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ctaBtnPrimary: {
-    backgroundColor: '#16a34a',
-    shadowColor: '#15803d',
+    backgroundColor: '#84cc16',
+    shadowColor: '#65a30d',
     shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
   },
   ctaBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1.1,
   },
   editLink: {alignItems: 'center', marginTop: 14},
-  editLinkText: {fontSize: 15, color: '#16a34a', fontWeight: '600'},
+  editLinkText: {fontSize: 14, color: '#67e8f9', fontWeight: '700'},
   saveBtn: {
     backgroundColor: '#16a34a',
     borderRadius: 14,
@@ -1071,9 +1149,9 @@ const styles = StyleSheet.create({
   saveBtnDisabled: {opacity: 0.7},
   saveBtnText: {color: '#fff', fontWeight: '700'},
   cancelEditBtn: {alignItems: 'center', marginTop: 12},
-  cancelEditText: {fontSize: 15, color: '#6b7280'},
+  cancelEditText: {fontSize: 15, color: '#94a3b8'},
   deleteBtn: {alignItems: 'center', marginTop: 24},
-  deleteBtnText: {fontSize: 14, color: '#dc2626'},
+  deleteBtnText: {fontSize: 13, color: '#f87171'},
   placeholder: {
     flex: 1,
     justifyContent: 'center',
