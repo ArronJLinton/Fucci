@@ -21,6 +21,7 @@ import {useAuth} from '../context/AuthContext';
 import {countryCodeToFlag, COUNTRIES} from '../data/countries';
 import {
   getPlayerProfile,
+  createPlayerProfile,
   updatePlayerProfile,
   deletePlayerProfile,
   setPlayerProfileTraits,
@@ -63,6 +64,7 @@ export default function PlayerProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {token, user} = useAuth();
   const [profile, setProfile] = useState<PlayerProfileType | null>(null);
+  const [isDraftProfile, setIsDraftProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('profile');
@@ -101,6 +103,7 @@ export default function PlayerProfileScreen() {
       const p = await getPlayerProfile(token);
       if (p) {
         setProfile(p);
+        setIsDraftProfile(false);
         setEditAge(p.age != null ? String(p.age) : '');
         setEditCountryCode(p.country || null);
         const countryName = p.country
@@ -111,15 +114,33 @@ export default function PlayerProfileScreen() {
         setEditIsFreeAgent(p.is_free_agent ?? false);
         setEditPosition(p.position ?? null);
       } else {
-        setProfile(null);
-        navigation.replace('CreatePlayerProfile');
+        const draft: PlayerProfileType = {
+          id: 0,
+          age: null,
+          country: '',
+          club: null,
+          is_free_agent: false,
+          position: 'FWD',
+          photo_url: null,
+          traits: [],
+          career_teams: [],
+        };
+        setProfile(draft);
+        setIsDraftProfile(true);
+        setEditAge('');
+        setEditCountryCode(null);
+        setEditCountryName('');
+        setEditClub('');
+        setEditIsFreeAgent(false);
+        setEditPosition(null);
+        setEditMode(false);
       }
     } catch {
       setError('Failed to load profile.');
     } finally {
       setLoading(false);
     }
-  }, [token, navigation]);
+  }, [token]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,7 +156,7 @@ export default function PlayerProfileScreen() {
   }, [token]);
 
   const handleSaveProfile = async () => {
-    if (!token || !profile) return;
+    if (!token) return;
     if (!editCountryCode || !editPosition) {
       setSaveError('Country and position are required.');
       return;
@@ -148,15 +169,19 @@ export default function PlayerProfileScreen() {
     setSaveError(null);
     setSaving(true);
     try {
-      const updated = await updatePlayerProfile(token, {
+      const payload = {
         country: editCountryCode,
         position: editPosition,
         age: ageNum,
         club: editIsFreeAgent ? null : editClub.trim() || null,
         is_free_agent: editIsFreeAgent,
-      });
+      };
+      const updated = isDraftProfile
+        ? await createPlayerProfile(token, payload)
+        : await updatePlayerProfile(token, payload);
       if (updated) {
         setProfile(updated);
+        setIsDraftProfile(false);
         setEditMode(false);
       } else {
         setSaveError('Failed to save. Try again.');
@@ -181,8 +206,26 @@ export default function PlayerProfileScreen() {
             if (!token) return;
             const ok = await deletePlayerProfile(token);
             if (ok) {
-              setProfile(null);
-              navigation.replace('CreatePlayerProfile');
+              const draft: PlayerProfileType = {
+                id: 0,
+                age: null,
+                country: '',
+                club: null,
+                is_free_agent: false,
+                position: 'FWD',
+                photo_url: null,
+                traits: [],
+                career_teams: [],
+              };
+              setProfile(draft);
+              setIsDraftProfile(true);
+              setEditAge('');
+              setEditCountryCode(null);
+              setEditCountryName('');
+              setEditClub('');
+              setEditIsFreeAgent(false);
+              setEditPosition(null);
+              setEditMode(true);
             } else {
               setError('Failed to delete profile.');
             }
@@ -194,6 +237,14 @@ export default function PlayerProfileScreen() {
 
   const handleSaveTraits = async (traits: string[]) => {
     if (!token) return;
+    if (isDraftProfile) {
+      Alert.alert(
+        'Complete Profile First',
+        'Add age, country, and position before selecting traits.',
+      );
+      setShowTraitsModal(false);
+      return;
+    }
     const updated = await setPlayerProfileTraits(token, traits);
     if (updated && profile) {
       setProfile({...profile, traits: updated});
@@ -303,6 +354,17 @@ export default function PlayerProfileScreen() {
           ? 'MIDFIELDER'
           : 'FORWARD';
 
+  const ageComplete = profile.age != null;
+  const countryComplete = !!profile.country;
+  const positionComplete = !isDraftProfile && !!profile.position;
+  const traitsComplete = !isDraftProfile && (profile.traits?.length ?? 0) > 0;
+  const completionCount =
+    Number(ageComplete) +
+    Number(countryComplete) +
+    Number(positionComplete) +
+    Number(traitsComplete);
+  const completionPercent = Math.round((completionCount / 4) * 100);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -333,6 +395,25 @@ export default function PlayerProfileScreen() {
             </Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      <View style={styles.progressWrap}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Profile Completion</Text>
+          <Text style={styles.progressPct}>{completionPercent}%</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View
+            style={[styles.progressFill, {width: `${completionPercent}%`}]}
+          />
+        </View>
+        {isDraftProfile && !editMode ? (
+          <TouchableOpacity onPress={() => setEditMode(true)}>
+            <Text style={styles.progressHint}>
+              Complete your player profile to unlock all features.
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {activeTab === 'profile' && (
@@ -430,7 +511,7 @@ export default function PlayerProfileScreen() {
                   value={editAge}
                   onChangeText={setEditAge}
                   placeholder="13–60"
-                  placeholderTextColor="#999"
+                  placeholderTextColor="#64748b"
                   keyboardType="number-pad"
                   maxLength={2}
                   editable={!saving}
@@ -445,7 +526,7 @@ export default function PlayerProfileScreen() {
                   <Text style={styles.value}>
                     {editCountryName || 'Select'}
                   </Text>
-                  <Ionicons name="chevron-forward" size={18} color="#999" />
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                 </View>
               </TouchableOpacity>
               <View style={styles.editForm}>
@@ -458,7 +539,7 @@ export default function PlayerProfileScreen() {
                   value={editClub}
                   onChangeText={setEditClub}
                   placeholder="Club name"
-                  placeholderTextColor="#999"
+                  placeholderTextColor="#64748b"
                   editable={!editIsFreeAgent && !saving}
                 />
                 <View style={styles.toggleRow}>
@@ -466,8 +547,8 @@ export default function PlayerProfileScreen() {
                   <Switch
                     value={editIsFreeAgent}
                     onValueChange={setEditIsFreeAgent}
-                    trackColor={{false: '#ddd', true: '#22c55e'}}
-                    thumbColor="#fff"
+                    trackColor={{false: '#334155', true: '#84cc16'}}
+                    thumbColor={editIsFreeAgent ? '#0f172a' : '#e2e8f0'}
                     disabled={saving}
                   />
                 </View>
@@ -483,7 +564,7 @@ export default function PlayerProfileScreen() {
                         editPosition)
                       : 'Select'}
                   </Text>
-                  <Ionicons name="chevron-forward" size={18} color="#999" />
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                 </View>
               </TouchableOpacity>
             </View>
@@ -627,11 +708,13 @@ export default function PlayerProfileScreen() {
             </>
           )}
 
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={handleDeleteProfile}>
-            <Text style={styles.deleteBtnText}>Delete Player Profile</Text>
-          </TouchableOpacity>
+          {!isDraftProfile && (
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={handleDeleteProfile}>
+              <Text style={styles.deleteBtnText}>Delete Player Profile</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       )}
 
@@ -760,6 +843,47 @@ const styles = StyleSheet.create({
   },
   tabText: {fontSize: 15, color: '#6b7280', fontWeight: '500'},
   tabTextActive: {fontSize: 15, fontWeight: '700', color: '#84cc16'},
+  progressWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backgroundColor: '#030712',
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressTitle: {
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: '#94a3b8',
+    fontWeight: '700',
+  },
+  progressPct: {
+    fontSize: 12,
+    color: '#84cc16',
+    fontWeight: '800',
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#1f2937',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#84cc16',
+    borderRadius: 999,
+  },
+  progressHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#67e8f9',
+    fontWeight: '600',
+  },
   scroll: {flex: 1},
   scrollContent: {padding: 14, paddingBottom: 48},
   loadingWrap: {
@@ -984,10 +1108,25 @@ const styles = StyleSheet.create({
     marginLeft: -5,
   },
   editForm: {marginBottom: 16},
-  editFormRow: {marginBottom: 16},
+  editFormRow: {
+    marginBottom: 16,
+    backgroundColor: '#020617',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   field: {marginBottom: 16},
-  label: {fontSize: 12, color: '#6b7280', marginBottom: 4, fontWeight: '600'},
-  value: {fontSize: 16, color: '#000'},
+  label: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginBottom: 6,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  value: {fontSize: 18, color: '#f8fafc', fontWeight: '600'},
   hint: {fontSize: 12, color: '#9ca3af', marginTop: 2},
   row: {marginBottom: 16},
   rowValue: {flexDirection: 'row', alignItems: 'center'},
@@ -1093,15 +1232,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   editFormCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: '#0b1224',
+    borderRadius: 14,
+    padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
   careerLogo: {
     width: 44,
@@ -1161,17 +1297,17 @@ const styles = StyleSheet.create({
   placeholderText: {marginTop: 12, color: '#9ca3af'},
   input: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#1f2937',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 16,
-    color: '#000',
-    backgroundColor: '#fff',
+    fontSize: 18,
+    color: '#f8fafc',
+    backgroundColor: '#020617',
   },
   inputDisabled: {
-    backgroundColor: '#f5f5f5',
-    color: '#999',
+    backgroundColor: '#111827',
+    color: '#64748b',
   },
   toggleRow: {
     flexDirection: 'row',
@@ -1180,8 +1316,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   toggleLabel: {
-    fontSize: 15,
-    color: '#374151',
+    fontSize: 14,
+    color: '#cbd5e1',
+    fontWeight: '600',
   },
   positionOverlay: {
     ...StyleSheet.absoluteFillObject,
