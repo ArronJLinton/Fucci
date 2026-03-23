@@ -397,24 +397,26 @@ export default function PlayerProfileScreen() {
         ))}
       </View>
 
-      <View style={styles.progressWrap}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>Profile Completion</Text>
-          <Text style={styles.progressPct}>{completionPercent}%</Text>
+      {completionPercent < 100 && (
+        <View style={styles.progressWrap}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressTitle}>Profile Completion</Text>
+            <Text style={styles.progressPct}>{completionPercent}%</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View
+              style={[styles.progressFill, {width: `${completionPercent}%`}]}
+            />
+          </View>
+          {isDraftProfile && !editMode ? (
+            <TouchableOpacity onPress={() => setEditMode(true)}>
+              <Text style={styles.progressHint}>
+                Complete your player profile to unlock all features.
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
-        <View style={styles.progressTrack}>
-          <View
-            style={[styles.progressFill, {width: `${completionPercent}%`}]}
-          />
-        </View>
-        {isDraftProfile && !editMode ? (
-          <TouchableOpacity onPress={() => setEditMode(true)}>
-            <Text style={styles.progressHint}>
-              Complete your player profile to unlock all features.
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+      )}
 
       {activeTab === 'profile' && (
         <ScrollView
