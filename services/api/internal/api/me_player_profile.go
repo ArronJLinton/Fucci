@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/database"
 )
@@ -37,6 +38,21 @@ type MePlayerProfileInput struct {
 	Club        *string `json:"club"`
 	IsFreeAgent *bool   `json:"is_free_agent"`
 	Position    string  `json:"position"`
+}
+
+// normalizeCountryCode validates ISO 3166-1 alpha-2 for VARCHAR(2): exactly two ASCII A–Z letters (case-insensitive input is uppercased).
+func normalizeCountryCode(country string) (string, bool) {
+	s := strings.ToUpper(strings.TrimSpace(country))
+	if len(s) != 2 {
+		return "", false
+	}
+	for i := 0; i < 2; i++ {
+		c := s[i]
+		if c < 'A' || c > 'Z' {
+			return "", false
+		}
+	}
+	return s, true
 }
 
 func (c *Config) getMePlayerProfile(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +111,12 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "country and position are required")
 		return
 	}
+	countryCode, ok := normalizeCountryCode(req.Country)
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "country must be a 2-letter ISO 3166-1 alpha-2 code (A-Z)")
+		return
+	}
+	req.Country = countryCode
 	if req.Position != "GK" && req.Position != "DEF" && req.Position != "MID" && req.Position != "FWD" {
 		respondWithError(w, http.StatusBadRequest, "position must be GK, DEF, MID, or FWD")
 		return
@@ -216,6 +238,12 @@ func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "country and position are required")
 		return
 	}
+	countryCode, ok := normalizeCountryCode(req.Country)
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "country must be a 2-letter ISO 3166-1 alpha-2 code (A-Z)")
+		return
+	}
+	req.Country = countryCode
 	if req.Position != "GK" && req.Position != "DEF" && req.Position != "MID" && req.Position != "FWD" {
 		respondWithError(w, http.StatusBadRequest, "position must be GK, DEF, MID, or FWD")
 		return
