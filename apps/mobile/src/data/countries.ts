@@ -74,12 +74,13 @@ export const COUNTRIES: {code: string; name: string}[] = [
   {code: 'VE', name: 'Venezuela'},
 ].sort((a, b) => a.name.localeCompare(b.name));
 
-/** Regional indicator for emoji flag (e.g. "PT" -> 🇵🇹). Only works for A-Z two-letter codes. */
+/** Regional indicator for emoji flag (e.g. "PT" -> 🇵🇹). Trims and uppercases input so lowercase API codes still work. */
 export function countryCodeToFlag(code: string): string {
-  if (code.length !== 2) return '';
+  const normalized = code.trim().toUpperCase();
+  if (normalized.length !== 2) return '';
   const a = 0x1f1e6; // 'A' regional indicator
-  const c1 = code.charCodeAt(0) - 65;
-  const c2 = code.charCodeAt(1) - 65;
+  const c1 = normalized.charCodeAt(0) - 65;
+  const c2 = normalized.charCodeAt(1) - 65;
   if (c1 < 0 || c1 > 25 || c2 < 0 || c2 > 25) return '';
   return String.fromCodePoint(a + c1, a + c2);
 }
