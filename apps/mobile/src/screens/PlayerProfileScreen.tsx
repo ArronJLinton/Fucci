@@ -699,9 +699,6 @@ export default function PlayerProfileScreen() {
 
           {!editMode && (
             <>
-              <TouchableOpacity style={[styles.ctaBtn, styles.ctaBtnPrimary]}>
-                <Text style={styles.ctaBtnText}>VIEW PROFILE</Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.editLink}
                 onPress={() => setEditMode(true)}>
