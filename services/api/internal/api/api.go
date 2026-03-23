@@ -29,6 +29,19 @@ type CommentReader interface {
 	GetComment(ctx context.Context, id int32) (database.GetCommentRow, error)
 }
 
+// MePlayerProfileStore is the DB surface used by /api/me/player-profile handlers; *database.Queries implements it.
+// MePlayerProfileDB on Config overrides DB for those handlers when set (unit tests).
+type MePlayerProfileStore interface {
+	GetMePlayerProfileByUserID(ctx context.Context, userID int32) (database.MePlayerProfile, error)
+	CreateMePlayerProfile(ctx context.Context, arg database.CreateMePlayerProfileParams) (database.MePlayerProfile, error)
+	UpdateMePlayerProfile(ctx context.Context, arg database.UpdateMePlayerProfileParams) (database.MePlayerProfile, error)
+	DeleteMePlayerProfile(ctx context.Context, id int32) error
+	ListMePlayerProfileTraits(ctx context.Context, mePlayerProfileID int32) ([]string, error)
+	ListMePlayerProfileCareerTeams(ctx context.Context, mePlayerProfileID int32) ([]database.MePlayerProfileCareerTeam, error)
+	DeleteMePlayerProfileTraitsByProfileID(ctx context.Context, mePlayerProfileID int32) error
+	InsertMePlayerProfileTrait(ctx context.Context, arg database.InsertMePlayerProfileTraitParams) (database.MePlayerProfileTrait, error)
+}
+
 // InitJWT initializes JWT authentication with the provided secret
 func InitJWT(secret string) error {
 	return auth.InitJWTAuth(secret)
@@ -48,8 +61,9 @@ type Config struct {
 	SystemUserEmail    string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
-	CardVoteReader CardVoteReader
-	CommentReader  CommentReader
+	CardVoteReader     CardVoteReader
+	CommentReader      CommentReader
+	MePlayerProfileDB  MePlayerProfileStore // nil => use DB for me player profile routes
 }
 
 func New(c Config) http.Handler {

@@ -10,6 +10,13 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/database"
 )
 
+func (c *Config) mePlayerProfileDB() MePlayerProfileStore {
+	if c.MePlayerProfileDB != nil {
+		return c.MePlayerProfileDB
+	}
+	return c.DB
+}
+
 // MePlayerProfileResponse is the DTO for GET/POST/PUT /api/me/player-profile (007 spec).
 type MePlayerProfileResponse struct {
 	ID          int32                    `json:"id"`
@@ -63,7 +70,7 @@ func (c *Config) getMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
-	profile, err := c.DB.GetMePlayerProfileByUserID(ctx, userID)
+	profile, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusNotFound, "Profile not found")
@@ -74,8 +81,8 @@ func (c *Config) getMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	traits, _ := c.DB.ListMePlayerProfileTraits(ctx, profile.ID)
-	careerRows, _ := c.DB.ListMePlayerProfileCareerTeams(ctx, profile.ID)
+	traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
+	careerRows, _ := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, profile.ID)
 	careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
 	for _, row := range careerRows {
 		var endYear *int32
@@ -127,7 +134,7 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upsert: if profile exists, update; else create.
-	existing, err := c.DB.GetMePlayerProfileByUserID(ctx, userID)
+	existing, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
 	if err == nil {
 		// Update existing
 		age := sql.NullInt32{}
@@ -144,7 +151,7 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		if req.IsFreeAgent != nil {
 			isFreeAgent = *req.IsFreeAgent
 		}
-		_, err = c.DB.UpdateMePlayerProfile(ctx, database.UpdateMePlayerProfileParams{
+		_, err = c.mePlayerProfileDB().UpdateMePlayerProfile(ctx, database.UpdateMePlayerProfileParams{
 			ID:          existing.ID,
 			Age:         age,
 			CountryCode: req.Country,
@@ -158,9 +165,9 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusInternalServerError, "Failed to update profile")
 			return
 		}
-		profile, _ := c.DB.GetMePlayerProfileByUserID(ctx, userID)
-		traits, _ := c.DB.ListMePlayerProfileTraits(ctx, profile.ID)
-		careerRows, _ := c.DB.ListMePlayerProfileCareerTeams(ctx, profile.ID)
+		profile, _ := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
+		traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
+		careerRows, _ := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, profile.ID)
 		careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
 		for _, row := range careerRows {
 			var endYear *int32
@@ -193,7 +200,7 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	if req.IsFreeAgent != nil {
 		isFreeAgent = *req.IsFreeAgent
 	}
-	profile, err := c.DB.CreateMePlayerProfile(ctx, database.CreateMePlayerProfileParams{
+	profile, err := c.mePlayerProfileDB().CreateMePlayerProfile(ctx, database.CreateMePlayerProfileParams{
 		UserID:      userID,
 		Age:         age,
 		CountryCode: req.Country,
@@ -218,7 +225,7 @@ func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
-	profile, err := c.DB.GetMePlayerProfileByUserID(ctx, userID)
+	profile, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusNotFound, "Profile not found")
@@ -267,7 +274,7 @@ func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	if req.IsFreeAgent != nil {
 		isFreeAgent = *req.IsFreeAgent
 	}
-	updated, err := c.DB.UpdateMePlayerProfile(ctx, database.UpdateMePlayerProfileParams{
+	updated, err := c.mePlayerProfileDB().UpdateMePlayerProfile(ctx, database.UpdateMePlayerProfileParams{
 		ID:          profile.ID,
 		Age:         age,
 		CountryCode: req.Country,
@@ -281,8 +288,8 @@ func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update profile")
 		return
 	}
-	traits, _ := c.DB.ListMePlayerProfileTraits(ctx, updated.ID)
-	careerRows, _ := c.DB.ListMePlayerProfileCareerTeams(ctx, updated.ID)
+	traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, updated.ID)
+	careerRows, _ := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, updated.ID)
 	careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
 	for _, row := range careerRows {
 		var endYear *int32
@@ -327,7 +334,7 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	profile, err := c.DB.GetMePlayerProfileByUserID(ctx, userID)
+	profile, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
@@ -338,13 +345,13 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := c.DB.DeleteMePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
+	if err := c.mePlayerProfileDB().DeleteMePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
 		log.Printf("[me_player_profile] DeleteMePlayerProfileTraitsByProfileID error: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
 		return
 	}
 	for _, traitCode := range req.Traits {
-		if _, err := c.DB.InsertMePlayerProfileTrait(ctx, database.InsertMePlayerProfileTraitParams{
+		if _, err := c.mePlayerProfileDB().InsertMePlayerProfileTrait(ctx, database.InsertMePlayerProfileTraitParams{
 			MePlayerProfileID: profile.ID,
 			TraitCode:         traitCode,
 		}); err != nil {
@@ -353,7 +360,7 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	traits, _ := c.DB.ListMePlayerProfileTraits(ctx, profile.ID)
+	traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
 	if traits == nil {
 		traits = []string{}
 	}
@@ -368,7 +375,7 @@ func (c *Config) deleteMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
-	profile, err := c.DB.GetMePlayerProfileByUserID(ctx, userID)
+	profile, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
@@ -378,7 +385,7 @@ func (c *Config) deleteMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
 		return
 	}
-	if err := c.DB.DeleteMePlayerProfile(ctx, profile.ID); err != nil {
+	if err := c.mePlayerProfileDB().DeleteMePlayerProfile(ctx, profile.ID); err != nil {
 		log.Printf("[me_player_profile] DeleteMePlayerProfile error: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to delete profile")
 		return
