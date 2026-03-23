@@ -28,7 +28,7 @@ export default function SettingsScreen({
     embeddedInTabProp ??
     (route.params as SettingsRouteParams | undefined)?.embeddedInTab ??
     false;
-  const {token, user, isLoggedIn, logout: authLogout} = useAuth();
+  const {user, isLoggedIn, logout: authLogout} = useAuth();
 
   const handleLogout = () => {
     Alert.alert('Log out?', 'Are you sure you want to log out?', [
