@@ -1,4 +1,4 @@
-import {makeAuthRequest} from './api';
+import {ApiRequestError, makeAuthRequest} from './api';
 import type {
   PlayerProfile,
   PlayerProfileInput,
@@ -8,8 +8,9 @@ import type {
 const BASE = '/me/player-profile';
 
 function isNotFoundError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return /\b404\b/.test(error.message);
+  if (error instanceof ApiRequestError) return error.status === 404;
+  if (error instanceof Error && /\b404\b/.test(error.message)) return true;
+  return false;
 }
 
 export async function getPlayerProfile(

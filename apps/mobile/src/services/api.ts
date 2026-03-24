@@ -1,5 +1,17 @@
 import {apiConfig} from '../config/environment';
 
+/** Thrown when an authenticated request returns a non-2xx status; includes HTTP status for callers. */
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    Object.setPrototypeOf(this, ApiRequestError.prototype);
+  }
+}
+
 /**
  * Unauthenticated API request helper.
  * Used by futbol and debate modules; also re-exported for any direct callers.
@@ -57,9 +69,11 @@ export const makeAuthRequest = async (
   });
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
-    throw new Error(
-      errBody.message || errBody.error || `Request failed: ${response.status}`,
-    );
+    const message =
+      (typeof errBody.message === 'string' && errBody.message) ||
+      (typeof errBody.error === 'string' && errBody.error) ||
+      `Request failed: ${response.status}`;
+    throw new ApiRequestError(message, response.status);
   }
   return response.json();
 };
