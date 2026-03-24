@@ -390,7 +390,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: '#e2e8f0',
-    textTransform: 'uppercase',
   },
   settingsCardSub: {
     marginTop: 2,
