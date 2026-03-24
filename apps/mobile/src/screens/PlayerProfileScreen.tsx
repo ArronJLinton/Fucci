@@ -321,6 +321,11 @@ export default function PlayerProfileScreen() {
             ? 'CM'
             : 'ST';
 
+  const clubOrStatus = profile.is_free_agent
+    ? 'Free Agent'
+    : profile.club?.trim()
+      ? profile.club.trim()
+      : '—';
 
   const ageComplete = profile.age != null;
   const countryComplete = !!profile.country;
