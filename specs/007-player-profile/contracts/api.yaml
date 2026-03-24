@@ -2,10 +2,22 @@ openapi: 3.0.3
 info:
   title: Fucci Player Profile API
   version: 0.1.0
-  description: Endpoints for managing the authenticated user's player profile, traits, photo, and career teams.
+  description: |
+    Endpoints for managing the authenticated user's player profile, traits, photo, and career teams.
+
+    Path keys below are relative to the **API sub-router** mounted at `/me` in `services/api/internal/api/api.go`
+    (e.g. `GET /me/player-profile`). The HTTP server mounts that router under `/v1/api` (see `services/api/main.go`).
+
+servers:
+  - url: '{apiOrigin}/v1/api'
+    description: Fucci API base (chi `Mount("/v1")` + `Mount("/api", apiRouter)`).
+    variables:
+      apiOrigin:
+        default: http://localhost:8080
+        description: Scheme + host + optional port, no trailing slash
 
 paths:
-  /api/me/player-profile:
+  /me/player-profile:
     get:
       summary: Get current user's player profile
       responses:
@@ -48,7 +60,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PlayerProfile'
 
-  /api/me/player-profile/traits:
+  /me/player-profile/traits:
     put:
       summary: Replace selected traits for current user's profile
       requestBody:
@@ -76,7 +88,7 @@ paths:
                     items:
                       $ref: '#/components/schemas/TraitCode'
 
-  /api/me/player-profile/photo:
+  /me/player-profile/photo:
     post:
       summary: Upload or update profile photo for current user
       requestBody:
@@ -102,7 +114,7 @@ paths:
         '400':
           description: Invalid file
 
-  /api/me/player-profile/career-teams:
+  /me/player-profile/career-teams:
     get:
       summary: List career teams for current user's profile
       responses:
@@ -130,7 +142,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CareerTeam'
 
-  /api/me/player-profile/career-teams/{career_team_id}:
+  /me/player-profile/career-teams/{career_team_id}:
     put:
       summary: Update a career team entry
       parameters:
