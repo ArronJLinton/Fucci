@@ -20,12 +20,12 @@ func (c *Config) mePlayerProfileDB() MePlayerProfileStore {
 // MePlayerProfileResponse is the DTO for GET/POST/PUT /api/me/player-profile (007 spec).
 type MePlayerProfileResponse struct {
 	ID          int32                    `json:"id"`
-	Age         *int32                   `json:"age,omitempty"`
+	Age         *int32                   `json:"age"`
 	Country     string                   `json:"country"`
-	Club        *string                  `json:"club,omitempty"`
+	Club        *string                  `json:"club"`
 	IsFreeAgent bool                     `json:"is_free_agent"`
 	Position    string                   `json:"position"`
-	PhotoURL    *string                  `json:"photo_url,omitempty"`
+	PhotoURL    *string                  `json:"photo_url"`
 	Traits      []string                 `json:"traits"`
 	CareerTeams []MePlayerProfileCareerTeamDTO `json:"career_teams"`
 }
