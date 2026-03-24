@@ -10,10 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Alert,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NavigationProp} from '../types/navigation';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {LinearGradient} from 'expo-linear-gradient';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {CountryPicker} from '../components/CountryPicker';
@@ -30,6 +32,14 @@ const POSITIONS: {value: PlayerPosition; label: string}[] = [
 
 const MIN_AGE = 13;
 const MAX_AGE = 60;
+
+const BG = '#030712';
+const CARD = '#111827';
+const BORDER = '#1f2937';
+const MUTED = '#94a3b8';
+const LABEL = '#9ca3af';
+const LIME = '#c7f349';
+const WHITE = '#e5e7eb';
 
 export default function CreatePlayerProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -70,7 +80,7 @@ export default function CreatePlayerProfileScreen() {
         country: countryCode,
         position,
         age: ageNum,
-        club: isFreeAgent ? null : (club.trim() || null),
+        club: isFreeAgent ? null : club.trim() || null,
         is_free_agent: isFreeAgent,
       };
       const profile = await createPlayerProfile(token, body);
@@ -94,140 +104,202 @@ export default function CreatePlayerProfileScreen() {
     }
   };
 
+  const handleAddPhoto = () => {
+    Alert.alert(
+      'Add photo',
+      'Profile photos will be available in a future update.',
+    );
+  };
+
   const flag = countryCode ? countryCodeToFlag(countryCode) : '';
   const positionLabel = position
     ? POSITIONS.find(p => p.value === position)?.label ?? position
     : '';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView
-        style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-            accessibilityLabel="Back">
-            <Ionicons name="arrow-back" size={24} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Create Player Profile</Text>
-          <View style={styles.headerRight} />
-        </View>
-
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          {/* Placeholder for photo - spec shows Upload Photo; Phase 5 will add it */}
-          <View style={styles.photoPlaceholder}>
-            <Ionicons name="person-circle-outline" size={80} color="#ccc" />
-            <Text style={styles.photoHint}>Photo (add later)</Text>
+    <View style={styles.root}>
+      <LinearGradient
+        colors={['transparent', 'rgba(6,78,59,0.35)', 'rgba(15,118,110,0.25)']}
+        style={styles.footerGlow}
+        pointerEvents="none"
+      />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <KeyboardAvoidingView
+          style={styles.keyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backBtn}
+              accessibilityLabel="Back">
+              <Ionicons name="arrow-back" size={24} color={LIME} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Player Profile</Text>
+            <View style={styles.headerRight} />
           </View>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Age</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={`${MIN_AGE}–${MAX_AGE}`}
-              placeholderTextColor="#999"
-              value={age}
-              onChangeText={setAge}
-              keyboardType="number-pad"
-              maxLength={2}
-              editable={!submitting}
-              accessibilityLabel="Age"
-            />
-            <Ionicons
-              name="calendar-outline"
-              size={20}
-              color="#999"
-              style={styles.inputIcon}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.field}
-            onPress={() => setShowCountryPicker(true)}
-            accessibilityLabel="Select country"
-            accessibilityRole="button">
-            <Text style={styles.label}>Country</Text>
-            <View style={styles.selectRow}>
-              {flag ? <Text style={styles.flag}>{flag}</Text> : null}
-              <Text
-                style={[styles.selectValue, !countryName && styles.placeholder]}>
-                {countryName || 'Select country'}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <View style={styles.photoBlock}>
+              <View style={styles.photoDashed}>
+                <Ionicons name="camera-outline" size={40} color={MUTED} />
+                <View style={styles.photoPlus}>
+                  <Ionicons name="add" size={14} color={BG} />
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.addPhotoBtn}
+                onPress={handleAddPhoto}
+                activeOpacity={0.85}
+                accessibilityLabel="Add photo">
+                <Text style={styles.addPhotoBtnText}>ADD PHOTO</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Club or Free Agent</Text>
-            <View style={styles.freeAgentRow}>
-              <TextInput
-                style={[styles.input, isFreeAgent && styles.inputDisabled]}
-                placeholder="Club name"
-                placeholderTextColor="#999"
-                value={club}
-                onChangeText={setClub}
-                editable={!isFreeAgent && !submitting}
-                accessibilityLabel="Club name"
-              />
-              <View style={styles.toggleRow}>
-                <Text style={styles.toggleLabel}>Free Agent</Text>
-                <Switch
-                  value={isFreeAgent}
-                  onValueChange={setIsFreeAgent}
-                  trackColor={{false: '#ddd', true: '#22c55e'}}
-                  thumbColor="#fff"
-                  accessibilityLabel="Free agent toggle"
+            <Text style={styles.stepLabel}>Step 01 of 03</Text>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Date of birth</Text>
+              <View style={styles.inputRow}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={MUTED}
+                  style={styles.rowIcon}
+                />
+                <TextInput
+                  style={styles.inputFlex}
+                  placeholder={`Age (${MIN_AGE}–${MAX_AGE})`}
+                  placeholderTextColor={MUTED}
+                  value={age}
+                  onChangeText={setAge}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  editable={!submitting}
+                  accessibilityLabel="Age in years"
+                />
+              </View>
+              <Text style={styles.fieldHint}>
+                Enter your age in years (optional).
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.fieldBlock}
+              onPress={() => setShowCountryPicker(true)}
+              activeOpacity={0.85}
+              accessibilityLabel="Select nationality"
+              accessibilityRole="button">
+              <Text style={styles.fieldLabel}>Nationality</Text>
+              <View style={styles.inputRow}>
+                <Ionicons
+                  name="globe-outline"
+                  size={20}
+                  color={MUTED}
+                  style={styles.rowIcon}
+                />
+                <Text
+                  style={[
+                    styles.selectText,
+                    !countryName && styles.placeholderText,
+                  ]}
+                  numberOfLines={1}>
+                  {flag ? `${flag} ` : ''}
+                  {countryName || 'Select Country'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={MUTED} />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.fieldBlock}>
+              <View style={styles.clubLabelRow}>
+                <Text style={styles.fieldLabel}>Current club</Text>
+                <View style={styles.freeAgentInline}>
+                  <Text style={styles.freeAgentCaps}>FREE AGENT</Text>
+                  <Switch
+                    value={isFreeAgent}
+                    onValueChange={setIsFreeAgent}
+                    trackColor={{false: '#374151', true: LIME}}
+                    thumbColor={isFreeAgent ? '#030712' : '#9ca3af'}
+                    ios_backgroundColor="#374151"
+                    accessibilityLabel="Free agent toggle"
+                  />
+                </View>
+              </View>
+              <View style={styles.inputRow}>
+                <Ionicons
+                  name="football-outline"
+                  size={20}
+                  color={MUTED}
+                  style={styles.rowIcon}
+                />
+                <TextInput
+                  style={styles.inputFlex}
+                  placeholder="Search for your club..."
+                  placeholderTextColor={MUTED}
+                  value={club}
+                  onChangeText={setClub}
+                  editable={!isFreeAgent && !submitting}
+                  accessibilityLabel="Club name"
                 />
               </View>
             </View>
-          </View>
 
-          <TouchableOpacity
-            style={styles.field}
-            onPress={() => setShowPositionPicker(true)}
-            accessibilityLabel="Select position"
-            accessibilityRole="button">
-            <Text style={styles.label}>Position</Text>
-            <View style={styles.selectRow}>
-              <Text
-                style={[styles.selectValue, !position && styles.placeholder]}>
-                {position ? `+ ${positionLabel}` : 'Select position'}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
-            </View>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fieldBlock}
+              onPress={() => setShowPositionPicker(true)}
+              activeOpacity={0.85}
+              accessibilityLabel="Select primary position"
+              accessibilityRole="button">
+              <Text style={styles.fieldLabel}>Primary position</Text>
+              <View style={styles.inputRow}>
+                <Ionicons
+                  name="git-network-outline"
+                  size={20}
+                  color={MUTED}
+                  style={styles.rowIcon}
+                />
+                <Text
+                  style={[
+                    styles.selectText,
+                    !position && styles.placeholderText,
+                  ]}
+                  numberOfLines={1}>
+                  {position ? positionLabel : 'Choose Position'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={MUTED} />
+              </View>
+            </TouchableOpacity>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.nextBtn, submitting && styles.nextBtnDisabled]}
-            onPress={handleNext}
-            disabled={submitting}
-            activeOpacity={0.8}
-            accessibilityLabel="Next"
-            accessibilityRole="button">
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.nextBtnText}>NEXT</Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.nextBtn, submitting && styles.nextBtnDisabled]}
+              onPress={handleNext}
+              disabled={submitting}
+              activeOpacity={0.9}
+              accessibilityLabel="Next"
+              accessibilityRole="button">
+              {submitting ? (
+                <ActivityIndicator color={BG} />
+              ) : (
+                <Text style={styles.nextBtnText}>NEXT</Text>
+              )}
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.maybeLater}
-            onPress={handleMaybeLater}
-            disabled={submitting}
-            accessibilityLabel="Maybe later">
-            <Text style={styles.maybeLaterText}>Or Maybe Later</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            <TouchableOpacity
+              style={styles.maybeLater}
+              onPress={handleMaybeLater}
+              disabled={submitting}
+              accessibilityLabel="Maybe later">
+              <Text style={styles.maybeLaterText}>Or Maybe Later</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
 
       <CountryPicker
         visible={showCountryPicker}
@@ -241,8 +313,13 @@ export default function CreatePlayerProfileScreen() {
 
       {showPositionPicker ? (
         <View style={styles.positionOverlay}>
+          <TouchableOpacity
+            style={styles.positionBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowPositionPicker(false)}
+          />
           <View style={styles.positionSheet}>
-            <Text style={styles.positionSheetTitle}>Position</Text>
+            <Text style={styles.positionSheetTitle}>Primary position</Text>
             {POSITIONS.map(p => (
               <TouchableOpacity
                 key={p.value}
@@ -262,14 +339,25 @@ export default function CreatePlayerProfileScreen() {
           </View>
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: BG,
+  },
+  footerGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '42%',
+  },
+  safe: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   keyboard: {
     flex: 1,
@@ -278,162 +366,216 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   backBtn: {
-    padding: 4,
+    padding: 8,
+    minWidth: 44,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 2,
+    color: LIME,
+    textTransform: 'uppercase',
   },
   headerRight: {
-    width: 32,
+    width: 44,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingBottom: 48,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
-  photoPlaceholder: {
+  photoBlock: {
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  photoHint: {
     marginTop: 8,
-    fontSize: 14,
-    color: '#999',
-  },
-  field: {
     marginBottom: 20,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+  photoDashed: {
+    width: 132,
+    height: 132,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#4b5563',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: CARD,
+  },
+  photoPlus: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: LIME,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhotoBtn: {
+    marginTop: -14,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: LIME,
+  },
+  addPhotoBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: BG,
+    letterSpacing: 0.5,
+  },
+  stepLabel: {
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    color: MUTED,
+    textTransform: 'uppercase',
+    marginBottom: 22,
+  },
+  fieldBlock: {
+    marginBottom: 18,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: LABEL,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    paddingRight: 40,
-    fontSize: 16,
-    color: '#000',
-    backgroundColor: '#fff',
+  fieldHint: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 6,
+    marginLeft: 4,
   },
-  inputDisabled: {
-    backgroundColor: '#f5f5f5',
-    color: '#999',
-  },
-  inputIcon: {
-    position: 'absolute',
-    right: 12,
-    top: 42,
-  },
-  selectRow: {
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    backgroundColor: CARD,
     borderRadius: 10,
-    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
     paddingVertical: 14,
-    backgroundColor: '#fff',
+    minHeight: 52,
   },
-  flag: {
-    fontSize: 20,
-    marginRight: 10,
+  rowIcon: {
+    marginRight: 12,
   },
-  selectValue: {
+  inputFlex: {
     flex: 1,
-    fontSize: 16,
-    color: '#000',
+    fontSize: 15,
+    color: WHITE,
+    paddingVertical: 0,
   },
-  placeholder: {
-    color: '#999',
+  selectText: {
+    flex: 1,
+    fontSize: 15,
+    color: WHITE,
   },
-  freeAgentRow: {
-    gap: 12,
+  placeholderText: {
+    color: MUTED,
   },
-  toggleRow: {
+  clubLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  toggleLabel: {
-    fontSize: 15,
-    color: '#374151',
+  freeAgentInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  freeAgentCaps: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: MUTED,
   },
   error: {
-    color: '#dc2626',
+    color: '#f87171',
     fontSize: 14,
-    marginBottom: 16,
+    marginBottom: 14,
+    textAlign: 'center',
   },
   nextBtn: {
-    backgroundColor: '#22c55e',
-    borderRadius: 12,
+    backgroundColor: LIME,
+    borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 12,
   },
   nextBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.75,
   },
   nextBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: BG,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   maybeLater: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 18,
+    paddingVertical: 8,
   },
   maybeLaterText: {
-    fontSize: 15,
-    color: '#6b7280',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    color: MUTED,
+    textTransform: 'uppercase',
   },
   positionOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
+  positionBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
   positionSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
-    paddingBottom: 32,
+    backgroundColor: '#0f172a',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 36,
+    borderTopWidth: 1,
+    borderColor: BORDER,
   },
   positionSheetTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-    color: '#000',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: WHITE,
   },
   positionOption: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: BORDER,
   },
   positionOptionText: {
     fontSize: 16,
-    color: '#000',
+    color: WHITE,
   },
   positionCancel: {
     marginTop: 16,
     alignItems: 'center',
   },
   positionCancelText: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: 15,
+    color: MUTED,
   },
 });
