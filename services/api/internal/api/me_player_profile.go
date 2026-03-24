@@ -35,7 +35,7 @@ type MePlayerProfileCareerTeamDTO struct {
 	ID        int32   `json:"id"`
 	TeamName  string  `json:"team_name"`
 	StartYear int32   `json:"start_year"`
-	EndYear   *int32  `json:"end_year,omitempty"`
+	EndYear   *int32  `json:"end_year"`
 }
 
 // MePlayerProfileInput is the body for POST/PUT /api/me/player-profile.
