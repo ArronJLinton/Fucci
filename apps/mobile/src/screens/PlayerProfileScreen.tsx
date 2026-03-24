@@ -26,7 +26,11 @@ import {
   deletePlayerProfile,
   setPlayerProfileTraits,
 } from '../services/playerProfile';
-import type {PlayerProfile as PlayerProfileType} from '../types/playerProfile';
+import type {
+  PlayerProfile as PlayerProfileType,
+  PlayerProfileDraft,
+  PlayerProfileOrDraft,
+} from '../types/playerProfile';
 import {CountryPicker} from '../components/CountryPicker';
 import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
 
@@ -63,7 +67,7 @@ const HERO_HEIGHT = Math.max(320, SCREEN_HEIGHT * 0.45);
 export default function PlayerProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
   const {token, user} = useAuth();
-  const [profile, setProfile] = useState<PlayerProfileType | null>(null);
+  const [profile, setProfile] = useState<PlayerProfileOrDraft | null>(null);
   const [isDraftProfile, setIsDraftProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +118,7 @@ export default function PlayerProfileScreen() {
         setEditIsFreeAgent(p.is_free_agent ?? false);
         setEditPosition(p.position ?? null);
       } else {
-        const draft: PlayerProfileType = {
+        const draft: PlayerProfileDraft = {
           id: 0,
           age: null,
           country: '',
@@ -206,13 +210,13 @@ export default function PlayerProfileScreen() {
             if (!token) return;
             const ok = await deletePlayerProfile(token);
             if (ok) {
-              const draft: PlayerProfileType = {
+              const draft: PlayerProfileDraft = {
                 id: 0,
                 age: null,
                 country: '',
                 club: null,
                 is_free_agent: false,
-                position: 'FWD',
+                position: null,
                 photo_url: null,
                 traits: [],
                 career_teams: [],
@@ -307,13 +311,15 @@ export default function PlayerProfileScreen() {
     COUNTRIES.find(c => c.code === profile.country)?.name ?? profile.country;
 
   const posAbbrev =
-    profile.position === 'GK'
-      ? 'GK'
-      : profile.position === 'DEF'
-        ? 'CB'
-        : profile.position === 'MID'
-          ? 'CM'
-          : 'ST';
+    profile.position == null
+      ? ''
+      : profile.position === 'GK'
+        ? 'GK'
+        : profile.position === 'DEF'
+          ? 'CB'
+          : profile.position === 'MID'
+            ? 'CM'
+            : 'ST';
 
 
   const ageComplete = profile.age != null;

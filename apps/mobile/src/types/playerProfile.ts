@@ -21,6 +21,13 @@ export interface PlayerProfile {
   career_teams: PlayerProfileCareerTeam[];
 }
 
+/** Local UI state before a row exists or after delete: same shape as API profile but position may be unset. */
+export type PlayerProfileDraft = Omit<PlayerProfile, 'position'> & {
+  position: PlayerPosition | null;
+};
+
+export type PlayerProfileOrDraft = PlayerProfile | PlayerProfileDraft;
+
 export interface PlayerProfileInput {
   age?: number | null;
   country: string;
