@@ -20,6 +20,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {CountryPicker} from '../components/CountryPicker';
 import {countryCodeToFlag} from '../data/countries';
+import {userFacingApiMessage} from '../services/api';
 import {createPlayerProfile} from '../services/playerProfile';
 import type {PlayerProfileInput, PlayerPosition} from '../types/playerProfile';
 
@@ -83,14 +84,10 @@ export default function CreatePlayerProfileScreen() {
         club: isFreeAgent ? null : club.trim() || null,
         is_free_agent: isFreeAgent,
       };
-      const profile = await createPlayerProfile(token, body);
-      if (profile) {
-        navigation.replace('PlayerProfile');
-      } else {
-        setError('Failed to create profile. Please try again.');
-      }
-    } catch {
-      setError('Something went wrong. Please try again.');
+      await createPlayerProfile(token, body);
+      navigation.replace('PlayerProfile');
+    } catch (err) {
+      setError(userFacingApiMessage(err));
     } finally {
       setSubmitting(false);
     }

@@ -19,6 +19,7 @@ import {LinearGradient} from 'expo-linear-gradient';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {countryCodeToFlag, COUNTRIES} from '../data/countries';
+import {userFacingApiMessage} from '../services/api';
 import {
   getPlayerProfile,
   createPlayerProfile,
@@ -183,15 +184,11 @@ export default function PlayerProfileScreen() {
       const updated = isDraftProfile
         ? await createPlayerProfile(token, payload)
         : await updatePlayerProfile(token, payload);
-      if (updated) {
-        setProfile(updated);
-        setIsDraftProfile(false);
-        setEditMode(false);
-      } else {
-        setSaveError('Failed to save. Try again.');
-      }
-    } catch {
-      setSaveError('Failed to save. Try again.');
+      setProfile(updated);
+      setIsDraftProfile(false);
+      setEditMode(false);
+    } catch (err) {
+      setSaveError(userFacingApiMessage(err));
     } finally {
       setSaving(false);
     }
@@ -208,8 +205,8 @@ export default function PlayerProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             if (!token) return;
-            const ok = await deletePlayerProfile(token);
-            if (ok) {
+            try {
+              await deletePlayerProfile(token);
               const draft: PlayerProfileDraft = {
                 id: 0,
                 age: null,
@@ -230,8 +227,8 @@ export default function PlayerProfileScreen() {
               setEditIsFreeAgent(false);
               setEditPosition(null);
               setEditMode(true);
-            } else {
-              setError('Failed to delete profile.');
+            } catch (err) {
+              setError(userFacingApiMessage(err));
             }
           },
         },
@@ -252,18 +249,14 @@ export default function PlayerProfileScreen() {
     }
     try {
       const updated = await setPlayerProfileTraits(token, traits);
-      if (!updated) {
-        setSaveError('Failed to save traits. Please try again.');
-        Alert.alert('Save Failed', 'Could not save traits. Please try again.');
-        return;
-      }
       if (profile) {
         setProfile({...profile, traits: updated});
       }
       setShowTraitsModal(false);
-    } catch {
-      setSaveError('Failed to save traits. Please try again.');
-      Alert.alert('Save Failed', 'Could not save traits. Please try again.');
+    } catch (err) {
+      const msg = userFacingApiMessage(err);
+      setSaveError(msg);
+      Alert.alert('Save Failed', msg);
     }
   };
 
