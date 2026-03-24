@@ -212,12 +212,12 @@ components:
     PlayerProfileInput:
       type: object
       required:
-        - age
         - country
         - position
       properties:
         age:
           type: integer
+          nullable: true
           minimum: 13
           maximum: 60
         country:
