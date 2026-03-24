@@ -345,15 +345,6 @@ export default function PlayerProfileScreen() {
     .filter(Boolean)
     .join(' • ');
 
-  const positionLabel =
-    profile.position === 'GK'
-      ? 'GOALKEEPER'
-      : profile.position === 'DEF'
-        ? 'DEFENDER'
-        : profile.position === 'MID'
-          ? 'MIDFIELDER'
-          : 'FORWARD';
-
   const ageComplete = profile.age != null;
   const countryComplete = !!profile.country;
   const positionComplete = !isDraftProfile && !!profile.position;
