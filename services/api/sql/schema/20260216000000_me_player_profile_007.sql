@@ -11,8 +11,8 @@ CREATE TABLE me_player_profile (
   is_free_agent BOOLEAN NOT NULL DEFAULT FALSE,
   position VARCHAR(10) NOT NULL CHECK (position IN ('GK', 'DEF', 'MID', 'FWD')),
   photo_url TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE me_player_profile_trait (
@@ -28,8 +28,8 @@ CREATE TABLE me_player_profile_career_team (
   team_name TEXT NOT NULL,
   start_year INTEGER NOT NULL CHECK (start_year >= 1950 AND start_year <= 2100),
   end_year INTEGER CHECK (end_year IS NULL OR (end_year >= 1950 AND end_year <= 2100)),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_me_player_profile_trait_profile ON me_player_profile_trait(me_player_profile_id);
