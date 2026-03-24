@@ -316,30 +316,6 @@ export default function PlayerProfileScreen() {
           : 'ST';
 
 
-  const selectedTraitsSet = new Set(profile.traits ?? []);
-  const archetype = selectedTraitsSet.has('SPEED_DRIBBLER')
-    ? 'Speed Demon'
-    : selectedTraitsSet.has('LEADERSHIP')
-      ? 'Leader'
-      : selectedTraitsSet.has('PLAYMAKER')
-        ? 'Playmaker'
-        : selectedTraitsSet.has('LONG_SHOT_TAKER')
-          ? 'Sniper'
-          : profile.is_free_agent
-            ? 'Free Agent'
-            : 'Rising Star';
-
-  const clubOrStatus = profile.is_free_agent
-    ? 'Free Agent'
-    : (profile.club ?? 'Club');
-  const metaInfo = [
-    flag ? `${flag} ${countryName}` : countryName,
-    clubOrStatus,
-    posAbbrev,
-  ]
-    .filter(Boolean)
-    .join(' • ');
-
   const ageComplete = profile.age != null;
   const countryComplete = !!profile.country;
   const positionComplete = !isDraftProfile && !!profile.position;
