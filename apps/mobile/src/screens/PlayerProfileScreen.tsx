@@ -393,7 +393,7 @@ export default function PlayerProfileScreen() {
                 styles.tabText,
                 activeTab === tab && styles.tabTextActive,
               ]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab.charAt(0).toUpperCase() + tab.slice(1).toLowerCase()}
             </Text>
           </TouchableOpacity>
         ))}
