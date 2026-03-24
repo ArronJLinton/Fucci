@@ -120,7 +120,7 @@ export default function PlayerProfileScreen() {
           country: '',
           club: null,
           is_free_agent: false,
-          position: 'FWD',
+          position: null,
           photo_url: null,
           traits: [],
           career_teams: [],
