@@ -315,22 +315,6 @@ export default function PlayerProfileScreen() {
           ? 'CM'
           : 'ST';
 
-  // Light-weight “card rating” for now (until we have real attributes).
-  const seed = (profile.id ?? 1) * 2654435761;
-  const stat = (i: number, min: number, max: number) => {
-    const x = Math.abs(Math.sin(seed + i * 97.13));
-    return Math.round(min + x * (max - min));
-  };
-  const stats = [
-    stat(1, 60, 95),
-    stat(2, 55, 92),
-    stat(3, 50, 90),
-    stat(4, 55, 95),
-    stat(5, 35, 88),
-    stat(6, 45, 92),
-  ];
-  const overall = Math.round(stats.reduce((s, v) => s + v, 0) / stats.length);
-  const overallClamped = Math.max(1, Math.min(99, overall));
 
   const selectedTraitsSet = new Set(profile.traits ?? []);
   const archetype = selectedTraitsSet.has('SPEED_DRIBBLER')
