@@ -77,39 +77,40 @@ specs/007-player-profile/
 
 ### Source Code (repository root)
 
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
-
 ```text
 services/api/
 ├── internal/
-│   ├── api/             # HTTP handlers (new player_profile handlers live here)
-│   ├── database/        # sqlc-generated queries for player_profiles, traits, career_teams
-│   └── cache/           # shared caching abstractions (if used)
+│   ├── api/
+│   │   ├── api.go                    # Routes: /api/me/player-profile (+ traits)
+│   │   ├── me_player_profile.go      # GET/POST/PUT/DELETE profile, PUT traits
+│   │   └── me_player_profile_test.go   # Handler tests (stub store)
+│   └── database/
+│       └── me_player_profile.sql.go    # sqlc output (generated)
 └── sql/
-    └── queries/         # SQL for player profile entities
+    ├── queries/me_player_profile.sql   # sqlc query definitions
+    └── schema/20260216000000_me_player_profile_007.sql  # Goose migration (profile + traits + career_team)
 
 apps/mobile/
 └── src/
     ├── screens/
-    │   └── PlayerProfileScreen.tsx
+    │   ├── PlayerProfileScreen.tsx    # Portal UI, draft/create-on-save, edit form
+    │   └── SettingsScreen.tsx         # “Player mode” entry → PlayerProfile
     ├── components/
-    │   └── PlayerTraitsModal.tsx
-    └── services/
-        └── playerProfile.ts   # client API for profile CRUD, traits, career teams
+    │   ├── PlayerTraitsModal.tsx
+    │   └── CountryPicker.tsx          # Country selection for profile
+    ├── types/playerProfile.ts         # PlayerProfile, PlayerProfileDraft, inputs
+    ├── services/
+    │   ├── playerProfile.ts           # Authenticated client for /me/player-profile
+    │   └── api.ts                     # makeAuthRequest, ApiRequestError (status)
+    └── data/countries.ts              # Country list + countryCodeToFlag helper
 ```
 
-**Structure Decision**: Mobile + API within the existing monorepo (`apps/mobile` + `services/api`), with one main screen and supporting components on mobile and a small set of focused handlers + queries on the API side.
+**Structure Decision**: Mobile + API in the existing monorepo (`apps/mobile` + `services/api`). The 007 profile uses the dedicated `me_player_profile` table and `/api/me/player-profile` handlers (separate from legacy `player_profiles`). Mobile centers on `PlayerProfileScreen` with traits modal, country data, and a thin `playerProfile` service layer.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+No constitution violations required justification for this feature; the table below is intentionally empty.
 
-| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
-| -------------------------- | ------------------ | ------------------------------------ |
-| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+| --------- | ---------- | ----------------------------------- |
+| —         | —          | —                                   |
