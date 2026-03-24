@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
+import {getPlayerProfile} from '../services/playerProfile';
 
 interface SettingsScreenProps {
   /** When true, screen is embedded in Profile tab (no back button) */
@@ -28,7 +30,28 @@ export default function SettingsScreen({
     embeddedInTabProp ??
     (route.params as SettingsRouteParams | undefined)?.embeddedInTab ??
     false;
-  const {user, isLoggedIn, logout: authLogout} = useAuth();
+  const {user, isLoggedIn, logout: authLogout, token} = useAuth();
+  const [playerModeLoading, setPlayerModeLoading] = useState(false);
+
+  const handleOpenPlayerMode = async () => {
+    if (!token) return;
+    setPlayerModeLoading(true);
+    try {
+      const profile = await getPlayerProfile(token);
+      if (profile) {
+        rootNavigate('PlayerProfile');
+      } else {
+        rootNavigate('CreatePlayerProfile');
+      }
+    } catch {
+      Alert.alert(
+        'Something went wrong',
+        'We could not check your player profile. Check your connection and try again.',
+      );
+    } finally {
+      setPlayerModeLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Log out?', 'Are you sure you want to log out?', [
@@ -93,8 +116,10 @@ export default function SettingsScreen({
 
               <TouchableOpacity
                 style={styles.settingsCard}
-                onPress={() => rootNavigate('PlayerProfile')}
-                accessibilityLabel="Open Player Mode">
+                onPress={handleOpenPlayerMode}
+                disabled={playerModeLoading}
+                accessibilityLabel="Open Player Mode"
+                accessibilityState={{busy: playerModeLoading}}>
                 <View style={styles.settingsCardIconWrap}>
                   <Ionicons name="person" size={16} color="#d9f99d" />
                 </View>
@@ -104,7 +129,11 @@ export default function SettingsScreen({
                     Open player profile portal
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                {playerModeLoading ? (
+                  <ActivityIndicator size="small" color="#94a3b8" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.settingsCard}>
