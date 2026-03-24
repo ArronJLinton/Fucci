@@ -27,7 +27,7 @@ type CreateTeamManagerParams struct {
 	Bio        sql.NullString
 }
 
-func (q *Queries) CreateTeamManager(ctx context.Context, arg CreateTeamManagerParams) (TeamManager, error) {
+func (q *Queries) CreateTeamManager(ctx context.Context, arg CreateTeamManagerParams) (TeamManagers, error) {
 	row := q.db.QueryRowContext(ctx, createTeamManager,
 		arg.UserID,
 		arg.LeagueID,
@@ -36,7 +36,7 @@ func (q *Queries) CreateTeamManager(ctx context.Context, arg CreateTeamManagerPa
 		arg.Experience,
 		arg.Bio,
 	)
-	var i TeamManager
+	var i TeamManagers
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -64,9 +64,9 @@ const getTeamManager = `-- name: GetTeamManager :one
 SELECT id, user_id, league_id, team_id, title, experience, bio, created_at, updated_at FROM team_managers WHERE id = $1
 `
 
-func (q *Queries) GetTeamManager(ctx context.Context, id uuid.UUID) (TeamManager, error) {
+func (q *Queries) GetTeamManager(ctx context.Context, id uuid.UUID) (TeamManagers, error) {
 	row := q.db.QueryRowContext(ctx, getTeamManager, id)
-	var i TeamManager
+	var i TeamManagers
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -85,15 +85,15 @@ const getTeamManagersByLeague = `-- name: GetTeamManagersByLeague :many
 SELECT id, user_id, league_id, team_id, title, experience, bio, created_at, updated_at FROM team_managers WHERE league_id = $1 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetTeamManagersByLeague(ctx context.Context, leagueID uuid.UUID) ([]TeamManager, error) {
+func (q *Queries) GetTeamManagersByLeague(ctx context.Context, leagueID uuid.UUID) ([]TeamManagers, error) {
 	rows, err := q.db.QueryContext(ctx, getTeamManagersByLeague, leagueID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TeamManager
+	var items []TeamManagers
 	for rows.Next() {
-		var i TeamManager
+		var i TeamManagers
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -135,7 +135,7 @@ type ListTeamManagersParams struct {
 	Offset  int32
 }
 
-func (q *Queries) ListTeamManagers(ctx context.Context, arg ListTeamManagersParams) ([]TeamManager, error) {
+func (q *Queries) ListTeamManagers(ctx context.Context, arg ListTeamManagersParams) ([]TeamManagers, error) {
 	rows, err := q.db.QueryContext(ctx, listTeamManagers,
 		arg.Column1,
 		arg.Column2,
@@ -147,9 +147,9 @@ func (q *Queries) ListTeamManagers(ctx context.Context, arg ListTeamManagersPara
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TeamManager
+	var items []TeamManagers
 	for rows.Next() {
-		var i TeamManager
+		var i TeamManagers
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -180,15 +180,15 @@ JOIN team_managers tm ON t.id = tm.team_id
 WHERE tm.user_id = $1
 `
 
-func (q *Queries) ListTeamsByManager(ctx context.Context, userID int32) ([]Team, error) {
+func (q *Queries) ListTeamsByManager(ctx context.Context, userID int32) ([]Teams, error) {
 	rows, err := q.db.QueryContext(ctx, listTeamsByManager, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Team
+	var items []Teams
 	for rows.Next() {
-		var i Team
+		var i Teams
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -233,7 +233,7 @@ type UpdateTeamManagerParams struct {
 	Bio        sql.NullString
 }
 
-func (q *Queries) UpdateTeamManager(ctx context.Context, arg UpdateTeamManagerParams) (TeamManager, error) {
+func (q *Queries) UpdateTeamManager(ctx context.Context, arg UpdateTeamManagerParams) (TeamManagers, error) {
 	row := q.db.QueryRowContext(ctx, updateTeamManager,
 		arg.ID,
 		arg.TeamID,
@@ -241,7 +241,7 @@ func (q *Queries) UpdateTeamManager(ctx context.Context, arg UpdateTeamManagerPa
 		arg.Experience,
 		arg.Bio,
 	)
-	var i TeamManager
+	var i TeamManagers
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,

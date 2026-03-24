@@ -5,8 +5,8 @@ info:
   description: |
     Endpoints for managing the authenticated user's player profile, traits, photo, and career teams.
 
-    Path keys below are relative to the **API sub-router** mounted at `/me` in `services/api/internal/api/api.go`
-    (e.g. `GET /me/player-profile`). The HTTP server mounts that router under `/v1/api` (see `services/api/main.go`).
+    Path keys below are relative to the **API router** in `services/api/internal/api/api.go`
+    (e.g. `GET /player-profile`). The HTTP server mounts that router under `/v1/api` (see `services/api/main.go`).
 
 servers:
   - url: '{apiOrigin}/v1/api'
@@ -17,7 +17,7 @@ servers:
         description: Scheme + host + optional port, no trailing slash
 
 paths:
-  /me/player-profile:
+  /player-profile:
     get:
       summary: Get current user's player profile
       responses:
@@ -60,7 +60,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PlayerProfile'
 
-  /me/player-profile/traits:
+  /player-profile/traits:
     put:
       summary: Replace selected traits for current user's profile
       requestBody:
@@ -88,7 +88,7 @@ paths:
                     items:
                       $ref: '#/components/schemas/TraitCode'
 
-  /me/player-profile/photo:
+  /player-profile/photo:
     post:
       summary: Upload or update profile photo for current user
       requestBody:
@@ -114,7 +114,7 @@ paths:
         '400':
           description: Invalid file
 
-  /me/player-profile/career-teams:
+  /player-profile/career-teams:
     get:
       summary: List career teams for current user's profile
       responses:
@@ -142,7 +142,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CareerTeam'
 
-  /me/player-profile/career-teams/{career_team_id}:
+  /player-profile/career-teams/{career_team_id}:
     put:
       summary: Update a career team entry
       parameters:

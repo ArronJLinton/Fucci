@@ -81,14 +81,16 @@ specs/007-player-profile/
 services/api/
 ├── internal/
 │   ├── api/
-│   │   ├── api.go                    # Routes: /api/me/player-profile (+ traits)
-│   │   ├── me_player_profile.go      # GET/POST/PUT/DELETE profile, PUT traits
-│   │   └── me_player_profile_test.go   # Handler tests (stub store)
+│   │   ├── api.go                    # Routes: /api/player-profile (+ /traits)
+│   │   ├── player_profile.go         # GET/POST/PUT/DELETE profile, PUT traits
+│   │   └── player_profile_test.go    # Handler tests (stub store)
 │   └── database/
-│       └── me_player_profile.sql.go    # sqlc output (generated)
+│       └── player_profile.sql.go       # sqlc output (generated)
 └── sql/
-    ├── queries/me_player_profile.sql   # sqlc query definitions
-    └── schema/20260216000000_me_player_profile_007.sql  # Goose migration (profile + traits + career_team)
+    ├── queries/player_profile.sql       # sqlc query definitions
+    └── schema/
+        ├── 20260216000000_me_player_profile_007.sql  # creates player_profile* (filename kept for migration version)
+        └── 20260324120000_rename_me_player_profile_tables.sql  # upgrades DBs that still have me_player_profile*
 
 apps/mobile/
 └── src/
@@ -100,12 +102,12 @@ apps/mobile/
     │   └── CountryPicker.tsx          # Country selection for profile
     ├── types/playerProfile.ts         # PlayerProfile, PlayerProfileDraft, inputs
     ├── services/
-    │   ├── playerProfile.ts           # Authenticated client for /me/player-profile
+    │   ├── playerProfile.ts           # Authenticated client for /player-profile
     │   └── api.ts                     # makeAuthRequest, ApiRequestError (status)
     └── data/countries.ts              # Country list + countryCodeToFlag helper
 ```
 
-**Structure Decision**: Mobile + API in the existing monorepo (`apps/mobile` + `services/api`). The 007 profile uses the dedicated `me_player_profile` table and `/api/me/player-profile` handlers (separate from legacy `player_profiles`). Mobile centers on `PlayerProfileScreen` with traits modal, country data, and a thin `playerProfile` service layer.
+**Structure Decision**: Mobile + API in the existing monorepo (`apps/mobile` + `services/api`). The 007 profile uses the dedicated `player_profile` table (plus `player_profile_trait`, `player_profile_career_team`) and `/api/player-profile` handlers (separate from legacy `player_profiles`). Mobile centers on `PlayerProfileScreen` with traits modal, country data, and a thin `playerProfile` service layer.
 
 ## Complexity Tracking
 

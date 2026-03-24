@@ -1,4 +1,4 @@
-/** 007 Player Profile (my profile) types — match API GET/POST/PUT /me/player-profile */
+/** 007 signed-in player profile types — match API GET/POST/PUT /player-profile */
 
 export type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
 
@@ -36,7 +36,7 @@ export interface PlayerProfileInput {
   position: PlayerPosition;
 }
 
-/** Allowed trait codes for PUT /me/player-profile/traits (max 5) */
+/** Allowed trait codes for PUT /player-profile/traits (max 5) */
 export const PLAYER_TRAIT_CODES = [
   'LEADERSHIP',
   'FINESSE_SHOT',

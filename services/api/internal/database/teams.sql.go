@@ -31,7 +31,7 @@ type CreateTeamParams struct {
 	Capacity    sql.NullInt32
 }
 
-func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error) {
+func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Teams, error) {
 	row := q.db.QueryRowContext(ctx, createTeam,
 		arg.Name,
 		arg.Description,
@@ -44,7 +44,7 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		arg.Stadium,
 		arg.Capacity,
 	)
-	var i Team
+	var i Teams
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -77,9 +77,9 @@ const getTeam = `-- name: GetTeam :one
 SELECT id, name, league_id, state, country, created_at, updated_at, description, manager_id, logo_url, city, founded, stadium, capacity FROM teams WHERE id = $1
 `
 
-func (q *Queries) GetTeam(ctx context.Context, id uuid.UUID) (Team, error) {
+func (q *Queries) GetTeam(ctx context.Context, id uuid.UUID) (Teams, error) {
 	row := q.db.QueryRowContext(ctx, getTeam, id)
-	var i Team
+	var i Teams
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -103,15 +103,15 @@ const getTeamsByLeague = `-- name: GetTeamsByLeague :many
 SELECT id, name, league_id, state, country, created_at, updated_at, description, manager_id, logo_url, city, founded, stadium, capacity FROM teams WHERE league_id = $1 ORDER BY name
 `
 
-func (q *Queries) GetTeamsByLeague(ctx context.Context, leagueID uuid.NullUUID) ([]Team, error) {
+func (q *Queries) GetTeamsByLeague(ctx context.Context, leagueID uuid.NullUUID) ([]Teams, error) {
 	rows, err := q.db.QueryContext(ctx, getTeamsByLeague, leagueID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Team
+	var items []Teams
 	for rows.Next() {
-		var i Team
+		var i Teams
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -156,7 +156,7 @@ type ListTeamsParams struct {
 	Offset  int32
 }
 
-func (q *Queries) ListTeams(ctx context.Context, arg ListTeamsParams) ([]Team, error) {
+func (q *Queries) ListTeams(ctx context.Context, arg ListTeamsParams) ([]Teams, error) {
 	rows, err := q.db.QueryContext(ctx, listTeams,
 		arg.Column1,
 		arg.Column2,
@@ -167,9 +167,9 @@ func (q *Queries) ListTeams(ctx context.Context, arg ListTeamsParams) ([]Team, e
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Team
+	var items []Teams
 	for rows.Next() {
-		var i Team
+		var i Teams
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -203,15 +203,15 @@ const listTeamsByLeague = `-- name: ListTeamsByLeague :many
 SELECT id, name, league_id, state, country, created_at, updated_at, description, manager_id, logo_url, city, founded, stadium, capacity FROM teams WHERE league_id = $1 ORDER BY name
 `
 
-func (q *Queries) ListTeamsByLeague(ctx context.Context, leagueID uuid.NullUUID) ([]Team, error) {
+func (q *Queries) ListTeamsByLeague(ctx context.Context, leagueID uuid.NullUUID) ([]Teams, error) {
 	rows, err := q.db.QueryContext(ctx, listTeamsByLeague, leagueID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Team
+	var items []Teams
 	for rows.Next() {
-		var i Team
+		var i Teams
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -264,7 +264,7 @@ type UpdateTeamParams struct {
 	Capacity    sql.NullInt32
 }
 
-func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error) {
+func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Teams, error) {
 	row := q.db.QueryRowContext(ctx, updateTeam,
 		arg.ID,
 		arg.Name,
@@ -278,7 +278,7 @@ func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, e
 		arg.Stadium,
 		arg.Capacity,
 	)
-	var i Team
+	var i Teams
 	err := row.Scan(
 		&i.ID,
 		&i.Name,

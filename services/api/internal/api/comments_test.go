@@ -18,16 +18,16 @@ import (
 
 // mockCommentReader implements CommentReader for tests.
 type mockCommentReader struct {
-	getDebateFunc   func(ctx context.Context, id int32) (database.Debate, error)
+	getDebateFunc   func(ctx context.Context, id int32) (database.Debates, error)
 	getCommentsFunc func(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error)
 	getCommentFunc  func(ctx context.Context, id int32) (database.GetCommentRow, error)
 }
 
-func (m *mockCommentReader) GetDebate(ctx context.Context, id int32) (database.Debate, error) {
+func (m *mockCommentReader) GetDebate(ctx context.Context, id int32) (database.Debates, error) {
 	if m.getDebateFunc != nil {
 		return m.getDebateFunc(ctx, id)
 	}
-	return database.Debate{}, sql.ErrNoRows
+	return database.Debates{}, sql.ErrNoRows
 }
 
 func (m *mockCommentReader) GetComments(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error) {
@@ -90,8 +90,8 @@ func TestListDebateComments_InvalidDebateID(t *testing.T) {
 func TestListDebateComments_DebateNotFound(t *testing.T) {
 	config := &Config{
 		CommentReader: &mockCommentReader{
-			getDebateFunc: func(ctx context.Context, id int32) (database.Debate, error) {
-				return database.Debate{}, sql.ErrNoRows
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) {
+				return database.Debates{}, sql.ErrNoRows
 			},
 		},
 	}
@@ -109,8 +109,8 @@ func TestListDebateComments_DebateNotFound(t *testing.T) {
 func TestListDebateComments_SuccessEmpty(t *testing.T) {
 	config := &Config{
 		CommentReader: &mockCommentReader{
-			getDebateFunc: func(ctx context.Context, id int32) (database.Debate, error) {
-				return database.Debate{ID: id}, nil
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) {
+				return database.Debates{ID: id}, nil
 			},
 			getCommentsFunc: func(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error) {
 				return []database.GetCommentsRow{}, nil
@@ -161,7 +161,7 @@ func TestCreateDebateComment_ContentEmpty(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CommentReader: &mockCommentReader{
-			getDebateFunc: func(ctx context.Context, id int32) (database.Debate, error) { return database.Debate{ID: id}, nil },
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) { return database.Debates{ID: id}, nil },
 		},
 	}
 	req := commentRequestWithChiParams("POST", "/debates/1/comments", CreateDebateCommentRequest{Content: "   "}, map[string]string{"debateId": "1"}, &userID)
@@ -180,7 +180,7 @@ func TestCreateDebateComment_ContentTooLong(t *testing.T) {
 	longContent := strings.Repeat("x", 501)
 	config := &Config{
 		CommentReader: &mockCommentReader{
-			getDebateFunc: func(ctx context.Context, id int32) (database.Debate, error) { return database.Debate{ID: id}, nil },
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) { return database.Debates{ID: id}, nil },
 		},
 	}
 	req := commentRequestWithChiParams("POST", "/debates/1/comments", CreateDebateCommentRequest{Content: longContent}, map[string]string{"debateId": "1"}, &userID)
@@ -198,8 +198,8 @@ func TestCreateDebateComment_DebateNotFound(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CommentReader: &mockCommentReader{
-			getDebateFunc: func(ctx context.Context, id int32) (database.Debate, error) {
-				return database.Debate{}, sql.ErrNoRows
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) {
+				return database.Debates{}, sql.ErrNoRows
 			},
 		},
 	}

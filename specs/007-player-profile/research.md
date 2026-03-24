@@ -49,12 +49,12 @@
 
 - **Rationale**: Player profiles are always tied to the authenticated user, so the API surface should be “current user–centric”.
 - **Chosen endpoints (high level)**:
-  - `GET /api/me/player-profile` – fetch current user’s profile (or 404 if none).
-  - `POST /api/me/player-profile` – create or upsert basic profile.
-  - `PUT /api/me/player-profile` – update profile fields.
-  - `PUT /api/me/player-profile/traits` – replace trait set.
-  - `POST /api/me/player-profile/photo` – upload/update profile photo.
-  - `GET/POST/PUT/DELETE /api/me/player-profile/career-teams` – manage career entries.
+  - `GET /api/player-profile` – fetch current user’s profile (or 404 if none).
+  - `POST /api/player-profile` – create or upsert basic profile.
+  - `PUT /api/player-profile` – update profile fields.
+  - `PUT /api/player-profile/traits` – replace trait set.
+  - `POST /api/player-profile/photo` – upload/update profile photo.
+  - `GET/POST/PUT/DELETE /api/player-profile/career-teams` – manage career entries.
 - **Alternatives considered**:
   - Generic `/api/player-profiles/{id}` CRUD – more flexible for admin/multi-user views, but not needed for v1.
 

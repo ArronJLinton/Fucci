@@ -11,7 +11,23 @@ import (
 	"github.com/google/uuid"
 )
 
-type Comment struct {
+type CommentReactions struct {
+	ID        int32
+	CommentID int32
+	UserID    int32
+	Emoji     string
+	CreatedAt sql.NullTime
+}
+
+type CommentVotes struct {
+	ID        int32
+	CommentID int32
+	UserID    int32
+	VoteType  string
+	CreatedAt sql.NullTime
+}
+
+type Comments struct {
 	ID              int32
 	DebateID        sql.NullInt32
 	ParentCommentID sql.NullInt32
@@ -22,23 +38,28 @@ type Comment struct {
 	Seeded          bool
 }
 
-type CommentReaction struct {
-	ID        int32
-	CommentID int32
-	UserID    int32
-	Emoji     string
-	CreatedAt sql.NullTime
+type DebateAnalytics struct {
+	ID              int32
+	DebateID        sql.NullInt32
+	TotalVotes      sql.NullInt32
+	TotalComments   sql.NullInt32
+	EngagementScore sql.NullString
+	CreatedAt       sql.NullTime
+	UpdatedAt       sql.NullTime
 }
 
-type CommentVote struct {
-	ID        int32
-	CommentID int32
-	UserID    int32
-	VoteType  string
-	CreatedAt sql.NullTime
+type DebateCards struct {
+	ID          int32
+	DebateID    sql.NullInt32
+	Stance      string
+	Title       string
+	Description sql.NullString
+	AiGenerated sql.NullBool
+	CreatedAt   sql.NullTime
+	UpdatedAt   sql.NullTime
 }
 
-type Debate struct {
+type Debates struct {
 	ID          int32
 	MatchID     string
 	DebateType  string
@@ -50,28 +71,7 @@ type Debate struct {
 	UpdatedAt   sql.NullTime
 }
 
-type DebateAnalytic struct {
-	ID              int32
-	DebateID        sql.NullInt32
-	TotalVotes      sql.NullInt32
-	TotalComments   sql.NullInt32
-	EngagementScore sql.NullString
-	CreatedAt       sql.NullTime
-	UpdatedAt       sql.NullTime
-}
-
-type DebateCard struct {
-	ID          int32
-	DebateID    sql.NullInt32
-	Stance      string
-	Title       string
-	Description sql.NullString
-	AiGenerated sql.NullBool
-	CreatedAt   sql.NullTime
-	UpdatedAt   sql.NullTime
-}
-
-type League struct {
+type Leagues struct {
 	ID          uuid.UUID
 	Name        string
 	Description sql.NullString
@@ -85,7 +85,7 @@ type League struct {
 	UpdatedAt   time.Time
 }
 
-type Match struct {
+type Matches struct {
 	ID                uuid.UUID
 	ExternalMatchID   string
 	HomeTeamID        uuid.NullUUID
@@ -104,7 +104,15 @@ type Match struct {
 	UpdatedAt         sql.NullTime
 }
 
-type MePlayerProfile struct {
+type Media struct {
+	ID        int32
+	MatchID   string
+	MediaUrl  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type PlayerProfile struct {
 	ID          int32
 	UserID      int32
 	Age         sql.NullInt32
@@ -117,31 +125,23 @@ type MePlayerProfile struct {
 	UpdatedAt   time.Time
 }
 
-type MePlayerProfileCareerTeam struct {
-	ID                int32
-	MePlayerProfileID int32
-	TeamName          string
-	StartYear         int32
-	EndYear           sql.NullInt32
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+type PlayerProfileCareerTeam struct {
+	ID              int32
+	PlayerProfileID int32
+	TeamName        string
+	StartYear       int32
+	EndYear         sql.NullInt32
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
-type MePlayerProfileTrait struct {
-	ID                int32
-	MePlayerProfileID int32
-	TraitCode         string
+type PlayerProfileTrait struct {
+	ID              int32
+	PlayerProfileID int32
+	TraitCode       string
 }
 
-type Medium struct {
-	ID        int32
-	MatchID   string
-	MediaUrl  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type PlayerProfile struct {
+type PlayerProfiles struct {
 	ID         uuid.UUID
 	UserID     int32
 	TeamID     uuid.NullUUID
@@ -161,7 +161,19 @@ type PlayerProfile struct {
 	UpdatedAt  time.Time
 }
 
-type Team struct {
+type TeamManagers struct {
+	ID         uuid.UUID
+	UserID     int32
+	LeagueID   uuid.UUID
+	TeamID     uuid.NullUUID
+	Title      sql.NullString
+	Experience sql.NullInt32
+	Bio        sql.NullString
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type Teams struct {
 	ID          uuid.UUID
 	Name        string
 	LeagueID    uuid.NullUUID
@@ -178,19 +190,15 @@ type Team struct {
 	Capacity    sql.NullInt32
 }
 
-type TeamManager struct {
-	ID         uuid.UUID
-	UserID     int32
-	LeagueID   uuid.UUID
-	TeamID     uuid.NullUUID
-	Title      sql.NullString
-	Experience sql.NullInt32
-	Bio        sql.NullString
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+type UserFollows struct {
+	ID             uuid.UUID
+	UserID         int32
+	FollowableType interface{}
+	FollowableID   uuid.UUID
+	CreatedAt      sql.NullTime
 }
 
-type User struct {
+type Users struct {
 	ID          int32
 	Firstname   string
 	Lastname    string
@@ -202,22 +210,14 @@ type User struct {
 	AvatarUrl   sql.NullString
 }
 
-type UserFollow struct {
-	ID             uuid.UUID
-	UserID         int32
-	FollowableType interface{}
-	FollowableID   uuid.UUID
-	CreatedAt      sql.NullTime
-}
-
-type Verification struct {
+type Verifications struct {
 	ID              uuid.UUID
 	PlayerProfileID uuid.UUID
 	VerifierUserID  int32
 	CreatedAt       time.Time
 }
 
-type Vote struct {
+type Votes struct {
 	ID           int32
 	DebateCardID sql.NullInt32
 	UserID       sql.NullInt32

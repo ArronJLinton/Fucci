@@ -29,7 +29,7 @@ type CreateLeagueParams struct {
 	Founded     sql.NullInt32
 }
 
-func (q *Queries) CreateLeague(ctx context.Context, arg CreateLeagueParams) (League, error) {
+func (q *Queries) CreateLeague(ctx context.Context, arg CreateLeagueParams) (Leagues, error) {
 	row := q.db.QueryRowContext(ctx, createLeague,
 		arg.Name,
 		arg.Description,
@@ -40,7 +40,7 @@ func (q *Queries) CreateLeague(ctx context.Context, arg CreateLeagueParams) (Lea
 		arg.Website,
 		arg.Founded,
 	)
-	var i League
+	var i Leagues
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -70,9 +70,9 @@ const getLeague = `-- name: GetLeague :one
 SELECT id, name, description, owner_id, country, level, logo_url, website, founded, created_at, updated_at FROM leagues WHERE id = $1
 `
 
-func (q *Queries) GetLeague(ctx context.Context, id uuid.UUID) (League, error) {
+func (q *Queries) GetLeague(ctx context.Context, id uuid.UUID) (Leagues, error) {
 	row := q.db.QueryRowContext(ctx, getLeague, id)
-	var i League
+	var i Leagues
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -106,7 +106,7 @@ type ListLeaguesParams struct {
 	Offset  int32
 }
 
-func (q *Queries) ListLeagues(ctx context.Context, arg ListLeaguesParams) ([]League, error) {
+func (q *Queries) ListLeagues(ctx context.Context, arg ListLeaguesParams) ([]Leagues, error) {
 	rows, err := q.db.QueryContext(ctx, listLeagues,
 		arg.Column1,
 		arg.Column2,
@@ -118,9 +118,9 @@ func (q *Queries) ListLeagues(ctx context.Context, arg ListLeaguesParams) ([]Lea
 		return nil, err
 	}
 	defer rows.Close()
-	var items []League
+	var items []Leagues
 	for rows.Next() {
-		var i League
+		var i Leagues
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -166,7 +166,7 @@ type UpdateLeagueParams struct {
 	Founded     sql.NullInt32
 }
 
-func (q *Queries) UpdateLeague(ctx context.Context, arg UpdateLeagueParams) (League, error) {
+func (q *Queries) UpdateLeague(ctx context.Context, arg UpdateLeagueParams) (Leagues, error) {
 	row := q.db.QueryRowContext(ctx, updateLeague,
 		arg.ID,
 		arg.Name,
@@ -177,7 +177,7 @@ func (q *Queries) UpdateLeague(ctx context.Context, arg UpdateLeagueParams) (Lea
 		arg.Website,
 		arg.Founded,
 	)
-	var i League
+	var i Leagues
 	err := row.Scan(
 		&i.ID,
 		&i.Name,

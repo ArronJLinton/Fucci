@@ -34,9 +34,9 @@ type GetCommentVoteByUserParams struct {
 	UserID    int32
 }
 
-func (q *Queries) GetCommentVoteByUser(ctx context.Context, arg GetCommentVoteByUserParams) (CommentVote, error) {
+func (q *Queries) GetCommentVoteByUser(ctx context.Context, arg GetCommentVoteByUserParams) (CommentVotes, error) {
 	row := q.db.QueryRowContext(ctx, getCommentVoteByUser, arg.CommentID, arg.UserID)
-	var i CommentVote
+	var i CommentVotes
 	err := row.Scan(
 		&i.ID,
 		&i.CommentID,
@@ -152,9 +152,9 @@ type UpsertCommentVoteParams struct {
 	VoteType  string
 }
 
-func (q *Queries) UpsertCommentVote(ctx context.Context, arg UpsertCommentVoteParams) (CommentVote, error) {
+func (q *Queries) UpsertCommentVote(ctx context.Context, arg UpsertCommentVoteParams) (CommentVotes, error) {
 	row := q.db.QueryRowContext(ctx, upsertCommentVote, arg.CommentID, arg.UserID, arg.VoteType)
-	var i CommentVote
+	var i CommentVotes
 	err := row.Scan(
 		&i.ID,
 		&i.CommentID,

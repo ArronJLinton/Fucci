@@ -5,7 +5,7 @@ import type {
   PlayerProfileCareerTeam,
 } from '../types/playerProfile';
 
-const BASE = '/me/player-profile';
+const BASE = '/player-profile';
 
 function isNotFoundError(error: unknown): boolean {
   if (error instanceof ApiRequestError) return error.status === 404;
@@ -62,7 +62,7 @@ export async function deletePlayerProfile(token: string): Promise<boolean> {
   }
 }
 
-/** PUT /me/player-profile/traits — replace traits (max 5). Returns updated traits. */
+/** PUT /player-profile/traits — replace traits (max 5). Returns updated traits. */
 export async function setPlayerProfileTraits(
   token: string,
   traits: string[],

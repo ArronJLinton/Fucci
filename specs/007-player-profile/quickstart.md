@@ -22,11 +22,11 @@ This guide explains how to run and manually test the Player Profile experience.
 
 3. Verify profile endpoints (once implemented) using a tool like `curl` or Postman:
 
-   - `GET /api/me/player-profile`
-   - `POST /api/me/player-profile`
-   - `PUT /api/me/player-profile/traits`
-   - `POST /api/me/player-profile/photo`
-   - `GET/POST/PUT/DELETE /api/me/player-profile/career-teams`
+   - `GET /api/player-profile`
+   - `POST /api/player-profile`
+   - `PUT /api/player-profile/traits`
+   - `POST /api/player-profile/photo`
+   - `GET/POST/PUT/DELETE /api/player-profile/career-teams`
 
 ### 3. Mobile – Player Profile Screen
 

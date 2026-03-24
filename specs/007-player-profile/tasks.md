@@ -30,14 +30,14 @@
 
 **Purpose**: Database schema and API routing for “my profile” so all user stories can call the same backend.
 
-**Independent Test**: Run migrations; `GET /api/me/player-profile` returns 404 when no profile; authenticated routes require token.
+**Independent Test**: Run migrations; `GET /api/player-profile` returns 404 when no profile; authenticated routes require token.
 
 - [x] T002 Add migration file in services/api/sql/schema/ for 007: player_profiles columns (country_code, club_name, is_free_agent, position enum GK/DEF/MID/FWD, photo_url per data-model.md); add player_profile_traits and player_career_teams tables
 - [x] T003 Add sqlc queries in services/api/sql/queries/ (new or extend player_profiles.sql): get/create/update/delete profile by user_id; traits and career_teams CRUD; align with new schema
 - [x] T004 Run sqlc generate and goose up; fix compile errors in services/api/internal/database/
 - [x] T005 Register authenticated /api/me (or /users/me) router in services/api/internal/api/api.go with RequireAuth; mount GET/POST/PUT/DELETE player-profile routes delegating to new handlers
-- [x] T006 Implement GET and POST /api/me/player-profile in services/api/internal/api/player_profile.go: user from auth context, 404 when no profile; create with age, country_code, club_name, is_free_agent, position; return PlayerProfile DTO (traits/career_teams empty initially)
-- [x] T007 Implement PUT and DELETE /api/me/player-profile in services/api/internal/api/player_profile.go: update fields; delete profile (cascade traits/career_teams); return 404 when no profile
+- [x] T006 Implement GET and POST /api/player-profile in services/api/internal/api/player_profile.go: user from auth context, 404 when no profile; create with age, country_code, club_name, is_free_agent, position; return PlayerProfile DTO (traits/career_teams empty initially)
+- [x] T007 Implement PUT and DELETE /api/player-profile in services/api/internal/api/player_profile.go: update fields; delete profile (cascade traits/career_teams); return 404 when no profile
 - [x] T008 Add types in apps/mobile/src/types/playerProfile.ts and API client in apps/mobile/src/services/playerProfile.ts: PlayerProfile, PlayerProfileInput, trait codes, CareerTeam; getPlayerProfile, createPlayerProfile, updatePlayerProfile, deletePlayerProfile using makeAuthRequest
 
 **Checkpoint**: Backend supports create/read/update/delete for current user’s profile; mobile can call API with auth.
@@ -67,7 +67,7 @@
 
 **Independent Test**: Open profile → Add Traits → select up to 5 → Save; chips appear; reopen modal, change selection, Save; chips update.
 
-- [x] T015 [P] [US2] Implement PUT /api/me/player-profile/traits handler in services/api/internal/api/me_player_profile.go: body { traits: string[] } (max 5); validate trait codes against allowed enum; replace all traits for current user’s profile; return updated traits
+- [x] T015 [P] [US2] Implement PUT /api/player-profile/traits handler in services/api/internal/api/player_profile.go: body { traits: string[] } (max 5); validate trait codes against allowed enum; replace all traits for current user’s profile; return updated traits
 - [x] T016 [US2] Add get-traits (or include traits in GET profile) in API and in apps/mobile/src/services/playerProfile.ts: setPlayerProfileTraits(traits); ensure GET profile returns traits array
 - [x] T017 [P] [US2] Add PlayerTraitsModal in apps/mobile/src/components/PlayerTraitsModal.tsx: full-screen modal, title “Select Player Traits”, list of 9 traits with icon + name + checkbox, max 5 selected; Save (call API, close); Back/Close dismiss without saving
 - [x] T018 [US2] On PlayerProfileScreen Profile tab add “Add Traits” button and trait chips (horizontal wrap); open PlayerTraitsModal on tap; after save refresh profile or local state to show updated traits
@@ -82,8 +82,8 @@
 
 **Independent Test**: Tap Upload Photo → pick image → loading then avatar shows new photo; invalid file or size shows error and retry.
 
-- [ ] T019 [US3] Implement POST /api/me/player-profile/photo in services/api/internal/api/player_profile.go: multipart form file; validate MIME (JPEG/PNG) and size (≤ 5 MB); store in S3 (or existing blob store) under player-profiles/; set photo_url on profile; return { photo_url }
-- [ ] T020 [US3] Add uploadProfilePhoto in apps/mobile/src/services/playerProfile.ts: pick file (or use image picker), multipart POST to /api/me/player-profile/photo with auth
+- [ ] T019 [US3] Implement POST /api/player-profile/photo in services/api/internal/api/player_profile.go: multipart form file; validate MIME (JPEG/PNG) and size (≤ 5 MB); store in S3 (or existing blob store) under player-profiles/; set photo_url on profile; return { photo_url }
+- [ ] T020 [US3] Add uploadProfilePhoto in apps/mobile/src/services/playerProfile.ts: pick file (or use image picker), multipart POST to /api/player-profile/photo with auth
 - [ ] T021 [US3] In PlayerProfileScreen (and Create flow if needed) add “Upload Photo” CTA; use React Native Image Picker (or expo-image-picker); show loading during upload; on success set avatar to photo_url; on failure show error banner with retry
 
 **Checkpoint**: Photo upload works; avatar updates; errors handled.
@@ -96,7 +96,7 @@
 
 **Independent Test**: Add team (name, 2018, 2020) → appears in list; add second (2020–Present); edit first; delete one; order is descending by start year.
 
-- [ ] T022 [P] [US4] Implement GET/POST/PUT/DELETE /api/me/player-profile/career-teams in services/api/internal/api/player_profile.go: GET returns list for current user’s profile; POST body { team_name, start_year, end_year? }; PUT/DELETE by career_team_id; validate years (1950–current+1, start ≤ end)
+- [ ] T022 [P] [US4] Implement GET/POST/PUT/DELETE /api/player-profile/career-teams in services/api/internal/api/player_profile.go: GET returns list for current user’s profile; POST body { team_name, start_year, end_year? }; PUT/DELETE by career_team_id; validate years (1950–current+1, start ≤ end)
 - [ ] T023 [US4] Add listCareerTeams, createCareerTeam, updateCareerTeam, deleteCareerTeam in apps/mobile/src/services/playerProfile.ts
 - [ ] T024 [US4] On PlayerProfileScreen add Career section (or Career tab): list entries as “Team Name — start–end”; “Add Career Team” opens form/modal (team name, start year, end year, “Present”); edit/delete per entry; sort by start_year descending
 
@@ -160,7 +160,7 @@
 
 ## Notes
 
-- Existing `player_profiles` table and `/player-profiles` routes may differ from 007; Phase 2 migrations and new `/api/me/player-profile` routes implement the spec without breaking existing behavior.
+- Existing `player_profiles` table and `/player-profiles` routes may differ from 007; Phase 2 migrations and new `/api/player-profile` routes implement the spec without breaking existing behavior.
 - Trait codes: LEADERSHIP, FINESSE_SHOT, PLAYMAKER, SPEED_DRIBBLER, LONG_SHOT_TAKER, OUTSIDE_FOOT_SHOT, POWER_HEADER, FLAIR, POWER_FREE_KICK.
 - Position enum: GK, DEF, MID, FWD.
 - Country: store and send as ISO 3166-1 alpha-2 (e.g. PT for Portugal).

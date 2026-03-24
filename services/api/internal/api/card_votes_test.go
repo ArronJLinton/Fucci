@@ -17,22 +17,22 @@ import (
 
 // mockCardVoteReader implements CardVoteReader for tests.
 type mockCardVoteReader struct {
-	getUserFunc       func(ctx context.Context, id int32) (database.User, error)
-	getDebateCardFunc func(ctx context.Context, id int32) (database.DebateCard, error)
+	getUserFunc       func(ctx context.Context, id int32) (database.Users, error)
+	getDebateCardFunc func(ctx context.Context, id int32) (database.DebateCards, error)
 }
 
-func (m *mockCardVoteReader) GetUser(ctx context.Context, id int32) (database.User, error) {
+func (m *mockCardVoteReader) GetUser(ctx context.Context, id int32) (database.Users, error) {
 	if m.getUserFunc != nil {
 		return m.getUserFunc(ctx, id)
 	}
-	return database.User{}, sql.ErrNoRows
+	return database.Users{}, sql.ErrNoRows
 }
 
-func (m *mockCardVoteReader) GetDebateCard(ctx context.Context, id int32) (database.DebateCard, error) {
+func (m *mockCardVoteReader) GetDebateCard(ctx context.Context, id int32) (database.DebateCards, error) {
 	if m.getDebateCardFunc != nil {
 		return m.getDebateCardFunc(ctx, id)
 	}
-	return database.DebateCard{}, sql.ErrNoRows
+	return database.DebateCards{}, sql.ErrNoRows
 }
 
 // requestWithChiParams builds a request with chi URL params and optional user_id in context.
@@ -80,7 +80,7 @@ func TestSetCardVote_InvalidDebateID(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) { return database.User{ID: id}, nil },
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) { return database.Users{ID: id}, nil },
 		},
 	}
 	req := requestWithChiParams("PUT", "/debates/foo/cards/2/vote", SetCardVoteRequest{VoteType: "upvote"}, map[string]string{"debateId": "foo", "cardId": "2"}, &userID)
@@ -98,7 +98,7 @@ func TestSetCardVote_InvalidCardID(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) { return database.User{ID: id}, nil },
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) { return database.Users{ID: id}, nil },
 		},
 	}
 	req := requestWithChiParams("PUT", "/debates/1/cards/bar/vote", SetCardVoteRequest{VoteType: "upvote"}, map[string]string{"debateId": "1", "cardId": "bar"}, &userID)
@@ -116,7 +116,7 @@ func TestSetCardVote_InvalidBody(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) { return database.User{ID: id}, nil },
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) { return database.Users{ID: id}, nil },
 		},
 	}
 	req := requestWithChiParams("PUT", "/debates/1/cards/2/vote", nil, map[string]string{"debateId": "1", "cardId": "2"}, &userID)
@@ -136,8 +136,8 @@ func TestSetCardVote_InvalidVoteType(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) {
-				return database.User{ID: id}, nil
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) {
+				return database.Users{ID: id}, nil
 			},
 			// GetDebateCard not called; handler returns 400 on vote_type before fetching card
 		},
@@ -157,8 +157,8 @@ func TestSetCardVote_UserNotFound(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) {
-				return database.User{}, sql.ErrNoRows
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) {
+				return database.Users{}, sql.ErrNoRows
 			},
 		},
 	}
@@ -177,8 +177,8 @@ func TestSetCardVote_GetUserError(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) {
-				return database.User{}, assert.AnError
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) {
+				return database.Users{}, assert.AnError
 			},
 		},
 	}
@@ -197,11 +197,11 @@ func TestSetCardVote_CardNotFound(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) {
-				return database.User{ID: id}, nil
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) {
+				return database.Users{ID: id}, nil
 			},
-			getDebateCardFunc: func(ctx context.Context, id int32) (database.DebateCard, error) {
-				return database.DebateCard{}, sql.ErrNoRows
+			getDebateCardFunc: func(ctx context.Context, id int32) (database.DebateCards, error) {
+				return database.DebateCards{}, sql.ErrNoRows
 			},
 		},
 	}
@@ -220,12 +220,12 @@ func TestSetCardVote_CardWrongDebate(t *testing.T) {
 	userID := int32(1)
 	config := &Config{
 		CardVoteReader: &mockCardVoteReader{
-			getUserFunc: func(ctx context.Context, id int32) (database.User, error) {
-				return database.User{ID: id}, nil
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) {
+				return database.Users{ID: id}, nil
 			},
-			getDebateCardFunc: func(ctx context.Context, id int32) (database.DebateCard, error) {
+			getDebateCardFunc: func(ctx context.Context, id int32) (database.DebateCards, error) {
 				// card belongs to debate 99, request is for debate 1
-				return database.DebateCard{ID: 2, DebateID: sql.NullInt32{Int32: 99, Valid: true}}, nil
+				return database.DebateCards{ID: 2, DebateID: sql.NullInt32{Int32: 99, Valid: true}}, nil
 			},
 		},
 	}
