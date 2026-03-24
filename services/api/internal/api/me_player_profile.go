@@ -326,7 +326,7 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 	profile, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusNotFound)
+			respondWithError(w, http.StatusNotFound, "Profile not found")
 			return
 		}
 		log.Printf("[me_player_profile] GetMePlayerProfileByUserID error: %v", err)
