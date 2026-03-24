@@ -28,6 +28,8 @@ import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceholderScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
+import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -212,6 +214,16 @@ function App(): React.JSX.Element {
                 name="Settings"
                 component={SettingsScreen}
                 options={{title: 'Settings'}}
+              />
+              <Stack.Screen
+                name="CreatePlayerProfile"
+                component={CreatePlayerProfileScreen}
+                options={{title: 'Create Player Profile'}}
+              />
+              <Stack.Screen
+                name="PlayerProfile"
+                component={PlayerProfileScreen}
+                options={{title: 'Player Profile'}}
               />
               <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
                 <Stack.Screen

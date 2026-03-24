@@ -25,9 +25,9 @@ type AddCommentReactionParams struct {
 	Emoji     string
 }
 
-func (q *Queries) AddCommentReaction(ctx context.Context, arg AddCommentReactionParams) (CommentReaction, error) {
+func (q *Queries) AddCommentReaction(ctx context.Context, arg AddCommentReactionParams) (CommentReactions, error) {
 	row := q.db.QueryRowContext(ctx, addCommentReaction, arg.CommentID, arg.UserID, arg.Emoji)
-	var i CommentReaction
+	var i CommentReactions
 	err := row.Scan(
 		&i.ID,
 		&i.CommentID,
@@ -120,9 +120,9 @@ type GetUserCommentReactionParams struct {
 	Emoji     string
 }
 
-func (q *Queries) GetUserCommentReaction(ctx context.Context, arg GetUserCommentReactionParams) (CommentReaction, error) {
+func (q *Queries) GetUserCommentReaction(ctx context.Context, arg GetUserCommentReactionParams) (CommentReactions, error) {
 	row := q.db.QueryRowContext(ctx, getUserCommentReaction, arg.CommentID, arg.UserID, arg.Emoji)
-	var i CommentReaction
+	var i CommentReactions
 	err := row.Scan(
 		&i.ID,
 		&i.CommentID,

@@ -1,0 +1,487 @@
+package api
+
+import (
+	"database/sql"
+	"encoding/json"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/ArronJLinton/fucci-api/internal/database"
+)
+
+func (c *Config) playerProfileDB() PlayerProfileStore {
+	if c.PlayerProfileDB != nil {
+		return c.PlayerProfileDB
+	}
+	return c.DB
+}
+
+// PlayerProfileResponse is the DTO for GET/POST/PUT /api/player-profile (007 spec).
+type PlayerProfileResponse struct {
+	ID          int32                        `json:"id"`
+	Age         *int32                       `json:"age"`
+	Country     string                       `json:"country"`
+	Club        *string                      `json:"club"`
+	IsFreeAgent bool                         `json:"is_free_agent"`
+	Position    string                       `json:"position"`
+	PhotoURL    *string                      `json:"photo_url"`
+	Traits      []string                     `json:"traits"`
+	CareerTeams []PlayerProfileCareerTeamDTO `json:"career_teams"`
+}
+
+// PlayerProfileCareerTeamDTO is one career team in the profile response.
+type PlayerProfileCareerTeamDTO struct {
+	ID        int32  `json:"id"`
+	TeamName  string `json:"team_name"`
+	StartYear int32  `json:"start_year"`
+	EndYear   *int32 `json:"end_year"`
+}
+
+// PlayerProfileInput is the body for POST/PUT /api/player-profile.
+type PlayerProfileInput struct {
+	Age         *int32  `json:"age"`
+	Country     string  `json:"country"`
+	Club        *string `json:"club"`
+	IsFreeAgent *bool   `json:"is_free_agent"`
+	Position    string  `json:"position"`
+}
+
+// normalizeCountryCode validates ISO 3166-1 alpha-2 for VARCHAR(2): exactly two ASCII A–Z letters (case-insensitive input is uppercased).
+func normalizeCountryCode(country string) (string, bool) {
+	s := strings.ToUpper(strings.TrimSpace(country))
+	if len(s) != 2 {
+		return "", false
+	}
+	for i := 0; i < 2; i++ {
+		c := s[i]
+		if c < 'A' || c > 'Z' {
+			return "", false
+		}
+	}
+	return s, true
+}
+
+func (c *Config) getPlayerProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+
+	profile, err := c.playerProfileDB().GetPlayerProfileByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Profile not found")
+			return
+		}
+		log.Printf("[player_profile] GetPlayerProfileByUserID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+
+	traits, err := c.playerProfileDB().ListPlayerProfileTraits(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerRows, err := c.playerProfileDB().ListPlayerProfileCareerTeams(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileCareerTeams error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerTeams := make([]PlayerProfileCareerTeamDTO, 0, len(careerRows))
+	for _, row := range careerRows {
+		var endYear *int32
+		if row.EndYear.Valid {
+			endYear = &row.EndYear.Int32
+		}
+		careerTeams = append(careerTeams, PlayerProfileCareerTeamDTO{
+			ID:        row.ID,
+			TeamName:  row.TeamName,
+			StartYear: row.StartYear,
+			EndYear:   endYear,
+		})
+	}
+
+	resp := profileToResponse(profile, traits, careerTeams)
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+
+	var req PlayerProfileInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.Country == "" || req.Position == "" {
+		respondWithError(w, http.StatusBadRequest, "country and position are required")
+		return
+	}
+	countryCode, ok := normalizeCountryCode(req.Country)
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "country must be a 2-letter ISO 3166-1 alpha-2 code (A-Z)")
+		return
+	}
+	req.Country = countryCode
+	if req.Position != "GK" && req.Position != "DEF" && req.Position != "MID" && req.Position != "FWD" {
+		respondWithError(w, http.StatusBadRequest, "position must be GK, DEF, MID, or FWD")
+		return
+	}
+	if req.Age != nil && (*req.Age < 13 || *req.Age > 60) {
+		respondWithError(w, http.StatusBadRequest, "age must be between 13 and 60")
+		return
+	}
+
+	age := sql.NullInt32{}
+	if req.Age != nil {
+		age.Int32 = *req.Age
+		age.Valid = true
+	}
+	club := sql.NullString{}
+	if req.Club != nil {
+		club.String = *req.Club
+		club.Valid = true
+	}
+	isFreeAgent := false
+	if req.IsFreeAgent != nil {
+		isFreeAgent = *req.IsFreeAgent
+	}
+
+	// Single-statement upsert on user_id avoids read-then-insert races (unique violation under concurrency).
+	profile, err := c.playerProfileDB().UpsertPlayerProfile(ctx, database.UpsertPlayerProfileParams{
+		UserID:      userID,
+		Age:         age,
+		CountryCode: req.Country,
+		ClubName:    club,
+		IsFreeAgent: isFreeAgent,
+		Position:    req.Position,
+	})
+	if err != nil {
+		log.Printf("[player_profile] UpsertPlayerProfile error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to save profile")
+		return
+	}
+
+	traits, err := c.playerProfileDB().ListPlayerProfileTraits(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerRows, err := c.playerProfileDB().ListPlayerProfileCareerTeams(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileCareerTeams error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerTeams := make([]PlayerProfileCareerTeamDTO, 0, len(careerRows))
+	for _, row := range careerRows {
+		var endYear *int32
+		if row.EndYear.Valid {
+			endYear = &row.EndYear.Int32
+		}
+		careerTeams = append(careerTeams, PlayerProfileCareerTeamDTO{ID: row.ID, TeamName: row.TeamName, StartYear: row.StartYear, EndYear: endYear})
+	}
+	respondWithJSON(w, http.StatusOK, profileToResponse(profile, traits, careerTeams))
+}
+
+func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+
+	profile, err := c.playerProfileDB().GetPlayerProfileByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Profile not found")
+			return
+		}
+		log.Printf("[player_profile] GetPlayerProfileByUserID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+
+	var req PlayerProfileInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.Country == "" || req.Position == "" {
+		respondWithError(w, http.StatusBadRequest, "country and position are required")
+		return
+	}
+	countryCode, ok := normalizeCountryCode(req.Country)
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "country must be a 2-letter ISO 3166-1 alpha-2 code (A-Z)")
+		return
+	}
+	req.Country = countryCode
+	if req.Position != "GK" && req.Position != "DEF" && req.Position != "MID" && req.Position != "FWD" {
+		respondWithError(w, http.StatusBadRequest, "position must be GK, DEF, MID, or FWD")
+		return
+	}
+	if req.Age != nil && (*req.Age < 13 || *req.Age > 60) {
+		respondWithError(w, http.StatusBadRequest, "age must be between 13 and 60")
+		return
+	}
+
+	age := sql.NullInt32{}
+	if req.Age != nil {
+		age.Int32 = *req.Age
+		age.Valid = true
+	}
+	club := sql.NullString{}
+	if req.Club != nil {
+		club.String = *req.Club
+		club.Valid = true
+	}
+	isFreeAgent := false
+	if req.IsFreeAgent != nil {
+		isFreeAgent = *req.IsFreeAgent
+	}
+	updated, err := c.playerProfileDB().UpdatePlayerProfileRow(ctx, database.UpdatePlayerProfileRowParams{
+		ID:          profile.ID,
+		Age:         age,
+		CountryCode: req.Country,
+		ClubName:    club,
+		IsFreeAgent: isFreeAgent,
+		Position:    req.Position,
+		PhotoUrl:    profile.PhotoUrl,
+	})
+	if err != nil {
+		log.Printf("[player_profile] UpdatePlayerProfileRow error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to update profile")
+		return
+	}
+	traits, err := c.playerProfileDB().ListPlayerProfileTraits(ctx, updated.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerRows, err := c.playerProfileDB().ListPlayerProfileCareerTeams(ctx, updated.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileCareerTeams error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerTeams := make([]PlayerProfileCareerTeamDTO, 0, len(careerRows))
+	for _, row := range careerRows {
+		var endYear *int32
+		if row.EndYear.Valid {
+			endYear = &row.EndYear.Int32
+		}
+		careerTeams = append(careerTeams, PlayerProfileCareerTeamDTO{ID: row.ID, TeamName: row.TeamName, StartYear: row.StartYear, EndYear: endYear})
+	}
+	respondWithJSON(w, http.StatusOK, profileToResponse(updated, traits, careerTeams))
+}
+
+// allowedTraitCodes is the enum for PUT /api/player-profile/traits (007 spec).
+var allowedTraitCodes = map[string]bool{
+	"LEADERSHIP": true, "FINESSE_SHOT": true, "PLAYMAKER": true,
+	"SPEED_DRIBBLER": true, "LONG_SHOT_TAKER": true, "OUTSIDE_FOOT_SHOT": true,
+	"POWER_HEADER": true, "FLAIR": true, "POWER_FREE_KICK": true,
+}
+
+// dedupeTraitCodesPreserveOrder removes duplicate trait codes so INSERT cannot hit
+// UNIQUE(player_profile_id, trait_code); first occurrence wins.
+func dedupeTraitCodesPreserveOrder(codes []string) []string {
+	if len(codes) == 0 {
+		return codes
+	}
+	seen := make(map[string]struct{}, len(codes))
+	out := make([]string, 0, len(codes))
+	for _, code := range codes {
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		out = append(out, code)
+	}
+	return out
+}
+
+func (c *Config) putPlayerProfileTraits(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+
+	var req struct {
+		Traits []string `json:"traits"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	req.Traits = dedupeTraitCodesPreserveOrder(req.Traits)
+	if len(req.Traits) > 5 {
+		respondWithError(w, http.StatusBadRequest, "Maximum 5 traits allowed")
+		return
+	}
+	for _, t := range req.Traits {
+		if !allowedTraitCodes[t] {
+			respondWithError(w, http.StatusBadRequest, "Invalid trait code: "+t)
+			return
+		}
+	}
+
+	profile, err := c.playerProfileDB().GetPlayerProfileByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Profile not found")
+			return
+		}
+		log.Printf("[player_profile] GetPlayerProfileByUserID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+
+	// PUT semantics: the body is the full desired trait set. We must replace what is stored,
+	// not only append—otherwise traits the user removed would never disappear. That requires
+	// clearing existing rows (delete-all or a diff); delete-then-insert is simple and correct.
+	//
+	// Production: one transaction so a failed insert does not leave traits wiped or half-written.
+	if c.PlayerProfileDB == nil && c.DBConn != nil && c.DB != nil {
+		tx, err := c.DBConn.BeginTx(ctx, nil)
+		if err != nil {
+			log.Printf("[player_profile] BeginTx (traits) error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		q := c.DB.WithTx(tx)
+		if err := q.DeletePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
+			log.Printf("[player_profile] DeletePlayerProfileTraitsByProfileID error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		for _, traitCode := range req.Traits {
+			if _, err := q.InsertPlayerProfileTrait(ctx, database.InsertPlayerProfileTraitParams{
+				PlayerProfileID: profile.ID,
+				TraitCode:       traitCode,
+			}); err != nil {
+				log.Printf("[player_profile] InsertPlayerProfileTrait error: %v", err)
+				respondWithError(w, http.StatusInternalServerError, "Failed to save traits")
+				return
+			}
+		}
+		traits, err := q.ListPlayerProfileTraits(ctx, profile.ID)
+		if err != nil {
+			log.Printf("[player_profile] ListPlayerProfileTraits error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			log.Printf("[player_profile] Commit (traits) error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		if traits == nil {
+			traits = []string{}
+		}
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{"traits": traits})
+		return
+	}
+
+	if err := c.playerProfileDB().DeletePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
+		log.Printf("[player_profile] DeletePlayerProfileTraitsByProfileID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+		return
+	}
+	for _, traitCode := range req.Traits {
+		if _, err := c.playerProfileDB().InsertPlayerProfileTrait(ctx, database.InsertPlayerProfileTraitParams{
+			PlayerProfileID: profile.ID,
+			TraitCode:       traitCode,
+		}); err != nil {
+			log.Printf("[player_profile] InsertPlayerProfileTrait error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to save traits")
+			return
+		}
+	}
+	traits, err := c.playerProfileDB().ListPlayerProfileTraits(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[player_profile] ListPlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+		return
+	}
+	if traits == nil {
+		traits = []string{}
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"traits": traits})
+}
+
+func (c *Config) deletePlayerProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+
+	profile, err := c.playerProfileDB().GetPlayerProfileByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Profile not found")
+			return
+		}
+		log.Printf("[player_profile] GetPlayerProfileByUserID error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	if err := c.playerProfileDB().DeletePlayerProfileRow(ctx, profile.ID); err != nil {
+		log.Printf("[player_profile] DeletePlayerProfileRow error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete profile")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func profileToResponse(p database.PlayerProfile, traits []string, careerTeams []PlayerProfileCareerTeamDTO) PlayerProfileResponse {
+	var age *int32
+	if p.Age.Valid {
+		age = &p.Age.Int32
+	}
+	var club *string
+	if p.ClubName.Valid {
+		club = &p.ClubName.String
+	}
+	var photoURL *string
+	if p.PhotoUrl.Valid {
+		photoURL = &p.PhotoUrl.String
+	}
+	if traits == nil {
+		traits = []string{}
+	}
+	if careerTeams == nil {
+		careerTeams = []PlayerProfileCareerTeamDTO{}
+	}
+	return PlayerProfileResponse{
+		ID:          p.ID,
+		Age:         age,
+		Country:     p.CountryCode,
+		Club:        club,
+		IsFreeAgent: p.IsFreeAgent,
+		Position:    p.Position,
+		PhotoURL:    photoURL,
+		Traits:      traits,
+		CareerTeams: careerTeams,
+	}
+}

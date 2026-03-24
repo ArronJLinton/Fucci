@@ -49,6 +49,8 @@ export type RootStackParamList = {
   CameraPreview: {
     onPhotoCapture: (uri: string, type: MediaType) => void;
   };
+  CreatePlayerProfile: undefined;
+  PlayerProfile: undefined;
 };
 
 export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;

@@ -1,31 +1,19 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
-  ActivityIndicator,
   Alert,
-  Image,
-  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
-import {usePullToRefresh} from '../hooks';
-import {
-  getProfile,
-  updateProfile,
-  getFollowing,
-  type AuthUser,
-  type FollowingItem,
-} from '../services/api';
-
-type TabId = 'following' | 'profile' | 'team';
+import {getPlayerProfile} from '../services/playerProfile';
 
 interface SettingsScreenProps {
   /** When true, screen is embedded in Profile tab (no back button) */
@@ -37,69 +25,31 @@ type SettingsRouteParams = {embeddedInTab?: boolean};
 export default function SettingsScreen({
   embeddedInTab: embeddedInTabProp,
 }: SettingsScreenProps = {}) {
-  const navigation = useNavigation();
   const route = useRoute();
   const embeddedInTab =
     embeddedInTabProp ??
     (route.params as SettingsRouteParams | undefined)?.embeddedInTab ??
     false;
-  const {token, isLoggedIn, logout: authLogout} = useAuth();
-  const [profile, setProfile] = useState<AuthUser | null>(null);
-  const [following, setFollowing] = useState<FollowingItem[]>([]);
-  const [activeTab, setActiveTab] = useState<TabId>('following');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [profileEdit, setProfileEdit] = useState({
-    firstname: '',
-    lastname: '',
-    avatar_url: '',
-  });
+  const {user, isLoggedIn, logout: authLogout, token} = useAuth();
+  const [playerModeLoading, setPlayerModeLoading] = useState(false);
 
-  const loadProfileData = useCallback(async (t: string) => {
-    setLoadError(null);
+  const handleOpenPlayerMode = async () => {
+    if (!token) return;
+    setPlayerModeLoading(true);
     try {
-      const [userData, followData] = await Promise.all([
-        getProfile(t),
-        getFollowing(t),
-      ]);
-      if (userData) {
-        setProfile(userData);
-        setProfileEdit({
-          firstname: userData.firstname || '',
-          lastname: userData.lastname || '',
-          avatar_url: userData.avatar_url || '',
-        });
+      const profile = await getPlayerProfile(token);
+      if (profile) {
+        rootNavigate('PlayerProfile');
       } else {
-        setLoadError('Could not load profile. Pull down to retry.');
+        rootNavigate('CreatePlayerProfile');
       }
-      setFollowing(followData || []);
     } catch {
-      setLoadError('Could not load profile. Pull down to retry.');
+      Alert.alert(
+        'Something went wrong',
+        'We could not check your player profile. Check your connection and try again.',
+      );
     } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    loadProfileData(token);
-  }, [token, loadProfileData]);
-
-  const refreshProfile = useCallback(async () => {
-    if (token) await loadProfileData(token);
-  }, [token, loadProfileData]);
-  const {refreshing, onRefresh} = usePullToRefresh(refreshProfile);
-
-  const handleBack = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      rootNavigate('Main');
+      setPlayerModeLoading(false);
     }
   };
 
@@ -117,211 +67,97 @@ export default function SettingsScreen({
     ]);
   };
 
-  const handleSaveProfile = async () => {
-    if (!token) return;
-    setSaveError(null);
-    setSaving(true);
-    const updated = await updateProfile(token, {
-      firstname: profileEdit.firstname || undefined,
-      lastname: profileEdit.lastname || undefined,
-      avatar_url: profileEdit.avatar_url || undefined,
-    });
-    setSaving(false);
-    if (updated) {
-      setProfile(updated);
-    } else {
-      setSaveError('Failed to save profile. Try again.');
-    }
-  };
-
-  if (loading && token) {
-    const body = (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-    return embeddedInTab ? (
-      body
-    ) : (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {body}
-      </SafeAreaView>
-    );
-  }
-
-  const displayName = profile
-    ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') ||
-      profile.email
-    : '';
-
   const mainContent = (
     <>
-      {!embeddedInTab && (
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color="#007AFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
-        </View>
-      )}
-
-      <View style={styles.profileSummary}>
-        {isLoggedIn && profile?.avatar_url ? (
-          <Image source={{uri: profile.avatar_url}} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Ionicons name="person" size={40} color="#999" />
-          </View>
-        )}
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>
-            {isLoggedIn ? displayName : 'Account'}
-          </Text>
-          <Text style={styles.profileEmail}>
-            {isLoggedIn ? profile?.email : 'Login or register to continue'}
-          </Text>
-        </View>
-      </View>
-
-      {loadError ? (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorBannerText}>{loadError}</Text>
-          <TouchableOpacity
-            onPress={() => token && loadProfileData(token)}
-            style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      <View style={styles.tabs}>
-        {(['following', 'profile', 'team'] as const).map(tab => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}>
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab && styles.tabTextActive,
-              ]}>
-              {tab === 'following'
-                ? 'Following'
-                : tab === 'profile'
-                  ? 'Player Profile'
-                  : 'Team Manager'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.headerRightRow}>
+        <View />
+        <TouchableOpacity style={styles.headerGear}>
+          <Ionicons name="settings" size={18} color="#c7f349" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
         style={styles.tabContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          token ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          ) : undefined
-        }>
+        showsVerticalScrollIndicator={false}>
         {!isLoggedIn ? (
           <View style={styles.loginPromptContainer}>
             <Text style={styles.loginPromptText}>
-              <Text style={styles.loginLinkText} onPress={() => rootNavigate('Login')}>Login</Text>
+              <Text
+                style={styles.loginLinkText}
+                onPress={() => rootNavigate('Login')}>
+                Login
+              </Text>
               <Text> or </Text>
-              <Text style={styles.loginLinkText} onPress={() => rootNavigate('SignUp')}>Register</Text>
+              <Text
+                style={styles.loginLinkText}
+                onPress={() => rootNavigate('SignUp')}>
+                Register
+              </Text>
               <Text> to access account features.</Text>
             </Text>
           </View>
         ) : (
           <>
-            {activeTab === 'following' && (
-              <View style={styles.section}>
-                {following.length === 0 ? (
-                  <Text style={styles.emptyText}>
-                    You're not following any leagues or teams yet.
-                  </Text>
-                ) : (
-                  following.map(item => (
-                    <View key={item.id} style={styles.followRow}>
-                      <Text style={styles.followLabel}>
-                        {item.type}: {item.name || item.followable_id}
-                      </Text>
-                      <Text style={styles.followHint}>
-                        Follow toggle (coming soon)
-                      </Text>
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
+            <View style={styles.section}>
+              <Text style={styles.accountHeading}>Account Settings</Text>
 
-            {activeTab === 'profile' && (
-              <View style={styles.section}>
-                {saveError ? (
-                  <Text style={styles.saveErrorText}>{saveError}</Text>
-                ) : null}
-                <Text style={styles.label}>First name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={profileEdit.firstname}
-                  onChangeText={t =>
-                    setProfileEdit(p => ({...p, firstname: t}))
-                  }
-                  placeholder="First name"
-                  placeholderTextColor="#999"
-                />
-                <Text style={styles.label}>Last name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={profileEdit.lastname}
-                  onChangeText={t => setProfileEdit(p => ({...p, lastname: t}))}
-                  placeholder="Last name"
-                  placeholderTextColor="#999"
-                />
-                <Text style={styles.label}>Avatar URL</Text>
-                <TextInput
-                  style={styles.input}
-                  value={profileEdit.avatar_url}
-                  onChangeText={t =>
-                    setProfileEdit(p => ({...p, avatar_url: t}))
-                  }
-                  placeholder="https://..."
-                  placeholderTextColor="#999"
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  style={[styles.button, saving && styles.buttonDisabled]}
-                  onPress={handleSaveProfile}
-                  disabled={saving}>
-                  {saving ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.buttonText}>Save</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+              <TouchableOpacity style={styles.settingsCard}>
+                <View style={styles.settingsCardIconWrap}>
+                  <Ionicons name="people" size={16} color="#d9f99d" />
+                </View>
+                <View style={styles.settingsCardTextWrap}>
+                  <Text style={styles.settingsCardTitle}>Following</Text>
+                  <Text style={styles.settingsCardSub}>
+                    View teams and leagues you follow
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
 
-            {activeTab === 'team' && (
-              <View style={styles.section}>
-                {profile?.role === 'team_manager' ? (
-                  <Text style={styles.emptyText}>
-                    Team management content (coming soon).
+              <TouchableOpacity
+                style={styles.settingsCard}
+                onPress={handleOpenPlayerMode}
+                disabled={playerModeLoading}
+                accessibilityLabel="Open Player Mode"
+                accessibilityState={{busy: playerModeLoading}}>
+                <View style={styles.settingsCardIconWrap}>
+                  <Ionicons name="person" size={16} color="#d9f99d" />
+                </View>
+                <View style={styles.settingsCardTextWrap}>
+                  <Text style={styles.settingsCardTitle}>Player Mode</Text>
+                  <Text style={styles.settingsCardSub}>
+                    Open player profile portal
                   </Text>
+                </View>
+                {playerModeLoading ? (
+                  <ActivityIndicator size="small" color="#94a3b8" />
                 ) : (
-                  <Text style={styles.emptyText}>
-                    Request access to become a team manager.
-                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                 )}
-              </View>
-            )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingsCard}>
+                <View style={styles.settingsCardIconWrap}>
+                  <Ionicons name="briefcase" size={16} color="#d9f99d" />
+                </View>
+                <View style={styles.settingsCardTextWrap}>
+                  <Text style={styles.settingsCardTitle}>Team Manager</Text>
+                  <Text style={styles.settingsCardSub}>
+                    {user?.role === 'team_manager'
+                      ? 'Manage your team tools'
+                      : 'Request team manager access'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </ScrollView>
 
       {isLoggedIn && (
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color="#c00" />
+          <Ionicons name="log-out-outline" size={18} color="#f87171" />
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
       )}
@@ -340,18 +176,18 @@ export default function SettingsScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#030712',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#030712',
     padding: 24,
   },
   placeholderText: {
     fontSize: 16,
-    color: '#666',
+    color: '#94a3b8',
     marginBottom: 16,
   },
   loginPromptContainer: {
@@ -363,87 +199,154 @@ const styles = StyleSheet.create({
   },
   loginPromptText: {
     fontSize: 16,
-    color: '#666',
+    color: '#94a3b8',
     textAlign: 'center',
     width: '100%',
   },
   loginLinkText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: '#67e8f9',
     textDecorationLine: 'underline',
+  },
+  headerRightRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#111827',
+    backgroundColor: '#07101f',
   },
   backButton: {
     padding: 8,
   },
+  headerAvatarDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: '#c7f349',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatarImg: {width: 24, height: 24, borderRadius: 12},
+  headerGear: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginLeft: 8,
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    color: '#c7f349',
+    fontStyle: 'italic',
   },
   profileSummary: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingTop: 14,
+    paddingBottom: 14,
+    paddingHorizontal: 20,
+  },
+  profileAvatarWrap: {
+    width: 84,
+    height: 84,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#84cc16',
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 76,
+    height: 76,
+    borderRadius: 10,
   },
   avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#eee',
+    width: 76,
+    height: 76,
+    borderRadius: 10,
+    backgroundColor: '#0b1224',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  avatarEditBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
   profileInfo: {
     flex: 1,
-    marginLeft: 16,
+    alignItems: 'flex-start',
+    marginTop: 0,
+    paddingHorizontal: 14,
   },
   profileName: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#000',
+    fontSize: 45,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#e2e8f0',
+    textTransform: 'uppercase',
+    textAlign: 'left',
   },
   profileEmail: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 4,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   tabs: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    borderRadius: 10,
+    marginHorizontal: 20,
+    marginBottom: 6,
+    overflow: 'hidden',
+    backgroundColor: '#111827',
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   tabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#007AFF',
+    backgroundColor: '#1f2937',
   },
   tabText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: '#94a3b8',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   tabTextActive: {
-    color: '#007AFF',
-    fontWeight: '600',
+    color: '#e2e8f0',
+    fontWeight: '700',
   },
   tabContent: {
     flex: 1,
@@ -455,14 +358,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff3cd',
+    backgroundColor: '#2c1f17',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#7c2d12',
   },
   errorBannerText: {
     flex: 1,
     fontSize: 14,
-    color: '#856404',
+    color: '#fdba74',
   },
   retryButton: {
     paddingVertical: 6,
@@ -470,36 +373,105 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontSize: 14,
-    color: '#007AFF',
+    color: '#67e8f9',
     fontWeight: '600',
   },
   saveErrorText: {
     fontSize: 14,
-    color: '#c00',
+    color: '#f87171',
     marginBottom: 12,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  accountHeading: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  settingsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0b1224',
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  settingsCardIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsCardTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  settingsCardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#e2e8f0',
+  },
+  settingsCardSub: {
+    marginTop: 2,
+    fontSize: 13,
+    color: '#94a3b8',
+  },
+  personalInfoEditor: {
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    borderRadius: 12,
+    backgroundColor: '#0a1220',
+    padding: 12,
+    marginBottom: 12,
+  },
+  playerProfileEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    borderRadius: 10,
+    backgroundColor: '#0b1224',
+  },
+  playerProfileEntryText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#d1d5db',
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 6,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94a3b8',
+    marginBottom: 8,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
+    borderColor: '#1f2937',
+    borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 20,
     marginBottom: 16,
-    color: '#000',
+    color: '#f8fafc',
+    backgroundColor: '#020617',
   },
   emptyText: {
     fontSize: 15,
-    color: '#666',
+    color: '#94a3b8',
     textAlign: 'center',
     marginTop: 24,
   },
@@ -509,30 +481,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#1f2937',
   },
   followLabel: {
     fontSize: 15,
-    color: '#000',
+    color: '#d1d5db',
   },
   followHint: {
     fontSize: 12,
-    color: '#999',
+    color: '#64748b',
   },
   button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: '#c7f349',
+    borderRadius: 12,
+    paddingVertical: 18,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#bef264',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#0f172a',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontStyle: 'italic',
   },
   linkButton: {
     marginTop: 12,
@@ -540,7 +520,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#007AFF',
+    color: '#67e8f9',
     fontSize: 16,
   },
   logoutButton: {
@@ -548,13 +528,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderWidth: 1,
+    borderColor: '#3f1d1d',
+    borderRadius: 10,
+    marginHorizontal: 120,
+    marginBottom: 8,
     gap: 8,
   },
   logoutText: {
-    fontSize: 16,
-    color: '#c00',
-    fontWeight: '600',
+    fontSize: 15,
+    color: '#f87171',
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+  buildFooter: {
+    textAlign: 'center',
+    color: '#475569',
+    fontSize: 10,
+    letterSpacing: 0.8,
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  stadiumBand: {
+    height: 90,
+    marginHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+    backgroundColor: '#0a1220',
   },
 });

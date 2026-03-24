@@ -20,9 +20,9 @@ type CreateMediaParams struct {
 	MediaUrl string
 }
 
-func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error) {
+func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Media, error) {
 	row := q.db.QueryRowContext(ctx, createMedia, arg.MatchID, arg.MediaUrl)
-	var i Medium
+	var i Media
 	err := row.Scan(
 		&i.ID,
 		&i.MatchID,
@@ -46,15 +46,15 @@ const getMediaByMatchId = `-- name: GetMediaByMatchId :many
 SELECT id, match_id, media_url, created_at, updated_at FROM media WHERE match_id = $1 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetMediaByMatchId(ctx context.Context, matchID string) ([]Medium, error) {
+func (q *Queries) GetMediaByMatchId(ctx context.Context, matchID string) ([]Media, error) {
 	rows, err := q.db.QueryContext(ctx, getMediaByMatchId, matchID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Medium
+	var items []Media
 	for rows.Next() {
-		var i Medium
+		var i Media
 		if err := rows.Scan(
 			&i.ID,
 			&i.MatchID,

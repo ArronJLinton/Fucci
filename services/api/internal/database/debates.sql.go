@@ -26,7 +26,7 @@ type CreateCommentParams struct {
 	Seeded          bool
 }
 
-func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error) {
+func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (Comments, error) {
 	row := q.db.QueryRowContext(ctx, createComment,
 		arg.DebateID,
 		arg.ParentCommentID,
@@ -34,7 +34,7 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		arg.Content,
 		arg.Seeded,
 	)
-	var i Comment
+	var i Comments
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -62,7 +62,7 @@ type CreateDebateParams struct {
 	AiGenerated sql.NullBool
 }
 
-func (q *Queries) CreateDebate(ctx context.Context, arg CreateDebateParams) (Debate, error) {
+func (q *Queries) CreateDebate(ctx context.Context, arg CreateDebateParams) (Debates, error) {
 	row := q.db.QueryRowContext(ctx, createDebate,
 		arg.MatchID,
 		arg.DebateType,
@@ -70,7 +70,7 @@ func (q *Queries) CreateDebate(ctx context.Context, arg CreateDebateParams) (Deb
 		arg.Description,
 		arg.AiGenerated,
 	)
-	var i Debate
+	var i Debates
 	err := row.Scan(
 		&i.ID,
 		&i.MatchID,
@@ -104,14 +104,14 @@ type CreateDebateAnalyticsParams struct {
 	EngagementScore sql.NullString
 }
 
-func (q *Queries) CreateDebateAnalytics(ctx context.Context, arg CreateDebateAnalyticsParams) (DebateAnalytic, error) {
+func (q *Queries) CreateDebateAnalytics(ctx context.Context, arg CreateDebateAnalyticsParams) (DebateAnalytics, error) {
 	row := q.db.QueryRowContext(ctx, createDebateAnalytics,
 		arg.DebateID,
 		arg.TotalVotes,
 		arg.TotalComments,
 		arg.EngagementScore,
 	)
-	var i DebateAnalytic
+	var i DebateAnalytics
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -138,7 +138,7 @@ type CreateDebateCardParams struct {
 	AiGenerated sql.NullBool
 }
 
-func (q *Queries) CreateDebateCard(ctx context.Context, arg CreateDebateCardParams) (DebateCard, error) {
+func (q *Queries) CreateDebateCard(ctx context.Context, arg CreateDebateCardParams) (DebateCards, error) {
 	row := q.db.QueryRowContext(ctx, createDebateCard,
 		arg.DebateID,
 		arg.Stance,
@@ -146,7 +146,7 @@ func (q *Queries) CreateDebateCard(ctx context.Context, arg CreateDebateCardPara
 		arg.Description,
 		arg.AiGenerated,
 	)
-	var i DebateCard
+	var i DebateCards
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -175,14 +175,14 @@ type CreateVoteParams struct {
 	Emoji        sql.NullString
 }
 
-func (q *Queries) CreateVote(ctx context.Context, arg CreateVoteParams) (Vote, error) {
+func (q *Queries) CreateVote(ctx context.Context, arg CreateVoteParams) (Votes, error) {
 	row := q.db.QueryRowContext(ctx, createVote,
 		arg.DebateCardID,
 		arg.UserID,
 		arg.VoteType,
 		arg.Emoji,
 	)
-	var i Vote
+	var i Votes
 	err := row.Scan(
 		&i.ID,
 		&i.DebateCardID,
@@ -378,9 +378,9 @@ const getDebate = `-- name: GetDebate :one
 SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at FROM debates WHERE id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetDebate(ctx context.Context, id int32) (Debate, error) {
+func (q *Queries) GetDebate(ctx context.Context, id int32) (Debates, error) {
 	row := q.db.QueryRowContext(ctx, getDebate, id)
-	var i Debate
+	var i Debates
 	err := row.Scan(
 		&i.ID,
 		&i.MatchID,
@@ -399,9 +399,9 @@ const getDebateAnalytics = `-- name: GetDebateAnalytics :one
 SELECT id, debate_id, total_votes, total_comments, engagement_score, created_at, updated_at FROM debate_analytics WHERE debate_id = $1
 `
 
-func (q *Queries) GetDebateAnalytics(ctx context.Context, debateID sql.NullInt32) (DebateAnalytic, error) {
+func (q *Queries) GetDebateAnalytics(ctx context.Context, debateID sql.NullInt32) (DebateAnalytics, error) {
 	row := q.db.QueryRowContext(ctx, getDebateAnalytics, debateID)
-	var i DebateAnalytic
+	var i DebateAnalytics
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -418,9 +418,9 @@ const getDebateCard = `-- name: GetDebateCard :one
 SELECT id, debate_id, stance, title, description, ai_generated, created_at, updated_at FROM debate_cards WHERE id = $1
 `
 
-func (q *Queries) GetDebateCard(ctx context.Context, id int32) (DebateCard, error) {
+func (q *Queries) GetDebateCard(ctx context.Context, id int32) (DebateCards, error) {
 	row := q.db.QueryRowContext(ctx, getDebateCard, id)
-	var i DebateCard
+	var i DebateCards
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -438,15 +438,15 @@ const getDebateCards = `-- name: GetDebateCards :many
 SELECT id, debate_id, stance, title, description, ai_generated, created_at, updated_at FROM debate_cards WHERE debate_id = $1 ORDER BY stance
 `
 
-func (q *Queries) GetDebateCards(ctx context.Context, debateID sql.NullInt32) ([]DebateCard, error) {
+func (q *Queries) GetDebateCards(ctx context.Context, debateID sql.NullInt32) ([]DebateCards, error) {
 	rows, err := q.db.QueryContext(ctx, getDebateCards, debateID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []DebateCard
+	var items []DebateCards
 	for rows.Next() {
-		var i DebateCard
+		var i DebateCards
 		if err := rows.Scan(
 			&i.ID,
 			&i.DebateID,
@@ -476,15 +476,15 @@ WHERE match_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetDebatesByMatch(ctx context.Context, matchID string) ([]Debate, error) {
+func (q *Queries) GetDebatesByMatch(ctx context.Context, matchID string) ([]Debates, error) {
 	rows, err := q.db.QueryContext(ctx, getDebatesByMatch, matchID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Debate
+	var items []Debates
 	for rows.Next() {
-		var i Debate
+		var i Debates
 		if err := rows.Scan(
 			&i.ID,
 			&i.MatchID,
@@ -515,15 +515,15 @@ WHERE debate_type = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetDebatesByType(ctx context.Context, debateType string) ([]Debate, error) {
+func (q *Queries) GetDebatesByType(ctx context.Context, debateType string) ([]Debates, error) {
 	rows, err := q.db.QueryContext(ctx, getDebatesByType, debateType)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Debate
+	var items []Debates
 	for rows.Next() {
-		var i Debate
+		var i Debates
 		if err := rows.Scan(
 			&i.ID,
 			&i.MatchID,
@@ -622,9 +622,9 @@ type GetUserVoteParams struct {
 	VoteType     string
 }
 
-func (q *Queries) GetUserVote(ctx context.Context, arg GetUserVoteParams) (Vote, error) {
+func (q *Queries) GetUserVote(ctx context.Context, arg GetUserVoteParams) (Votes, error) {
 	row := q.db.QueryRowContext(ctx, getUserVote, arg.DebateCardID, arg.UserID, arg.VoteType)
-	var i Vote
+	var i Votes
 	err := row.Scan(
 		&i.ID,
 		&i.DebateCardID,
@@ -686,15 +686,15 @@ const getVotesByCard = `-- name: GetVotesByCard :many
 SELECT id, debate_card_id, user_id, vote_type, emoji, created_at FROM votes WHERE debate_card_id = $1
 `
 
-func (q *Queries) GetVotesByCard(ctx context.Context, debateCardID sql.NullInt32) ([]Vote, error) {
+func (q *Queries) GetVotesByCard(ctx context.Context, debateCardID sql.NullInt32) ([]Votes, error) {
 	rows, err := q.db.QueryContext(ctx, getVotesByCard, debateCardID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Vote
+	var items []Votes
 	for rows.Next() {
-		var i Vote
+		var i Votes
 		if err := rows.Scan(
 			&i.ID,
 			&i.DebateCardID,
@@ -746,9 +746,9 @@ type UpdateCommentParams struct {
 	Content string
 }
 
-func (q *Queries) UpdateComment(ctx context.Context, arg UpdateCommentParams) (Comment, error) {
+func (q *Queries) UpdateComment(ctx context.Context, arg UpdateCommentParams) (Comments, error) {
 	row := q.db.QueryRowContext(ctx, updateComment, arg.ID, arg.Content)
-	var i Comment
+	var i Comments
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -775,9 +775,9 @@ type UpdateDebateParams struct {
 	Description sql.NullString
 }
 
-func (q *Queries) UpdateDebate(ctx context.Context, arg UpdateDebateParams) (Debate, error) {
+func (q *Queries) UpdateDebate(ctx context.Context, arg UpdateDebateParams) (Debates, error) {
 	row := q.db.QueryRowContext(ctx, updateDebate, arg.ID, arg.Headline, arg.Description)
-	var i Debate
+	var i Debates
 	err := row.Scan(
 		&i.ID,
 		&i.MatchID,
@@ -806,14 +806,14 @@ type UpdateDebateAnalyticsParams struct {
 	EngagementScore sql.NullString
 }
 
-func (q *Queries) UpdateDebateAnalytics(ctx context.Context, arg UpdateDebateAnalyticsParams) (DebateAnalytic, error) {
+func (q *Queries) UpdateDebateAnalytics(ctx context.Context, arg UpdateDebateAnalyticsParams) (DebateAnalytics, error) {
 	row := q.db.QueryRowContext(ctx, updateDebateAnalytics,
 		arg.DebateID,
 		arg.TotalVotes,
 		arg.TotalComments,
 		arg.EngagementScore,
 	)
-	var i DebateAnalytic
+	var i DebateAnalytics
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,
@@ -839,9 +839,9 @@ type UpdateDebateCardParams struct {
 	Description sql.NullString
 }
 
-func (q *Queries) UpdateDebateCard(ctx context.Context, arg UpdateDebateCardParams) (DebateCard, error) {
+func (q *Queries) UpdateDebateCard(ctx context.Context, arg UpdateDebateCardParams) (DebateCards, error) {
 	row := q.db.QueryRowContext(ctx, updateDebateCard, arg.ID, arg.Title, arg.Description)
-	var i DebateCard
+	var i DebateCards
 	err := row.Scan(
 		&i.ID,
 		&i.DebateID,

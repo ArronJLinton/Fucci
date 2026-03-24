@@ -22,35 +22,35 @@ type MockQueries struct {
 }
 
 // Mock for User operations
-func (m *MockQueries) GetUser(ctx context.Context, id int32) (database.User, error) {
+func (m *MockQueries) GetUser(ctx context.Context, id int32) (database.Users, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(database.User), args.Error(1)
+	return args.Get(0).(database.Users), args.Error(1)
 }
 
-func (m *MockQueries) CreateUser(ctx context.Context, arg database.CreateUserParams) (database.User, error) {
+func (m *MockQueries) CreateUser(ctx context.Context, arg database.CreateUserParams) (database.Users, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.User), args.Error(1)
+	return args.Get(0).(database.Users), args.Error(1)
 }
 
-func (m *MockQueries) ListUsers(ctx context.Context) ([]database.User, error) {
+func (m *MockQueries) ListUsers(ctx context.Context) ([]database.Users, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]database.User), args.Error(1)
+	return args.Get(0).([]database.Users), args.Error(1)
 }
 
 // Mock for Player Profile operations
-func (m *MockQueries) CreatePlayerProfile(ctx context.Context, arg database.CreatePlayerProfileParams) (database.PlayerProfile, error) {
+func (m *MockQueries) CreatePlayerProfile(ctx context.Context, arg database.CreatePlayerProfileParams) (database.PlayerProfiles, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.PlayerProfile), args.Error(1)
+	return args.Get(0).(database.PlayerProfiles), args.Error(1)
 }
 
-func (m *MockQueries) GetPlayerProfile(ctx context.Context, id uuid.UUID) (database.PlayerProfile, error) {
+func (m *MockQueries) GetPlayerProfile(ctx context.Context, id uuid.UUID) (database.PlayerProfiles, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(database.PlayerProfile), args.Error(1)
+	return args.Get(0).(database.PlayerProfiles), args.Error(1)
 }
 
-func (m *MockQueries) UpdatePlayerProfile(ctx context.Context, arg database.UpdatePlayerProfileParams) (database.PlayerProfile, error) {
+func (m *MockQueries) UpdatePlayerProfile(ctx context.Context, arg database.UpdatePlayerProfileParams) (database.PlayerProfiles, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.PlayerProfile), args.Error(1)
+	return args.Get(0).(database.PlayerProfiles), args.Error(1)
 }
 
 func (m *MockQueries) DeletePlayerProfile(ctx context.Context, id uuid.UUID) error {
@@ -58,30 +58,30 @@ func (m *MockQueries) DeletePlayerProfile(ctx context.Context, id uuid.UUID) err
 	return args.Error(0)
 }
 
-func (m *MockQueries) ListPlayerProfiles(ctx context.Context) ([]database.PlayerProfile, error) {
+func (m *MockQueries) ListPlayerProfiles(ctx context.Context) ([]database.PlayerProfiles, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]database.PlayerProfile), args.Error(1)
+	return args.Get(0).([]database.PlayerProfiles), args.Error(1)
 }
 
 // Mock for League operations
-func (m *MockQueries) CreateLeague(ctx context.Context, arg database.CreateLeagueParams) (database.League, error) {
+func (m *MockQueries) CreateLeague(ctx context.Context, arg database.CreateLeagueParams) (database.Leagues, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.League), args.Error(1)
+	return args.Get(0).(database.Leagues), args.Error(1)
 }
 
-func (m *MockQueries) GetLeague(ctx context.Context, id uuid.UUID) (database.League, error) {
+func (m *MockQueries) GetLeague(ctx context.Context, id uuid.UUID) (database.Leagues, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(database.League), args.Error(1)
+	return args.Get(0).(database.Leagues), args.Error(1)
 }
 
-func (m *MockQueries) ListLeagues(ctx context.Context) ([]database.League, error) {
+func (m *MockQueries) ListLeagues(ctx context.Context) ([]database.Leagues, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]database.League), args.Error(1)
+	return args.Get(0).([]database.Leagues), args.Error(1)
 }
 
-func (m *MockQueries) UpdateLeague(ctx context.Context, arg database.UpdateLeagueParams) (database.League, error) {
+func (m *MockQueries) UpdateLeague(ctx context.Context, arg database.UpdateLeagueParams) (database.Leagues, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.League), args.Error(1)
+	return args.Get(0).(database.Leagues), args.Error(1)
 }
 
 func (m *MockQueries) DeleteLeague(ctx context.Context, id uuid.UUID) error {
@@ -90,24 +90,24 @@ func (m *MockQueries) DeleteLeague(ctx context.Context, id uuid.UUID) error {
 }
 
 // Mock for Team operations
-func (m *MockQueries) CreateTeam(ctx context.Context, arg database.CreateTeamParams) (database.Team, error) {
+func (m *MockQueries) CreateTeam(ctx context.Context, arg database.CreateTeamParams) (database.Teams, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.Team), args.Error(1)
+	return args.Get(0).(database.Teams), args.Error(1)
 }
 
-func (m *MockQueries) GetTeam(ctx context.Context, id uuid.UUID) (database.Team, error) {
+func (m *MockQueries) GetTeam(ctx context.Context, id uuid.UUID) (database.Teams, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(database.Team), args.Error(1)
+	return args.Get(0).(database.Teams), args.Error(1)
 }
 
-func (m *MockQueries) ListTeams(ctx context.Context) ([]database.Team, error) {
+func (m *MockQueries) ListTeams(ctx context.Context) ([]database.Teams, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]database.Team), args.Error(1)
+	return args.Get(0).([]database.Teams), args.Error(1)
 }
 
-func (m *MockQueries) UpdateTeam(ctx context.Context, arg database.UpdateTeamParams) (database.Team, error) {
+func (m *MockQueries) UpdateTeam(ctx context.Context, arg database.UpdateTeamParams) (database.Teams, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.Team), args.Error(1)
+	return args.Get(0).(database.Teams), args.Error(1)
 }
 
 func (m *MockQueries) DeleteTeam(ctx context.Context, id uuid.UUID) error {
@@ -116,29 +116,29 @@ func (m *MockQueries) DeleteTeam(ctx context.Context, id uuid.UUID) error {
 }
 
 // Mock for Team Manager operations
-func (m *MockQueries) CreateTeamManager(ctx context.Context, arg database.CreateTeamManagerParams) (database.TeamManager, error) {
+func (m *MockQueries) CreateTeamManager(ctx context.Context, arg database.CreateTeamManagerParams) (database.TeamManagers, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.TeamManager), args.Error(1)
+	return args.Get(0).(database.TeamManagers), args.Error(1)
 }
 
-func (m *MockQueries) GetTeamManager(ctx context.Context, id uuid.UUID) (database.TeamManager, error) {
+func (m *MockQueries) GetTeamManager(ctx context.Context, id uuid.UUID) (database.TeamManagers, error) {
 	args := m.Called(ctx, id)
-	return args.Get(0).(database.TeamManager), args.Error(1)
+	return args.Get(0).(database.TeamManagers), args.Error(1)
 }
 
-func (m *MockQueries) GetTeamManagersByLeague(ctx context.Context, leagueID uuid.UUID) ([]database.TeamManager, error) {
+func (m *MockQueries) GetTeamManagersByLeague(ctx context.Context, leagueID uuid.UUID) ([]database.TeamManagers, error) {
 	args := m.Called(ctx, leagueID)
-	return args.Get(0).([]database.TeamManager), args.Error(1)
+	return args.Get(0).([]database.TeamManagers), args.Error(1)
 }
 
-func (m *MockQueries) ListTeamManagers(ctx context.Context) ([]database.TeamManager, error) {
+func (m *MockQueries) ListTeamManagers(ctx context.Context) ([]database.TeamManagers, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]database.TeamManager), args.Error(1)
+	return args.Get(0).([]database.TeamManagers), args.Error(1)
 }
 
-func (m *MockQueries) UpdateTeamManager(ctx context.Context, arg database.UpdateTeamManagerParams) (database.TeamManager, error) {
+func (m *MockQueries) UpdateTeamManager(ctx context.Context, arg database.UpdateTeamManagerParams) (database.TeamManagers, error) {
 	args := m.Called(ctx, arg)
-	return args.Get(0).(database.TeamManager), args.Error(1)
+	return args.Get(0).(database.TeamManagers), args.Error(1)
 }
 
 func (m *MockQueries) DeleteTeamManager(ctx context.Context, id uuid.UUID) error {
@@ -226,7 +226,7 @@ func TestPlayerProfileService_CreatePlayerProfile(t *testing.T) {
 
 	t.Run("successful creation", func(t *testing.T) {
 		// Mock user exists
-		mockUser := database.User{
+		mockUser := database.Users{
 			ID:        1,
 			Firstname: "John",
 			Lastname:  "Doe",
@@ -235,7 +235,7 @@ func TestPlayerProfileService_CreatePlayerProfile(t *testing.T) {
 		mockDB.On("GetUser", mock.Anything, int32(1)).Return(mockUser, nil)
 
 		// Mock player profile creation
-		expectedProfile := database.PlayerProfile{
+		expectedProfile := database.PlayerProfiles{
 			ID:         uuid.New(),
 			UserID:     1,
 			Position:   "Forward",
@@ -281,7 +281,7 @@ func TestPlayerProfileService_CreatePlayerProfile(t *testing.T) {
 		// Assertions
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var response database.PlayerProfile
+		var response database.PlayerProfiles
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedProfile.ID, response.ID)
@@ -292,7 +292,7 @@ func TestPlayerProfileService_CreatePlayerProfile(t *testing.T) {
 	})
 
 	t.Run("user not found", func(t *testing.T) {
-		mockDB.On("GetUser", mock.Anything, int32(999)).Return(database.User{}, sql.ErrNoRows)
+		mockDB.On("GetUser", mock.Anything, int32(999)).Return(database.Users{}, sql.ErrNoRows)
 
 		reqBody := CreatePlayerProfileRequest{
 			UserID:    999,
@@ -339,7 +339,7 @@ func TestPlayerProfileService_GetPlayerProfile(t *testing.T) {
 
 	t.Run("successful retrieval", func(t *testing.T) {
 		profileID := uuid.New()
-		expectedProfile := database.PlayerProfile{
+		expectedProfile := database.PlayerProfiles{
 			ID:         profileID,
 			UserID:     1,
 			Position:   "Forward",
@@ -366,7 +366,7 @@ func TestPlayerProfileService_GetPlayerProfile(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		var response database.PlayerProfile
+		var response database.PlayerProfiles
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, profileID, response.ID)
@@ -376,7 +376,7 @@ func TestPlayerProfileService_GetPlayerProfile(t *testing.T) {
 
 	t.Run("profile not found", func(t *testing.T) {
 		profileID := uuid.New()
-		mockDB.On("GetPlayerProfile", mock.Anything, profileID).Return(database.PlayerProfile{}, sql.ErrNoRows)
+		mockDB.On("GetPlayerProfile", mock.Anything, profileID).Return(database.PlayerProfiles{}, sql.ErrNoRows)
 
 		req := httptest.NewRequest("GET", "/player-profiles?id="+profileID.String(), nil)
 		rec := httptest.NewRecorder()
@@ -458,7 +458,7 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("database error during user lookup", func(t *testing.T) {
 		mockDB.ExpectedCalls = nil // Clear previous expectations
-		mockDB.On("GetUser", mock.Anything, int32(1)).Return(database.User{}, assert.AnError)
+		mockDB.On("GetUser", mock.Anything, int32(1)).Return(database.Users{}, assert.AnError)
 
 		reqBody := CreatePlayerProfileRequest{
 			UserID:    1,
@@ -489,14 +489,14 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("database error during profile creation", func(t *testing.T) {
 		mockDB.ExpectedCalls = nil // Clear previous expectations
-		mockUser := database.User{
+		mockUser := database.Users{
 			ID:        1,
 			Firstname: "John",
 			Lastname:  "Doe",
 			Email:     "john@example.com",
 		}
 		mockDB.On("GetUser", mock.Anything, int32(1)).Return(mockUser, nil)
-		mockDB.On("CreatePlayerProfile", mock.Anything, mock.AnythingOfType("database.CreatePlayerProfileParams")).Return(database.PlayerProfile{}, assert.AnError)
+		mockDB.On("CreatePlayerProfile", mock.Anything, mock.AnythingOfType("database.CreatePlayerProfileParams")).Return(database.PlayerProfiles{}, assert.AnError)
 
 		reqBody := CreatePlayerProfileRequest{
 			UserID:    1,

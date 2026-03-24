@@ -22,14 +22,14 @@ type CreateUserParams struct {
 	IsAdmin   bool
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (Users, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
 		arg.Firstname,
 		arg.Lastname,
 		arg.Email,
 		arg.IsAdmin,
 	)
-	var i User
+	var i Users
 	err := row.Scan(
 		&i.ID,
 		&i.Firstname,
@@ -57,9 +57,9 @@ const getUser = `-- name: GetUser :one
 SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users WHERE id = $1
 `
 
-func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
+func (q *Queries) GetUser(ctx context.Context, id int32) (Users, error) {
 	row := q.db.QueryRowContext(ctx, getUser, id)
-	var i User
+	var i Users
 	err := row.Scan(
 		&i.ID,
 		&i.Firstname,
@@ -78,9 +78,9 @@ const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users WHERE email = $1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, error) {
 	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
-	var i User
+	var i Users
 	err := row.Scan(
 		&i.ID,
 		&i.Firstname,
@@ -99,15 +99,15 @@ const listUsers = `-- name: ListUsers :many
 SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users ORDER BY created_at DESC
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
 	rows, err := q.db.QueryContext(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []Users
 	for rows.Next() {
-		var i User
+		var i Users
 		if err := rows.Scan(
 			&i.ID,
 			&i.Firstname,
@@ -147,7 +147,7 @@ type UpdateUserParams struct {
 	IsAdmin   bool
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (Users, error) {
 	row := q.db.QueryRowContext(ctx, updateUser,
 		arg.ID,
 		arg.Firstname,
@@ -155,7 +155,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.Email,
 		arg.IsAdmin,
 	)
-	var i User
+	var i Users
 	err := row.Scan(
 		&i.ID,
 		&i.Firstname,

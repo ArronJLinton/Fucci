@@ -1009,7 +1009,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	if !req.ForceRegenerate {
 		existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
 		if err == nil {
-			var ofType []database.Debate
+			var ofType []database.Debates
 			for _, d := range existing {
 				if d.DebateType == req.DebateType {
 					ofType = append(ofType, d)
@@ -1168,7 +1168,7 @@ func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code in
 }
 
 // buildDebateResponsesFromDB loads full debate (with cards) for each DB row and returns DebateResponse slice.
-func (c *Config) buildDebateResponsesFromDB(ctx context.Context, debates []database.Debate) []DebateResponse {
+func (c *Config) buildDebateResponsesFromDB(ctx context.Context, debates []database.Debates) []DebateResponse {
 	var out []DebateResponse
 	for _, d := range debates {
 		r := c.getDebateResponseByID(ctx, d.ID)
@@ -1180,7 +1180,7 @@ func (c *Config) buildDebateResponsesFromDB(ctx context.Context, debates []datab
 }
 
 // buildFullDebateResponse builds a DebateResponse with analytics and vote counts (shared by getDebateResponseByID and getDebateByID).
-func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.Debate, cards []database.DebateCard) (*DebateResponse, error) {
+func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.Debates, cards []database.DebateCards) (*DebateResponse, error) {
 	cardIDs := make([]int32, len(cards))
 	for i, card := range cards {
 		cardIDs[i] = card.ID

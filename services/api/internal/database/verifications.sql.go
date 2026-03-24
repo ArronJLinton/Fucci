@@ -33,9 +33,9 @@ type CreateVerificationParams struct {
 	VerifierUserID  int32
 }
 
-func (q *Queries) CreateVerification(ctx context.Context, arg CreateVerificationParams) (Verification, error) {
+func (q *Queries) CreateVerification(ctx context.Context, arg CreateVerificationParams) (Verifications, error) {
 	row := q.db.QueryRowContext(ctx, createVerification, arg.PlayerProfileID, arg.VerifierUserID)
-	var i Verification
+	var i Verifications
 	err := row.Scan(
 		&i.ID,
 		&i.PlayerProfileID,
@@ -58,9 +58,9 @@ const getVerification = `-- name: GetVerification :one
 SELECT id, player_profile_id, verifier_user_id, created_at FROM verifications WHERE id = $1
 `
 
-func (q *Queries) GetVerification(ctx context.Context, id uuid.UUID) (Verification, error) {
+func (q *Queries) GetVerification(ctx context.Context, id uuid.UUID) (Verifications, error) {
 	row := q.db.QueryRowContext(ctx, getVerification, id)
-	var i Verification
+	var i Verifications
 	err := row.Scan(
 		&i.ID,
 		&i.PlayerProfileID,
@@ -74,15 +74,15 @@ const listVerificationsByPlayer = `-- name: ListVerificationsByPlayer :many
 SELECT id, player_profile_id, verifier_user_id, created_at FROM verifications WHERE player_profile_id = $1
 `
 
-func (q *Queries) ListVerificationsByPlayer(ctx context.Context, playerProfileID uuid.UUID) ([]Verification, error) {
+func (q *Queries) ListVerificationsByPlayer(ctx context.Context, playerProfileID uuid.UUID) ([]Verifications, error) {
 	rows, err := q.db.QueryContext(ctx, listVerificationsByPlayer, playerProfileID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Verification
+	var items []Verifications
 	for rows.Next() {
-		var i Verification
+		var i Verifications
 		if err := rows.Scan(
 			&i.ID,
 			&i.PlayerProfileID,

@@ -37,7 +37,7 @@ type CreatePlayerProfileParams struct {
 	Physical  int32
 }
 
-func (q *Queries) CreatePlayerProfile(ctx context.Context, arg CreatePlayerProfileParams) (PlayerProfile, error) {
+func (q *Queries) CreatePlayerProfile(ctx context.Context, arg CreatePlayerProfileParams) (PlayerProfiles, error) {
 	row := q.db.QueryRowContext(ctx, createPlayerProfile,
 		arg.UserID,
 		arg.TeamID,
@@ -53,7 +53,7 @@ func (q *Queries) CreatePlayerProfile(ctx context.Context, arg CreatePlayerProfi
 		arg.Defending,
 		arg.Physical,
 	)
-	var i PlayerProfile
+	var i PlayerProfiles
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -89,9 +89,9 @@ const getPlayerProfile = `-- name: GetPlayerProfile :one
 SELECT id, user_id, team_id, position, age, country, height_cm, pace, shooting, passing, stamina, dribbling, defending, physical, is_verified, created_at, updated_at FROM player_profiles WHERE id = $1
 `
 
-func (q *Queries) GetPlayerProfile(ctx context.Context, id uuid.UUID) (PlayerProfile, error) {
+func (q *Queries) GetPlayerProfile(ctx context.Context, id uuid.UUID) (PlayerProfiles, error) {
 	row := q.db.QueryRowContext(ctx, getPlayerProfile, id)
-	var i PlayerProfile
+	var i PlayerProfiles
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -118,9 +118,9 @@ const getPlayerProfileByUser = `-- name: GetPlayerProfileByUser :one
 SELECT id, user_id, team_id, position, age, country, height_cm, pace, shooting, passing, stamina, dribbling, defending, physical, is_verified, created_at, updated_at FROM player_profiles WHERE user_id = $1
 `
 
-func (q *Queries) GetPlayerProfileByUser(ctx context.Context, userID int32) (PlayerProfile, error) {
+func (q *Queries) GetPlayerProfileByUser(ctx context.Context, userID int32) (PlayerProfiles, error) {
 	row := q.db.QueryRowContext(ctx, getPlayerProfileByUser, userID)
-	var i PlayerProfile
+	var i PlayerProfiles
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -369,15 +369,15 @@ const listPlayerProfiles = `-- name: ListPlayerProfiles :many
 SELECT id, user_id, team_id, position, age, country, height_cm, pace, shooting, passing, stamina, dribbling, defending, physical, is_verified, created_at, updated_at FROM player_profiles ORDER BY created_at DESC
 `
 
-func (q *Queries) ListPlayerProfiles(ctx context.Context) ([]PlayerProfile, error) {
+func (q *Queries) ListPlayerProfiles(ctx context.Context) ([]PlayerProfiles, error) {
 	rows, err := q.db.QueryContext(ctx, listPlayerProfiles)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PlayerProfile
+	var items []PlayerProfiles
 	for rows.Next() {
-		var i PlayerProfile
+		var i PlayerProfiles
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -509,7 +509,7 @@ type UpdatePlayerProfileParams struct {
 	Physical  int32
 }
 
-func (q *Queries) UpdatePlayerProfile(ctx context.Context, arg UpdatePlayerProfileParams) (PlayerProfile, error) {
+func (q *Queries) UpdatePlayerProfile(ctx context.Context, arg UpdatePlayerProfileParams) (PlayerProfiles, error) {
 	row := q.db.QueryRowContext(ctx, updatePlayerProfile,
 		arg.ID,
 		arg.TeamID,
@@ -525,7 +525,7 @@ func (q *Queries) UpdatePlayerProfile(ctx context.Context, arg UpdatePlayerProfi
 		arg.Defending,
 		arg.Physical,
 	)
-	var i PlayerProfile
+	var i PlayerProfiles
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -560,9 +560,9 @@ type UpdatePlayerTeamParams struct {
 	TeamID uuid.NullUUID
 }
 
-func (q *Queries) UpdatePlayerTeam(ctx context.Context, arg UpdatePlayerTeamParams) (PlayerProfile, error) {
+func (q *Queries) UpdatePlayerTeam(ctx context.Context, arg UpdatePlayerTeamParams) (PlayerProfiles, error) {
 	row := q.db.QueryRowContext(ctx, updatePlayerTeam, arg.ID, arg.TeamID)
-	var i PlayerProfile
+	var i PlayerProfiles
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,

@@ -17,16 +17,29 @@ import (
 // CardVoteReader is used for unit tests; when set, setCardVote uses it for GetUser and GetDebateCard.
 // Production leaves this nil (handler falls back to DB).
 type CardVoteReader interface {
-	GetUser(ctx context.Context, id int32) (database.User, error)
-	GetDebateCard(ctx context.Context, id int32) (database.DebateCard, error)
+	GetUser(ctx context.Context, id int32) (database.Users, error)
+	GetDebateCard(ctx context.Context, id int32) (database.DebateCards, error)
 }
 
 // CommentReader is used for unit tests; when set, comment handlers use it for GetDebate, GetComments, GetComment.
 // Production leaves this nil (handler falls back to DB).
 type CommentReader interface {
-	GetDebate(ctx context.Context, id int32) (database.Debate, error)
+	GetDebate(ctx context.Context, id int32) (database.Debates, error)
 	GetComments(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error)
 	GetComment(ctx context.Context, id int32) (database.GetCommentRow, error)
+}
+
+// PlayerProfileStore is the DB surface used by /api/player-profile handlers; *database.Queries implements it.
+// PlayerProfileDB on Config overrides DB for those handlers when set (unit tests).
+type PlayerProfileStore interface {
+	GetPlayerProfileByUserID(ctx context.Context, userID int32) (database.PlayerProfile, error)
+	UpsertPlayerProfile(ctx context.Context, arg database.UpsertPlayerProfileParams) (database.PlayerProfile, error)
+	UpdatePlayerProfileRow(ctx context.Context, arg database.UpdatePlayerProfileRowParams) (database.PlayerProfile, error)
+	DeletePlayerProfileRow(ctx context.Context, id int32) error
+	ListPlayerProfileTraits(ctx context.Context, playerProfileID int32) ([]string, error)
+	ListPlayerProfileCareerTeams(ctx context.Context, playerProfileID int32) ([]database.PlayerProfileCareerTeam, error)
+	DeletePlayerProfileTraitsByProfileID(ctx context.Context, playerProfileID int32) error
+	InsertPlayerProfileTrait(ctx context.Context, arg database.InsertPlayerProfileTraitParams) (database.PlayerProfileTrait, error)
 }
 
 // InitJWT initializes JWT authentication with the provided secret
@@ -48,8 +61,9 @@ type Config struct {
 	SystemUserEmail    string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
-	CardVoteReader CardVoteReader
-	CommentReader  CommentReader
+	CardVoteReader  CardVoteReader
+	CommentReader   CommentReader
+	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
 }
 
 func New(c Config) http.Handler {
@@ -86,6 +100,15 @@ func New(c Config) http.Handler {
 
 	// Temp route for listing all users
 	userRouter.Get("/all", c.handleListAllUsers)
+
+	// 007: signed-in user's player profile (GET/POST/PUT/DELETE /api/player-profile, traits at /traits)
+	playerProfileRouter := chi.NewRouter()
+	playerProfileRouter.Use(auth.RequireAuth)
+	playerProfileRouter.Get("/", c.getPlayerProfile)
+	playerProfileRouter.Post("/", c.postPlayerProfile)
+	playerProfileRouter.Put("/", c.putPlayerProfile)
+	playerProfileRouter.Put("/traits", c.putPlayerProfileTraits)
+	playerProfileRouter.Delete("/", c.deletePlayerProfile)
 
 	futbolRouter := chi.NewRouter()
 	futbolRouter.Get("/matches", c.getMatches)
@@ -167,6 +190,7 @@ func New(c Config) http.Handler {
 
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)
+	router.Mount("/player-profile", playerProfileRouter)
 	router.Mount("/comments", commentsRouter)
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)

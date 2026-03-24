@@ -385,7 +385,7 @@ func (s *TeamManagersService) GetManagerStats(w http.ResponseWriter, r *http.Req
 	}
 
 	// Get manager's team (if assigned)
-	var team *database.Team
+	var team *database.Teams
 	if manager.TeamID.Valid {
 		teamData, err := s.db.GetTeam(r.Context(), manager.TeamID.UUID)
 		if err == nil {
@@ -412,7 +412,7 @@ func (s *TeamManagersService) GetManagerStats(w http.ResponseWriter, r *http.Req
 		// Calculate average rating from individual stats
 		playerRating := float64(player.Pace+player.Shooting+player.Passing+player.Stamina+player.Dribbling+player.Defending+player.Physical) / 7.0
 		totalRating += playerRating
-		// Note: PlayerProfile doesn't have IsVerified field, so skip verification count for now
+		// Note: PlayerProfiles (legacy table) stats here omit per-player IsVerified aggregation for now
 	}
 
 	var avgRating float64
