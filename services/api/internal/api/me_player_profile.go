@@ -133,59 +133,6 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Upsert: if profile exists, update; else create.
-	existing, err := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
-	if err == nil {
-		// Update existing
-		age := sql.NullInt32{}
-		if req.Age != nil {
-			age.Int32 = *req.Age
-			age.Valid = true
-		}
-		club := sql.NullString{}
-		if req.Club != nil {
-			club.String = *req.Club
-			club.Valid = true
-		}
-		isFreeAgent := false
-		if req.IsFreeAgent != nil {
-			isFreeAgent = *req.IsFreeAgent
-		}
-		_, err = c.mePlayerProfileDB().UpdateMePlayerProfile(ctx, database.UpdateMePlayerProfileParams{
-			ID:          existing.ID,
-			Age:         age,
-			CountryCode: req.Country,
-			ClubName:    club,
-			IsFreeAgent: isFreeAgent,
-			Position:    req.Position,
-			PhotoUrl:    existing.PhotoUrl,
-		})
-		if err != nil {
-			log.Printf("[me_player_profile] UpdateMePlayerProfile error: %v", err)
-			respondWithError(w, http.StatusInternalServerError, "Failed to update profile")
-			return
-		}
-		profile, _ := c.mePlayerProfileDB().GetMePlayerProfileByUserID(ctx, userID)
-		traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
-		careerRows, _ := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, profile.ID)
-		careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
-		for _, row := range careerRows {
-			var endYear *int32
-			if row.EndYear.Valid {
-				endYear = &row.EndYear.Int32
-			}
-			careerTeams = append(careerTeams, MePlayerProfileCareerTeamDTO{ID: row.ID, TeamName: row.TeamName, StartYear: row.StartYear, EndYear: endYear})
-		}
-		respondWithJSON(w, http.StatusOK, meProfileToResponse(profile, traits, careerTeams))
-		return
-	}
-	if err != sql.ErrNoRows {
-		log.Printf("[me_player_profile] GetMePlayerProfileByUserID error: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
-		return
-	}
-
-	// Create new
 	age := sql.NullInt32{}
 	if req.Age != nil {
 		age.Int32 = *req.Age
@@ -200,7 +147,9 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 	if req.IsFreeAgent != nil {
 		isFreeAgent = *req.IsFreeAgent
 	}
-	profile, err := c.mePlayerProfileDB().CreateMePlayerProfile(ctx, database.CreateMePlayerProfileParams{
+
+	// Single-statement upsert on user_id avoids read-then-insert races (unique violation under concurrency).
+	profile, err := c.mePlayerProfileDB().UpsertMePlayerProfile(ctx, database.UpsertMePlayerProfileParams{
 		UserID:      userID,
 		Age:         age,
 		CountryCode: req.Country,
@@ -209,12 +158,32 @@ func (c *Config) postMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		Position:    req.Position,
 	})
 	if err != nil {
-		log.Printf("[me_player_profile] CreateMePlayerProfile error: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to create profile")
+		log.Printf("[me_player_profile] UpsertMePlayerProfile error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to save profile")
 		return
 	}
-	resp := meProfileToResponse(profile, nil, nil)
-	respondWithJSON(w, http.StatusOK, resp)
+
+	traits, err := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerRows, err := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileCareerTeams error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
+	for _, row := range careerRows {
+		var endYear *int32
+		if row.EndYear.Valid {
+			endYear = &row.EndYear.Int32
+		}
+		careerTeams = append(careerTeams, MePlayerProfileCareerTeamDTO{ID: row.ID, TeamName: row.TeamName, StartYear: row.StartYear, EndYear: endYear})
+	}
+	respondWithJSON(w, http.StatusOK, meProfileToResponse(profile, traits, careerTeams))
 }
 
 func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
@@ -345,6 +314,54 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// PUT semantics: the body is the full desired trait set. We must replace what is stored,
+	// not only append—otherwise traits the user removed would never disappear. That requires
+	// clearing existing rows (delete-all or a diff); delete-then-insert is simple and correct.
+	//
+	// Production: one transaction so a failed insert does not leave traits wiped or half-written.
+	if c.MePlayerProfileDB == nil && c.DBConn != nil && c.DB != nil {
+		tx, err := c.DBConn.BeginTx(ctx, nil)
+		if err != nil {
+			log.Printf("[me_player_profile] BeginTx (traits) error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		q := c.DB.WithTx(tx)
+		if err := q.DeleteMePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
+			log.Printf("[me_player_profile] DeleteMePlayerProfileTraitsByProfileID error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		for _, traitCode := range req.Traits {
+			if _, err := q.InsertMePlayerProfileTrait(ctx, database.InsertMePlayerProfileTraitParams{
+				MePlayerProfileID: profile.ID,
+				TraitCode:         traitCode,
+			}); err != nil {
+				log.Printf("[me_player_profile] InsertMePlayerProfileTrait error: %v", err)
+				respondWithError(w, http.StatusInternalServerError, "Failed to save traits")
+				return
+			}
+		}
+		traits, err := q.ListMePlayerProfileTraits(ctx, profile.ID)
+		if err != nil {
+			log.Printf("[me_player_profile] ListMePlayerProfileTraits error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			log.Printf("[me_player_profile] Commit (traits) error: %v", err)
+			respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+			return
+		}
+		if traits == nil {
+			traits = []string{}
+		}
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{"traits": traits})
+		return
+	}
+
 	if err := c.mePlayerProfileDB().DeleteMePlayerProfileTraitsByProfileID(ctx, profile.ID); err != nil {
 		log.Printf("[me_player_profile] DeleteMePlayerProfileTraitsByProfileID error: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
@@ -360,7 +377,12 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
+	traits, err := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to update traits")
+		return
+	}
 	if traits == nil {
 		traits = []string{}
 	}

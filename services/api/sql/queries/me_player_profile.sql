@@ -8,6 +8,19 @@ INSERT INTO me_player_profile (user_id, age, country_code, club_name, is_free_ag
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
+-- name: UpsertMePlayerProfile :one
+-- Atomic create-or-update on user_id (POST /me/player-profile); preserves photo_url on conflict.
+INSERT INTO me_player_profile (user_id, age, country_code, club_name, is_free_agent, position)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (user_id) DO UPDATE SET
+  age = EXCLUDED.age,
+  country_code = EXCLUDED.country_code,
+  club_name = EXCLUDED.club_name,
+  is_free_agent = EXCLUDED.is_free_agent,
+  position = EXCLUDED.position,
+  updated_at = NOW()
+RETURNING *;
+
 -- name: UpdateMePlayerProfile :one
 UPDATE me_player_profile
 SET age = $2, country_code = $3, club_name = $4, is_free_agent = $5, position = $6, photo_url = $7, updated_at = NOW()

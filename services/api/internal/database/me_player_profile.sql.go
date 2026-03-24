@@ -335,3 +335,51 @@ func (q *Queries) UpdateMePlayerProfilePhoto(ctx context.Context, arg UpdateMePl
 	)
 	return i, err
 }
+
+const upsertMePlayerProfile = `-- name: UpsertMePlayerProfile :one
+INSERT INTO me_player_profile (user_id, age, country_code, club_name, is_free_agent, position)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (user_id) DO UPDATE SET
+  age = EXCLUDED.age,
+  country_code = EXCLUDED.country_code,
+  club_name = EXCLUDED.club_name,
+  is_free_agent = EXCLUDED.is_free_agent,
+  position = EXCLUDED.position,
+  updated_at = NOW()
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+`
+
+type UpsertMePlayerProfileParams struct {
+	UserID      int32
+	Age         sql.NullInt32
+	CountryCode string
+	ClubName    sql.NullString
+	IsFreeAgent bool
+	Position    string
+}
+
+// Atomic create-or-update on user_id (POST /me/player-profile); preserves photo_url on conflict.
+func (q *Queries) UpsertMePlayerProfile(ctx context.Context, arg UpsertMePlayerProfileParams) (MePlayerProfile, error) {
+	row := q.db.QueryRowContext(ctx, upsertMePlayerProfile,
+		arg.UserID,
+		arg.Age,
+		arg.CountryCode,
+		arg.ClubName,
+		arg.IsFreeAgent,
+		arg.Position,
+	)
+	var i MePlayerProfile
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Age,
+		&i.CountryCode,
+		&i.ClubName,
+		&i.IsFreeAgent,
+		&i.Position,
+		&i.PhotoUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

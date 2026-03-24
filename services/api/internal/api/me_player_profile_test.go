@@ -18,7 +18,7 @@ import (
 // stubMePlayerStore implements MePlayerProfileStore with per-method func hooks (nil => safe default).
 type stubMePlayerStore struct {
 	GetMePlayerProfileByUserIDFn             func(ctx context.Context, userID int32) (database.MePlayerProfile, error)
-	CreateMePlayerProfileFn                  func(ctx context.Context, arg database.CreateMePlayerProfileParams) (database.MePlayerProfile, error)
+	UpsertMePlayerProfileFn                  func(ctx context.Context, arg database.UpsertMePlayerProfileParams) (database.MePlayerProfile, error)
 	UpdateMePlayerProfileFn                  func(ctx context.Context, arg database.UpdateMePlayerProfileParams) (database.MePlayerProfile, error)
 	DeleteMePlayerProfileFn                  func(ctx context.Context, id int32) error
 	ListMePlayerProfileTraitsFn              func(ctx context.Context, mePlayerProfileID int32) ([]string, error)
@@ -34,9 +34,9 @@ func (s *stubMePlayerStore) GetMePlayerProfileByUserID(ctx context.Context, user
 	return database.MePlayerProfile{}, sql.ErrNoRows
 }
 
-func (s *stubMePlayerStore) CreateMePlayerProfile(ctx context.Context, arg database.CreateMePlayerProfileParams) (database.MePlayerProfile, error) {
-	if s.CreateMePlayerProfileFn != nil {
-		return s.CreateMePlayerProfileFn(ctx, arg)
+func (s *stubMePlayerStore) UpsertMePlayerProfile(ctx context.Context, arg database.UpsertMePlayerProfileParams) (database.MePlayerProfile, error) {
+	if s.UpsertMePlayerProfileFn != nil {
+		return s.UpsertMePlayerProfileFn(ctx, arg)
 	}
 	return database.MePlayerProfile{}, assert.AnError
 }
@@ -162,13 +162,10 @@ func TestGetMePlayerProfile_OK(t *testing.T) {
 
 func TestPostMePlayerProfile_Create(t *testing.T) {
 	uid := int32(5)
-	var createdArg database.CreateMePlayerProfileParams
+	var upsertArg database.UpsertMePlayerProfileParams
 	stub := &stubMePlayerStore{
-		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {
-			return database.MePlayerProfile{}, sql.ErrNoRows
-		},
-		CreateMePlayerProfileFn: func(ctx context.Context, arg database.CreateMePlayerProfileParams) (database.MePlayerProfile, error) {
-			createdArg = arg
+		UpsertMePlayerProfileFn: func(ctx context.Context, arg database.UpsertMePlayerProfileParams) (database.MePlayerProfile, error) {
+			upsertArg = arg
 			return database.MePlayerProfile{
 				ID: 1, UserID: arg.UserID, CountryCode: arg.CountryCode, Position: arg.Position,
 				IsFreeAgent: arg.IsFreeAgent, Age: arg.Age, ClubName: arg.ClubName,
@@ -182,9 +179,9 @@ func TestPostMePlayerProfile_Create(t *testing.T) {
 	cfg.postMePlayerProfile(rec, mePlayerTestRequest(http.MethodPost, "/me/player-profile", body, uid))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, uid, createdArg.UserID)
-	assert.Equal(t, "GB", createdArg.CountryCode)
-	assert.Equal(t, "DEF", createdArg.Position)
+	assert.Equal(t, uid, upsertArg.UserID)
+	assert.Equal(t, "GB", upsertArg.CountryCode)
+	assert.Equal(t, "DEF", upsertArg.Position)
 	var resp MePlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "GB", resp.Country)
@@ -194,25 +191,18 @@ func TestPostMePlayerProfile_Create(t *testing.T) {
 func TestPostMePlayerProfile_UpdateExisting(t *testing.T) {
 	uid := int32(3)
 	existing := sampleProfile(uid, 99)
-	var updateArg database.UpdateMePlayerProfileParams
 	updated := existing
 	updated.CountryCode = "DE"
 	updated.Position = "FWD"
-	var getCalls int
+	var upsertArg database.UpsertMePlayerProfileParams
 
 	stub := &stubMePlayerStore{
-		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {
-			getCalls++
-			if getCalls == 1 {
-				return existing, nil
-			}
-			return updated, nil
-		},
-		UpdateMePlayerProfileFn: func(ctx context.Context, arg database.UpdateMePlayerProfileParams) (database.MePlayerProfile, error) {
-			updateArg = arg
+		UpsertMePlayerProfileFn: func(ctx context.Context, arg database.UpsertMePlayerProfileParams) (database.MePlayerProfile, error) {
+			upsertArg = arg
 			return updated, nil
 		},
 		ListMePlayerProfileTraitsFn: func(ctx context.Context, pid int32) ([]string, error) {
+			assert.Equal(t, updated.ID, pid)
 			return []string{}, nil
 		},
 		ListMePlayerProfileCareerTeamsFn: func(ctx context.Context, pid int32) ([]database.MePlayerProfileCareerTeam, error) {
@@ -225,9 +215,13 @@ func TestPostMePlayerProfile_UpdateExisting(t *testing.T) {
 	cfg.postMePlayerProfile(rec, mePlayerTestRequest(http.MethodPost, "/me/player-profile", body, uid))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, existing.ID, updateArg.ID)
-	assert.Equal(t, "DE", updateArg.CountryCode)
-	assert.Equal(t, "FWD", updateArg.Position)
+	assert.Equal(t, uid, upsertArg.UserID)
+	assert.Equal(t, "DE", upsertArg.CountryCode)
+	assert.Equal(t, "FWD", upsertArg.Position)
+	var resp MePlayerProfileResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Equal(t, "DE", resp.Country)
+	assert.Equal(t, "FWD", resp.Position)
 }
 
 func TestPutMePlayerProfile_NotFound(t *testing.T) {

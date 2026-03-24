@@ -33,7 +33,7 @@ type CommentReader interface {
 // MePlayerProfileDB on Config overrides DB for those handlers when set (unit tests).
 type MePlayerProfileStore interface {
 	GetMePlayerProfileByUserID(ctx context.Context, userID int32) (database.MePlayerProfile, error)
-	CreateMePlayerProfile(ctx context.Context, arg database.CreateMePlayerProfileParams) (database.MePlayerProfile, error)
+	UpsertMePlayerProfile(ctx context.Context, arg database.UpsertMePlayerProfileParams) (database.MePlayerProfile, error)
 	UpdateMePlayerProfile(ctx context.Context, arg database.UpdateMePlayerProfileParams) (database.MePlayerProfile, error)
 	DeleteMePlayerProfile(ctx context.Context, id int32) error
 	ListMePlayerProfileTraits(ctx context.Context, mePlayerProfileID int32) ([]string, error)
