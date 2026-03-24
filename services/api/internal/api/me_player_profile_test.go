@@ -405,6 +405,81 @@ func TestPutMePlayerProfileTraits_MaxFive(t *testing.T) {
 	assert.Contains(t, errResp["error"], "5 traits")
 }
 
+func TestDedupeTraitCodesPreserveOrder(t *testing.T) {
+	assert.Nil(t, dedupeTraitCodesPreserveOrder(nil))
+	assert.Equal(t, []string{}, dedupeTraitCodesPreserveOrder([]string{}))
+	assert.Equal(t, []string{"A"}, dedupeTraitCodesPreserveOrder([]string{"A"}))
+	assert.Equal(t, []string{"A", "B", "C"}, dedupeTraitCodesPreserveOrder([]string{"A", "B", "A", "C", "B"}))
+}
+
+func TestPutMePlayerProfileTraits_DedupesDuplicates(t *testing.T) {
+	uid := int32(1)
+	p := sampleProfile(uid, 30)
+	var insertOrder []string
+	traitsState := []string(nil)
+
+	stub := &stubMePlayerStore{
+		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {
+			return p, nil
+		},
+		DeleteMePlayerProfileTraitsByProfileIDFn: func(ctx context.Context, mePlayerProfileID int32) error {
+			traitsState = nil
+			return nil
+		},
+		InsertMePlayerProfileTraitFn: func(ctx context.Context, arg database.InsertMePlayerProfileTraitParams) (database.MePlayerProfileTrait, error) {
+			insertOrder = append(insertOrder, arg.TraitCode)
+			traitsState = append(traitsState, arg.TraitCode)
+			return database.MePlayerProfileTrait{ID: int32(len(insertOrder)), MePlayerProfileID: arg.MePlayerProfileID, TraitCode: arg.TraitCode}, nil
+		},
+		ListMePlayerProfileTraitsFn: func(ctx context.Context, mePlayerProfileID int32) ([]string, error) {
+			out := make([]string, len(traitsState))
+			copy(out, traitsState)
+			return out, nil
+		},
+	}
+	cfg := &Config{MePlayerProfileDB: stub}
+	body := map[string]interface{}{
+		"traits": []string{"FLAIR", "PLAYMAKER", "FLAIR", "PLAYMAKER", "SPEED_DRIBBLER"},
+	}
+	rec := httptest.NewRecorder()
+	cfg.putMePlayerProfileTraits(rec, mePlayerTestRequest(http.MethodPut, "/me/player-profile/traits", body, uid))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, []string{"FLAIR", "PLAYMAKER", "SPEED_DRIBBLER"}, insertOrder)
+	var out map[string][]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	assert.Equal(t, []string{"FLAIR", "PLAYMAKER", "SPEED_DRIBBLER"}, out["traits"])
+}
+
+func TestPutMePlayerProfileTraits_SixRawFiveUniqueAfterDedupe_OK(t *testing.T) {
+	uid := int32(1)
+	p := sampleProfile(uid, 30)
+	stub := &stubMePlayerStore{
+		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {
+			return p, nil
+		},
+		DeleteMePlayerProfileTraitsByProfileIDFn: func(ctx context.Context, mePlayerProfileID int32) error {
+			return nil
+		},
+		InsertMePlayerProfileTraitFn: func(ctx context.Context, arg database.InsertMePlayerProfileTraitParams) (database.MePlayerProfileTrait, error) {
+			return database.MePlayerProfileTrait{}, nil
+		},
+		ListMePlayerProfileTraitsFn: func(ctx context.Context, mePlayerProfileID int32) ([]string, error) {
+			return []string{"LEADERSHIP", "FINESSE_SHOT", "PLAYMAKER", "SPEED_DRIBBLER", "LONG_SHOT_TAKER"}, nil
+		},
+	}
+	cfg := &Config{MePlayerProfileDB: stub}
+	body := map[string]interface{}{
+		"traits": []string{
+			"LEADERSHIP", "LEADERSHIP", "FINESSE_SHOT", "PLAYMAKER", "SPEED_DRIBBLER", "LONG_SHOT_TAKER",
+		},
+	}
+	rec := httptest.NewRecorder()
+	cfg.putMePlayerProfileTraits(rec, mePlayerTestRequest(http.MethodPut, "/me/player-profile/traits", body, uid))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
 func TestPutMePlayerProfileTraits_InvalidTrait(t *testing.T) {
 	stub := &stubMePlayerStore{
 		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {

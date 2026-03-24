@@ -297,6 +297,24 @@ var allowedTraitCodes = map[string]bool{
 	"POWER_HEADER": true, "FLAIR": true, "POWER_FREE_KICK": true,
 }
 
+// dedupeTraitCodesPreserveOrder removes duplicate trait codes so INSERT cannot hit
+// UNIQUE(me_player_profile_id, trait_code); first occurrence wins.
+func dedupeTraitCodesPreserveOrder(codes []string) []string {
+	if len(codes) == 0 {
+		return codes
+	}
+	seen := make(map[string]struct{}, len(codes))
+	out := make([]string, 0, len(codes))
+	for _, code := range codes {
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		out = append(out, code)
+	}
+	return out
+}
+
 func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("user_id").(int32)
 	if !ok || userID == 0 {
@@ -312,6 +330,7 @@ func (c *Config) putMePlayerProfileTraits(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	req.Traits = dedupeTraitCodesPreserveOrder(req.Traits)
 	if len(req.Traits) > 5 {
 		respondWithError(w, http.StatusBadRequest, "Maximum 5 traits allowed")
 		return
