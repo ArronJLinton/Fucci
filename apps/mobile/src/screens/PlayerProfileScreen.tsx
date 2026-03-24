@@ -237,6 +237,7 @@ export default function PlayerProfileScreen() {
 
   const handleSaveTraits = async (traits: string[]) => {
     if (!token) return;
+    setSaveError(null);
     if (isDraftProfile) {
       Alert.alert(
         'Complete Profile First',
@@ -245,11 +246,21 @@ export default function PlayerProfileScreen() {
       setShowTraitsModal(false);
       return;
     }
-    const updated = await setPlayerProfileTraits(token, traits);
-    if (updated && profile) {
-      setProfile({...profile, traits: updated});
+    try {
+      const updated = await setPlayerProfileTraits(token, traits);
+      if (!updated) {
+        setSaveError('Failed to save traits. Please try again.');
+        Alert.alert('Save Failed', 'Could not save traits. Please try again.');
+        return;
+      }
+      if (profile) {
+        setProfile({...profile, traits: updated});
+      }
+      setShowTraitsModal(false);
+    } catch {
+      setSaveError('Failed to save traits. Please try again.');
+      Alert.alert('Save Failed', 'Could not save traits. Please try again.');
     }
-    setShowTraitsModal(false);
   };
 
   if (loading) {
