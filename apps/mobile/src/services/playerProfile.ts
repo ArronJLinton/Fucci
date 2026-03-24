@@ -7,14 +7,20 @@ import type {
 
 const BASE = '/me/player-profile';
 
+function isNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /\b404\b/.test(error.message);
+}
+
 export async function getPlayerProfile(
   token: string,
 ): Promise<PlayerProfile | null> {
   try {
     const data = await makeAuthRequest(token, BASE, 'GET');
     return data as PlayerProfile;
-  } catch {
-    return null;
+  } catch (error) {
+    if (isNotFoundError(error)) return null;
+    throw error;
   }
 }
 
