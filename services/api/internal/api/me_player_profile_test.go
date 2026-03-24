@@ -160,6 +160,43 @@ func TestGetMePlayerProfile_OK(t *testing.T) {
 	assert.Equal(t, "Old Club", resp.CareerTeams[0].TeamName)
 }
 
+func TestGetMePlayerProfile_ListTraitsError(t *testing.T) {
+	uid := int32(7)
+	p := sampleProfile(uid, 100)
+	stub := &stubMePlayerStore{
+		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {
+			return p, nil
+		},
+		ListMePlayerProfileTraitsFn: func(ctx context.Context, pid int32) ([]string, error) {
+			return nil, assert.AnError
+		},
+	}
+	cfg := &Config{MePlayerProfileDB: stub}
+	rec := httptest.NewRecorder()
+	cfg.getMePlayerProfile(rec, mePlayerTestRequest(http.MethodGet, "/me/player-profile", nil, uid))
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestGetMePlayerProfile_ListCareerTeamsError(t *testing.T) {
+	uid := int32(7)
+	p := sampleProfile(uid, 100)
+	stub := &stubMePlayerStore{
+		GetMePlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.MePlayerProfile, error) {
+			return p, nil
+		},
+		ListMePlayerProfileTraitsFn: func(ctx context.Context, pid int32) ([]string, error) {
+			return nil, nil
+		},
+		ListMePlayerProfileCareerTeamsFn: func(ctx context.Context, pid int32) ([]database.MePlayerProfileCareerTeam, error) {
+			return nil, assert.AnError
+		},
+	}
+	cfg := &Config{MePlayerProfileDB: stub}
+	rec := httptest.NewRecorder()
+	cfg.getMePlayerProfile(rec, mePlayerTestRequest(http.MethodGet, "/me/player-profile", nil, uid))
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
 func TestPostMePlayerProfile_Create(t *testing.T) {
 	uid := int32(5)
 	var upsertArg database.UpsertMePlayerProfileParams

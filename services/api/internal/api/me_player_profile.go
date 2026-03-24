@@ -81,8 +81,18 @@ func (c *Config) getMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
-	careerRows, _ := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, profile.ID)
+	traits, err := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerRows, err := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, profile.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileCareerTeams error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
 	careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
 	for _, row := range careerRows {
 		var endYear *int32
@@ -257,8 +267,18 @@ func (c *Config) putMePlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update profile")
 		return
 	}
-	traits, _ := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, updated.ID)
-	careerRows, _ := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, updated.ID)
+	traits, err := c.mePlayerProfileDB().ListMePlayerProfileTraits(ctx, updated.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileTraits error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
+	careerRows, err := c.mePlayerProfileDB().ListMePlayerProfileCareerTeams(ctx, updated.ID)
+	if err != nil {
+		log.Printf("[me_player_profile] ListMePlayerProfileCareerTeams error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get profile")
+		return
+	}
 	careerTeams := make([]MePlayerProfileCareerTeamDTO, 0, len(careerRows))
 	for _, row := range careerRows {
 		var endYear *int32
