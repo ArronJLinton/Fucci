@@ -13,7 +13,7 @@ This guide explains how to run and manually test the Player Profile experience.
 1. From repo root:
 
    ```bash
-   cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci/services/api
+   cd services/api
    go test ./...
    go run ./cmd/api
    ```
@@ -33,7 +33,7 @@ This guide explains how to run and manually test the Player Profile experience.
 1. From repo root:
 
    ```bash
-   cd /Users/arronlinton/Desktop/lab/FucciShop/Fucci/apps/mobile
+   cd apps/mobile
    yarn install
    yarn start
    ```
