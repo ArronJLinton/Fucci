@@ -12,12 +12,6 @@ The feature will extend the existing React Native/Expo client and Go/PostgreSQL 
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
 **Language/Version**: React Native (TypeScript) + Expo; Go 1.22 API; PostgreSQL 15  
 **Primary Dependencies**: React Navigation, React Query (if used), React Native Image Picker, existing Go HTTP stack, S3-compatible object storage  
 **Storage**: PostgreSQL tables for player profiles, traits, and career teams; S3 (or equivalent) for profile photos  
