@@ -1,0 +1,169 @@
+openapi: 3.0.3
+info:
+  title: Fucci Photo Upload (Cloudinary) API
+  version: 0.1.0
+  description: |
+    Authenticated endpoints to obtain Cloudinary upload parameters and to persist
+    resulting CDN URLs for **account avatar** (`users.avatar_url`) and **player profile photo**
+    (`player_profile.photo_url`).
+
+    **v1 product rules** (see `specs/008-photo-upload-cloudinary/spec.md`):
+    - **5 MB** maximum per image before upload (**FR-004**); client and preset must align.
+    - **Replace-only:** persist a new URL to replace an old one; **do not** use this contract to
+      “clear” a photo by sending `null` (**FR-009**). Omit optional fields to leave values unchanged.
+    - Player profile `photo_url` is set **after** the profile exists (not from Create Player Profile) (**FR-008**).
+
+    Base path is relative to the API router mounted under `/v1/api` (see `services/api/main.go`).
+
+servers:
+  - url: '{apiOrigin}/v1/api'
+    variables:
+      apiOrigin:
+        default: http://localhost:8080
+
+paths:
+  /upload/cloudinary/signature:
+    post:
+      summary: Issue signed upload parameters for direct Cloudinary upload
+      description: |
+        Authenticated users only. Server uses `CLOUDINARY_API_SECRET` to compute `signature`.
+        Client then POSTs multipart form to `https://api.cloudinary.com/v1_1/{cloud_name}/image/upload`.
+
+        **FR-004:** Upload MUST reject files **> 5 MB** client-side; `max_upload_bytes` in the response
+        echoes the cap for UI validation. Cloudinary preset limits SHOULD match.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - context
+              properties:
+                context:
+                  type: string
+                  enum: [avatar, player_profile]
+                  description: Selects folder / naming policy for the upload
+      responses:
+        '200':
+          description: Parameters for client-side upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CloudinarySignatureResponse'
+        '401':
+          description: Not authenticated
+
+  /users/profile:
+    put:
+      summary: Update current user profile (including avatar URL after Cloudinary upload)
+      description: |
+        **FR-009:** To **replace** an avatar, send a new `avatar_url`. **v1** does not support
+        clearing the avatar by setting `avatar_url` to `null` — omit the field to leave unchanged.
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                avatar_url:
+                  type: string
+                  format: uri
+                  description: |
+                    HTTPS URL on allowed Cloudinary host (validated server-side). Max length per DB column.
+                    **Replace-only in v1:** send new URL to replace; do not send `null` to clear.
+      responses:
+        '200':
+          description: Profile updated
+        '400':
+          description: Invalid URL or failed validation
+
+  /player-profile:
+    put:
+      summary: Update player profile (including photo_url after Cloudinary upload)
+      description: |
+        **FR-008:** Used after profile creation from **Player Profile** — not from Create Player Profile flow.
+
+        **FR-009:** **Replace-only** for `photo_url` when a URL already exists — send a new URL to replace.
+        **v1:** Do not send `null` to clear player photo; omit `photo_url` to leave unchanged.
+
+        Implementation note: `photo_url` may need to be added to `PlayerProfileInput` in Go if not yet exposed for PUT.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - country
+                - position
+              properties:
+                age:
+                  type: integer
+                  nullable: true
+                country:
+                  type: string
+                club:
+                  type: string
+                  nullable: true
+                is_free_agent:
+                  type: boolean
+                position:
+                  type: string
+                photo_url:
+                  type: string
+                  format: uri
+                  description: |
+                    Cloudinary secure_url for player card image. Omit to leave unchanged.
+                    **Replace-only in v1:** do not send `null` to clear.
+      responses:
+        '200':
+          description: Profile updated
+        '400':
+          description: Invalid URL or failed validation
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CloudinarySignatureResponse:
+      type: object
+      required:
+        - cloud_name
+        - api_key
+        - timestamp
+        - signature
+      properties:
+        cloud_name:
+          type: string
+        api_key:
+          type: string
+          description: Public API key (safe to send to client for signed upload)
+        timestamp:
+          type: integer
+          format: int64
+        signature:
+          type: string
+        folder:
+          type: string
+          description: Target folder under the Cloudinary cloud
+        public_id:
+          type: string
+          description: Optional deterministic id (e.g. user id–scoped) if server generates it
+        max_upload_bytes:
+          type: integer
+          example: 5242880
+          description: |
+            **FR-004:** Maximum allowed file size in bytes (5 MB = 5242880). Client MUST enforce before upload.
