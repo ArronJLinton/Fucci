@@ -7,13 +7,18 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import {useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
 import {getPlayerProfile} from '../services/playerProfile';
+import {updateProfile} from '../services/auth';
+import {userFacingApiMessage} from '../services/api';
+import {uploadToCloudinary} from '../services/cloudinaryUpload';
 
 interface SettingsScreenProps {
   /** When true, screen is embedded in Profile tab (no back button) */
@@ -30,8 +35,82 @@ export default function SettingsScreen({
     embeddedInTabProp ??
     (route.params as SettingsRouteParams | undefined)?.embeddedInTab ??
     false;
-  const {user, isLoggedIn, logout: authLogout, token} = useAuth();
+  const {user, isLoggedIn, logout: authLogout, token, setAuth} = useAuth();
   const [playerModeLoading, setPlayerModeLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarURL, setAvatarURL] = useState<string | null>(
+    user?.avatar_url ?? null,
+  );
+
+  React.useEffect(() => {
+    setAvatarURL(user?.avatar_url ?? null);
+  }, [user?.avatar_url]);
+
+  const handlePickAndUploadAvatar = async (source: 'camera' | 'library') => {
+    if (!token || !user) return;
+    try {
+      const permission =
+        source === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permission needed',
+          `Please allow ${source === 'camera' ? 'camera' : 'photo library'} access in Settings to update your avatar.`,
+        );
+        return;
+      }
+
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({
+              mediaTypes: ['images'],
+              allowsEditing: false,
+              quality: 0.8,
+            })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ['images'],
+              allowsEditing: false,
+              quality: 0.8,
+            });
+
+      if (result.canceled || result.assets.length === 0) return;
+      const asset = result.assets[0];
+
+      setAvatarUploading(true);
+      const secureURL = await uploadToCloudinary(token, 'avatar', {
+        uri: asset.uri,
+        fileName: asset.fileName ?? undefined,
+        mimeType: asset.mimeType ?? undefined,
+        size: asset.fileSize ?? undefined,
+      });
+      const updatedUser = await updateProfile(token, {avatar_url: secureURL});
+      setAvatarURL(updatedUser.avatar_url ?? secureURL);
+      await setAuth(token, updatedUser);
+    } catch (err) {
+      Alert.alert('Upload failed', userFacingApiMessage(err));
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleEditAvatar = () => {
+    Alert.alert('Update avatar', 'Choose a source', [
+      {text: 'Cancel', style: 'cancel'},
+      {
+        text: 'Camera',
+        onPress: () => {
+          void handlePickAndUploadAvatar('camera');
+        },
+      },
+      {
+        text: 'Photo Library',
+        onPress: () => {
+          void handlePickAndUploadAvatar('library');
+        },
+      },
+    ]);
+  };
 
   const handleOpenPlayerMode = async () => {
     if (!token) return;
@@ -98,6 +177,36 @@ export default function SettingsScreen({
           </View>
         ) : (
           <>
+            <View style={styles.profileSummary}>
+              <View style={styles.profileAvatarWrap}>
+                {avatarURL ? (
+                  <Image source={{uri: avatarURL}} style={styles.avatar} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={30} color="#94a3b8" />
+                  </View>
+                )}
+              </View>
+              <View style={styles.profileInfo}>
+                <Text numberOfLines={1} style={styles.profileName}>
+                  {user?.display_name || `${user?.firstname ?? ''}`.trim() || 'USER'}
+                </Text>
+                <Text numberOfLines={1} style={styles.profileEmail}>
+                  {user?.email ?? ''}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.avatarEditBtn}
+                onPress={handleEditAvatar}
+                disabled={avatarUploading}>
+                {avatarUploading ? (
+                  <ActivityIndicator size="small" color="#c7f349" />
+                ) : (
+                  <Ionicons name="camera" size={18} color="#c7f349" />
+                )}
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.accountHeading}>Account Settings</Text>
 

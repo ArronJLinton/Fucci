@@ -53,11 +53,11 @@ description: "Task list for 008 photo upload (Cloudinary)"
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Extend `PUT` profile handler in `services/api/internal/api/auth.go` to validate `avatar_url` with `services/api/internal/api/cloudinary.go` helper when present; reject invalid URLs with 400 (FR-005, FR-009)
-- [ ] T011 [US1] Add HTTP tests for profile `avatar_url` update (valid Cloudinary URL vs bad host) in `services/api/internal/api/auth_test.go` (create file if missing) or extend existing API test harness (FR-007)
-- [ ] T012 [P] [US1] Ensure `updateProfile` in `apps/mobile/src/services/auth.ts` sends `avatar_url` after upload and handles `ApiRequestError` per existing patterns
-- [ ] T013 [US1] Implement avatar flow: ImagePicker (library + camera), permission-denied copy, loading state, call `apps/mobile/src/services/cloudinaryUpload.ts` with `context: 'avatar'`, then persist via `apps/mobile/src/screens/SettingsScreen.tsx`
-- [ ] T014 [P] [US1] Add Jest tests for `apps/mobile/src/services/cloudinaryUpload.ts` with mocked `fetch` / auth (FR-007)
+- [X] T010 [US1] Extend `PUT` profile handler in `services/api/internal/api/auth.go` to validate `avatar_url` with `services/api/internal/api/cloudinary.go` helper when present; reject invalid URLs with 400 (FR-005, FR-009)
+- [X] T011 [US1] Add HTTP tests for profile `avatar_url` update (valid Cloudinary URL vs bad host) in `services/api/internal/api/auth_test.go` (create file if missing) or extend existing API test harness (FR-007)
+- [X] T012 [P] [US1] Ensure `updateProfile` in `apps/mobile/src/services/auth.ts` sends `avatar_url` after upload and handles `ApiRequestError` per existing patterns
+- [X] T013 [US1] Implement avatar flow: ImagePicker (library + camera), permission-denied copy, loading state, call `apps/mobile/src/services/cloudinaryUpload.ts` with `context: 'avatar'`, then persist via `apps/mobile/src/screens/SettingsScreen.tsx`
+- [X] T014 [P] [US1] Add Jest tests for `apps/mobile/src/services/cloudinaryUpload.ts` with mocked `fetch` / auth (FR-007)
 
 **Checkpoint**: User Story 1 complete and testable on device.
 

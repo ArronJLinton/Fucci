@@ -186,8 +186,17 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.AvatarURL != nil {
+		avatarURL := strings.TrimSpace(*req.AvatarURL)
+		if avatarURL == "" {
+			respondWithError(w, http.StatusBadRequest, "avatar_url cannot be empty")
+			return
+		}
+		if err := c.validateCloudinaryMediaURLForContext(avatarURL, "avatar"); err != nil {
+			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("invalid avatar_url: %v", err))
+			return
+		}
 		updates = append(updates, fmt.Sprintf("avatar_url = $%d", argPos))
-		args = append(args, *req.AvatarURL)
+		args = append(args, avatarURL)
 		argPos++
 	}
 
