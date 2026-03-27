@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import * as api from '../api';
 import {uploadToCloudinary} from '../cloudinaryUpload';
 
@@ -34,7 +36,7 @@ describe('cloudinaryUpload', () => {
       max_upload_bytes: 5 * 1024 * 1024,
     } as never);
 
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({secure_url: 'https://res.cloudinary.com/demo/image/upload/v1/fucci/avatars/a.jpg'}),
     } as never);
@@ -47,7 +49,7 @@ describe('cloudinaryUpload', () => {
     });
 
     expect(url).toContain('res.cloudinary.com');
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
 
