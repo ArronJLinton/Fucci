@@ -186,25 +186,18 @@ export default function SettingsScreen({
                     <Ionicons name="person" size={30} color="#94a3b8" />
                   </View>
                 )}
+                <TouchableOpacity
+                  style={styles.avatarEditBtn}
+                  onPress={handleEditAvatar}
+                  disabled={avatarUploading}
+                  accessibilityLabel="Change profile photo">
+                  {avatarUploading ? (
+                    <ActivityIndicator size="small" color="#c7f349" />
+                  ) : (
+                    <Ionicons name="camera" size={18} color="#c7f349" />
+                  )}
+                </TouchableOpacity>
               </View>
-              <View style={styles.profileInfo}>
-                <Text numberOfLines={1} style={styles.profileName}>
-                  {user?.display_name || `${user?.firstname ?? ''}`.trim() || 'USER'}
-                </Text>
-                <Text numberOfLines={1} style={styles.profileEmail}>
-                  {user?.email ?? ''}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.avatarEditBtn}
-                onPress={handleEditAvatar}
-                disabled={avatarUploading}>
-                {avatarUploading ? (
-                  <ActivityIndicator size="small" color="#c7f349" />
-                ) : (
-                  <Ionicons name="camera" size={18} color="#c7f349" />
-                )}
-              </TouchableOpacity>
             </View>
 
             <View style={styles.section}>
@@ -366,7 +359,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   profileSummary: {
-    flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 14,
     paddingBottom: 14,
@@ -398,36 +390,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarEditBtn: {
-    width: 36,
-    height: 36,
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 32,
+    height: 32,
     borderRadius: 8,
     backgroundColor: '#111827',
     borderWidth: 1,
     borderColor: '#1f2937',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 12,
-  },
-  profileInfo: {
-    flex: 1,
-    alignItems: 'flex-start',
-    marginTop: 0,
-    paddingHorizontal: 14,
-  },
-  profileName: {
-    fontSize: 45,
-    fontWeight: '900',
-    fontStyle: 'italic',
-    color: '#e2e8f0',
-    textTransform: 'uppercase',
-    textAlign: 'left',
-  },
-  profileEmail: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 4,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    zIndex: 1,
   },
   tabs: {
     flexDirection: 'row',
