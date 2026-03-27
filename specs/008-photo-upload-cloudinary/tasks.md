@@ -4,7 +4,7 @@ description: "Task list for 008 photo upload (Cloudinary)"
 
 # Tasks: Photo upload (Cloudinary)
 
-**Input**: Design documents from `/Users/arronlinton/Desktop/lab/FucciShop/Fucci/specs/008-photo-upload-cloudinary/`  
+**Input**: Design documents in `specs/008-photo-upload-cloudinary/`  
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [data-model.md](./data-model.md), [contracts/api.yaml](./contracts/api.yaml), [research.md](./research.md), [quickstart.md](./quickstart.md)
 
 **Tests**: Included per **FR-007** and constitution (signature/URL validation + persistence).
