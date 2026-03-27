@@ -50,7 +50,7 @@ Expect JSON with fields required for the client to POST to Cloudinary (e.g. `sig
 
 ```bash
 cd services/api && go test ./internal/api/... -run Cloudinary  # adjust after tests land
-cd apps/mobile && npm test   # or project’s test command
+cd apps/mobile  # then run the mobile app test command for this repo (e.g. yarn test or npx jest)
 ```
 
 ## Troubleshooting
