@@ -4,8 +4,15 @@ import * as api from '../api';
 import {uploadToCloudinary} from '../cloudinaryUpload';
 
 describe('cloudinaryUpload', () => {
+  let previousFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    previousFetch = globalThis.fetch;
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
+    globalThis.fetch = previousFetch;
   });
 
   it('rejects file larger than max_upload_bytes', async () => {
