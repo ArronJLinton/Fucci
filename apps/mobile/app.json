@@ -14,7 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.magistridev.fucci"
+      "bundleIdentifier": "com.magistridev.fucci",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Fucci to access your camera to take profile photos.",
+        "NSPhotoLibraryUsageDescription": "Allow Fucci to access your photo library to choose profile photos."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -38,6 +42,13 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos and record videos."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Fucci to access your photos so you can choose profile pictures.",
+          "cameraPermission": "Allow Fucci to use your camera so you can take profile pictures."
         }
       ]
     ],

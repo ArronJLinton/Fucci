@@ -22,10 +22,10 @@ description: "Task list for 008 photo upload (Cloudinary)"
 
 **Purpose**: Env wiring, mobile permissions, dependencies.
 
-- [ ] T001 Add `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (and optional preset notes) to `services/api/.env.example` with short comments
-- [ ] T002 [P] Update `specs/008-photo-upload-cloudinary/quickstart.md` to reference `services/api/.env.example` and local API URL for signature smoke tests
-- [ ] T003 [P] Add iOS `NSCameraUsageDescription` and `NSPhotoLibraryUsageDescription` (and Android `CAMERA` / `READ_MEDIA_IMAGES` or legacy storage as required by Expo SDK) in `apps/mobile/app.json` for `expo-image-picker`
-- [ ] T004 Add dependency `expo-image-picker` in `apps/mobile/package.json` and run install from `apps/mobile/` (lockfile updated)
+- [X] T001 Add `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (and optional preset notes) to `services/api/.env.example` with short comments
+- [X] T002 [P] Update `specs/008-photo-upload-cloudinary/quickstart.md` to reference `services/api/.env.example` and local API URL for signature smoke tests
+- [X] T003 [P] Add iOS `NSCameraUsageDescription` and `NSPhotoLibraryUsageDescription` (and Android `CAMERA` / `READ_MEDIA_IMAGES` or legacy storage as required by Expo SDK) in `apps/mobile/app.json` for `expo-image-picker`
+- [X] T004 Add dependency `expo-image-picker` in `apps/mobile/package.json` and run install from `apps/mobile/` (lockfile updated)
 
 ---
 
@@ -35,11 +35,11 @@ description: "Task list for 008 photo upload (Cloudinary)"
 
 **⚠️ CRITICAL**: User story phases depend on this phase.
 
-- [ ] T005 Implement Cloudinary upload signing and `max_upload_bytes` (5242880) response field in `services/api/internal/api/cloudinary.go` per `specs/008-photo-upload-cloudinary/contracts/api.yaml`
-- [ ] T006 [P] Implement HTTPS URL allowlist helper (host + folder prefix by `context`) in `services/api/internal/api/cloudinary.go` for reuse by profile handlers
-- [ ] T007 Register authenticated `POST /upload/cloudinary/signature` in `services/api/internal/api/api.go` and plumb `CLOUDINARY_*` from `services/api/main.go` (or config) into `api.Config`
-- [ ] T008 [P] Add unit tests for signing + URL validation in `services/api/internal/api/cloudinary_test.go` (FR-007)
-- [ ] T009 Implement `requestSignature`, size check (≤ 5 MB), and multipart upload to Cloudinary returning `secure_url` in `apps/mobile/src/services/cloudinaryUpload.ts` (uses `makeAuthRequest` + `fetch` to Cloudinary)
+- [X] T005 Implement Cloudinary upload signing and `max_upload_bytes` (5242880) response field in `services/api/internal/api/cloudinary.go` per `specs/008-photo-upload-cloudinary/contracts/api.yaml`
+- [X] T006 [P] Implement HTTPS URL allowlist helper (host + folder prefix by `context`) in `services/api/internal/api/cloudinary.go` for reuse by profile handlers
+- [X] T007 Register authenticated `POST /upload/cloudinary/signature` in `services/api/internal/api/api.go` and plumb `CLOUDINARY_*` from `services/api/main.go` (or config) into `api.Config`
+- [X] T008 [P] Add unit tests for signing + URL validation in `services/api/internal/api/cloudinary_test.go` (FR-007)
+- [X] T009 Implement `requestSignature`, size check (≤ 5 MB), and multipart upload to Cloudinary returning `secure_url` in `apps/mobile/src/services/cloudinaryUpload.ts` (uses `makeAuthRequest` + `fetch` to Cloudinary)
 
 **Checkpoint**: Signature endpoint + mobile helper callable; foundation ready for US1/US2.
 

@@ -16,7 +16,7 @@
 
 ## 2. API environment
 
-Set in `services/api` runtime (e.g. `.env` — follow project conventions):
+Set in `services/api` runtime (copy from `services/api/.env.example` and fill values):
 
 ```bash
 CLOUDINARY_CLOUD_NAME=your_cloud_name
@@ -29,9 +29,12 @@ Restart the API. Verify health as usual.
 ## 3. Verify upload signature endpoint (once implemented)
 
 ```bash
-# Example — adjust path to match implementation
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  "$API_ORIGIN/v1/api/upload/cloudinary/signature?context=avatar"
+# Example payload for avatar context
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"context":"avatar"}' \
+  "$API_ORIGIN/v1/api/upload/cloudinary/signature"
 ```
 
 Expect JSON with fields required for the client to POST to Cloudinary (e.g. `signature`, `timestamp`, `cloud_name`, `folder`).
