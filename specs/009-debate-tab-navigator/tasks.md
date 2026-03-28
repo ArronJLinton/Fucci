@@ -1,6 +1,6 @@
 # Tasks: Debate Tab & Main Debates Experience
 
-**Feature dir**: `/Users/arronlinton/Desktop/lab/FucciShop/Fucci/specs/009-debate-tab-navigator`  
+**Feature dir** (repo-relative from monorepo root): `specs/009-debate-tab-navigator/`  
 **Input**: Design documents from that directory, aligned with **[plan.md](./plan.md)** (2026-03-28).
 
 **Plan constraints (must hold)**:
