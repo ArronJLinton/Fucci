@@ -85,6 +85,13 @@ export default function SettingsScreen({
         size: asset.fileSize ?? undefined,
       });
       const updatedUser = await updateProfile(token, {avatar_url: secureURL});
+      if (!updatedUser) {
+        Alert.alert(
+          'Upload failed',
+          'Could not save your profile. Please try again.',
+        );
+        return;
+      }
       setAvatarURL(updatedUser.avatar_url ?? secureURL);
       await setAuth(token, updatedUser);
     } catch (err) {
