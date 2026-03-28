@@ -36,8 +36,13 @@
 
 3. After feature implementation: open app → tap **Debates** tab → verify **New** section above **My Activity**, swipe on hero card, tap voted row → detail.
 
+## Debate content (news headlines)
+
+Debates in this tab should be **generated** with **world football news / headline** context per [004-ai-debate-generator](../004-ai-debate-generator/spec.md). Ensure generation jobs or on-demand flows pull **top football headlines** into the context bundle before expecting realistic main-feed content.
+
 ## Related docs
 
 - [spec.md](./spec.md) — user stories
+- [plan.md](./plan.md) — implementation plan + sourcing note
 - [contracts/debates-feed.yaml](./contracts/debates-feed.yaml) — feed contract
 - [006 quickstart](../006-user-engagement-debates/quickstart.md) — comment/vote APIs

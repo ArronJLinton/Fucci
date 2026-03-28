@@ -4,6 +4,8 @@
 
 No new tables are strictly required if “completion” is derived from existing **votes** (card-level) and **debates** / **debate_cards**. Optional: materialized counters later for scale.
 
+**News / headlines (product)**: Debates surfaced on the main tab are expected to be **generated** using **world football news and headline** context per [004-ai-debate-generator](../004-ai-debate-generator/spec.md) (context bundle → news articles). **009** reads existing `debates` rows; it does not ingest news. Optional future columns (e.g. `source_headline`, `source_url`, `source_published_at`) could be added in **004** or a migration to expose provenance in **DebateSummary**; until then, `headline` / `description` carry the user-visible prompt.
+
 ## Existing Entities (reference)
 
 | Entity | Source | Notes |
@@ -50,6 +52,7 @@ For a given `user_id` and `debate_id`:
 - `debate_type`, `created_at`
 - `analytics`: optional `total_votes`, `engagement_score` (from `debate_analytics`)
 - `card_vote_totals` or aggregate **yes/no** bar data if precomputed for list (optional v1: omit; show placeholder)
+- **Optional (provenance, when DB/API extended)**: `source_headline`, `source_url`, `source_published_at` — tie list rows to the **news headline** that grounded generation (004); omit in v1 if not stored. The same fields on **`GET /debates/{id}`** (full debate) drive optional provenance on **detail** (spec FR-009).
 
 ### Voted row extras (optional)
 

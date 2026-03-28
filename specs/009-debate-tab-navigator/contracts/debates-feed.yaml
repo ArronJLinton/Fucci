@@ -144,6 +144,17 @@ components:
           type: string
           format: date-time
           description: Present when useful for voted list sorting (user’s latest card vote time).
+        source_headline:
+          type: string
+          description: Optional — news headline that grounded AI generation (004); omit if not stored.
+        source_url:
+          type: string
+          format: uri
+          description: Optional — link to source article when available.
+        source_published_at:
+          type: string
+          format: date-time
+          description: Optional — publication time of source headline when available.
 
     DebateAnalyticsSummary:
       type: object

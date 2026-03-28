@@ -13,6 +13,8 @@ Auto-generated from all feature plans. Last updated: 2025-10-23
 - PostgreSQL tables for player profiles, traits, and career teams; S3 (or equivalent) for profile photos (007-player-profile)
 - Go 1.22+ (API), TypeScript strict (Expo / React Native mobile) + chi HTTP router (existing), Cloudinary signing (Go: HMAC/SHA1 per Cloudinary docs or official SDK), Expo ImagePicker + `fetch`/`FormData` for upload on mobile (008-photo-upload-cloudinary)
 - PostgreSQL existing columns `users.avatar_url`, `player_profile.photo_url`; binary blobs not stored in DB (008-photo-upload-cloudinary)
+- Go 1.22+ (API), TypeScript strict (Expo / React Native 0.81+) + chi router, sqlc-generated queries, React Navigation 7, TanStack React Query (existing) (009-debate-tab-navigator)
+- PostgreSQL (`debates`, `debate_cards`, `votes`, `debate_analytics`, …) (009-debate-tab-navigator)
 
 - TypeScript (React Native), Go 1.22+, SQL + React Native with Expo, Gin framework, PostgreSQL, Redis, OpenAI API, Socket.io (001-football-community)
 
@@ -32,9 +34,9 @@ npm test && npm run lint
 TypeScript (React Native), Go 1.22+, SQL: Follow standard conventions
 
 ## Recent Changes
+- 009-debate-tab-navigator: Added Go 1.22+ (API), TypeScript strict (Expo / React Native 0.81+) + chi router, sqlc-generated queries, React Navigation 7, TanStack React Query (existing)
+- 009-debate-tab-navigator: Added Go 1.22+ (API), TypeScript strict (Expo / React Native 0.81+) + chi router, sqlc-generated queries, React Navigation 7, TanStack React Query (existing)
 - 008-photo-upload-cloudinary: Added Go 1.22+ (API), TypeScript strict (Expo / React Native mobile) + chi HTTP router (existing), Cloudinary signing (Go: HMAC/SHA1 per Cloudinary docs or official SDK), Expo ImagePicker + `fetch`/`FormData` for upload on mobile
-- 007-player-profile: Added React Native (TypeScript) + Expo; Go 1.22 API; PostgreSQL 15 + React Navigation, React Query (if used), React Native Image Picker, existing Go HTTP stack, S3-compatible object storage
-- 006-user-engagement-debates: Added Go 1.22+, TypeScript (React Native / Expo) + chi (HTTP), React Navigation, expo; JWT auth (005)
 
 
 <!-- MANUAL ADDITIONS START -->

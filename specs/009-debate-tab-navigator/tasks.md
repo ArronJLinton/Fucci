@@ -1,6 +1,14 @@
 # Tasks: Debate Tab & Main Debates Experience
 
-**Input**: Design documents from `/Users/arronlinton/Desktop/lab/FucciShop/Fucci/specs/009-debate-tab-navigator/`  
+**Feature dir**: `/Users/arronlinton/Desktop/lab/FucciShop/Fucci/specs/009-debate-tab-navigator`  
+**Input**: Design documents from that directory, aligned with **[plan.md](./plan.md)** (2026-03-28).
+
+**Plan constraints (must hold)**:
+
+- **Debate topics**: Main-feed debates are **grounded in world football news/headlines** via **[004-ai-debate-generator](../004-ai-debate-generator/spec.md)** context bundles — **not** via a new news crawler or ingestion layer in **009** ([plan.md](./plan.md) Summary, Technical Context).
+- **009 scope**: Public + authenticated **feed APIs**, sqlc, and mobile **MainDebatesScreen** / navigation; optional **`source_headline` / `source_url` / `source_published_at`** on DTOs when DB/API exposes them ([data-model.md](./data-model.md), [contracts/debates-feed.yaml](./contracts/debates-feed.yaml)).
+- **004 coordination**: Weight **top football headlines** in generation jobs — tracked in **T025** ([plan.md](./plan.md) Next Steps, [research.md](./research.md) §7).
+
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [data-model.md](./data-model.md), [contracts/debates-feed.yaml](./contracts/debates-feed.yaml), [research.md](./research.md), [quickstart.md](./quickstart.md)
 
 **Tests**: Plan and constitution call for Go tests on feed SQL/handlers; no separate test phase for RN unless adding new tests—optional noted below.
@@ -33,10 +41,10 @@
 
 ## Phase 2: Foundational (blocking—all feed work)
 
-**Purpose**: `GET /v1/api/debates/public-feed` (no auth) and `GET /v1/api/debates/feed` (JWT) per [contracts/debates-feed.yaml](./contracts/debates-feed.yaml). **No user story work until this phase completes.**
+**Purpose**: `GET /v1/api/debates/public-feed` (no auth) and `GET /v1/api/debates/feed` (JWT) per [contracts/debates-feed.yaml](./contracts/debates-feed.yaml). **Do not** add news fetching/RSS/crawler code here — headline provenance fields are optional pass-through when stored (004/migrations). **No user story work until this phase completes.**
 
-- [ ] T003 Add sqlc queries in `services/api/sql/queries/debates.sql` for (1) public list ordered by engagement score desc, `created_at` desc, capped by `limit`; (2) per-user `new_debates` / `voted_debates` using completion rule (3 cards) from [data-model.md](./data-model.md).
-- [ ] T004 Implement response structs and handlers `getDebatesPublicFeed` / `getDebatesFeed` in `services/api/internal/api/debates.go`, reusing or extending `services/api/internal/api/debate_data_aggregator.go` for `DebateSummary` + analytics mapping as needed.
+- [ ] T003 Add sqlc queries in `services/api/sql/queries/debates.sql` for (1) public list ordered by engagement score desc, `created_at` desc, capped by `limit`; (2) per-user `new_debates` / `voted_debates` using completion rule (3 cards) from [data-model.md](./data-model.md). Include **optional** provenance columns in SELECTs **only if** they exist on `debates` (or joined table); otherwise omit and map as null in Go until a migration adds them.
+- [ ] T004 Implement response structs and handlers `getDebatesPublicFeed` / `getDebatesFeed` in `services/api/internal/api/debates.go`, reusing or extending `services/api/internal/api/debate_data_aggregator.go` for `DebateSummary` + analytics mapping as needed; populate optional **`source_headline`**, **`source_url`**, **`source_published_at`** in JSON when data exists, per [contracts/debates-feed.yaml](./contracts/debates-feed.yaml) (omit keys or null per existing API JSON conventions).
 - [ ] T005 Register `GET /debates/public-feed` (no `RequireAuth`) and `GET /debates/feed` (with `auth.RequireAuth`) on `debateRouter` in `services/api/internal/api/api.go`—order routes so `/feed` and `/public-feed` are registered before `/{id}` if needed.
 - [ ] T006 Run `sqlc generate` from `services/api/`, fix compile errors in `services/api/internal/database/`, and ensure `go build` passes for `services/api`.
 - [ ] T007 Add tests in `services/api/internal/api/debates_test.go` (and/or query-focused tests) covering public-feed ordering shape and authenticated feed bucket split.
@@ -51,9 +59,9 @@
 
 **Independent test**: Tap **Debates** tab → `MainDebatesScreen` mounts → loading then data or error; no match navigation required.
 
-- [ ] T008 [P] [US1] Add TypeScript types for `PublicDebateFeedResponse` and `DebateFeedResponse` in `apps/mobile/src/types/debate.ts` aligned with `contracts/debates-feed.yaml`.
+- [ ] T008 [P] [US1] Add TypeScript types for `PublicDebateFeedResponse` and `DebateFeedResponse` in `apps/mobile/src/types/debate.ts` aligned with `contracts/debates-feed.yaml`, including **optional** `source_headline`, `source_url`, `source_published_at` on debate summary types.
 - [ ] T009 [US1] Add `fetchDebatesPublicFeed` / `fetchDebatesFeed` (base URL + auth header from existing auth pattern) in `apps/mobile/src/services/debate.ts`.
-- [ ] T010 [US1] Create `apps/mobile/src/screens/MainDebatesScreen.tsx` using TanStack Query: choose public vs authenticated endpoint based on `AuthContext` session; loading and error UI.
+- [ ] T010 [US1] Create `apps/mobile/src/screens/MainDebatesScreen.tsx` using TanStack Query: choose public vs authenticated endpoint based on `AuthContext` session; loading and error UI; **pull-to-refresh** refetch per spec FR-007.
 - [ ] T011 [US1] Add `Debates` to `MainTabParamList` in `apps/mobile/src/types/navigation.ts`; implement `DebatesStack` in `apps/mobile/App.tsx` (native stack: `MainDebates` → `SingleDebate` mirroring `HomeStack` pattern); add tab icon/entry for Debates.
 
 **Checkpoint**: Signed-in and signed-out users both get a working feed fetch on the new tab.
@@ -66,8 +74,8 @@
 
 **Independent test**: Mock or staging API with both buckets → order correct; one empty bucket → layout holds; guest → second section shows CTA.
 
-- [ ] T012 [US2] Render **new** above **voted** in `apps/mobile/src/screens/MainDebatesScreen.tsx` (`SectionList` or paired `FlatList`s + `keyExtractor`).
-- [ ] T013 [US2] Empty states for empty `new_debates` or `voted_debates` (copy + optional CTA) in `MainDebatesScreen.tsx`.
+- [ ] T012 [US2] Render **new** above **voted** in `apps/mobile/src/screens/MainDebatesScreen.tsx` (`SectionList` or paired `FlatList`s + `keyExtractor`); render **optional secondary source line** (FR-009) when `source_headline` / `source_url` is present on a row; **headline-only** when absent (no reserved empty space).
+- [ ] T013 [US2] Empty states for empty `new_debates` or `voted_debates` (copy + optional CTA) in `MainDebatesScreen.tsx` — including **no hero swipe** when `new_debates` (or guest `debates`) is empty even if `voted_debates` has items (per spec).
 - [ ] T014 [US2] For guests (`public-feed` path): keep **MY ACTIVITY** header with empty state + **sign-in CTA** navigating to `Login` (reuse patterns from `SingleDebateScreen` / auth flows) in `MainDebatesScreen.tsx`.
 
 **Checkpoint**: IA matches spec FR-003 for signed-in and guest.
@@ -80,7 +88,7 @@
 
 **Independent test**: Logged-in swipe calls `PUT /v1/api/debates/{debateId}/cards/{cardId}/vote`; logged-out swipe opens auth flow.
 
-- [ ] T015 [US3] Extract or implement top-card stack UI with `react-native-gesture-handler` + `react-native-reanimated` (e.g. `apps/mobile/src/components/DebateHeroSwipeCard.tsx`) using first card from the first debate in `new_debates` (or first public debate for guests—swipe still gates vote).
+- [ ] T015 [US3] Extract or implement top-card stack UI with `react-native-gesture-handler` + `react-native-reanimated` (e.g. `apps/mobile/src/components/DebateHeroSwipeCard.tsx`) using **first** debate in `new_debates[0]` or guest `debates[0]` (first card of that debate—swipe still gates vote when logged out). Show **optional** provenance line on hero when `source_*` fields present (FR-009). **If `new_debates` / guest `debates` is empty, render no hero** (no fallback from `voted_debates` per spec).
 - [ ] T016 [US3] On swipe completion, call existing card-vote API from `apps/mobile/src/services/debate.ts` with correct `debateId` / `cardId` / `vote_type` (upvote/downvote per spec).
 - [ ] T017 [US3] When unauthenticated, intercept swipe to run **auth gate** (same `returnToDebate` / pending pattern as 006 if applicable) in `MainDebatesScreen.tsx` or hero component.
 
@@ -107,7 +115,7 @@
 
 **Independent test**: Guest on detail: thread visible; post/reply/comment-vote triggers auth; signed-in user flows unchanged from 006.
 
-- [ ] T020 [US5] Remove or do not add any **AI analysis strip** UI in `apps/mobile/src/screens/SingleDebateScreen.tsx` (verify no stray AI block remains).
+- [ ] T020 [US5] Remove or do not add any **AI analysis strip** UI in `apps/mobile/src/screens/SingleDebateScreen.tsx` (verify no stray AI block remains); show optional **`source_headline` / `source_url`** line on detail when present in debate payload (same rule as main feed per FR-009).
 - [ ] T021 [US5] Ensure guest mode on `SingleDebateScreen.tsx`: read-only thread; composer and comment vote actions use auth gate consistent with existing `AuthPendingAction` / login return flow.
 
 **Checkpoint**: FR-006, FR-006b, FR-006c satisfied on detail.
@@ -121,6 +129,7 @@
 - [ ] T022 [P] Update `specs/009-debate-tab-navigator/quickstart.md` with unauthenticated `curl` for `GET /v1/api/debates/public-feed?limit=30` alongside existing feed example.
 - [ ] T023 [P] Add accessibility labels to Debates tab in `apps/mobile/App.tsx` and main list/swipe regions in `MainDebatesScreen.tsx` / hero component.
 - [ ] T024 Run `go test ./...` in `services/api` and `yarn type-check` (or `tsc --noEmit`) in `apps/mobile`; fix regressions.
+- [ ] T025 [P] Per [plan.md](./plan.md) Next Steps: align **[004-ai-debate-generator](../004-ai-debate-generator/spec.md)** jobs/context bundle so generation emphasizes **top / trending world football news and headlines** (see `specs/009-debate-tab-navigator/research.md` §7). Implement or verify in **004** (and migrations for optional `source_*` on `debates` if product wants provenance in feeds); **009** does not own ingestion—document outcome in PR notes.
 
 ---
 
@@ -171,11 +180,19 @@
 ### Incremental delivery
 
 1. Phase 1 → Phase 2 → **Phase 3 (US1)** → validate tab + feed.
-2. **Phase 4 (US2)** → validate IA + guest CTA.
-3. **Phase 5 (US3)** → validate swipe + votes.
+2. **Phase 4 (US2)** → validate IA + guest CTA + optional source lines.
+3. **Phase 5 (US3)** → validate swipe + votes + hero selection rules.
 4. **Phase 6 (US4)** → validate navigation.
-5. **Phase 7 (US5)** → validate detail + FR-006c.
-6. **Phase 8** → polish.
+5. **Phase 7 (US5)** → validate detail + FR-006c + FR-009 on detail.
+6. **Phase 8** → polish + **T025** (004 headline weighting / optional DB fields for provenance).
+
+### Plan vs 009 boundaries
+
+| Owner | Responsibility |
+|-------|----------------|
+| **004** | News/article context for AI debate generation; optional DB fields for headline provenance. |
+| **009** | Feed endpoints, mobile tab, lists, hero, swipe UX, pass-through of optional `source_*` in API + UI when data exists. |
+| **006** | Auth-gated votes, comments, comment votes (unchanged). |
 
 ### Suggested MVP scope
 
@@ -194,8 +211,8 @@
 | US3 | T015–T017 | 3 |
 | US4 | T018–T019 | 2 |
 | US5 | T020–T021 | 2 |
-| Polish | T022–T024 | 3 |
-| **Total** | **T001–T024** | **24** |
+| Polish | T022–T025 | 4 |
+| **Total** | **T001–T025** | **25** |
 
 ### Per user story (labels)
 

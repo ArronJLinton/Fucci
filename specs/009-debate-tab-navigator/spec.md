@@ -18,6 +18,14 @@
 
 ## Clarifications
 
+### Session 2026-03-27
+
+- Q: Which debate drives the **featured** “NEW DEBATES” **hero** swipe when multiple rows exist? → A: **First item** in the ordered list — **`new_debates[0]`** when authenticated; **`debates[0]`** from the public feed when a **guest** (server order is canonical; client does not re-rank for the hero).
+- Q: Show **news source** / **headline provenance** on main screen rows and hero? → A: **When present** — if the API includes optional **`source_headline`** (and/or **`source_url`**), show a **secondary line** (e.g. under the debate headline); **when absent**, show **headline-only** (no placeholder row; no reserved empty space).
+- Q: **Pull-to-refresh** on the main debates screen? → A: **Yes** — pull-to-refresh **refetches** the active feed (**authenticated** user feed or **public** feed for guests).
+- Q: **`new_debates` empty** but **`voted_debates` has rows** — still show swipe hero? → A: **No hero** — **NEW DEBATES** shows **empty state** only; **MY ACTIVITY** lists voted debates; **do not** use a **`voted_debates`** item as the hero (no fallback swipe deck).
+- Q: Show **source headline** on **debate detail** (`SingleDebateScreen`), not just the main feed? → A: **Same rule as feed** — when the loaded debate payload includes optional **`source_headline`** / **`source_url`**, show the **secondary source line** on detail; when omitted, headline-only (no AI strip; FR-006c unchanged).
+
 ### Session 2026-03-28
 
 - Q: What does “not voted yet” mean for a debate? → A: User has **not completed** card swipe voting for that debate (i.e. has not submitted votes for **all three** debate cards). Partial progress stays in “new” until all three cards are voted.
@@ -45,6 +53,7 @@ As a user, I tap **Debates** in the bottom tab bar and land on the **main debate
 1. **Given** the app shows the main tab navigator, **When** the user taps the Debates tab, **Then** the main debates screen is shown.
 2. **Given** the user is **authenticated**, **When** the screen loads, **Then** the client fetches the **authenticated** feed (`new_debates` / `voted_debates`) and shows loading then content or error.
 3. **Given** the user is **not authenticated**, **When** the screen loads, **Then** the client fetches the **public read-only** feed and shows browseable content without exposing another user’s data; **My Activity** shows **empty state + sign-in CTA** (no personalized rows until sign-in).
+4. **Given** the main debates content is visible, **When** the user **pull-to-refreshes**, **Then** the client **refetches** the same feed endpoint in use (public vs authenticated) and updates content or shows error.
 
 ---
 
@@ -60,6 +69,8 @@ As a user, I see debates I still need to vote on **above** debates I already par
 
 1. **Given** the feed contains both unvoted and completed debates, **When** the main screen renders, **Then** the **new/unvoted** block appears **above** the **voted / my activity** block.
 2. **Given** one section is empty, **When** the screen renders, **Then** the empty section shows an appropriate empty state (copy + optional CTA) without breaking layout.
+3. **Given** a **DebateSummary** includes **`source_headline`** (or URL) from the API, **When** the row or hero renders, **Then** a **secondary source line** is shown; **Given** those fields are **omitted**, **Then** only the debate headline (and existing copy) is shown.
+4. **Given** the authenticated feed has **no** rows in **`new_debates`** but **has** rows in **`voted_debates`**, **When** the screen renders, **Then** the **NEW DEBATES** block shows **empty state** (no swipe hero) and **MY ACTIVITY** still lists voted items.
 
 ---
 
@@ -73,9 +84,11 @@ As a user, I use **dating-app-style** swipes on the featured debate: **swipe rig
 
 **Acceptance Scenarios**:
 
-1. **Given** a debate with cards loaded and user authenticated, **When** the user swipes the top card **right**, **Then** an **agree/yes** vote is recorded for that card (upvote).
-2. **Given** the same, **When** the user swipes **left**, **Then** a **disagree/no** vote is recorded (downvote).
-3. **Given** the user is **not** authenticated, **When** they attempt to swipe-vote, **Then** the **auth gate** flow applies per 006 (modal → login/signup → return).
+1. **Given** **`new_debates`** has at least one debate, **When** the hero loads, **Then** it uses the **first** debate in **`new_debates`** (same for guests: **first** in public **`debates`**).
+2. **Given** a debate with cards loaded and user authenticated, **When** the user swipes the top card **right**, **Then** an **agree/yes** vote is recorded for that card (upvote).
+3. **Given** the same, **When** the user swipes **left**, **Then** a **disagree/no** vote is recorded (downvote).
+4. **Given** the user is **not** authenticated, **When** they attempt to swipe-vote, **Then** the **auth gate** flow applies per 006 (modal → login/signup → return).
+5. **Given** **`new_debates`** is **empty** (authenticated feed), **When** the screen renders, **Then** **no** swipe hero is shown (**no** fallback from **`voted_debates`**).
 
 ---
 
@@ -105,6 +118,7 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 2. **Given** a comment, **When** they reply, **Then** a subcomment is created (one level max).
 3. **Given** a comment, **When** they upvote or downvote, **Then** vote totals update per comment vote API.
 4. **Given** a **guest** on debate detail, **When** they read the thread, **Then** comments display read-only; **Given** they attempt to post, reply, or vote on a comment, **Then** the auth gate applies.
+5. **Given** the debate payload from **`GET /debates/{id}`** (or equivalent) includes **`source_headline`** / **`source_url`**, **When** detail renders, **Then** optional **source** line matches **FR-009**; **Given** omitted, **Then** no source line on detail.
 
 ---
 
@@ -115,6 +129,7 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 - **Partial** card votes (1–2 cards only) → debate stays in **new** until all three cards voted (authenticated feed only).
 - **Rate limits / offline** → show error and retry per 006 for comments; card votes not rate-limited per 006.
 - **Long lists** → **v1:** capped via `limit` only (**no** cursor pagination in 009); optional infinite scroll UX is client-side over the capped window only.
+- **Featured hero** → always the **first** debate in **`new_debates`** (authed) or **`debates`** (guest); if **`new_debates`** / guest **`debates`** is **empty**, **no** hero — even if **`voted_debates`** is non-empty (no promoting voted rows into the hero).
 
 ## Requirements *(mandatory)*
 
@@ -125,13 +140,14 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 - **FR-002b**: When **authenticated**, main debates screen calls the **user feed** API that returns **`new_debates`** and **`voted_debates`** (or equivalent split documented in contracts).
 - **FR-002c**: **Vote** (card swipe), **comment**, **reply**, and **comment upvote/downvote** **require authentication**; unauthenticated users get the 006 auth gate, not silent failure.
 - **FR-003**: UI places **new** above **voted** for signed-in users; labels aligned with design (“NEW DEBATES” / “MY ACTIVITY” or accessible equivalents). **Guests**: top browse area from public feed; **My Activity** section **stays visible** with **empty state + sign-in CTA** (see contracts for list payload).
-- **FR-004**: Featured **top-card** swipe UX: right = agree, left = disagree; integrates with existing card vote endpoint.
+- **FR-004**: Featured **top-card** swipe UX: right = agree, left = disagree; integrates with existing card vote endpoint. **Hero debate** = **first** item in **`new_debates`** or (guest) **first** in public **`debates`** — no client-side re-ranking for hero selection. If **`new_debates`** (or guest **`debates`**) is **empty**, **omit** the hero entirely — **do not** substitute from **`voted_debates`**.
 - **FR-005**: Tapping a **voted** row navigates to **debate detail** (stack screen) with debate + match params. **Guests** may open the same detail screen from the **public** browse list.
 - **FR-006**: Debate detail supports **comments**, **subcomments**, **comment upvote/downvote** using existing debate comment APIs (006).
 - **FR-006b**: On debate detail, **guests** **read** headline, consensus/meter, and comment threads; **mutating** actions require authentication (006 gate).
 - **FR-006c**: Debate detail **excludes** an **AI analysis strip** (not in 009 scope).
-- **FR-007**: Loading and error states for feed and detail (constitution / 006 alignment).
+- **FR-007**: Loading and error states for feed and detail (constitution / 006 alignment). Main debates screen implements **pull-to-refresh** to refetch the **active** feed (guest: public-feed; signed-in: user feed).
 - **FR-008**: **009 v1** feed APIs use **capped** `limit` parameters only; **no** cursor-based pagination in contract or response (future iteration may add).
+- **FR-009**: **Optional provenance UI** — when `DebateSummary` includes **`source_headline`** and/or **`source_url`** (see `contracts/`), list rows and the **hero** may show a **secondary source line**; when omitted, UI does **not** reserve space for source (headline-only layout). **Debate detail** (`SingleDebateScreen`): **same** rule when the full debate response includes those fields (consistent with feed; still **no** AI analysis strip per FR-006c).
 
 ### Key Entities *(include if feature involves data)*
 
@@ -147,3 +163,4 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 
 - Mobile (Expo) is in scope first; web out of scope unless explicitly added later.
 - Match-scoped debate entry from Home remains; Debates tab is an additional global entry.
+- **Debate topics**: Main-feed debates are **grounded in current world football news and headlines** via the **[004](../004-ai-debate-generator/spec.md)** generator context (news articles source); 009 surfaces those debates in feeds—it does not run a separate news ingestion pipeline.

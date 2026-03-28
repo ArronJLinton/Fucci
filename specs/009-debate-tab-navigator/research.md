@@ -53,3 +53,15 @@
 **Decision**: API implemented in **Go** with **chi** + **sqlc** (matches repo; constitution mentions Gin — **project uses chi**).
 
 **Rationale**: No new web framework; extend `debates.sql` + `debates.go`.
+
+## 7. Main debates sourced from world football news and headlines
+
+**Decision**: Debates shown on the **main Debates** screen should reflect **top / current world football (soccer) news and headlines** as narrative context. **009** implements **feed APIs and mobile UI only**; it does **not** implement a new news crawler. **Provenance** is ensured by the **[004-ai-debate-generator](../004-ai-debate-generator/spec.md)** pipeline: the generator’s **required** context sources already include **news articles**; jobs and on-demand generation should prioritize **recent, relevant football headlines** (global/world game) when building the context bundle so AI-created debates are timely and recognizable to fans. **Public feed ordering** (engagement-first) naturally surfaces hot, news-adjacent threads once those debates exist in `debates`.
+
+**Rationale**: Single ownership of “what text becomes a debate” (004 + existing news integration); avoids duplicate RSS/API integrations in 009; aligns with product ask without scope explosion.
+
+**Alternatives considered**:
+
+- **009-specific headline scraper** — rejected (duplicates 004 Epic B / news stack; harder to moderate).
+- **Client-only headline display without 004 change** — rejected (headlines would not match debate content).
+- **Optional `source_headline` / URL on `debates`** — acceptable follow-up (004 or migration); feed DTO may expose optional provenance fields when present (see [data-model.md](./data-model.md)).
