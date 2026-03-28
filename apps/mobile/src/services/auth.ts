@@ -130,11 +130,15 @@ export const updateProfile = async (
     display_name?: string;
     avatar_url?: string;
   },
-): Promise<AuthUser> => {
-  const data = await makeAuthRequest(token, '/users/profile', 'PUT', {
-    body: JSON.stringify(body),
-  });
-  return data as AuthUser;
+): Promise<AuthUser | null> => {
+  try {
+    const data = await makeAuthRequest(token, '/users/profile', 'PUT', {
+      body: JSON.stringify(body),
+    });
+    return data as AuthUser;
+  } catch {
+    return null;
+  }
 };
 
 // GET /users/me/following (auth required)
