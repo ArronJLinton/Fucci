@@ -147,6 +147,8 @@ export {
 // Re-export debate module
 export {
   fetchDebatesByMatch,
+  fetchDebatesPublicFeed,
+  fetchDebatesFeed,
   generateDebateSet,
   fetchDebateById,
   setCardVote,

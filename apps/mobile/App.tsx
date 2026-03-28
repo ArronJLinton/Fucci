@@ -24,6 +24,7 @@ import SingleDebateScreen from './src/screens/SingleDebateScreen';
 import CameraPreviewScreen from './src/screens/CameraPreviewScreen';
 import NewsWebViewScreen from './src/screens/NewsWebViewScreen';
 import NewsScreen from './src/screens/NewsScreen';
+import MainDebatesScreen from './src/screens/MainDebatesScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceholderScreen';
@@ -116,6 +117,41 @@ const NewsStack = () => {
   );
 };
 
+const DebatesStack = () => {
+  return (
+    <StackNavigator>
+      <StackScreen
+        name="MainDebates"
+        component={MainDebatesScreen}
+        options={{
+          headerShown: false,
+          title: '',
+        }}
+      />
+      <StackScreen
+        name="SingleDebate"
+        component={SingleDebateScreen}
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+        }}
+      />
+      <StackScreen
+        name="NewsWebView"
+        component={NewsWebViewScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
+      />
+    </StackNavigator>
+  );
+};
+
 const MainStack = () => {
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
@@ -164,6 +200,18 @@ const MainStack = () => {
             headerShown: false,
             tabBarIcon: ({color, size}) => (
               <Ionicons name="newspaper-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
+        <Tab.Screen
+          name="Debates"
+          component={DebatesStack}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="chatbubbles-outline" size={size} color={color} />
             ),
             tabBarLabel: () => null,
             title: '',

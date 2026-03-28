@@ -22,6 +22,45 @@ export interface DebateContent {
 
 export interface DebatePrompt extends DebateContent {}
 
+/** Analytics snippet on feed summaries (009 GET …/public-feed, …/feed) */
+export interface DebateAnalyticsSummary {
+  total_votes: number;
+  total_comments: number;
+  engagement_score: number;
+}
+
+/**
+ * Minimal debate row for main feeds (009) — aligns with contracts/debates-feed.yaml.
+ * Optional provenance fields when API/DB expose them (004).
+ */
+export interface DebateSummary {
+  id: number;
+  match_id: string;
+  headline: string;
+  description?: string;
+  debate_type: string;
+  ai_generated?: boolean;
+  created_at: string;
+  updated_at?: string;
+  analytics?: DebateAnalyticsSummary;
+  /** Authenticated “voted” list — latest swipe time for sorting */
+  last_voted_at?: string;
+  source_headline?: string;
+  source_url?: string;
+  source_published_at?: string;
+}
+
+/** Guest browse — GET /debates/public-feed */
+export interface PublicDebateFeedResponse {
+  debates: DebateSummary[];
+}
+
+/** Signed-in — GET /debates/feed */
+export interface DebateFeedResponse {
+  new_debates: DebateSummary[];
+  voted_debates: DebateSummary[];
+}
+
 /** List item from GET /debates/match (no cards) */
 export interface DebateListItem {
   id: number;

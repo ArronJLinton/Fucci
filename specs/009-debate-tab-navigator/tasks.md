@@ -59,10 +59,10 @@
 
 **Independent test**: Tap **Debates** tab → `MainDebatesScreen` mounts → loading then data or error; no match navigation required.
 
-- [ ] T008 [P] [US1] Add TypeScript types for `PublicDebateFeedResponse` and `DebateFeedResponse` in `apps/mobile/src/types/debate.ts` aligned with `contracts/debates-feed.yaml`, including **optional** `source_headline`, `source_url`, `source_published_at` on debate summary types.
-- [ ] T009 [US1] Add `fetchDebatesPublicFeed` / `fetchDebatesFeed` (base URL + auth header from existing auth pattern) in `apps/mobile/src/services/debate.ts`.
-- [ ] T010 [US1] Create `apps/mobile/src/screens/MainDebatesScreen.tsx` using TanStack Query: choose public vs authenticated endpoint based on `AuthContext` session; loading and error UI; **pull-to-refresh** refetch per spec FR-007.
-- [ ] T011 [US1] Add `Debates` to `MainTabParamList` in `apps/mobile/src/types/navigation.ts`; implement `DebatesStack` in `apps/mobile/App.tsx` (native stack: `MainDebates` → `SingleDebate` mirroring `HomeStack` pattern); add tab icon/entry for Debates.
+- [x] T008 [P] [US1] Add TypeScript types for `PublicDebateFeedResponse` and `DebateFeedResponse` in `apps/mobile/src/types/debate.ts` aligned with `contracts/debates-feed.yaml`, including **optional** `source_headline`, `source_url`, `source_published_at` on debate summary types.
+- [x] T009 [US1] Add `fetchDebatesPublicFeed` / `fetchDebatesFeed` (base URL + auth header from existing auth pattern) in `apps/mobile/src/services/debate.ts`.
+- [x] T010 [US1] Create `apps/mobile/src/screens/MainDebatesScreen.tsx` using TanStack Query: choose public vs authenticated endpoint based on `AuthContext` session; loading and error UI; **pull-to-refresh** refetch per spec FR-007.
+- [x] T011 [US1] Add `Debates` to `MainTabParamList` in `apps/mobile/src/types/navigation.ts`; implement `DebatesStack` in `apps/mobile/App.tsx` (native stack: `MainDebates` → `SingleDebate` mirroring `HomeStack` pattern); add tab icon/entry for Debates.
 
 **Checkpoint**: Signed-in and signed-out users both get a working feed fetch on the new tab.
 
@@ -74,9 +74,9 @@
 
 **Independent test**: Mock or staging API with both buckets → order correct; one empty bucket → layout holds; guest → second section shows CTA.
 
-- [ ] T012 [US2] Render **new** above **voted** in `apps/mobile/src/screens/MainDebatesScreen.tsx` (`SectionList` or paired `FlatList`s + `keyExtractor`); render **optional secondary source line** (FR-009) when `source_headline` / `source_url` is present on a row; **headline-only** when absent (no reserved empty space).
-- [ ] T013 [US2] Empty states for empty `new_debates` or `voted_debates` (copy + optional CTA) in `MainDebatesScreen.tsx` — including **no hero swipe** when `new_debates` (or guest `debates`) is empty even if `voted_debates` has items (per spec).
-- [ ] T014 [US2] For guests (`public-feed` path): keep **MY ACTIVITY** header with empty state + **sign-in CTA** navigating to `Login` (reuse patterns from `SingleDebateScreen` / auth flows) in `MainDebatesScreen.tsx`.
+- [x] T012 [US2] Render **new** above **voted** in `apps/mobile/src/screens/MainDebatesScreen.tsx` (`SectionList` or paired `FlatList`s + `keyExtractor`); render **optional secondary source line** (FR-009) when `source_headline` / `source_url` is present on a row; **headline-only** when absent (no reserved empty space).
+- [x] T013 [US2] Empty states for empty `new_debates` or `voted_debates` (copy + optional CTA) in `MainDebatesScreen.tsx` — including **no hero swipe** when `new_debates` (or guest `debates`) is empty even if `voted_debates` has items (per spec).
+- [x] T014 [US2] For guests (`public-feed` path): keep **MY ACTIVITY** header with empty state + **sign-in CTA** navigating to `Login` (reuse patterns from `SingleDebateScreen` / auth flows) in `MainDebatesScreen.tsx`.
 
 **Checkpoint**: IA matches spec FR-003 for signed-in and guest.
 

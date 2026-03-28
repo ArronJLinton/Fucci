@@ -2,10 +2,44 @@ import {
   DebateResponse,
   DebateListItem,
   CardVoteCounts,
+  PublicDebateFeedResponse,
+  DebateFeedResponse,
 } from '../types/debate';
 import type {DebateComment} from '../types/debate';
 import {apiConfig} from '../config/environment';
 import {makeApiRequest, makeAuthRequest} from './api';
+
+const appendQuery = (path: string, params: Record<string, string | number | undefined>): string => {
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined) continue;
+    search.set(k, String(v));
+  }
+  const q = search.toString();
+  return q ? `${path}?${q}` : path;
+};
+
+/** GET /debates/public-feed — browse list for guests (no auth) */
+export const fetchDebatesPublicFeed = async (
+  limit?: number,
+): Promise<PublicDebateFeedResponse> => {
+  const path = appendQuery('/debates/public-feed', {limit});
+  const data = await makeApiRequest(path, 'GET');
+  return data as PublicDebateFeedResponse;
+};
+
+/** GET /debates/feed — per-user new vs voted buckets (JWT required) */
+export const fetchDebatesFeed = async (
+  token: string,
+  opts?: {new_limit?: number; voted_limit?: number},
+): Promise<DebateFeedResponse> => {
+  const path = appendQuery('/debates/feed', {
+    new_limit: opts?.new_limit,
+    voted_limit: opts?.voted_limit,
+  });
+  const data = await makeAuthRequest(token, path, 'GET');
+  return data as DebateFeedResponse;
+};
 
 /** GET /debates/match?match_id= — fetch existing debates from DB; optional debate_type filter */
 export const fetchDebatesByMatch = async (
