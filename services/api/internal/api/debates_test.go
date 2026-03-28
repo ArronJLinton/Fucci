@@ -1,10 +1,160 @@
 package api
 
 import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/cache"
+	"github.com/ArronJLinton/fucci-api/internal/database"
 )
+
+func TestParsePositiveInt32Query(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		raw    string
+		def    int32
+		max    int32
+		expect int32
+	}{
+		{"empty uses default", "", 30, 50, 30},
+		{"within range", "40", 30, 50, 40},
+		{"clamped to max", "999", 30, 50, 50},
+		{"invalid uses default", "x", 20, 50, 20},
+		{"zero uses default", "0", 20, 50, 20},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			u := "/debates/public-feed"
+			if tc.raw != "" {
+				u += "?limit=" + tc.raw
+			}
+			r := httptest.NewRequest(http.MethodGet, u, nil)
+			got := parsePositiveInt32Query(r, "limit", tc.def, tc.max)
+			if got != tc.expect {
+				t.Fatalf("got %d want %d", got, tc.expect)
+			}
+		})
+	}
+}
+
+func TestPublicDebateFeedResponseJSONShape(t *testing.T) {
+	ts := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	pub := PublicDebateFeedResponse{
+		Debates: []DebateSummary{
+			{
+				ID:         1,
+				MatchID:    "1321727",
+				Headline:   "Test",
+				DebateType: "pre_match",
+				CreatedAt:  ts,
+				Analytics: &DebateAnalyticsSummary{
+					TotalVotes:      10,
+					TotalComments:   2,
+					EngagementScore: 14,
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["debates"]; !ok {
+		t.Fatal("expected top-level debates key")
+	}
+}
+
+func TestDebateFeedResponseJSONShape(t *testing.T) {
+	ts := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	feed := DebateFeedResponse{
+		NewDebates: []DebateSummary{
+			{ID: 1, MatchID: "1", Headline: "N", DebateType: "pre_match", CreatedAt: ts},
+		},
+		VotedDebates: []DebateSummary{
+			{
+				ID: 2, MatchID: "2", Headline: "V", DebateType: "post_match", CreatedAt: ts,
+				LastVotedAt: &ts,
+			},
+		},
+	}
+	b, err := json.Marshal(feed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["new_debates"]; !ok {
+		t.Fatal("expected new_debates key")
+	}
+	if _, ok := raw["voted_debates"]; !ok {
+		t.Fatal("expected voted_debates key")
+	}
+}
+
+func TestDebateSummaryFromPublicFeedRowMapsAnalytics(t *testing.T) {
+	row := database.ListDebatesPublicFeedRow{
+		ID:              5,
+		MatchID:         "99",
+		DebateType:      "pre_match",
+		Headline:        "H",
+		Description:     sql.NullString{String: "D", Valid: true},
+		AiGenerated:     sql.NullBool{Bool: true, Valid: true},
+		CreatedAt:       sql.NullTime{Time: time.Unix(100, 0).UTC(), Valid: true},
+		UpdatedAt:       sql.NullTime{Time: time.Unix(200, 0).UTC(), Valid: true},
+		TotalVotes:      sql.NullInt32{Int32: 3, Valid: true},
+		TotalComments:   sql.NullInt32{Int32: 1, Valid: true},
+		EngagementScore: sql.NullString{String: "5.50", Valid: true},
+	}
+	s := debateSummaryFromPublicFeedRow(row)
+	if s.Analytics == nil || s.Analytics.EngagementScore != 5.5 {
+		t.Fatalf("analytics: %+v", s.Analytics)
+	}
+	if s.Description != "D" || s.MatchID != "99" {
+		t.Fatalf("unexpected summary: %+v", s)
+	}
+}
+
+func TestLastVotedAtFromSQLCIface(t *testing.T) {
+	ts := time.Unix(1000, 0).UTC()
+	if p := lastVotedAtFromSQLCIface(nil); p != nil {
+		t.Fatal("expected nil")
+	}
+	if p := lastVotedAtFromSQLCIface(ts); p == nil || !p.Equal(ts) {
+		t.Fatalf("got %v", p)
+	}
+}
+
+func TestDebateSummaryFromVotedFeedRowIncludesLastVotedAt(t *testing.T) {
+	ts := time.Unix(500, 0).UTC()
+	row := database.ListDebatesFeedVotedForUserRow{
+		ID:              1,
+		MatchID:         "1",
+		DebateType:      "pre_match",
+		Headline:        "H",
+		CreatedAt:       sql.NullTime{Time: time.Unix(1, 0).UTC(), Valid: true},
+		TotalVotes:      sql.NullInt32{Int32: 1, Valid: true},
+		EngagementScore: sql.NullString{String: "1.00", Valid: true},
+		LastVotedAt:     ts,
+	}
+	s := debateSummaryFromVotedFeedRow(row)
+	if s.LastVotedAt == nil || !s.LastVotedAt.Equal(ts) {
+		t.Fatalf("last_voted_at: %+v", s.LastVotedAt)
+	}
+}
+
 
 func TestDebateDataAggregator(t *testing.T) {
 	// Skip if no Redis connection

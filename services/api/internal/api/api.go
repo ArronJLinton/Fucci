@@ -138,6 +138,8 @@ func New(c Config) http.Handler {
 
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)
+	debateRouter.Get("/public-feed", c.getDebatesPublicFeed)
+	debateRouter.With(auth.RequireAuth).Get("/feed", c.getDebatesFeed)
 	debateRouter.Get("/top", c.getTopDebates)
 	debateRouter.Get("/generate", c.generateAIPrompt)
 	debateRouter.Post("/generate", c.generateDebate)

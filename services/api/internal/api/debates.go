@@ -168,6 +168,151 @@ type DebateAnalyticsResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+// DebateAnalyticsSummary is the feed/list analytics shape (009 debates-feed contract).
+type DebateAnalyticsSummary struct {
+	TotalVotes      int     `json:"total_votes"`
+	TotalComments   int     `json:"total_comments"`
+	EngagementScore float64 `json:"engagement_score"`
+}
+
+// DebateSummary is a minimal debate row for public and authenticated feed responses (009).
+type DebateSummary struct {
+	ID                int32                   `json:"id"`
+	MatchID           string                  `json:"match_id"`
+	Headline          string                  `json:"headline"`
+	Description       string                  `json:"description,omitempty"`
+	DebateType        string                  `json:"debate_type"`
+	AIGenerated       bool                    `json:"ai_generated,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at,omitempty"`
+	Analytics         *DebateAnalyticsSummary `json:"analytics,omitempty"`
+	LastVotedAt       *time.Time              `json:"last_voted_at,omitempty"`
+	SourceHeadline    *string                 `json:"source_headline,omitempty"`
+	SourceURL         *string                 `json:"source_url,omitempty"`
+	SourcePublishedAt *time.Time              `json:"source_published_at,omitempty"`
+}
+
+// PublicDebateFeedResponse is GET /debates/public-feed (guest browse).
+type PublicDebateFeedResponse struct {
+	Debates []DebateSummary `json:"debates"`
+}
+
+// DebateFeedResponse is GET /debates/feed (authenticated new vs voted buckets).
+type DebateFeedResponse struct {
+	NewDebates   []DebateSummary `json:"new_debates"`
+	VotedDebates []DebateSummary `json:"voted_debates"`
+}
+
+const (
+	defaultPublicFeedLimit   = int32(30)
+	maxPublicFeedLimit       = int32(50)
+	defaultFeedBucketLimit   = int32(20)
+	maxFeedBucketLimit       = int32(50)
+)
+
+// parsePositiveInt32Query parses a query param as a positive int32, clamped to [1, max]; invalid/missing uses def.
+func parsePositiveInt32Query(r *http.Request, name string, def, max int32) int32 {
+	s := r.URL.Query().Get(name)
+	if s == "" {
+		return def
+	}
+	v, err := strconv.ParseInt(s, 10, 32)
+	if err != nil || v < 1 {
+		return def
+	}
+	out := int32(v)
+	if out > max {
+		return max
+	}
+	return out
+}
+
+func buildDebateSummary(
+	id int32,
+	matchID, debateType, headline string,
+	description sql.NullString,
+	aiGenerated sql.NullBool,
+	createdAt, updatedAt sql.NullTime,
+	totalVotes, totalComments sql.NullInt32,
+	engagementScore sql.NullString,
+	lastVotedAt *time.Time,
+) DebateSummary {
+	s := DebateSummary{
+		ID:         id,
+		MatchID:    matchID,
+		DebateType: debateType,
+		Headline:   headline,
+	}
+	if description.Valid {
+		s.Description = description.String
+	}
+	if aiGenerated.Valid {
+		s.AIGenerated = aiGenerated.Bool
+	}
+	if createdAt.Valid {
+		s.CreatedAt = createdAt.Time
+	}
+	if updatedAt.Valid {
+		s.UpdatedAt = updatedAt.Time
+	}
+	if lastVotedAt != nil {
+		s.LastVotedAt = lastVotedAt
+	}
+	if totalVotes.Valid {
+		eng := 0.0
+		if engagementScore.Valid {
+			if score, err := strconv.ParseFloat(engagementScore.String, 64); err == nil {
+				eng = score
+			}
+		}
+		tc := 0
+		if totalComments.Valid {
+			tc = int(totalComments.Int32)
+		}
+		s.Analytics = &DebateAnalyticsSummary{
+			TotalVotes:      int(totalVotes.Int32),
+			TotalComments:   tc,
+			EngagementScore: eng,
+		}
+	}
+	return s
+}
+
+func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) DebateSummary {
+	return buildDebateSummary(
+		row.ID, row.MatchID, row.DebateType, row.Headline,
+		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
+	)
+}
+
+func debateSummaryFromNewFeedRow(row database.ListDebatesFeedNewForUserRow) DebateSummary {
+	return buildDebateSummary(
+		row.ID, row.MatchID, row.DebateType, row.Headline,
+		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
+	)
+}
+
+func lastVotedAtFromSQLCIface(v interface{}) *time.Time {
+	if v == nil {
+		return nil
+	}
+	if t, ok := v.(time.Time); ok {
+		return &t
+	}
+	return nil
+}
+
+func debateSummaryFromVotedFeedRow(row database.ListDebatesFeedVotedForUserRow) DebateSummary {
+	return buildDebateSummary(
+		row.ID, row.MatchID, row.DebateType, row.Headline,
+		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.TotalVotes, row.TotalComments, row.EngagementScore,
+		lastVotedAtFromSQLCIface(row.LastVotedAt),
+	)
+}
+
 // debateSetCacheTTL is how long we cache a generated debate set.
 const debateSetCacheTTL = 24 * time.Hour
 
@@ -1514,6 +1659,70 @@ func (c *Config) getTopDebates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, response)
+}
+
+func (c *Config) getDebatesPublicFeed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if c.DB == nil {
+		respondWithError(w, http.StatusInternalServerError, "database not configured")
+		return
+	}
+	limit := parsePositiveInt32Query(r, "limit", defaultPublicFeedLimit, maxPublicFeedLimit)
+	rows, err := c.DB.ListDebatesPublicFeed(ctx, limit)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list public feed: %v", err))
+		return
+	}
+	out := make([]DebateSummary, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, debateSummaryFromPublicFeedRow(row))
+	}
+	respondWithJSON(w, http.StatusOK, PublicDebateFeedResponse{Debates: out})
+}
+
+func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if c.DB == nil {
+		respondWithError(w, http.StatusInternalServerError, "database not configured")
+		return
+	}
+	uidVal := ctx.Value("user_id")
+	userID, ok := uidVal.(int32)
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	newLimit := parsePositiveInt32Query(r, "new_limit", defaultFeedBucketLimit, maxFeedBucketLimit)
+	votedLimit := parsePositiveInt32Query(r, "voted_limit", defaultFeedBucketLimit, maxFeedBucketLimit)
+
+	newRows, err := c.DB.ListDebatesFeedNewForUser(ctx, database.ListDebatesFeedNewForUserParams{
+		UserID: sql.NullInt32{Int32: userID, Valid: true},
+		Limit:  newLimit,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list new debates: %v", err))
+		return
+	}
+	votedRows, err := c.DB.ListDebatesFeedVotedForUser(ctx, database.ListDebatesFeedVotedForUserParams{
+		UserID: sql.NullInt32{Int32: userID, Valid: true},
+		Limit:  votedLimit,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list voted debates: %v", err))
+		return
+	}
+	newSummaries := make([]DebateSummary, 0, len(newRows))
+	for _, row := range newRows {
+		newSummaries = append(newSummaries, debateSummaryFromNewFeedRow(row))
+	}
+	votedSummaries := make([]DebateSummary, 0, len(votedRows))
+	for _, row := range votedRows {
+		votedSummaries = append(votedSummaries, debateSummaryFromVotedFeedRow(row))
+	}
+	respondWithJSON(w, http.StatusOK, DebateFeedResponse{
+		NewDebates:   newSummaries,
+		VotedDebates: votedSummaries,
+	})
 }
 
 // Helper function to update debate analytics

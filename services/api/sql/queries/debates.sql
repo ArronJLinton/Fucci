@@ -152,4 +152,71 @@ FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
 ORDER BY da.engagement_score DESC NULLS LAST
-LIMIT $1; 
+LIMIT $1;
+
+-- Public browse feed: engagement desc, tie-break created_at desc; only debates with at least one card.
+-- name: ListDebatesPublicFeed :many
+SELECT 
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    da.total_votes,
+    da.total_comments,
+    da.engagement_score
+FROM debates d
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+WHERE d.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM debate_cards dc WHERE dc.debate_id = d.id)
+ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+LIMIT $1;
+
+-- Authenticated feed — "new": user has not cast swipe votes on all cards (completion uses upvote/downvote per card).
+-- name: ListDebatesFeedNewForUser :many
+SELECT 
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    da.total_votes,
+    da.total_comments,
+    da.engagement_score
+FROM debates d
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+WHERE d.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id)
+  AND (
+    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id
+  ) > COALESCE((
+    SELECT COUNT(DISTINCT dc3.id)::bigint
+    FROM debate_cards dc3
+    INNER JOIN votes v ON v.debate_card_id = dc3.id AND v.user_id = $1
+      AND v.vote_type IN ('upvote', 'downvote')
+    WHERE dc3.debate_id = d.id
+  ), 0)
+ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+LIMIT $2;
+
+-- Authenticated feed — "voted": user has swipe votes covering every card; order by last swipe time desc.
+-- name: ListDebatesFeedVotedForUser :many
+SELECT 
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    da.total_votes,
+    da.total_comments,
+    da.engagement_score,
+    (
+      SELECT MAX(v.created_at)
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND v.user_id = $1
+        AND v.vote_type IN ('upvote', 'downvote')
+    ) AS last_voted_at
+FROM debates d
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+WHERE d.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id)
+  AND (
+    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id
+  ) = (
+    SELECT COUNT(DISTINCT dc4.id)::bigint
+    FROM debate_cards dc4
+    INNER JOIN votes v2 ON v2.debate_card_id = dc4.id AND v2.user_id = $1
+      AND v2.vote_type IN ('upvote', 'downvote')
+    WHERE dc4.debate_id = d.id
+  )
+ORDER BY last_voted_at DESC NULLS LAST
+LIMIT $2;
