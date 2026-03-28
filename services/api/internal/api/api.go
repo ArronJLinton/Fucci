@@ -68,6 +68,9 @@ type Config struct {
 	CardVoteReader  CardVoteReader
 	CommentReader   CommentReader
 	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
+
+	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
+	ProfileUpdateDB ProfileUpdatePersistence
 }
 
 func New(c Config) http.Handler {
