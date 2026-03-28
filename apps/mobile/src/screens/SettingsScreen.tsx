@@ -86,11 +86,7 @@ export default function SettingsScreen({
       });
       const updatedUser = await updateProfile(token, {avatar_url: secureURL});
       if (!updatedUser) {
-        Alert.alert(
-          'Upload failed',
-          'Could not save your profile. Please try again.',
-        );
-        return;
+        throw new Error('Could not save your profile. Please try again.');
       }
       setAvatarURL(updatedUser.avatar_url ?? secureURL);
       await setAuth(token, updatedUser);
