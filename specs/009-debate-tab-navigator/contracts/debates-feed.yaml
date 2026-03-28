@@ -1,0 +1,157 @@
+openapi: 3.0.3
+info:
+  title: Debates Feed API (009)
+  description: |
+    **Public** read-only feed for guests (browse). **Authenticated** feed splitting debates into **new** (incomplete card votes)
+    and **voted** (completed all card votes) for the current user. Engagement (vote, comment) uses other 006 routes and requires auth.
+    **009 v1:** pagination is **capped `limit` only** — no cursor / continuation tokens in responses.
+    Base path `/v1/api` matches `services/api` router.
+  version: 0.1.0
+
+servers:
+  - url: '{apiOrigin}/v1/api'
+    variables:
+      apiOrigin:
+        default: http://localhost:8080
+
+paths:
+  /debates/public-feed:
+    get:
+      summary: List debates for browse (guest, read-only)
+      description: |
+        Returns a single ordered list of debate summaries for **unauthenticated** clients.
+        No per-user buckets; no `last_voted_at` or other user-specific fields.
+        **Ordering:** **engagement-first** — primary sort by `analytics.engagement_score` **desc** (or server equivalent); **tie-break** `created_at` **desc**.
+        Suitable for the main Debates screen when the user is not signed in; client shows **My Activity** with **empty state + sign-in CTA** (spec FR-003).
+        **v1:** truncate with `limit` only — no pagination cursor.
+      operationId: getDebatesPublicFeed
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 50
+      responses:
+        '200':
+          description: Ordered debate summaries (browse-only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicDebateFeedResponse'
+        '429':
+          description: Rate limited (public endpoint)
+
+  /debates/feed:
+    get:
+      summary: List debates for current user (new vs voted)
+      description: |
+        Returns two lists: debates where the user has **not** completed voting on all cards,
+        and debates where the user **has** completed all card votes. Ordering: implementation-defined
+        (e.g. engagement for new, last_voted_at desc for voted) — see spec.
+        **v1:** `new_limit` / `voted_limit` cap each bucket; no cursor pagination.
+      operationId: getDebatesFeed
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: new_limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+        - name: voted_limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: Feed buckets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebateFeedResponse'
+        '401':
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    PublicDebateFeedResponse:
+      type: object
+      required:
+        - debates
+      properties:
+        debates:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateSummary'
+
+    DebateFeedResponse:
+      type: object
+      required:
+        - new_debates
+        - voted_debates
+      properties:
+        new_debates:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateSummary'
+        voted_debates:
+          type: array
+          items:
+            $ref: '#/components/schemas/DebateSummary'
+
+    DebateSummary:
+      type: object
+      required:
+        - id
+        - match_id
+        - headline
+        - debate_type
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        match_id:
+          type: integer
+          format: int32
+        headline:
+          type: string
+        description:
+          type: string
+        debate_type:
+          type: string
+        ai_generated:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        analytics:
+          $ref: '#/components/schemas/DebateAnalyticsSummary'
+        last_voted_at:
+          type: string
+          format: date-time
+          description: Present when useful for voted list sorting (user’s latest card vote time).
+
+    DebateAnalyticsSummary:
+      type: object
+      properties:
+        total_votes:
+          type: integer
+        total_comments:
+          type: integer
+        engagement_score:
+          type: number
+          format: float
