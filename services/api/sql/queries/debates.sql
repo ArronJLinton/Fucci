@@ -199,7 +199,7 @@ SELECT
     da.total_comments,
     da.engagement_score,
     (
-      SELECT MAX(v.created_at)
+      SELECT MAX(v.created_at)::timestamptz
       FROM votes v
       INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
       WHERE dc.debate_id = d.id AND v.user_id = $1
