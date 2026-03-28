@@ -29,8 +29,8 @@ const CARD = '#1A1F2E';
 const TEXT = '#FFFFFF';
 const MUTED = '#8B92A5';
 const RED_X = '#FF3B30';
-const HERO_IMAGE_URI =
-  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&q=80';
+const HERO_IMAGE = require('../../assets/debate-hero.jpg');
+const HERO_IMAGE_URI = Image.resolveAssetSource(HERO_IMAGE).uri;
 
 const SWIPE_THRESHOLD = 80;
 const TAP_MAX = 18;
