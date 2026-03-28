@@ -56,6 +56,20 @@ function formatScore(n: number): string {
   return String(n);
 }
 
+function formatSourcePublishedAt(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return '';
+  }
+}
+
 const SingleDebateScreen = () => {
   const route = useRoute<SingleDebateRouteProp>();
   const navigation = useNavigation();
@@ -593,6 +607,7 @@ const SingleDebateScreen = () => {
   const brandTitle = environment.APP_NAME.toUpperCase();
   const sourceHeadline = debate?.source_headline?.trim();
   const sourceUrl = debate?.source_url?.trim();
+  const sourcePublishedAt = debate?.source_published_at?.trim();
 
   return (
     <KeyboardAvoidingView
@@ -628,17 +643,27 @@ const SingleDebateScreen = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
+        {/* FR-006c: no AI analysis strip; optional source provenance only (FR-009). */}
         <Text style={styles.headline}>{headline}</Text>
-        {(sourceHeadline || sourceUrl) && (
-          <Text
-            style={styles.sourceLine}
-            numberOfLines={3}
-            onPress={() =>
-              sourceUrl ? Linking.openURL(sourceUrl).catch(() => {}) : undefined
-            }>
-            {sourceHeadline || sourceUrl}
-          </Text>
-        )}
+        {(sourceHeadline || sourceUrl || sourcePublishedAt) ? (
+          <View style={styles.sourceBlock}>
+            {(sourceHeadline || sourceUrl) ? (
+              <Text
+                style={styles.sourceLine}
+                numberOfLines={3}
+                onPress={() =>
+                  sourceUrl ? Linking.openURL(sourceUrl).catch(() => {}) : undefined
+                }>
+                {sourceHeadline || sourceUrl}
+              </Text>
+            ) : null}
+            {sourcePublishedAt ? (
+              <Text style={styles.sourceMeta}>
+                {formatSourcePublishedAt(sourcePublishedAt)}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Single binary vote bar (agree / disagree share of community votes) */}
         {(() => {
@@ -804,8 +829,8 @@ const SingleDebateScreen = () => {
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Fixed comment input */}
-      {commentSubmitError && (
+      {/* Fixed comment input — T021: guests get read-only thread; signed-in users get composer */}
+      {isLoggedIn && commentSubmitError ? (
         <View style={styles.commentSubmitError}>
           <Text style={styles.commentSubmitErrorText}>
             {commentSubmitError}
@@ -814,69 +839,95 @@ const SingleDebateScreen = () => {
             <Text style={styles.commentSubmitErrorDismiss}>Dismiss</Text>
           </TouchableOpacity>
         </View>
-      )}
-      <View
-        style={[
-          styles.inputRow,
-          {paddingBottom: Math.max(insets.bottom, 12) + 12},
-        ]}>
-        <View style={styles.inputAvatar}>
-          <Text style={styles.inputAvatarText}>Y</Text>
-        </View>
-        <View style={styles.inputWrap}>
-          {replyingToCommentId != null && (
-            <View style={styles.replyHintRow}>
-              <Text style={styles.replyHintText}>
-                Replying to{' '}
-                {replyingToCommentId > 0
-                  ? (comments.find(x => x.id === replyingToCommentId)
-                      ?.user_display_name ?? 'comment')
-                  : 'comment'}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setReplyingToCommentId(null)}
-                hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-                <Ionicons name="close" size={18} color={MUTED} />
-              </TouchableOpacity>
-            </View>
-          )}
-          <TextInput
-            style={styles.input}
-            placeholder={
-              replyingToCommentId != null
-                ? 'Write a reply...'
-                : 'Write a comment...'
-            }
-            placeholderTextColor={MUTED}
-            value={commentInput}
-            onChangeText={setCommentInput}
-            multiline
-            maxLength={COMMENT_MAX_LENGTH}
-            editable={!commentSubmitting}
-          />
-          <Text style={styles.inputCharCount}>
-            {commentInput.length}/{COMMENT_MAX_LENGTH}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleAddComment}
+      ) : null}
+      {isLoggedIn ? (
+        <View
           style={[
-            styles.sendButton,
-            (!commentInput.trim() || commentSubmitting) &&
-              styles.sendButtonDisabled,
-          ]}
-          disabled={!commentInput.trim() || commentSubmitting}>
-          {commentSubmitting ? (
-            <ActivityIndicator size="small" color={LIME} />
-          ) : (
-            <Ionicons
-              name="send"
-              size={20}
-              color={commentInput.trim() && !commentSubmitting ? LIME : MUTED}
+            styles.inputRow,
+            {paddingBottom: Math.max(insets.bottom, 12) + 12},
+          ]}>
+          <View style={styles.inputAvatar}>
+            <Text style={styles.inputAvatarText}>Y</Text>
+          </View>
+          <View style={styles.inputWrap}>
+            {replyingToCommentId != null && (
+              <View style={styles.replyHintRow}>
+                <Text style={styles.replyHintText}>
+                  Replying to{' '}
+                  {replyingToCommentId > 0
+                    ? (comments.find(x => x.id === replyingToCommentId)
+                        ?.user_display_name ?? 'comment')
+                    : 'comment'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setReplyingToCommentId(null)}
+                  hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                  <Ionicons name="close" size={18} color={MUTED} />
+                </TouchableOpacity>
+              </View>
+            )}
+            <TextInput
+              style={styles.input}
+              placeholder={
+                replyingToCommentId != null
+                  ? 'Write a reply...'
+                  : 'Write a comment...'
+              }
+              placeholderTextColor={MUTED}
+              value={commentInput}
+              onChangeText={setCommentInput}
+              multiline
+              maxLength={COMMENT_MAX_LENGTH}
+              editable={!commentSubmitting}
             />
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.inputCharCount}>
+              {commentInput.length}/{COMMENT_MAX_LENGTH}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleAddComment}
+            style={[
+              styles.sendButton,
+              (!commentInput.trim() || commentSubmitting) &&
+                styles.sendButtonDisabled,
+            ]}
+            disabled={!commentInput.trim() || commentSubmitting}>
+            {commentSubmitting ? (
+              <ActivityIndicator size="small" color={LIME} />
+            ) : (
+              <Ionicons
+                name="send"
+                size={20}
+                color={commentInput.trim() && !commentSubmitting ? LIME : MUTED}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.guestComposerBar,
+            {paddingBottom: Math.max(insets.bottom, 12) + 12},
+          ]}>
+          <Text style={styles.guestComposerText}>
+            Sign in to comment, reply, and vote on the thread.
+          </Text>
+          <TouchableOpacity
+            style={styles.guestSignInBtn}
+            onPress={() =>
+              rootNavigate('Login', {
+                returnToDebate:
+                  match && debate
+                    ? {match, debate, pendingAction: 'reply'}
+                    : undefined,
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Sign in to comment">
+            <Text style={styles.guestSignInBtnText}>Sign in</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <AuthGateModal
         visible={authGatePendingAction != null}
@@ -1140,12 +1191,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.3,
   },
+  sourceBlock: {
+    marginBottom: 20,
+  },
   sourceLine: {
     fontSize: 13,
     color: LIME,
     opacity: 0.9,
     lineHeight: 18,
-    marginBottom: 20,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  sourceMeta: {
+    fontSize: 11,
+    color: MUTED,
+    lineHeight: 16,
     textAlign: 'center',
   },
   vsRow: {
@@ -1520,6 +1580,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: MUTED,
     marginLeft: 8,
+  },
+  guestComposerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: BG,
+    borderTopWidth: 1,
+    borderTopColor: BORDER_SUB,
+  },
+  guestComposerText: {
+    flex: 1,
+    fontSize: 13,
+    color: MUTED,
+    lineHeight: 18,
+  },
+  guestSignInBtn: {
+    backgroundColor: LIME,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  guestSignInBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BG,
   },
   inputRow: {
     flexDirection: 'row',

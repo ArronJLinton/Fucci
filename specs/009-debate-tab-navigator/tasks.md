@@ -104,8 +104,8 @@
 
 **Independent test**: From Debates tab, tap list row → detail opens with correct IDs; guest can read headline/meter/comments.
 
-- [ ] T018 [US4] Wire `onPress` on **MY ACTIVITY** rows in `MainDebatesScreen.tsx` to `navigation.navigate('SingleDebate', { match, debate })` within Debates stack (fetch full debate if list only has summary—reuse existing `getDebate` client if needed).
-- [ ] T019 [US4] Wire `onPress` on public browse rows for guests to the same `SingleDebate` route with params loaded from list + `getDebate` as needed in `MainDebatesScreen.tsx`.
+- [x] T018 [US4] Wire `onPress` on **MY ACTIVITY** rows in `MainDebatesScreen.tsx` to `navigation.navigate('SingleDebate', { match, debate })` within Debates stack (fetch full debate if list only has summary—reuse existing `getDebate` client if needed).
+- [x] T019 [US4] Wire `onPress` on public browse rows for guests to the same `SingleDebate` route with params loaded from list + `getDebate` as needed in `MainDebatesScreen.tsx`.
 
 **Checkpoint**: Debates tab → detail navigation works for both personas.
 
@@ -117,8 +117,8 @@
 
 **Independent test**: Guest on detail: thread visible; post/reply/comment-vote triggers auth; signed-in user flows unchanged from 006.
 
-- [ ] T020 [US5] Remove or do not add any **AI analysis strip** UI in `apps/mobile/src/screens/SingleDebateScreen.tsx` (verify no stray AI block remains); show optional **`source_headline` / `source_url`** line on detail when present in debate payload (same rule as main feed per FR-009).
-- [ ] T021 [US5] Ensure guest mode on `SingleDebateScreen.tsx`: read-only thread; composer and comment vote actions use auth gate consistent with existing `AuthPendingAction` / login return flow.
+- [x] T020 [US5] Remove or do not add any **AI analysis strip** UI in `apps/mobile/src/screens/SingleDebateScreen.tsx` (verify no stray AI block remains); show optional **`source_headline` / `source_url`** line on detail when present in debate payload (same rule as main feed per FR-009).
+- [x] T021 [US5] Ensure guest mode on `SingleDebateScreen.tsx`: read-only thread; composer and comment vote actions use auth gate consistent with existing `AuthPendingAction` / login return flow.
 
 **Checkpoint**: FR-006, FR-006b, FR-006c satisfied on detail.
 

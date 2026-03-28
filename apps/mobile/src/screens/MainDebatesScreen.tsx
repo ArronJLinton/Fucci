@@ -129,6 +129,7 @@ const MainDebatesScreen = () => {
     };
   }, [data]);
 
+  /** T018/T019: open `SingleDebate` from hero, NEW browse rows, and MY ACTIVITY (fetch full debate by id). */
   const onOpenSummary = useCallback(
     async (summary: DebateSummary) => {
       const full = await fetchDebateById(summary.id);
