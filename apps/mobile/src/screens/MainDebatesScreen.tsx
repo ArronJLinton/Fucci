@@ -101,7 +101,7 @@ const MainDebatesScreen = () => {
   }, []);
 
   const query = useQuery({
-    queryKey: ['mainDebatesFeed', isLoggedIn, token],
+    queryKey: ['mainDebatesFeed', isLoggedIn],
     enabled: isReady,
     queryFn: async (): Promise<UnifiedFeed> => {
       if (isLoggedIn && token) {
