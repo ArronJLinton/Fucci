@@ -176,6 +176,11 @@ export default function DebateHeroSwipeCard({
   }, [voteBusy, voteBusySV]);
 
   useEffect(() => {
+    translateX.value = 0;
+    overlayDir.value = 0;
+  }, [summary.id]);
+
+  useEffect(() => {
     logHero('state', {
       summaryId: summary.id,
       debateId: debate?.id ?? null,

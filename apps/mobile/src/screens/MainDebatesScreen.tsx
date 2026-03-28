@@ -9,12 +9,13 @@ import {
   Linking,
   SectionList,
   StatusBar,
+  Platform,
 } from 'react-native';
 import type {SectionListRenderItem} from 'react-native';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {ScrollView as GHScrollView} from 'react-native-gesture-handler';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {
@@ -27,7 +28,6 @@ import type {Match} from '../types/match';
 import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigate} from '../navigation/rootNavigation';
-import environment from '../config/environment';
 import DebateHeroSwipeCard, {
   type DebateHeroPanResult,
   type DebateHeroVoteSuccessDetail,
@@ -108,11 +108,9 @@ function logMainDebatesHero(message: string, payload?: unknown) {
 }
 
 const MainDebatesScreen = () => {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainDebatesNavigation>();
   const queryClient = useQueryClient();
   const {isLoggedIn, token, isReady} = useAuth();
-  const brandName = environment.APP_NAME.toUpperCase();
 
   const onHeroPanResolved = useCallback((result: DebateHeroPanResult) => {
     logMainDebatesHero('pan resolved', result);
@@ -204,10 +202,6 @@ const MainDebatesScreen = () => {
     [navigation],
   );
 
-  const goProfile = useCallback(() => {
-    navigation.getParent()?.navigate('Profile' as never);
-  }, [navigation]);
-
   const newSectionEmpty = hero == null && restNew.length === 0;
 
   const keyExtractor = useCallback((item: FeedRow) => {
@@ -284,7 +278,7 @@ const MainDebatesScreen = () => {
                   },
                 );
                 queryClient.setQueryData<UnifiedFeed>(
-                  ['mainDebatesFeed', isLoggedIn, token],
+                  ['mainDebatesFeed', isLoggedIn],
                   old => {
                     if (!old || old.kind !== 'auth') return old;
                     const nextNew = old.new_debates.filter(
@@ -383,37 +377,9 @@ const MainDebatesScreen = () => {
     ],
   );
 
-  const listHeader = useMemo(
-    () => (
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={goProfile}
-          style={styles.avatarBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Open profile">
-          <Ionicons name="person-circle" size={40} color={LIME} />
-        </TouchableOpacity>
-        <Text style={styles.brandMark} numberOfLines={1}>
-          {brandName}
-        </Text>
-        <TouchableOpacity
-          style={styles.iconBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications">
-          <Ionicons name="notifications-outline" size={26} color={LIME} />
-        </TouchableOpacity>
-      </View>
-    ),
-    [brandName, goProfile],
-  );
-
   if (!isReady || (isLoading && !data)) {
     return (
-      <View
-        style={[
-          styles.centered,
-          {paddingTop: insets.top, backgroundColor: BG},
-        ]}>
+      <View style={[styles.centered, {backgroundColor: BG}]}>
         <StatusBar barStyle="light-content" />
         <ActivityIndicator size="large" color={LIME} />
       </View>
@@ -423,11 +389,7 @@ const MainDebatesScreen = () => {
   if (isError) {
     return (
       <View
-        style={[
-          styles.centered,
-          styles.errorWrap,
-          {paddingTop: insets.top, backgroundColor: BG},
-        ]}>
+        style={[styles.centered, styles.errorWrap, {backgroundColor: BG}]}>
         <StatusBar barStyle="light-content" />
         <Text style={styles.errorText}>{userFacingApiMessage(error)}</Text>
         <TouchableOpacity style={styles.ctaButton} onPress={() => refetch()}>
@@ -438,7 +400,7 @@ const MainDebatesScreen = () => {
   }
 
   return (
-    <View style={[styles.root, {paddingTop: insets.top}]}>
+    <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={BG} />
       <SectionList<FeedRow, MainDebatesSection>
         style={styles.scroll}
@@ -447,10 +409,15 @@ const MainDebatesScreen = () => {
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
-        ListHeaderComponent={listHeader}
         ListFooterComponent={<View style={styles.listFooterSpacer} />}
         stickySectionHeadersEnabled={false}
         accessibilityLabel="Debates feed"
+        renderScrollComponent={props => (
+          <GHScrollView
+            {...props}
+            directionalLockEnabled={Platform.OS === 'ios'}
+          />
+        )}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -596,28 +563,6 @@ const styles = StyleSheet.create({
     color: MUTED,
     textAlign: 'center',
     marginBottom: 16,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  avatarBtn: {
-    padding: 4,
-  },
-  iconBtn: {
-    padding: 8,
-  },
-  brandMark: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 15,
-    fontWeight: '800',
-    fontStyle: 'italic',
-    color: LIME,
-    letterSpacing: 1.2,
   },
   sectionTitleRow: {
     flexDirection: 'row',
