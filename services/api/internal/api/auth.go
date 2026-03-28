@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -192,6 +193,10 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := c.validateCloudinaryMediaURLForContext(avatarURL, "avatar"); err != nil {
+			if errors.Is(err, ErrCloudinaryURLValidationNotConfigured) {
+				respondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("invalid avatar_url: %v", err))
 			return
 		}

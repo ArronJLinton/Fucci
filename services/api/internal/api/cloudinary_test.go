@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -81,6 +82,17 @@ func TestValidateCloudinaryMediaURLForContext(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts avatar URL when cloud segment casing differs from config", func(t *testing.T) {
+		mixedCase := Config{CloudinaryCloudName: "demo-cloud"}
+		err := mixedCase.validateCloudinaryMediaURLForContext(
+			"https://res.cloudinary.com/Demo-Cloud/image/upload/v1/fucci/avatars/avatar-1.jpg",
+			"avatar",
+		)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
 	t.Run("rejects wrong host", func(t *testing.T) {
 		err := cfg.validateCloudinaryMediaURLForContext(
 			"https://example.com/demo-cloud/image/upload/v1/fucci/avatars/avatar-1.jpg",
@@ -131,14 +143,14 @@ func TestValidateCloudinaryMediaURLForContext(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts avatar URL when cloud name not configured", func(t *testing.T) {
+	t.Run("rejects when cloud name not configured", func(t *testing.T) {
 		loose := Config{}
 		err := loose.validateCloudinaryMediaURLForContext(
 			"https://res.cloudinary.com/demo-cloud/image/upload/v1/fucci/avatars/avatar-1.jpg",
 			"avatar",
 		)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
+		if !errors.Is(err, ErrCloudinaryURLValidationNotConfigured) {
+			t.Fatalf("expected ErrCloudinaryURLValidationNotConfigured, got %v", err)
 		}
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +48,23 @@ func TestHandleUpdateProfile_AvatarURLAcceptsCloudinaryHost(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("expected valid cloudinary avatar url, got %v", err)
+	}
+}
+
+func TestHandleUpdateProfile_AvatarURLReturns500WhenCloudinaryCloudNameUnset(t *testing.T) {
+	cfg := &Config{}
+	rec := httptest.NewRecorder()
+	req := authTestRequest(http.MethodPut, "/users/profile", map[string]string{
+		"avatar_url": "https://res.cloudinary.com/demo-cloud/image/upload/v1/fucci/avatars/avatar-1.jpg",
+	}, 99)
+
+	cfg.handleUpdateProfile(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "cloud name is not configured") {
+		t.Fatalf("expected configuration error in body, got %q", body)
 	}
 }

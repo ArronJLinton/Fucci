@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,6 +16,10 @@ import (
 )
 
 const cloudinaryMaxUploadBytes = 5 * 1024 * 1024 // 5 MB
+
+// ErrCloudinaryURLValidationNotConfigured is returned when persisting Cloudinary media URLs
+// is requested but CLOUDINARY_CLOUD_NAME is unset, so URLs cannot be bound to the server's cloud.
+var ErrCloudinaryURLValidationNotConfigured = errors.New("cloudinary cloud name is not configured; cannot validate media URLs")
 
 type cloudinarySignatureRequest struct {
 	Context string `json:"context"`
@@ -78,29 +83,24 @@ func isCloudinaryVersionSegment(s string) bool {
 }
 
 // cloudinaryPublicIDFromDeliveryPath extracts the public_id (including folder prefix) from a delivery URL path
-// after /image/upload/, skipping optional transformation segments and an optional v{version} segment.
+// after /{cloud}/image/upload/, skipping optional transformation segments and an optional v{version} segment.
+// The first path segment must equal cloudName (case-insensitive) so persisted URLs cannot target another Cloudinary cloud.
 func cloudinaryPublicIDFromDeliveryPath(trimmedPath, cloudName string) (string, error) {
-	var suffix string
-	if strings.TrimSpace(cloudName) != "" {
-		prefix := cloudName + "/"
-		if !strings.HasPrefix(trimmedPath, prefix) {
-			return "", fmt.Errorf("url must match configured cloud")
-		}
-		afterCloud := trimmedPath[len(prefix):]
-		const uploadPrefix = "image/upload/"
-		if len(afterCloud) < len(uploadPrefix) || !strings.EqualFold(afterCloud[:len(uploadPrefix)], uploadPrefix) {
-			return "", fmt.Errorf("url must use Cloudinary image delivery path")
-		}
-		suffix = afterCloud[len(uploadPrefix):]
-	} else {
-		lower := strings.ToLower(trimmedPath)
-		const marker = "image/upload/"
-		idx := strings.Index(lower, marker)
-		if idx < 0 {
-			return "", fmt.Errorf("url must use Cloudinary image delivery path")
-		}
-		suffix = trimmedPath[idx+len(marker):]
+	if strings.TrimSpace(cloudName) == "" {
+		return "", fmt.Errorf("cloud name is required")
 	}
+	cloudFromURL, afterCloudSegment, ok := strings.Cut(trimmedPath, "/")
+	if !ok || cloudFromURL == "" {
+		return "", fmt.Errorf("url must match configured cloud")
+	}
+	if !strings.EqualFold(strings.TrimSpace(cloudFromURL), strings.TrimSpace(cloudName)) {
+		return "", fmt.Errorf("url must match configured cloud")
+	}
+	const uploadPrefix = "image/upload/"
+	if len(afterCloudSegment) < len(uploadPrefix) || !strings.EqualFold(afterCloudSegment[:len(uploadPrefix)], uploadPrefix) {
+		return "", fmt.Errorf("url must use Cloudinary image delivery path")
+	}
+	suffix := afterCloudSegment[len(uploadPrefix):]
 
 	var parts []string
 	for _, s := range strings.Split(suffix, "/") {
@@ -143,7 +143,13 @@ func publicIDHasAllowedFolderPrefix(publicID, folder string) bool {
 	return strings.HasPrefix(publicID, folder+"/")
 }
 
+// validateCloudinaryMediaURLForContext ensures URLs are https delivery links on res.cloudinary.com whose
+// path starts with the configured cloud name and allowed folder. CLOUDINARY_CLOUD_NAME must be set;
+// otherwise ErrCloudinaryURLValidationNotConfigured (caller should map to 500).
 func (c *Config) validateCloudinaryMediaURLForContext(rawURL string, context string) error {
+	if strings.TrimSpace(c.CloudinaryCloudName) == "" {
+		return ErrCloudinaryURLValidationNotConfigured
+	}
 	if strings.TrimSpace(rawURL) == "" {
 		return fmt.Errorf("url is required")
 	}
