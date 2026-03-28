@@ -126,7 +126,7 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 
 - **Guest** → public read-only feed only; **no** personalized `voted_debates`; **My Activity** block shows **empty state + sign-in CTA**; **debate detail** is read-only (headline, meter, comments visible); engagement actions show auth gate.
 - User has **no** debates in either list → full empty state for main screen (authenticated); guests may still see public trending rows.
-- **Partial** binary card votes (e.g. only agree voted) → debate stays in **new** until **agree and disagree** both have a swipe vote (authenticated feed only; wildcard excluded).
+- **Partial** binary card votes (e.g. only agree voted) → debate counts as **voted** once there is **at least one** swipe vote on any **agree**/**disagree** card; remaining side may stay unvoted (authenticated feed only; wildcard excluded).
 - **Rate limits / offline** → show error and retry per 006 for comments; card votes not rate-limited per 006.
 - **Long lists** → **v1:** capped via `limit` only (**no** cursor pagination in 009); optional infinite scroll UX is client-side over the capped window only.
 - **Featured hero** → always the **first** debate in **`new_debates`** (authed) or **`debates`** (guest); if **`new_debates`** / guest **`debates`** is **empty**, **no** hero — even if **`voted_debates`** is non-empty (no promoting voted rows into the hero).
