@@ -725,15 +725,15 @@ SELECT
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id)
+  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
   AND (
-    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id
+    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id AND dc_c.stance IN ('agree', 'disagree')
   ) > COALESCE((
     SELECT COUNT(DISTINCT dc3.id)::bigint
     FROM debate_cards dc3
     INNER JOIN votes v ON v.debate_card_id = dc3.id AND v.user_id = $1
       AND v.vote_type IN ('upvote', 'downvote')
-    WHERE dc3.debate_id = d.id
+    WHERE dc3.debate_id = d.id AND dc3.stance IN ('agree', 'disagree')
   ), 0)
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
 LIMIT $2
@@ -759,7 +759,8 @@ type ListDebatesFeedNewForUserRow struct {
 	EngagementScore sql.NullString
 }
 
-// Authenticated feed — "new": user has not cast swipe votes on all cards (completion uses upvote/downvote per card).
+// Authenticated feed — "new": user has not cast swipe votes on all binary (agree/disagree) cards.
+// Wildcard cards do not count toward feed completion (matches mobile binary voting UI).
 func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebatesFeedNewForUserParams) ([]ListDebatesFeedNewForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDebatesFeedNewForUser, arg.UserID, arg.Limit)
 	if err != nil {
@@ -806,21 +807,22 @@ SELECT
       SELECT MAX(v.created_at)
       FROM votes v
       INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND v.user_id = $1
+      WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+        AND v.user_id = $1
         AND v.vote_type IN ('upvote', 'downvote')
     ) AS last_voted_at
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id)
+  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
   AND (
-    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id
+    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id AND dc_c.stance IN ('agree', 'disagree')
   ) = (
     SELECT COUNT(DISTINCT dc4.id)::bigint
     FROM debate_cards dc4
     INNER JOIN votes v2 ON v2.debate_card_id = dc4.id AND v2.user_id = $1
       AND v2.vote_type IN ('upvote', 'downvote')
-    WHERE dc4.debate_id = d.id
+    WHERE dc4.debate_id = d.id AND dc4.stance IN ('agree', 'disagree')
   )
 ORDER BY last_voted_at DESC NULLS LAST
 LIMIT $2
@@ -847,7 +849,7 @@ type ListDebatesFeedVotedForUserRow struct {
 	LastVotedAt     interface{}
 }
 
-// Authenticated feed — "voted": user has swipe votes covering every card; order by last swipe time desc.
+// Authenticated feed — "voted": user has swipe votes on every agree/disagree card (binary completion).
 func (q *Queries) ListDebatesFeedVotedForUser(ctx context.Context, arg ListDebatesFeedVotedForUserParams) ([]ListDebatesFeedVotedForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDebatesFeedVotedForUser, arg.UserID, arg.Limit)
 	if err != nil {

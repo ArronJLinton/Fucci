@@ -119,7 +119,7 @@ const SingleDebateScreen = () => {
   const [voteSubmitting, setVoteSubmitting] = useState(false);
   const swipeStartX = useRef(0);
 
-  /** Binary voting only — agree + disagree; wildcard stance excluded from UI */
+  /** Binary voting only — agree + disagree; wildcard excluded (matches feed SQL completion). */
   const voteCards: DebateCard[] = useMemo(
     () =>
       (debate?.cards ?? []).filter(
@@ -334,10 +334,7 @@ const SingleDebateScreen = () => {
                     sub.id === parentId
                       ? {
                           ...sub,
-                          subcomments: [
-                            ...(sub.subcomments ?? []),
-                            newComment,
-                          ],
+                          subcomments: [...(sub.subcomments ?? []), newComment],
                         }
                       : sub,
                   ),
@@ -547,11 +544,7 @@ const SingleDebateScreen = () => {
                 {reactionLoading ? (
                   <ActivityIndicator size="small" color={MUTED} />
                 ) : (
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={18}
-                    color={MUTED}
-                  />
+                  <Ionicons name="add-circle-outline" size={18} color={MUTED} />
                 )}
               </TouchableOpacity>
             </View>
@@ -582,7 +575,9 @@ const SingleDebateScreen = () => {
                 style={styles.collapseRepliesRow}
                 activeOpacity={0.7}>
                 <Ionicons
-                  name={collapsedReplyIds.has(c.id) ? 'chevron-down' : 'chevron-up'}
+                  name={
+                    collapsedReplyIds.has(c.id) ? 'chevron-down' : 'chevron-up'
+                  }
                   size={16}
                   color={MUTED}
                 />
@@ -596,9 +591,10 @@ const SingleDebateScreen = () => {
                 c.subcomments.map(sub => renderComment(sub, true))}
             </>
           )}
-          {isSub && c.subcomments && c.subcomments.length > 0 && (
-            c.subcomments.map(sub => renderComment(sub, true))
-          )}
+          {isSub &&
+            c.subcomments &&
+            c.subcomments.length > 0 &&
+            c.subcomments.map(sub => renderComment(sub, true))}
         </View>
       </View>
     );
@@ -645,14 +641,16 @@ const SingleDebateScreen = () => {
         showsVerticalScrollIndicator={false}>
         {/* FR-006c: no AI analysis strip; optional source provenance only (FR-009). */}
         <Text style={styles.headline}>{headline}</Text>
-        {(sourceHeadline || sourceUrl || sourcePublishedAt) ? (
+        {sourceHeadline || sourceUrl || sourcePublishedAt ? (
           <View style={styles.sourceBlock}>
-            {(sourceHeadline || sourceUrl) ? (
+            {sourceHeadline || sourceUrl ? (
               <Text
                 style={styles.sourceLine}
                 numberOfLines={3}
                 onPress={() =>
-                  sourceUrl ? Linking.openURL(sourceUrl).catch(() => {}) : undefined
+                  sourceUrl
+                    ? Linking.openURL(sourceUrl).catch(() => {})
+                    : undefined
                 }>
                 {sourceHeadline || sourceUrl}
               </Text>
@@ -670,44 +668,21 @@ const SingleDebateScreen = () => {
           if (voteCards.length === 0) return null;
           const agreeCard = voteCards.find(c => c.stance === 'agree');
           const disagreeCard = voteCards.find(c => c.stance === 'disagree');
-
-          // Use both upvotes and downvotes so the meter reflects swipe behavior.
-          const agreeUpvotes =
+          const agreeVotes =
             agreeCard?.id != null
-              ? localCardVoteCounts[agreeCard.id]?.upvotes ??
+              ? (localCardVoteCounts[agreeCard.id]?.upvotes ??
                 agreeCard.vote_counts?.upvotes ??
-                0
+                0)
               : 0;
-          const agreeDownvotes =
-            agreeCard?.id != null
-              ? localCardVoteCounts[agreeCard.id]?.downvotes ??
-                agreeCard.vote_counts?.downvotes ??
-                0
-              : 0;
-          const disagreeUpvotes =
+          const disagreeVotes =
             disagreeCard?.id != null
-              ? localCardVoteCounts[disagreeCard.id]?.upvotes ??
+              ? (localCardVoteCounts[disagreeCard.id]?.upvotes ??
                 disagreeCard.vote_counts?.upvotes ??
-                0
+                0)
               : 0;
-          const disagreeDownvotes =
-            disagreeCard?.id != null
-              ? localCardVoteCounts[disagreeCard.id]?.downvotes ??
-                disagreeCard.vote_counts?.downvotes ??
-                0
-              : 0;
-
-          // Map swipes to stance support:
-          // - Upvotes on a side's card support that side.
-          // - Downvotes on the opposing side's card also support this side.
-          const agreeSupport = agreeUpvotes + disagreeDownvotes;
-          const disagreeSupport = disagreeUpvotes + agreeDownvotes;
-
-          const totalSide = agreeSupport + disagreeSupport;
+          const totalSide = agreeVotes + disagreeVotes;
           const agreePct =
-            totalSide > 0
-              ? Math.round((agreeSupport / totalSide) * 100)
-              : 0;
+            totalSide > 0 ? Math.round((agreeVotes / totalSide) * 100) : 0;
           const disagreePct = totalSide > 0 ? 100 - agreePct : 0;
           const agreeTitle = agreeCard?.title?.trim() || 'Agree';
           const disagreeTitle = disagreeCard?.title?.trim() || 'Disagree';
@@ -740,9 +715,7 @@ const SingleDebateScreen = () => {
                   />
                 </View>
                 <View style={styles.censusTitlesRow}>
-                  <Text
-                    style={styles.censusSideTitleAgree}
-                    numberOfLines={2}>
+                  <Text style={styles.censusSideTitleAgree} numberOfLines={2}>
                     {agreeTitle}
                   </Text>
                   <Text

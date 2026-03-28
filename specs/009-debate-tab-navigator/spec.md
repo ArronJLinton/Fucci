@@ -28,7 +28,7 @@
 
 ### Session 2026-03-28
 
-- Q: What does “not voted yet” mean for a debate? → A: User has **not completed** card swipe voting for that debate (i.e. has not submitted votes for **all three** debate cards). Partial progress stays in “new” until all three cards are voted.
+- Q: What does “not voted yet” mean for a debate? → A: User has **not completed** swipe votes on **both** binary cards (**agree** and **disagree**). Wildcard cards do not count toward completion. Partial progress stays in “new” until both binary cards are voted.
 - Q: Swipe direction vs 006? → A: **Swipe right = agree (yes / upvote on card)**, **swipe left = disagree (no / downvote on card)** — aligned with 006 Feature 4 and existing `PUT .../cards/{cardId}/vote` semantics.
 - Q: “Aggregated debates” on main screen? → A: **Server-provided feed** split into `new_debates` and `voted_debates` (see plan/contracts); client renders top section then bottom section. Ordering within each list: **new** by engagement/recency as specified in API; **voted** by last activity or vote time (API default).
 - Q: Can guests open the Debates tab without logging in? → A: **Yes — public read-only** endpoint(s) let anyone **browse** debate summaries for the main screen. **Engagement requires auth:** card swipe vote, comment, reply, subcomment, and comment upvote/downvote **require authentication** (auth gate per 006). **Authenticated** feed returns the per-user **`new_debates`** / **`voted_debates`** split; **guest** UI uses the public payload (no user-specific “voted” history).
@@ -126,7 +126,7 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 
 - **Guest** → public read-only feed only; **no** personalized `voted_debates`; **My Activity** block shows **empty state + sign-in CTA**; **debate detail** is read-only (headline, meter, comments visible); engagement actions show auth gate.
 - User has **no** debates in either list → full empty state for main screen (authenticated); guests may still see public trending rows.
-- **Partial** card votes (1–2 cards only) → debate stays in **new** until all three cards voted (authenticated feed only).
+- **Partial** binary card votes (e.g. only agree voted) → debate stays in **new** until **agree and disagree** both have a swipe vote (authenticated feed only; wildcard excluded).
 - **Rate limits / offline** → show error and retry per 006 for comments; card votes not rate-limited per 006.
 - **Long lists** → **v1:** capped via `limit` only (**no** cursor pagination in 009); optional infinite scroll UX is client-side over the capped window only.
 - **Featured hero** → always the **first** debate in **`new_debates`** (authed) or **`debates`** (guest); if **`new_debates`** / guest **`debates`** is **empty**, **no** hero — even if **`voted_debates`** is non-empty (no promoting voted rows into the hero).
@@ -137,7 +137,7 @@ As a user on debate detail, I can **comment**, **reply** (one level), and **upvo
 
 - **FR-001**: Expose a **Debates** tab in the bottom tab navigator (Expo / React Navigation).
 - **FR-002**: Provide a **public read-only** HTTP API to load debate summaries for **guests** (browse-only; no per-user vote history; document sort keys in `contracts/`). **Ordering:** engagement-first (e.g. analytics score **desc**), tie-break **`created_at` desc** — stable, testable ordering.
-- **FR-002b**: When **authenticated**, main debates screen calls the **user feed** API that returns **`new_debates`** and **`voted_debates`** (or equivalent split documented in contracts).
+- **FR-002b**: When **authenticated**, main debates screen calls the **user feed** API that returns **`new_debates`** and **`voted_debates`** (or equivalent split documented in contracts). **Completion** for bucketing is **binary**: user must have swipe-voted **agree** and **disagree** cards; **wildcard** does not count (matches mobile).
 - **FR-002c**: **Vote** (card swipe), **comment**, **reply**, and **comment upvote/downvote** **require authentication**; unauthenticated users get the 006 auth gate, not silent failure.
 - **FR-003**: UI places **new** above **voted** for signed-in users; labels aligned with design (“NEW DEBATES” / “MY ACTIVITY” or accessible equivalents). **Guests**: top browse area from public feed; **My Activity** section **stays visible** with **empty state + sign-in CTA** (see contracts for list payload).
 - **FR-004**: Featured **top-card** swipe UX: right = agree, left = disagree; integrates with existing card vote endpoint. **Hero debate** = **first** item in **`new_debates`** or (guest) **first** in public **`debates`** — no client-side re-ranking for hero selection. If **`new_debates`** (or guest **`debates`**) is **empty**, **omit** the hero entirely — **do not** substitute from **`voted_debates`**.

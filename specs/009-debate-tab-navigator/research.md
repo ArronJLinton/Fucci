@@ -13,12 +13,13 @@
 
 ## 2. Definition of “voted” / “new”
 
-**Decision**: **Completed** means the user has a card vote recorded for **each of the three** debate cards for that debate (same model as 006 swipe completion).
+**Decision**: **Completed** for the **009 feed** means the user has a swipe vote on **each binary card** (`stance` **agree** and **disagree**). **Wildcard** cards are excluded from the completion count so feed buckets match the **binary** mobile UI (`SingleDebateScreen` / `MainDebatesScreen`).
 
-**Rationale**: Matches existing product rule from 006 (“vote on all three cards”).
+**Rationale**: Aligns SQL feed queries with product’s two-side voting; users are not required to vote on a wildcard card to leave “new”.
 
 **Alternatives considered**:
 
+- Count all three stances (agree / disagree / wildcard) — rejected (mobile does not surface wildcard in the swipe deck).
 - Any single card vote → “voted” — rejected (would move debate to activity too early).
 
 ## 3. Swipe implementation (React Native)

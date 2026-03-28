@@ -2,8 +2,8 @@ openapi: 3.0.3
 info:
   title: Debates Feed API (009)
   description: |
-    **Public** read-only feed for guests (browse). **Authenticated** feed splitting debates into **new** (incomplete card votes)
-    and **voted** (completed all card votes) for the current user. Engagement (vote, comment) uses other 006 routes and requires auth.
+    **Public** read-only feed for guests (browse). **Authenticated** feed splitting debates into **new** (incomplete **binary** card votes)
+    and **voted** (user has voted on every **agree** and **disagree** card; wildcard excluded) for the current user. Engagement (vote, comment) uses other 006 routes and requires auth.
     **009 v1:** pagination is **capped `limit` only** — no cursor / continuation tokens in responses.
     Base path `/v1/api` matches `services/api` router.
   version: 0.1.0
@@ -46,8 +46,8 @@ paths:
     get:
       summary: List debates for current user (new vs voted)
       description: |
-        Returns two lists: debates where the user has **not** completed voting on all cards,
-        and debates where the user **has** completed all card votes. Ordering: implementation-defined
+        Returns two lists: debates where the user has **not** completed swipe votes on **both** binary cards (agree + disagree),
+        and debates where the user **has** completed those two card votes. Wildcard stance is not required for bucketing. Ordering: implementation-defined
         (e.g. engagement for new, last_voted_at desc for voted) — see spec.
         **v1:** `new_limit` / `voted_limit` cap each bucket; no cursor pagination.
       operationId: getDebatesFeed
