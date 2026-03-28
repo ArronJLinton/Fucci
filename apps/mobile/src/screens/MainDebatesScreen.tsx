@@ -87,12 +87,15 @@ type MainDebatesSection = {
   data: FeedRow[];
 };
 
-/** Visual consensus bar % from feed analytics (proxy — API has no poll % on summaries). */
-function consensusPercent(summary: DebateSummary): number {
-  const eng = summary.analytics?.engagement_score ?? 0;
-  const votes = summary.analytics?.total_votes ?? 0;
-  const raw = 42 + eng * 3.2 + Math.min(18, votes * 1.2);
-  return Math.min(95, Math.max(22, Math.round(raw)));
+/** % agree among binary-card upvotes; null when API omits counts or there are no such votes yet. */
+function consensusAgreePercent(summary: DebateSummary): number | null {
+  const bc = summary.binary_consensus;
+  if (!bc) return null;
+  const a = bc.agree_upvotes;
+  const d = bc.disagree_upvotes;
+  const t = a + d;
+  if (t <= 0) return null;
+  return Math.round((a / t) * 100);
 }
 
 function logMainDebatesHero(message: string, payload?: unknown) {
@@ -489,9 +492,10 @@ function ActivityDebateCard({
   summary: DebateSummary;
   onPress: () => void;
 }) {
-  const pct = consensusPercent(summary);
-  const barW = Math.min(100, pct);
-  const barColor = pct >= 50 ? LIME : MUTED;
+  const pct = consensusAgreePercent(summary);
+  const barW = pct == null ? 0 : Math.min(100, pct);
+  const barColor =
+    pct == null ? MUTED : pct >= 50 ? LIME : MUTED;
   const hasSource =
     !!summary.source_headline?.trim() || !!summary.source_url?.trim();
   const sourceLabel = summary.source_headline?.trim()
@@ -529,11 +533,15 @@ function ActivityDebateCard({
       ) : null}
       <Text style={styles.consensusLabel}>CONSENSUS</Text>
       <View style={styles.barTrack}>
-        <View
-          style={[styles.barFill, {width: `${barW}%`, backgroundColor: barColor}]}
-        />
+        {pct != null ? (
+          <View
+            style={[styles.barFill, {width: `${barW}%`, backgroundColor: barColor}]}
+          />
+        ) : null}
       </View>
-      <Text style={styles.consensusPct}>{pct}% AGREE</Text>
+      <Text style={styles.consensusPct}>
+        {pct == null ? '—' : `${pct}% AGREE`}
+      </Text>
     </TouchableOpacity>
   );
 }

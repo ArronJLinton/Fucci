@@ -722,7 +722,21 @@ SELECT
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
-    da.engagement_score
+    da.engagement_score,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_agree_upvotes,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_disagree_upvotes
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
@@ -744,18 +758,20 @@ type ListDebatesFeedNewForUserParams struct {
 }
 
 type ListDebatesFeedNewForUserRow struct {
-	ID              int32
-	MatchID         string
-	DebateType      string
-	Headline        string
-	Description     sql.NullString
-	AiGenerated     sql.NullBool
-	DeletedAt       sql.NullTime
-	CreatedAt       sql.NullTime
-	UpdatedAt       sql.NullTime
-	TotalVotes      sql.NullInt32
-	TotalComments   sql.NullInt32
-	EngagementScore sql.NullString
+	ID                    int32
+	MatchID               string
+	DebateType            string
+	Headline              string
+	Description           sql.NullString
+	AiGenerated           sql.NullBool
+	DeletedAt             sql.NullTime
+	CreatedAt             sql.NullTime
+	UpdatedAt             sql.NullTime
+	TotalVotes            sql.NullInt32
+	TotalComments         sql.NullInt32
+	EngagementScore       sql.NullString
+	BinaryAgreeUpvotes    interface{}
+	BinaryDisagreeUpvotes interface{}
 }
 
 // Authenticated feed — "new": user has not cast any swipe vote on a binary (agree/disagree) card for this debate.
@@ -782,6 +798,8 @@ func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebates
 			&i.TotalVotes,
 			&i.TotalComments,
 			&i.EngagementScore,
+			&i.BinaryAgreeUpvotes,
+			&i.BinaryDisagreeUpvotes,
 		); err != nil {
 			return nil, err
 		}
@@ -802,6 +820,20 @@ SELECT
     da.total_votes,
     da.total_comments,
     da.engagement_score,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_agree_upvotes,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_disagree_upvotes,
     (
       SELECT MAX(v.created_at)::timestamptz
       FROM votes v
@@ -831,19 +863,21 @@ type ListDebatesFeedVotedForUserParams struct {
 }
 
 type ListDebatesFeedVotedForUserRow struct {
-	ID              int32
-	MatchID         string
-	DebateType      string
-	Headline        string
-	Description     sql.NullString
-	AiGenerated     sql.NullBool
-	DeletedAt       sql.NullTime
-	CreatedAt       sql.NullTime
-	UpdatedAt       sql.NullTime
-	TotalVotes      sql.NullInt32
-	TotalComments   sql.NullInt32
-	EngagementScore sql.NullString
-	LastVotedAt     time.Time
+	ID                    int32
+	MatchID               string
+	DebateType            string
+	Headline              string
+	Description           sql.NullString
+	AiGenerated           sql.NullBool
+	DeletedAt             sql.NullTime
+	CreatedAt             sql.NullTime
+	UpdatedAt             sql.NullTime
+	TotalVotes            sql.NullInt32
+	TotalComments         sql.NullInt32
+	EngagementScore       sql.NullString
+	BinaryAgreeUpvotes    interface{}
+	BinaryDisagreeUpvotes interface{}
+	LastVotedAt           time.Time
 }
 
 // Authenticated feed — "voted": user has at least one swipe vote on any agree/disagree card for this debate.
@@ -869,6 +903,8 @@ func (q *Queries) ListDebatesFeedVotedForUser(ctx context.Context, arg ListDebat
 			&i.TotalVotes,
 			&i.TotalComments,
 			&i.EngagementScore,
+			&i.BinaryAgreeUpvotes,
+			&i.BinaryDisagreeUpvotes,
 			&i.LastVotedAt,
 		); err != nil {
 			return nil, err
@@ -889,7 +925,21 @@ SELECT
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
-    da.engagement_score
+    da.engagement_score,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_agree_upvotes,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_disagree_upvotes
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
@@ -899,21 +949,24 @@ LIMIT $1
 `
 
 type ListDebatesPublicFeedRow struct {
-	ID              int32
-	MatchID         string
-	DebateType      string
-	Headline        string
-	Description     sql.NullString
-	AiGenerated     sql.NullBool
-	DeletedAt       sql.NullTime
-	CreatedAt       sql.NullTime
-	UpdatedAt       sql.NullTime
-	TotalVotes      sql.NullInt32
-	TotalComments   sql.NullInt32
-	EngagementScore sql.NullString
+	ID                    int32
+	MatchID               string
+	DebateType            string
+	Headline              string
+	Description           sql.NullString
+	AiGenerated           sql.NullBool
+	DeletedAt             sql.NullTime
+	CreatedAt             sql.NullTime
+	UpdatedAt             sql.NullTime
+	TotalVotes            sql.NullInt32
+	TotalComments         sql.NullInt32
+	EngagementScore       sql.NullString
+	BinaryAgreeUpvotes    interface{}
+	BinaryDisagreeUpvotes interface{}
 }
 
 // Public browse feed: engagement desc, tie-break created_at desc; only debates with at least one card.
+// Swipe upvotes on agree vs disagree cards (matches mobile Debate Pulse / MY ACTIVITY bar).
 func (q *Queries) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]ListDebatesPublicFeedRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDebatesPublicFeed, limit)
 	if err != nil {
@@ -936,6 +989,8 @@ func (q *Queries) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]Lis
 			&i.TotalVotes,
 			&i.TotalComments,
 			&i.EngagementScore,
+			&i.BinaryAgreeUpvotes,
+			&i.BinaryDisagreeUpvotes,
 		); err != nil {
 			return nil, err
 		}

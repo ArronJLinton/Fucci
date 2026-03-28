@@ -155,6 +155,24 @@ components:
           type: string
           format: date-time
           description: Optional — publication time of source headline when available.
+        binary_consensus:
+          $ref: '#/components/schemas/DebateBinaryConsensus'
+          description: |
+            Swipe upvote totals on **agree** vs **disagree** stance cards (same basis as Debate Pulse).
+            Percent agree among voters is `agree_upvotes / (agree_upvotes + disagree_upvotes)` when the sum is positive.
+
+    DebateBinaryConsensus:
+      type: object
+      required:
+        - agree_upvotes
+        - disagree_upvotes
+      properties:
+        agree_upvotes:
+          type: integer
+          description: Count of **upvote** rows on cards with stance `agree` (emoji swipe votes only).
+        disagree_upvotes:
+          type: integer
+          description: Count of **upvote** rows on cards with stance `disagree`.
 
     DebateAnalyticsSummary:
       type: object

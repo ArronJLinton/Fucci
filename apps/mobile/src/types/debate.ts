@@ -29,6 +29,12 @@ export interface DebateAnalyticsSummary {
   engagement_score: number;
 }
 
+/** Swipe upvotes on agree vs disagree cards — same basis as Debate Pulse (009 feed). */
+export interface DebateBinaryConsensus {
+  agree_upvotes: number;
+  disagree_upvotes: number;
+}
+
 /**
  * Minimal debate row for main feeds (009) — aligns with contracts/debates-feed.yaml.
  * Optional provenance fields when API/DB expose them (004).
@@ -43,6 +49,8 @@ export interface DebateSummary {
   created_at: string;
   updated_at?: string;
   analytics?: DebateAnalyticsSummary;
+  /** Real agree vs disagree swipe upvote counts for list UI (optional on older API builds). */
+  binary_consensus?: DebateBinaryConsensus;
   /** Authenticated “voted” list — latest swipe time for sorting */
   last_voted_at?: string;
   source_headline?: string;

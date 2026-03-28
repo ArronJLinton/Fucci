@@ -117,10 +117,15 @@ func TestDebateSummaryFromPublicFeedRowMapsAnalytics(t *testing.T) {
 		TotalVotes:      sql.NullInt32{Int32: 3, Valid: true},
 		TotalComments:   sql.NullInt32{Int32: 1, Valid: true},
 		EngagementScore: sql.NullString{String: "5.50", Valid: true},
+		BinaryAgreeUpvotes:    int64(12),
+		BinaryDisagreeUpvotes: int64(8),
 	}
 	s := debateSummaryFromPublicFeedRow(row)
 	if s.Analytics == nil || s.Analytics.EngagementScore != 5.5 {
 		t.Fatalf("analytics: %+v", s.Analytics)
+	}
+	if s.BinaryConsensus.AgreeUpvotes != 12 || s.BinaryConsensus.DisagreeUpvotes != 8 {
+		t.Fatalf("binary_consensus: %+v", s.BinaryConsensus)
 	}
 	if s.Description != "D" || s.MatchID != "99" {
 		t.Fatalf("unexpected summary: %+v", s)
@@ -140,18 +145,23 @@ func TestLastVotedAtFromSQLCIface(t *testing.T) {
 func TestDebateSummaryFromVotedFeedRowIncludesLastVotedAt(t *testing.T) {
 	ts := time.Unix(500, 0).UTC()
 	row := database.ListDebatesFeedVotedForUserRow{
-		ID:              1,
-		MatchID:         "1",
-		DebateType:      "pre_match",
-		Headline:        "H",
-		CreatedAt:       sql.NullTime{Time: time.Unix(1, 0).UTC(), Valid: true},
-		TotalVotes:      sql.NullInt32{Int32: 1, Valid: true},
-		EngagementScore: sql.NullString{String: "1.00", Valid: true},
-		LastVotedAt:     ts,
+		ID:                    1,
+		MatchID:               "1",
+		DebateType:            "pre_match",
+		Headline:              "H",
+		CreatedAt:             sql.NullTime{Time: time.Unix(1, 0).UTC(), Valid: true},
+		TotalVotes:            sql.NullInt32{Int32: 1, Valid: true},
+		EngagementScore:       sql.NullString{String: "1.00", Valid: true},
+		BinaryAgreeUpvotes:    int64(3),
+		BinaryDisagreeUpvotes: int64(1),
+		LastVotedAt:           ts,
 	}
 	s := debateSummaryFromVotedFeedRow(row)
 	if s.LastVotedAt == nil || !s.LastVotedAt.Equal(ts) {
 		t.Fatalf("last_voted_at: %+v", s.LastVotedAt)
+	}
+	if s.BinaryConsensus.AgreeUpvotes != 3 || s.BinaryConsensus.DisagreeUpvotes != 1 {
+		t.Fatalf("binary_consensus: %+v", s.BinaryConsensus)
 	}
 }
 

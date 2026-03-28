@@ -175,6 +175,12 @@ type DebateAnalyticsSummary struct {
 	EngagementScore float64 `json:"engagement_score"`
 }
 
+// DebateBinaryConsensus is swipe upvote counts on agree vs disagree cards (feed list; matches Debate Pulse).
+type DebateBinaryConsensus struct {
+	AgreeUpvotes    int `json:"agree_upvotes"`
+	DisagreeUpvotes int `json:"disagree_upvotes"`
+}
+
 // DebateSummary is a minimal debate row for public and authenticated feed responses (009).
 type DebateSummary struct {
 	ID                int32                   `json:"id"`
@@ -186,6 +192,7 @@ type DebateSummary struct {
 	CreatedAt         time.Time               `json:"created_at"`
 	UpdatedAt         time.Time               `json:"updated_at,omitempty"`
 	Analytics         *DebateAnalyticsSummary `json:"analytics,omitempty"`
+	BinaryConsensus   DebateBinaryConsensus   `json:"binary_consensus"`
 	LastVotedAt       *time.Time              `json:"last_voted_at,omitempty"`
 	SourceHeadline    *string                 `json:"source_headline,omitempty"`
 	SourceURL         *string                 `json:"source_url,omitempty"`
@@ -279,19 +286,23 @@ func buildDebateSummary(
 }
 
 func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) DebateSummary {
-	return buildDebateSummary(
+	s := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
 		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
 	)
+	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
+	return s
 }
 
 func debateSummaryFromNewFeedRow(row database.ListDebatesFeedNewForUserRow) DebateSummary {
-	return buildDebateSummary(
+	s := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
 		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
 	)
+	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
+	return s
 }
 
 func lastVotedAtFromSQLCIface(v interface{}) *time.Time {
@@ -304,13 +315,41 @@ func lastVotedAtFromSQLCIface(v interface{}) *time.Time {
 	return nil
 }
 
+// intFromSQLCIface coerces COUNT() / bigint driver values from sqlc interface{} fields.
+func intFromSQLCIface(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	switch n := v.(type) {
+	case int64:
+		return int(n)
+	case int32:
+		return int(n)
+	case int:
+		return n
+	case uint64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryConsensus {
+	return DebateBinaryConsensus{
+		AgreeUpvotes:    intFromSQLCIface(agreeIface),
+		DisagreeUpvotes: intFromSQLCIface(disagreeIface),
+	}
+}
+
 func debateSummaryFromVotedFeedRow(row database.ListDebatesFeedVotedForUserRow) DebateSummary {
-	return buildDebateSummary(
+	s := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
 		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore,
 		lastVotedAtFromSQLCIface(row.LastVotedAt),
 	)
+	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
+	return s
 }
 
 // debateSetCacheTTL is how long we cache a generated debate set.

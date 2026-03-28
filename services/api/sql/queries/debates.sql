@@ -155,12 +155,27 @@ ORDER BY da.engagement_score DESC NULLS LAST
 LIMIT $1;
 
 -- Public browse feed: engagement desc, tie-break created_at desc; only debates with at least one card.
+-- Swipe upvotes on agree vs disagree cards (matches mobile Debate Pulse / MY ACTIVITY bar).
 -- name: ListDebatesPublicFeed :many
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
-    da.engagement_score
+    da.engagement_score,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_agree_upvotes,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_disagree_upvotes
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
@@ -175,7 +190,21 @@ SELECT
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
-    da.engagement_score
+    da.engagement_score,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_agree_upvotes,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_disagree_upvotes
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
@@ -197,6 +226,20 @@ SELECT
     da.total_votes,
     da.total_comments,
     da.engagement_score,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_agree_upvotes,
+    COALESCE((
+      SELECT COUNT(*)::bigint
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
+        AND v.vote_type = 'upvote' AND v.emoji IS NULL
+    ), 0) AS binary_disagree_upvotes,
     (
       SELECT MAX(v.created_at)::timestamptz
       FROM votes v
