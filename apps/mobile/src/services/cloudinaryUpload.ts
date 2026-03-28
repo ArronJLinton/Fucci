@@ -44,7 +44,8 @@ export async function uploadToCloudinary(
 ): Promise<string> {
   const signature = await requestSignature(token, context);
   if (file.size != null && file.size > signature.max_upload_bytes) {
-    throw new ApiRequestError('Image must be 5 MB or smaller.', 400);
+    const maxSizeMB = Math.round(signature.max_upload_bytes / (1024 * 1024));
+    throw new ApiRequestError(`Image must be ${maxSizeMB} MB or smaller.`, 400);
   }
   const form = new FormData();
   form.append('api_key', signature.api_key);
