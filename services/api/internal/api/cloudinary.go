@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,6 +61,88 @@ func cloudinarySign(params map[string]string, apiSecret string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// isCloudinaryVersionSegment reports whether s is a Cloudinary version path component (e.g. v1695123456).
+func isCloudinaryVersionSegment(s string) bool {
+	if len(s) < 2 {
+		return false
+	}
+	if s[0] != 'v' && s[0] != 'V' {
+		return false
+	}
+	for _, r := range s[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// cloudinaryPublicIDFromDeliveryPath extracts the public_id (including folder prefix) from a delivery URL path
+// after /image/upload/, skipping optional transformation segments and an optional v{version} segment.
+func cloudinaryPublicIDFromDeliveryPath(trimmedPath, cloudName string) (string, error) {
+	var suffix string
+	if strings.TrimSpace(cloudName) != "" {
+		prefix := cloudName + "/"
+		if !strings.HasPrefix(trimmedPath, prefix) {
+			return "", fmt.Errorf("url must match configured cloud")
+		}
+		afterCloud := trimmedPath[len(prefix):]
+		const uploadPrefix = "image/upload/"
+		if len(afterCloud) < len(uploadPrefix) || !strings.EqualFold(afterCloud[:len(uploadPrefix)], uploadPrefix) {
+			return "", fmt.Errorf("url must use Cloudinary image delivery path")
+		}
+		suffix = afterCloud[len(uploadPrefix):]
+	} else {
+		lower := strings.ToLower(trimmedPath)
+		const marker = "image/upload/"
+		idx := strings.Index(lower, marker)
+		if idx < 0 {
+			return "", fmt.Errorf("url must use Cloudinary image delivery path")
+		}
+		suffix = trimmedPath[idx+len(marker):]
+	}
+
+	var parts []string
+	for _, s := range strings.Split(suffix, "/") {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+	if len(parts) == 0 {
+		return "", fmt.Errorf("url missing asset path after upload")
+	}
+
+	versionIdx := -1
+	for i, seg := range parts {
+		if isCloudinaryVersionSegment(seg) {
+			versionIdx = i
+			break
+		}
+	}
+	var rest []string
+	if versionIdx >= 0 {
+		rest = parts[versionIdx+1:]
+	} else {
+		// No version segment: strip only leading comma-separated transformation chains, then treat the rest as public_id.
+		i := 0
+		for i < len(parts) && strings.Contains(parts[i], ",") {
+			i++
+		}
+		rest = parts[i:]
+	}
+	if len(rest) == 0 {
+		return "", fmt.Errorf("url missing public id under allowed folder")
+	}
+	return strings.Join(rest, "/"), nil
+}
+
+func publicIDHasAllowedFolderPrefix(publicID, folder string) bool {
+	if publicID == folder {
+		return true
+	}
+	return strings.HasPrefix(publicID, folder+"/")
+}
+
 func (c *Config) validateCloudinaryMediaURLForContext(rawURL string, context string) error {
 	if strings.TrimSpace(rawURL) == "" {
 		return fmt.Errorf("url is required")
@@ -78,11 +161,17 @@ func (c *Config) validateCloudinaryMediaURLForContext(rawURL string, context str
 	if !strings.EqualFold(u.Hostname(), "res.cloudinary.com") {
 		return fmt.Errorf("url host must be res.cloudinary.com")
 	}
-	trimmedPath := strings.TrimPrefix(strings.TrimSpace(u.Path), "/")
-	if c.CloudinaryCloudName != "" && !strings.HasPrefix(trimmedPath, c.CloudinaryCloudName+"/") {
-		return fmt.Errorf("url must match configured cloud")
+	cleaned := path.Clean("/" + strings.TrimSpace(u.Path))
+	if cleaned == "/" || cleaned == "." {
+		return fmt.Errorf("invalid url")
 	}
-	if !strings.Contains(trimmedPath, "/"+folder+"/") && !strings.HasSuffix(trimmedPath, "/"+folder) {
+	trimmedPath := strings.TrimPrefix(cleaned, "/")
+
+	publicID, err := cloudinaryPublicIDFromDeliveryPath(trimmedPath, c.CloudinaryCloudName)
+	if err != nil {
+		return err
+	}
+	if !publicIDHasAllowedFolderPrefix(publicID, folder) {
 		return fmt.Errorf("url must be within allowed folder")
 	}
 	return nil
@@ -130,6 +219,12 @@ func (c *Config) postCloudinarySignature(w http.ResponseWriter, r *http.Request)
 			"public_id": publicID,
 			"timestamp": strconv.FormatInt(timestamp, 10),
 		}, c.CloudinaryAPISecret)
+	}
+
+	if strings.TrimSpace(resp.Signature) == "" && strings.TrimSpace(resp.UploadPreset) == "" {
+		respondWithError(w, http.StatusInternalServerError,
+			"Cloudinary upload auth is not configured: set CLOUDINARY_API_SECRET for signed uploads or CLOUDINARY_UPLOAD_PRESET for an unsigned upload preset")
+		return
 	}
 
 	respondWithJSON(w, http.StatusOK, resp)
