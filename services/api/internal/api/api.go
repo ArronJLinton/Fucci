@@ -29,6 +29,14 @@ type CommentReader interface {
 	GetComment(ctx context.Context, id int32) (database.GetCommentRow, error)
 }
 
+// DebatesFeedStore is the DB surface for GET /debates/public-feed and GET /debates/feed.
+// *database.Queries implements it; DebatesFeedDB on Config overrides for unit tests.
+type DebatesFeedStore interface {
+	ListDebatesPublicFeed(ctx context.Context, limit int32) ([]database.ListDebatesPublicFeedRow, error)
+	ListDebatesFeedNewForUser(ctx context.Context, arg database.ListDebatesFeedNewForUserParams) ([]database.ListDebatesFeedNewForUserRow, error)
+	ListDebatesFeedVotedForUser(ctx context.Context, arg database.ListDebatesFeedVotedForUserParams) ([]database.ListDebatesFeedVotedForUserRow, error)
+}
+
 // PlayerProfileStore is the DB surface used by /api/player-profile handlers; *database.Queries implements it.
 // PlayerProfileDB on Config overrides DB for those handlers when set (unit tests).
 type PlayerProfileStore interface {
@@ -65,9 +73,10 @@ type Config struct {
 	SystemUserEmail        string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
-	CardVoteReader  CardVoteReader
-	CommentReader   CommentReader
-	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
+	CardVoteReader   CardVoteReader
+	CommentReader    CommentReader
+	DebatesFeedDB    DebatesFeedStore // nil => use DB for debate feed GETs
+	PlayerProfileDB  PlayerProfileStore // nil => use DB for /api/player-profile routes
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
@@ -217,6 +226,17 @@ func New(c Config) http.Handler {
 	router.Mount("/verifications", verificationsRouter)
 
 	return router
+}
+
+// debatesFeedStore returns the querier for debate feed handlers (test mock or DB).
+func (c *Config) debatesFeedStore() DebatesFeedStore {
+	if c.DebatesFeedDB != nil {
+		return c.DebatesFeedDB
+	}
+	if c.DB == nil {
+		return nil
+	}
+	return c.DB
 }
 
 // getUserIDFromContext extracts user ID from request context (set by auth middleware)

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -350,5 +352,164 @@ func TestMultipleEmojiVotesOnDebateCard(t *testing.T) {
 	voteCounts.Emojis["👍"] += 1
 	if voteCounts.Emojis["👍"] != 2 {
 		t.Errorf("Expected 👍 emoji count to be 2 after second vote, got %d", voteCounts.Emojis["👍"])
+	}
+}
+
+// mockDebatesFeedStore records calls for handler-level feed tests.
+type mockDebatesFeedStore struct {
+	publicLimits []int32
+	newParams    []database.ListDebatesFeedNewForUserParams
+	votedParams  []database.ListDebatesFeedVotedForUserParams
+	publicErr    error
+	newErr       error
+	votedErr     error
+}
+
+func (m *mockDebatesFeedStore) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]database.ListDebatesPublicFeedRow, error) {
+	m.publicLimits = append(m.publicLimits, limit)
+	if m.publicErr != nil {
+		return nil, m.publicErr
+	}
+	return nil, nil
+}
+
+func (m *mockDebatesFeedStore) ListDebatesFeedNewForUser(ctx context.Context, arg database.ListDebatesFeedNewForUserParams) ([]database.ListDebatesFeedNewForUserRow, error) {
+	m.newParams = append(m.newParams, arg)
+	if m.newErr != nil {
+		return nil, m.newErr
+	}
+	return nil, nil
+}
+
+func (m *mockDebatesFeedStore) ListDebatesFeedVotedForUser(ctx context.Context, arg database.ListDebatesFeedVotedForUserParams) ([]database.ListDebatesFeedVotedForUserRow, error) {
+	m.votedParams = append(m.votedParams, arg)
+	if m.votedErr != nil {
+		return nil, m.votedErr
+	}
+	return nil, nil
+}
+
+func TestGetDebatesPublicFeed_DatabaseNotConfigured(t *testing.T) {
+	c := &Config{}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/public-feed", nil)
+	c.getDebatesPublicFeed(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("code = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestGetDebatesPublicFeed_LimitUsesDefault(t *testing.T) {
+	mock := &mockDebatesFeedStore{}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/public-feed", nil)
+	c.getDebatesPublicFeed(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d", rec.Code)
+	}
+	if len(mock.publicLimits) != 1 || mock.publicLimits[0] != 30 {
+		t.Fatalf("public limit = %v, want [30]", mock.publicLimits)
+	}
+	var out PublicDebateFeedResponse
+	if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Debates == nil {
+		t.Fatal("expected debates key")
+	}
+}
+
+func TestGetDebatesPublicFeed_LimitClampedToMax(t *testing.T) {
+	mock := &mockDebatesFeedStore{}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/public-feed?limit=999", nil)
+	c.getDebatesPublicFeed(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d", rec.Code)
+	}
+	if len(mock.publicLimits) != 1 || mock.publicLimits[0] != 50 {
+		t.Fatalf("public limit = %v, want [50]", mock.publicLimits)
+	}
+}
+
+func TestGetDebatesPublicFeed_ListError(t *testing.T) {
+	mock := &mockDebatesFeedStore{publicErr: errors.New("db boom")}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/public-feed", nil)
+	c.getDebatesPublicFeed(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("code = %d, want 500", rec.Code)
+	}
+}
+
+func TestGetDebatesFeed_Unauthorized(t *testing.T) {
+	mock := &mockDebatesFeedStore{}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
+	c.getDebatesFeed(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("code = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	if len(mock.newParams) != 0 || len(mock.votedParams) != 0 {
+		t.Fatal("store should not be called without auth")
+	}
+}
+
+func TestGetDebatesFeed_OKWithUserID(t *testing.T) {
+	mock := &mockDebatesFeedStore{}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
+	ctx := context.WithValue(req.Context(), "user_id", int32(7))
+	req = req.WithContext(ctx)
+	c.getDebatesFeed(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d", rec.Code)
+	}
+	if len(mock.newParams) != 1 || mock.newParams[0].UserID.Int32 != 7 || mock.newParams[0].Limit != 20 {
+		t.Fatalf("new params = %+v", mock.newParams)
+	}
+	if len(mock.votedParams) != 1 || mock.votedParams[0].UserID.Int32 != 7 || mock.votedParams[0].Limit != 20 {
+		t.Fatalf("voted params = %+v", mock.votedParams)
+	}
+	var out DebateFeedResponse
+	if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.NewDebates == nil || out.VotedDebates == nil {
+		t.Fatalf("response: %+v", out)
+	}
+}
+
+func TestGetDebatesFeed_LimitsClamped(t *testing.T) {
+	mock := &mockDebatesFeedStore{}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/feed?new_limit=999&voted_limit=888", nil)
+	ctx := context.WithValue(req.Context(), "user_id", int32(1))
+	req = req.WithContext(ctx)
+	c.getDebatesFeed(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d", rec.Code)
+	}
+	if mock.newParams[0].Limit != 50 || mock.votedParams[0].Limit != 50 {
+		t.Fatalf("new=%d voted=%d, want 50 both", mock.newParams[0].Limit, mock.votedParams[0].Limit)
+	}
+}
+
+func TestGetDebatesFeed_NewListError(t *testing.T) {
+	mock := &mockDebatesFeedStore{newErr: errors.New("fail new")}
+	c := &Config{DebatesFeedDB: mock}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
+	ctx := context.WithValue(req.Context(), "user_id", int32(1))
+	req = req.WithContext(ctx)
+	c.getDebatesFeed(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("code = %d, want 500", rec.Code)
 	}
 }

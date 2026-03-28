@@ -1702,12 +1702,13 @@ func (c *Config) getTopDebates(w http.ResponseWriter, r *http.Request) {
 
 func (c *Config) getDebatesPublicFeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if c.DB == nil {
+	store := c.debatesFeedStore()
+	if store == nil {
 		respondWithError(w, http.StatusInternalServerError, "database not configured")
 		return
 	}
 	limit := parsePositiveInt32Query(r, "limit", defaultPublicFeedLimit, maxPublicFeedLimit)
-	rows, err := c.DB.ListDebatesPublicFeed(ctx, limit)
+	rows, err := store.ListDebatesPublicFeed(ctx, limit)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list public feed: %v", err))
 		return
@@ -1721,7 +1722,8 @@ func (c *Config) getDebatesPublicFeed(w http.ResponseWriter, r *http.Request) {
 
 func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if c.DB == nil {
+	store := c.debatesFeedStore()
+	if store == nil {
 		respondWithError(w, http.StatusInternalServerError, "database not configured")
 		return
 	}
@@ -1734,7 +1736,7 @@ func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 	newLimit := parsePositiveInt32Query(r, "new_limit", defaultFeedBucketLimit, maxFeedBucketLimit)
 	votedLimit := parsePositiveInt32Query(r, "voted_limit", defaultFeedBucketLimit, maxFeedBucketLimit)
 
-	newRows, err := c.DB.ListDebatesFeedNewForUser(ctx, database.ListDebatesFeedNewForUserParams{
+	newRows, err := store.ListDebatesFeedNewForUser(ctx, database.ListDebatesFeedNewForUserParams{
 		UserID: sql.NullInt32{Int32: userID, Valid: true},
 		Limit:  newLimit,
 	})
@@ -1742,7 +1744,7 @@ func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list new debates: %v", err))
 		return
 	}
-	votedRows, err := c.DB.ListDebatesFeedVotedForUser(ctx, database.ListDebatesFeedVotedForUserParams{
+	votedRows, err := store.ListDebatesFeedVotedForUser(ctx, database.ListDebatesFeedVotedForUserParams{
 		UserID: sql.NullInt32{Int32: userID, Valid: true},
 		Limit:  votedLimit,
 	})
