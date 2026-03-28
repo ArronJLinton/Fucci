@@ -202,32 +202,6 @@ const MainDebatesScreen = () => {
     navigation.getParent()?.navigate('Profile' as never);
   }, [navigation]);
 
-  if (!isReady || (isLoading && !data)) {
-    return (
-      <View style={[styles.centered, {paddingTop: insets.top, backgroundColor: BG}]}>
-        <StatusBar barStyle="light-content" />
-        <ActivityIndicator size="large" color={LIME} />
-      </View>
-    );
-  }
-
-  if (isError) {
-    return (
-      <View
-        style={[
-          styles.centered,
-          styles.errorWrap,
-          {paddingTop: insets.top, backgroundColor: BG},
-        ]}>
-        <StatusBar barStyle="light-content" />
-        <Text style={styles.errorText}>{userFacingApiMessage(error)}</Text>
-        <TouchableOpacity style={styles.ctaButton} onPress={() => refetch()}>
-          <Text style={styles.ctaButtonText}>Try again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   const newSectionEmpty = hero == null && restNew.length === 0;
 
   const keyExtractor = useCallback((item: FeedRow) => {
@@ -412,6 +386,32 @@ const MainDebatesScreen = () => {
     ),
     [brandName, goProfile],
   );
+
+  if (!isReady || (isLoading && !data)) {
+    return (
+      <View style={[styles.centered, {paddingTop: insets.top, backgroundColor: BG}]}>
+        <StatusBar barStyle="light-content" />
+        <ActivityIndicator size="large" color={LIME} />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View
+        style={[
+          styles.centered,
+          styles.errorWrap,
+          {paddingTop: insets.top, backgroundColor: BG},
+        ]}>
+        <StatusBar barStyle="light-content" />
+        <Text style={styles.errorText}>{userFacingApiMessage(error)}</Text>
+        <TouchableOpacity style={styles.ctaButton} onPress={() => refetch()}>
+          <Text style={styles.ctaButtonText}>Try again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, {paddingTop: insets.top}]}>
