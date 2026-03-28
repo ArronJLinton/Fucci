@@ -35,7 +35,6 @@ TypeScript (React Native), Go 1.22+, SQL: Follow standard conventions
 
 ## Recent Changes
 - 009-debate-tab-navigator: Added Go 1.22+ (API), TypeScript strict (Expo / React Native 0.81+) + chi router, sqlc-generated queries, React Navigation 7, TanStack React Query (existing)
-- 009-debate-tab-navigator: Added Go 1.22+ (API), TypeScript strict (Expo / React Native 0.81+) + chi router, sqlc-generated queries, React Navigation 7, TanStack React Query (existing)
 - 008-photo-upload-cloudinary: Added Go 1.22+ (API), TypeScript strict (Expo / React Native mobile) + chi HTTP router (existing), Cloudinary signing (Go: HMAC/SHA1 per Cloudinary docs or official SDK), Expo ImagePicker + `fetch`/`FormData` for upload on mobile
 
 
