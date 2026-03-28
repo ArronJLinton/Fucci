@@ -48,22 +48,29 @@ func InitJWT(secret string) error {
 }
 
 type Config struct {
-	DB                 *database.Queries
-	DBConn             *sql.DB
-	FootballAPIKey     string
-	RapidAPIKey        string
-	Cache              cache.CacheInterface
-	APIFootballBaseURL string
-	NewsBaseURL        string // optional; when set, news client uses this (e.g. for tests)
-	OpenAIKey          string
-	OpenAIBaseURL      string
-	AIPromptGenerator  *ai.PromptGenerator
-	SystemUserEmail    string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	DB                     *database.Queries
+	DBConn                 *sql.DB
+	FootballAPIKey         string
+	RapidAPIKey            string
+	CloudinaryCloudName    string
+	CloudinaryAPIKey       string
+	CloudinaryAPISecret    string
+	CloudinaryUploadPreset string
+	Cache                  cache.CacheInterface
+	APIFootballBaseURL     string
+	NewsBaseURL            string // optional; when set, news client uses this (e.g. for tests)
+	OpenAIKey              string
+	OpenAIBaseURL          string
+	AIPromptGenerator      *ai.PromptGenerator
+	SystemUserEmail        string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
 	CardVoteReader  CardVoteReader
 	CommentReader   CommentReader
 	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
+
+	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
+	ProfileUpdateDB ProfileUpdatePersistence
 }
 
 func New(c Config) http.Handler {
@@ -109,6 +116,10 @@ func New(c Config) http.Handler {
 	playerProfileRouter.Put("/", c.putPlayerProfile)
 	playerProfileRouter.Put("/traits", c.putPlayerProfileTraits)
 	playerProfileRouter.Delete("/", c.deletePlayerProfile)
+
+	uploadRouter := chi.NewRouter()
+	uploadRouter.Use(auth.RequireAuth)
+	uploadRouter.Post("/cloudinary/signature", c.postCloudinarySignature)
 
 	futbolRouter := chi.NewRouter()
 	futbolRouter.Get("/matches", c.getMatches)
@@ -191,6 +202,7 @@ func New(c Config) http.Handler {
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)
 	router.Mount("/player-profile", playerProfileRouter)
+	router.Mount("/upload", uploadRouter)
 	router.Mount("/comments", commentsRouter)
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)

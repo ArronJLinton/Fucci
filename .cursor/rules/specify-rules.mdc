@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2025-10-23
 - PostgreSQL (debates, debate_cards, comments, votes, comment_votes, comment_reactions); Redis for cache (006-user-engagement-debates)
 - React Native (TypeScript) + Expo; Go 1.22 API; PostgreSQL 15 + React Navigation, React Query (if used), React Native Image Picker, existing Go HTTP stack, S3-compatible object storage (007-player-profile)
 - PostgreSQL tables for player profiles, traits, and career teams; S3 (or equivalent) for profile photos (007-player-profile)
+- Go 1.22+ (API), TypeScript strict (Expo / React Native mobile) + chi HTTP router (existing), Cloudinary signing (Go: HMAC/SHA1 per Cloudinary docs or official SDK), Expo ImagePicker + `fetch`/`FormData` for upload on mobile (008-photo-upload-cloudinary)
+- PostgreSQL existing columns `users.avatar_url`, `player_profile.photo_url`; binary blobs not stored in DB (008-photo-upload-cloudinary)
 
 - TypeScript (React Native), Go 1.22+, SQL + React Native with Expo, Gin framework, PostgreSQL, Redis, OpenAI API, Socket.io (001-football-community)
 
@@ -30,9 +32,9 @@ npm test && npm run lint
 TypeScript (React Native), Go 1.22+, SQL: Follow standard conventions
 
 ## Recent Changes
+- 008-photo-upload-cloudinary: Added Go 1.22+ (API), TypeScript strict (Expo / React Native mobile) + chi HTTP router (existing), Cloudinary signing (Go: HMAC/SHA1 per Cloudinary docs or official SDK), Expo ImagePicker + `fetch`/`FormData` for upload on mobile
 - 007-player-profile: Added React Native (TypeScript) + Expo; Go 1.22 API; PostgreSQL 15 + React Navigation, React Query (if used), React Native Image Picker, existing Go HTTP stack, S3-compatible object storage
 - 006-user-engagement-debates: Added Go 1.22+, TypeScript (React Native / Expo) + chi (HTTP), React Navigation, expo; JWT auth (005)
-- 006-user-engagement-debates: Added TypeScript (React Native/Expo), Go 1.22+ (backend) + React Navigation, existing debate API (004), auth API (005), JWT
 
 
 <!-- MANUAL ADDITIONS START -->

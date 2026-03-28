@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -186,8 +187,21 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.AvatarURL != nil {
+		avatarURL := strings.TrimSpace(*req.AvatarURL)
+		if avatarURL == "" {
+			respondWithError(w, http.StatusBadRequest, "avatar_url cannot be empty")
+			return
+		}
+		if err := c.validateCloudinaryMediaURLForContext(avatarURL, "avatar"); err != nil {
+			if errors.Is(err, ErrCloudinaryURLValidationNotConfigured) {
+				respondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("invalid avatar_url: %v", err))
+			return
+		}
 		updates = append(updates, fmt.Sprintf("avatar_url = $%d", argPos))
-		args = append(args, *req.AvatarURL)
+		args = append(args, avatarURL)
 		argPos++
 	}
 
@@ -209,39 +223,20 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	// Construct final query with proper separation of SET and WHERE clauses
 	query := fmt.Sprintf("UPDATE users SET %s %s", setClause, whereClause)
 
-	_, err := c.DBConn.Exec(query, args...)
-	if err != nil {
+	persist := c.profileUpdatePersistence()
+	if persist == nil {
+		respondWithError(w, http.StatusInternalServerError, "database not configured")
+		return
+	}
+	if err := persist.ExecUpdate(r.Context(), query, args...); err != nil {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update profile: %s", err))
 		return
 	}
 
-	// Fetch updated user
-	user, err := c.DB.GetUser(r.Context(), userID)
+	userResponse, err := persist.LoadUserResponse(r.Context(), userID)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "failed to fetch updated user")
 		return
-	}
-
-	// Get additional fields
-	var displayName, avatarURL, role, createdAt, updatedAt string
-	var isVerified, isActive bool
-	c.DBConn.QueryRow(
-		"SELECT COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_verified, is_active, role, created_at, updated_at FROM users WHERE id = $1",
-		userID,
-	).Scan(&displayName, &avatarURL, &isVerified, &isActive, &role, &createdAt, &updatedAt)
-
-	userResponse := UserResponse{
-		ID:          user.ID,
-		Firstname:   user.Firstname,
-		Lastname:    user.Lastname,
-		Email:       user.Email,
-		DisplayName: displayName,
-		AvatarURL:   avatarURL,
-		IsVerified:  isVerified,
-		IsActive:    isActive,
-		Role:        role,
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
