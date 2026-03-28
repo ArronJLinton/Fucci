@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   PanResponder,
   Dimensions,
+  StatusBar,
+  Linking,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
@@ -33,6 +35,16 @@ import {
 import {useAuth} from '../context/AuthContext';
 import {rootNavigate} from '../navigation/rootNavigation';
 import {AuthGateModal} from '../components/AuthGateModal';
+import environment from '../config/environment';
+
+/** Velocity Strike–style debate detail (009) — aligned with MainDebatesScreen */
+const BG = '#0B0E14';
+const LIME = '#C6FF00';
+const CARD = '#1A1F2E';
+const TEXT = '#FFFFFF';
+const MUTED = '#8B92A5';
+const RED = '#FF3B30';
+const BORDER_SUB = 'rgba(255,255,255,0.08)';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const SWIPE_THRESHOLD = 80;
@@ -93,10 +105,19 @@ const SingleDebateScreen = () => {
   const [voteSubmitting, setVoteSubmitting] = useState(false);
   const swipeStartX = useRef(0);
 
-  const cards: DebateCard[] = debate?.cards ?? [];
+  /** Binary voting only — agree + disagree; wildcard stance excluded from UI */
+  const voteCards: DebateCard[] = useMemo(
+    () =>
+      (debate?.cards ?? []).filter(
+        c => c.stance === 'agree' || c.stance === 'disagree',
+      ),
+    [debate?.cards],
+  );
   const hasVotedAll =
-    votedCardIds.size >= 3 || currentCardIndex >= cards.length;
-  const showCardStack = cards.length > 0 && !hasVotedAll;
+    voteCards.length === 0 ||
+    votedCardIds.size >= voteCards.length ||
+    currentCardIndex >= voteCards.length;
+  const showCardStack = voteCards.length > 0 && !hasVotedAll;
 
   // Initialize per-card counts from debate when debate loads (e.g. new debate)
   useEffect(() => {
@@ -201,12 +222,12 @@ const SingleDebateScreen = () => {
           }));
         }
         setVotedCardIds(prev => new Set(prev).add(cardId));
-        setCurrentCardIndex(prev => Math.min(prev + 1, cards.length));
+        setCurrentCardIndex(prev => Math.min(prev + 1, voteCards.length));
       } finally {
         setVoteSubmitting(false);
       }
     },
-    [debate?.id, token, cards.length],
+    [debate?.id, token, voteCards.length],
   );
 
   const handleSwipeVote = useCallback(
@@ -215,11 +236,11 @@ const SingleDebateScreen = () => {
         setAuthGatePendingAction('swipe');
         return;
       }
-      const card = cards[currentCardIndex];
+      const card = voteCards[currentCardIndex];
       if (!card?.id || voteSubmitting) return;
       submitCardVote(card.id, voteType);
     },
-    [isLoggedIn, cards, currentCardIndex, voteSubmitting, submitCardVote],
+    [isLoggedIn, voteCards, currentCardIndex, voteSubmitting, submitCardVote],
   );
 
   const panResponder = useMemo(
@@ -443,12 +464,12 @@ const SingleDebateScreen = () => {
                 ]}
                 hitSlop={{top: 6, bottom: 6, left: 6, right: 6}}>
                 {voteLoading ? (
-                  <ActivityIndicator size="small" color="#6b7280" />
+                  <ActivityIndicator size="small" color={MUTED} />
                 ) : (
                   <Ionicons
                     name="chevron-up"
                     size={20}
-                    color={currentVote === 'upvote' ? '#22c55e' : '#6b7280'}
+                    color={currentVote === 'upvote' ? LIME : MUTED}
                   />
                 )}
               </TouchableOpacity>
@@ -467,7 +488,7 @@ const SingleDebateScreen = () => {
                 <Ionicons
                   name="chevron-down"
                   size={20}
-                  color={currentVote === 'downvote' ? '#ef4444' : '#6b7280'}
+                  color={currentVote === 'downvote' ? RED : MUTED}
                 />
               </TouchableOpacity>
             </View>
@@ -484,7 +505,7 @@ const SingleDebateScreen = () => {
                   }
                 }}
                 style={styles.commentActionBtn}>
-                <Ionicons name="arrow-undo-outline" size={14} color="#6b7280" />
+                <Ionicons name="arrow-undo-outline" size={14} color={MUTED} />
                 <Text style={styles.commentActionText}>Reply</Text>
               </TouchableOpacity>
             )}
@@ -510,12 +531,12 @@ const SingleDebateScreen = () => {
                 }}
                 style={styles.reactionAddBtn}>
                 {reactionLoading ? (
-                  <ActivityIndicator size="small" color="#6b7280" />
+                  <ActivityIndicator size="small" color={MUTED} />
                 ) : (
                   <Ionicons
                     name="add-circle-outline"
                     size={18}
-                    color="#6b7280"
+                    color={MUTED}
                   />
                 )}
               </TouchableOpacity>
@@ -549,7 +570,7 @@ const SingleDebateScreen = () => {
                 <Ionicons
                   name={collapsedReplyIds.has(c.id) ? 'chevron-down' : 'chevron-up'}
                   size={16}
-                  color="#6b7280"
+                  color={MUTED}
                 />
                 <Text style={styles.collapseRepliesText}>
                   {collapsedReplyIds.has(c.id)
@@ -569,28 +590,35 @@ const SingleDebateScreen = () => {
     );
   };
 
+  const brandTitle = environment.APP_NAME.toUpperCase();
+  const sourceHeadline = debate?.source_headline?.trim();
+  const sourceUrl = debate?.source_url?.trim();
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}>
-      {/* Top bar: back, FUCCI, icons */}
+      <StatusBar barStyle="light-content" backgroundColor={BG} />
       <View style={[styles.topBar, {paddingTop: Math.max(insets.top, 8)}]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.topBarButton}
           hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}>
-          <Ionicons name="chevron-back" size={28} color="#1f2937" />
+          <Ionicons name="chevron-back" size={28} color={LIME} />
         </TouchableOpacity>
+        <Text style={styles.brandMark} numberOfLines={1}>
+          {brandTitle}
+        </Text>
         <View style={styles.topBarRight}>
           <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="person-outline" size={22} color="#1f2937" />
+            <Ionicons name="person-outline" size={22} color={LIME} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="notifications-outline" size={22} color="#1f2937" />
+            <Ionicons name="notifications-outline" size={22} color={LIME} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="#1f2937" />
+            <Ionicons name="ellipsis-horizontal" size={22} color={LIME} />
           </TouchableOpacity>
         </View>
       </View>
@@ -600,127 +628,92 @@ const SingleDebateScreen = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        {/* Header: team badges + score (hide score when pre-match) */}
-        {match && (
-          <View style={styles.matchHeader}>
-            <View style={styles.teamBadge}>
-              {match.teams?.home?.logo ? (
-                <Image
-                  source={{uri: match.teams.home.logo}}
-                  style={styles.teamLogo}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={styles.teamLogoPlaceholder} />
-              )}
-              <Text style={styles.teamName} numberOfLines={1}>
-                {match.teams?.home?.name ?? 'Home'}
-              </Text>
-            </View>
-            <View style={styles.scoreOrVs}>
-              {match.goals?.home != null && match.goals?.away != null ? (
-                <Text style={styles.scoreText}>
-                  {match.goals.home} – {match.goals.away}
-                </Text>
-              ) : (
-                <Text style={styles.headerVsText}>VS</Text>
-              )}
-            </View>
-            <View style={styles.teamBadge}>
-              {match.teams?.away?.logo ? (
-                <Image
-                  source={{uri: match.teams.away.logo}}
-                  style={styles.teamLogo}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={styles.teamLogoPlaceholder} />
-              )}
-              <Text style={styles.teamName} numberOfLines={1}>
-                {match.teams?.away?.name ?? 'Away'}
-              </Text>
-            </View>
-          </View>
+        <Text style={styles.headline}>{headline}</Text>
+        {(sourceHeadline || sourceUrl) && (
+          <Text
+            style={styles.sourceLine}
+            numberOfLines={3}
+            onPress={() =>
+              sourceUrl ? Linking.openURL(sourceUrl).catch(() => {}) : undefined
+            }>
+            {sourceHeadline || sourceUrl}
+          </Text>
         )}
 
-        {/* Debate topic — above Debate Pulse */}
-        <Text style={styles.headline}>{headline}</Text>
-
-        {/* Live debate meter — Debate Pulse: summary bar + per-card breakdown */}
+        {/* Single binary vote bar (agree / disagree share of community votes) */}
         {(() => {
-          const hasCards = cards.length > 0;
-          if (!hasCards) return null;
-          // Use only yes (upvote) counts for Debate Pulse percentages; no votes excluded
-          const cardYesVotes = cards.map(c => {
-            const local = c.id != null ? localCardVoteCounts[c.id] : null;
-            return local ? local.upvotes : (c.vote_counts?.upvotes ?? 0);
-          });
-          const totalYesVotes = cardYesVotes.reduce((a, b) => a + b, 0);
-          const stanceColor = (stance: string) =>
-            stance === 'agree'
-              ? '#22c55e'
-              : stance === 'disagree'
-                ? '#ef4444'
-                : '#eab308';
+          if (voteCards.length === 0) return null;
+          const agreeCard = voteCards.find(c => c.stance === 'agree');
+          const disagreeCard = voteCards.find(c => c.stance === 'disagree');
+          const agreeVotes =
+            agreeCard?.id != null
+              ? localCardVoteCounts[agreeCard.id]?.upvotes ??
+                agreeCard.vote_counts?.upvotes ??
+                0
+              : 0;
+          const disagreeVotes =
+            disagreeCard?.id != null
+              ? localCardVoteCounts[disagreeCard.id]?.upvotes ??
+                disagreeCard.vote_counts?.upvotes ??
+                0
+              : 0;
+          const totalSide = agreeVotes + disagreeVotes;
+          const agreePct =
+            totalSide > 0
+              ? Math.round((agreeVotes / totalSide) * 100)
+              : 0;
+          const disagreePct = totalSide > 0 ? 100 - agreePct : 0;
+          const agreeTitle = agreeCard?.title?.trim() || 'Agree';
+          const disagreeTitle = disagreeCard?.title?.trim() || 'Disagree';
+
           return (
             <View style={styles.meterSection}>
-              {/* Debate Pulse only — percentages per card, no separate summary bar */}
-              {hasCards && (
-                <View style={styles.debatePulseBox}>
-                  <Text style={styles.debatePulseTitle}>Debate Pulse</Text>
-                  {cards.map((card, i) => {
-                    const yesVotes = cardYesVotes[i] ?? 0;
-                    const pct =
-                      totalYesVotes > 0
-                        ? Math.round((yesVotes / totalYesVotes) * 100)
-                        : 0;
-                    const color = stanceColor(card.stance ?? 'wildcard');
-                    return (
-                      <View key={card.id ?? i} style={styles.debatePulseRow}>
-                        <View style={styles.debatePulseLabelRow}>
-                          <View
-                            style={[
-                              styles.debatePulseDot,
-                              {backgroundColor: color},
-                            ]}
-                          />
-                          <Text style={styles.debatePulseLabel}>
-                            {card.title ||
-                              (card.stance === 'agree'
-                                ? 'Agree'
-                                : card.stance === 'disagree'
-                                  ? 'Disagree'
-                                  : 'Wildcard')}
-                          </Text>
-                        </View>
-                        <View style={styles.debatePulseBarRow}>
-                          <View style={styles.debatePulseBarBg}>
-                            <View
-                              style={[
-                                styles.debatePulseBarFill,
-                                {
-                                  backgroundColor: color,
-                                  width: `${Math.min(100, pct)}%`,
-                                },
-                              ]}
-                            />
-                          </View>
-                          <Text style={styles.debatePulsePct}>{pct}%</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
+              <View style={styles.censusBox}>
+                <Text style={styles.censusTitle}>DEBATE PULSE</Text>
+                <View style={styles.censusPctRow}>
+                  <View style={styles.censusPctCol}>
+                    <Text style={styles.censusCaption}>AGREE</Text>
+                    <Text style={styles.censusPctLarge}>{agreePct}%</Text>
+                  </View>
+                  <View style={[styles.censusPctCol, styles.censusPctColEnd]}>
+                    <Text style={styles.censusCaption}>DISAGREE</Text>
+                    <Text style={styles.censusPctLargeDisagree}>
+                      {disagreePct}%
+                    </Text>
+                  </View>
                 </View>
-              )}
+                <View style={styles.censusBarTrack}>
+                  <View
+                    style={[styles.censusSegAgree, {width: `${agreePct}%`}]}
+                  />
+                  <View
+                    style={[
+                      styles.censusSegDisagree,
+                      {width: `${disagreePct}%`},
+                    ]}
+                  />
+                </View>
+                <View style={styles.censusTitlesRow}>
+                  <Text
+                    style={styles.censusSideTitleAgree}
+                    numberOfLines={2}>
+                    {agreeTitle}
+                  </Text>
+                  <Text
+                    style={styles.censusSideTitleDisagree}
+                    numberOfLines={2}>
+                    {disagreeTitle}
+                  </Text>
+                </View>
+              </View>
             </View>
           );
         })()}
 
-        {/* Stacked cards — only show when user hasn't voted on all 3 */}
-        {showCardStack && cards[currentCardIndex] && (
+        {/* Stacked cards — binary only; hidden when user finished both sides */}
+        {showCardStack && voteCards[currentCardIndex] && (
           <View style={styles.cardStackSection}>
-            {/* Back cards (peek) — layered behind */}
-            {cards
+            {voteCards
               .slice(currentCardIndex + 1, currentCardIndex + 3)
               .map((card, i) => (
                 <View
@@ -736,7 +729,6 @@ const SingleDebateScreen = () => {
                   </Text>
                 </View>
               ))}
-            {/* Top card — swipeable */}
             <View
               style={[
                 styles.stackedCard,
@@ -758,15 +750,15 @@ const SingleDebateScreen = () => {
                   <Ionicons
                     name={swipeOverlay === 'yes' ? 'thumbs-up' : 'thumbs-down'}
                     size={64}
-                    color="#fff"
+                    color={TEXT}
                   />
                 </View>
               )}
               <Text style={styles.stackedCardTitle}>
-                {cards[currentCardIndex].title}
+                {voteCards[currentCardIndex].title}
               </Text>
               <Text style={styles.stackedCardDesc}>
-                {cards[currentCardIndex].description}
+                {voteCards[currentCardIndex].description}
               </Text>
               <Text style={styles.swipeHint}>Swipe right 👍 or left 👎</Text>
             </View>
@@ -777,17 +769,17 @@ const SingleDebateScreen = () => {
         <View style={styles.commentsHeader}>
           <TouchableOpacity style={styles.sortRow}>
             <Text style={styles.sortLabel}>Top Comments</Text>
-            <Ionicons name="chevron-down" size={18} color="#6b7280" />
+            <Ionicons name="chevron-down" size={18} color={MUTED} />
           </TouchableOpacity>
           <TouchableOpacity>
-            <Ionicons name="filter" size={20} color="#6b7280" />
+            <Ionicons name="filter" size={20} color={MUTED} />
           </TouchableOpacity>
         </View>
 
         {/* Comment list — loading, error with Retry, or list (006 US1) */}
         {commentsLoading && (
           <View style={styles.commentsLoading}>
-            <ActivityIndicator size="small" color="#6b7280" />
+            <ActivityIndicator size="small" color={LIME} />
             <Text style={styles.commentsLoadingText}>Loading comments...</Text>
           </View>
         )}
@@ -844,7 +836,7 @@ const SingleDebateScreen = () => {
               <TouchableOpacity
                 onPress={() => setReplyingToCommentId(null)}
                 hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-                <Ionicons name="close" size={18} color="#6b7280" />
+                <Ionicons name="close" size={18} color={MUTED} />
               </TouchableOpacity>
             </View>
           )}
@@ -855,7 +847,7 @@ const SingleDebateScreen = () => {
                 ? 'Write a reply...'
                 : 'Write a comment...'
             }
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={MUTED}
             value={commentInput}
             onChangeText={setCommentInput}
             multiline
@@ -875,9 +867,13 @@ const SingleDebateScreen = () => {
           ]}
           disabled={!commentInput.trim() || commentSubmitting}>
           {commentSubmitting ? (
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={LIME} />
           ) : (
-            <Ionicons name="send" size={20} color="#007AFF" />
+            <Ionicons
+              name="send"
+              size={20}
+              color={commentInput.trim() && !commentSubmitting ? LIME : MUTED}
+            />
           )}
         </TouchableOpacity>
       </View>
@@ -915,7 +911,7 @@ const SingleDebateScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: BG,
   },
   topBar: {
     flexDirection: 'row',
@@ -925,138 +921,125 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderBottomColor: BORDER_SUB,
+    backgroundColor: BG,
   },
   topBarButton: {
     padding: 4,
+    width: 40,
+  },
+  brandMark: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    color: LIME,
+    letterSpacing: 1,
   },
   logoTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1f2937',
+    color: TEXT,
     letterSpacing: 0.5,
   },
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
+    maxWidth: 120,
   },
   iconButton: {
     padding: 4,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: BG,
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 24,
   },
-  matchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingVertical: 8,
-  },
-  teamBadge: {
-    flex: 1,
-    alignItems: 'center',
-    maxWidth: 100,
-  },
-  teamLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#f3f4f6',
-  },
-  teamLogoPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#e5e7eb',
-  },
-  teamName: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  scoreOrVs: {
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-  },
-  headerVsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9ca3af',
-  },
   meterSection: {
     marginBottom: 20,
   },
-  debatePulseBox: {
-    marginTop: 16,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
+  censusBox: {
+    backgroundColor: CARD,
+    borderRadius: 14,
     padding: 16,
+    borderWidth: 1,
+    borderColor: BORDER_SUB,
   },
-  debatePulseTitle: {
-    fontSize: 16,
+  censusTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: LIME,
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  censusPctRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  censusPctCol: {
+    flex: 1,
+  },
+  censusPctColEnd: {
+    alignItems: 'flex-end',
+  },
+  censusCaption: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 12,
+    color: MUTED,
+    letterSpacing: 1,
+    marginBottom: 4,
   },
-  debatePulseRow: {
-    marginBottom: 12,
+  censusPctLarge: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: LIME,
   },
-  debatePulseLabelRow: {
+  censusPctLargeDisagree: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: RED,
+  },
+  censusBarTrack: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  debatePulseDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-    marginTop: 4,
-  },
-  debatePulseLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-  },
-  debatePulseBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 18,
-  },
-  debatePulseBarBg: {
-    flex: 1,
-    height: 6,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 3,
+    height: 12,
+    borderRadius: 6,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  debatePulseBarFill: {
+  censusSegAgree: {
     height: '100%',
-    borderRadius: 3,
+    backgroundColor: LIME,
   },
-  debatePulsePct: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginLeft: 8,
-    minWidth: 36,
+  censusSegDisagree: {
+    height: '100%',
+    backgroundColor: RED,
+  },
+  censusTitlesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 10,
+  },
+  censusSideTitleAgree: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: LIME,
+    lineHeight: 16,
+  },
+  censusSideTitleDisagree: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: RED,
+    lineHeight: 16,
     textAlign: 'right',
   },
   meterBar: {
@@ -1064,14 +1047,14 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     overflow: 'hidden',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   meterFillYes: {
-    backgroundColor: '#22c55e',
+    backgroundColor: LIME,
     minWidth: 0,
   },
   meterFillNo: {
-    backgroundColor: '#ef4444',
+    backgroundColor: RED,
     minWidth: 0,
   },
   meterLabels: {
@@ -1082,11 +1065,11 @@ const styles = StyleSheet.create({
   },
   meterLabelYes: {
     fontSize: 12,
-    color: '#6b7280',
+    color: MUTED,
   },
   meterLabelNo: {
     fontSize: 12,
-    color: '#6b7280',
+    color: MUTED,
   },
   cardStackSection: {
     marginBottom: 24,
@@ -1095,13 +1078,13 @@ const styles = StyleSheet.create({
   },
   stackedCard: {
     position: 'absolute',
-    left: 20,
-    right: 20,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    left: 0,
+    right: 0,
+    backgroundColor: CARD,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: BORDER_SUB,
   },
   stackedCardBack: {
     top: 8,
@@ -1118,39 +1101,51 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   swipeOverlayYes: {
-    backgroundColor: 'rgba(34, 197, 94, 0.85)',
+    backgroundColor: 'rgba(198, 255, 0, 0.35)',
   },
   swipeOverlayNo: {
-    backgroundColor: 'rgba(239, 68, 68, 0.85)',
+    backgroundColor: 'rgba(255, 59, 48, 0.45)',
   },
   swipeHint: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontSize: 11,
+    fontStyle: 'italic',
+    color: MUTED,
     marginTop: 8,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   stackedCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 17,
+    fontWeight: '800',
+    color: TEXT,
     marginBottom: 6,
   },
   stackedCardDesc: {
     fontSize: 14,
-    color: '#4b5563',
+    color: MUTED,
     lineHeight: 20,
   },
   headline: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1f2937',
-    lineHeight: 28,
-    marginBottom: 24,
+    fontSize: 22,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: TEXT,
+    lineHeight: 30,
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  sourceLine: {
+    fontSize: 13,
+    color: LIME,
+    opacity: 0.9,
+    lineHeight: 18,
+    marginBottom: 20,
     textAlign: 'center',
   },
   vsRow: {
@@ -1167,7 +1162,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -1180,7 +1175,7 @@ const styles = StyleSheet.create({
   playerName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: TEXT,
     marginBottom: 8,
     maxWidth: 100,
     textAlign: 'center',
@@ -1189,7 +1184,7 @@ const styles = StyleSheet.create({
     height: 6,
     width: '100%',
     maxWidth: 100,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -1200,14 +1195,14 @@ const styles = StyleSheet.create({
   votePct: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6b7280',
+    color: MUTED,
     marginTop: 4,
   },
   vsBadge: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: CARD,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 8,
@@ -1215,7 +1210,7 @@ const styles = StyleSheet.create({
   vsText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#374151',
+    color: TEXT,
   },
   voteNowLinkRow: {
     flexDirection: 'row',
@@ -1226,23 +1221,23 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: BORDER_SUB,
   },
   voteNowLinkLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#007AFF',
+    color: LIME,
   },
   stanceCardsSection: {
     marginBottom: 28,
   },
   stanceCard: {
-    backgroundColor: '#fff',
+    backgroundColor: CARD,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: BORDER_SUB,
   },
   stanceCardHeader: {
     flexDirection: 'row',
@@ -1261,25 +1256,25 @@ const styles = StyleSheet.create({
   stanceBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#fff',
+    color: BG,
     textTransform: 'uppercase',
   },
   stanceCardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: TEXT,
     marginBottom: 8,
     lineHeight: 22,
   },
   stanceCardDescription: {
     fontSize: 14,
-    color: '#4b5563',
+    color: MUTED,
     lineHeight: 20,
     marginBottom: 12,
   },
   stanceVoteBarBg: {
     height: 8,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -1289,7 +1284,7 @@ const styles = StyleSheet.create({
   },
   stanceVotePct: {
     fontSize: 12,
-    color: '#6b7280',
+    color: MUTED,
     marginTop: 4,
   },
   stanceVoteNowRow: {
@@ -1300,12 +1295,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: BORDER_SUB,
   },
   stanceVoteNowLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#007AFF',
+    color: LIME,
   },
   commentsHeader: {
     flexDirection: 'row',
@@ -1319,23 +1314,29 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sortLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 14,
+    fontWeight: '800',
+    color: LIME,
+    letterSpacing: 0.8,
   },
   commentRow: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: CARD,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER_SUB,
   },
   subcommentRow: {
-    marginLeft: 24,
+    marginLeft: 12,
     marginBottom: 12,
   },
   commentAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: 'rgba(198,255,0,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1348,7 +1349,7 @@ const styles = StyleSheet.create({
   commentAvatarText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6b7280',
+    color: LIME,
   },
   commentBody: {
     flex: 1,
@@ -1361,8 +1362,8 @@ const styles = StyleSheet.create({
   },
   commentUsername: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontWeight: '700',
+    color: TEXT,
   },
   commentVoteRow: {
     flexDirection: 'row',
@@ -1375,14 +1376,14 @@ const styles = StyleSheet.create({
   commentVoteBtnActive: {},
   commentUpvotes: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#059669',
+    fontWeight: '700',
+    color: LIME,
     minWidth: 32,
     textAlign: 'center',
   },
   commentContent: {
     fontSize: 14,
-    color: '#4b5563',
+    color: MUTED,
     lineHeight: 20,
     marginBottom: 6,
   },
@@ -1410,7 +1411,7 @@ const styles = StyleSheet.create({
   },
   reactionChip: {
     fontSize: 13,
-    color: '#6b7280',
+    color: MUTED,
   },
   reactionAddBtn: {
     padding: 4,
@@ -1424,7 +1425,7 @@ const styles = StyleSheet.create({
   },
   reactionPickerEmoji: {
     padding: 6,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8,
   },
   reactionPickerEmojiText: {
@@ -1439,8 +1440,8 @@ const styles = StyleSheet.create({
   },
   collapseRepliesText: {
     fontSize: 13,
-    color: '#6b7280',
-    fontWeight: '500',
+    color: LIME,
+    fontWeight: '600',
   },
   commentsLoading: {
     flexDirection: 'row',
@@ -1451,7 +1452,7 @@ const styles = StyleSheet.create({
   },
   commentsLoadingText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: MUTED,
   },
   commentsError: {
     paddingVertical: 24,
@@ -1460,23 +1461,25 @@ const styles = StyleSheet.create({
   },
   commentsErrorText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: MUTED,
     textAlign: 'center',
   },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: CARD,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: LIME,
   },
   retryButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: LIME,
   },
   commentsEmpty: {
     fontSize: 14,
-    color: '#6b7280',
+    color: MUTED,
     textAlign: 'center',
     paddingVertical: 24,
   },
@@ -1492,7 +1495,8 @@ const styles = StyleSheet.create({
   },
   commentActionText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: LIME,
+    fontWeight: '600',
   },
   bottomSpacer: {
     height: 24,
@@ -1503,18 +1507,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#fef2f2',
+    backgroundColor: 'rgba(255,59,48,0.12)',
     borderTopWidth: 1,
-    borderTopColor: '#fecaca',
+    borderTopColor: BORDER_SUB,
   },
   commentSubmitErrorText: {
     fontSize: 13,
-    color: '#b91c1c',
+    color: RED,
     flex: 1,
   },
   commentSubmitErrorDismiss: {
     fontSize: 13,
-    color: '#6b7280',
+    color: MUTED,
     marginLeft: 8,
   },
   inputRow: {
@@ -1522,23 +1526,23 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: BG,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: BORDER_SUB,
     gap: 10,
   },
   inputAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: 'rgba(198,255,0,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   inputAvatarText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6b7280',
+    color: LIME,
   },
   inputWrap: {
     flex: 1,
@@ -1553,21 +1557,23 @@ const styles = StyleSheet.create({
   },
   replyHintText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: MUTED,
   },
   input: {
     minHeight: 40,
     maxHeight: 100,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: CARD,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
-    color: '#1f2937',
+    color: TEXT,
+    borderWidth: 1,
+    borderColor: BORDER_SUB,
   },
   inputCharCount: {
     fontSize: 11,
-    color: '#9ca3af',
+    color: MUTED,
     marginTop: 2,
     marginLeft: 4,
   },

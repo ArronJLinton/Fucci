@@ -98,6 +98,10 @@ export interface DebateResponse extends DebateContent {
   updated_at?: string;
   cards: DebateCard[];
   card_vote_totals?: CardVoteTotals;
+  /** Optional 004/009 provenance when API exposes it */
+  source_headline?: string;
+  source_url?: string;
+  source_published_at?: string;
 }
 
 export type DebateType = 'pre_match' | 'post_match';
