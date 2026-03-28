@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {Ionicons} from '@expo/vector-icons';
 import {useQuery} from '@tanstack/react-query';
-import type {DebateSummary, DebateResponse} from '../types/debate';
+import type {DebateSummary, DebateResponse, DebateCard} from '../types/debate';
 import type {Match} from '../types/match';
 import {fetchDebateById, setCardVote} from '../services/debate';
 import {rootNavigate} from '../navigation/rootNavigation';
@@ -32,6 +32,28 @@ const HERO_IMAGE_URI =
   'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&q=80';
 
 const SWIPE_THRESHOLD = 80;
+
+function logHero(event: string, payload?: Record<string, unknown>) {
+  if (!__DEV__) return;
+  if (payload != null) {
+    console.log(`[DebateHeroSwipe] ${event}`, payload);
+  } else {
+    console.log(`[DebateHeroSwipe] ${event}`);
+  }
+}
+
+/**
+ * Single swipe vote per debate on the hero: use the primary binary card (prefer `agree`
+ * so DISAGREE/AGREE maps to downvote/upvote on that proposition).
+ */
+function pickHeroSwipeVoteCard(cards: DebateCard[] | undefined): DebateCard | undefined {
+  if (!cards?.length) return undefined;
+  const agree = cards.find(c => c.stance === 'agree');
+  if (agree) return agree;
+  const disagree = cards.find(c => c.stance === 'disagree');
+  if (disagree) return disagree;
+  return cards[0];
+}
 
 function debatePillLabel(debateType: string): string {
   return debateType === 'post_match' ? 'CONTROVERSY' : 'PRE-MATCH';
@@ -52,15 +74,56 @@ function relativeTimeLabel(iso: string): string {
   return `${d}d ago`;
 }
 
+/** Fired once per pan end (JS thread) — use for screen-level logging / analytics. */
+export type DebateHeroPanResult =
+  | {summaryId: number; kind: 'tap_open'; dx: number; dy: number}
+  | {
+      summaryId: number;
+      kind: 'ignored';
+      reason: 'not_ready_or_no_card' | 'voteBusy';
+      dx: number;
+      dy: number;
+    }
+  | {
+      summaryId: number;
+      kind: 'swipe_right';
+      outcome: 'upvote' | 'auth';
+      dx: number;
+      dy: number;
+    }
+  | {
+      summaryId: number;
+      kind: 'swipe_left';
+      outcome: 'downvote' | 'auth';
+      dx: number;
+      dy: number;
+    }
+  | {
+      summaryId: number;
+      kind: 'swipe_incomplete';
+      dx: number;
+      dy: number;
+      absDx: number;
+      threshold: number;
+    };
+/** Passed when POST vote succeeded and counts were returned (swipe vote persisted). */
+export type DebateHeroVoteSuccessDetail = {
+  debateId: number;
+  cardId: number;
+  voteType: 'upvote' | 'downvote';
+};
+
 export type DebateHeroSwipeCardProps = {
   summary: DebateSummary;
   isLoggedIn: boolean;
   token: string | null;
   /** Navigate to full debate detail */
   onOpen: () => void;
-  /** After a successful card vote (invalidate feed, etc.) */
-  onVoteSuccess: () => void;
+  /** After a successful swipe vote (server accepted vote); use detail to confirm persistence. */
+  onVoteSuccess: (detail: DebateHeroVoteSuccessDetail) => void;
   buildPlaceholderMatch: (summary: DebateSummary) => Match;
+  /** Optional: parent can log each resolved pan (e.g. MainDebatesScreen). */
+  onPanResolved?: (result: DebateHeroPanResult) => void;
 };
 
 export default function DebateHeroSwipeCard({
@@ -70,6 +133,7 @@ export default function DebateHeroSwipeCard({
   onOpen,
   onVoteSuccess,
   buildPlaceholderMatch,
+  onPanResolved,
 }: DebateHeroSwipeCardProps) {
   const translateX = useSharedValue(0);
   const overlayDir = useSharedValue(0);
@@ -84,8 +148,41 @@ export default function DebateHeroSwipeCard({
   });
 
   const debate = debateQuery.data;
-  const firstCard = debate?.cards?.[0];
-  const canSwipe = !!debate?.id && firstCard?.id != null && !debateQuery.isLoading;
+  const voteCard = useMemo(
+    () => pickHeroSwipeVoteCard(debate?.cards),
+    [debate?.cards],
+  );
+  const canSwipe = !!debate?.id && voteCard?.id != null && !debateQuery.isLoading;
+
+  const [voteBusy, setVoteBusy] = useState(false);
+
+  useEffect(() => {
+    logHero('state', {
+      summaryId: summary.id,
+      debateId: debate?.id ?? null,
+      voteCardId: voteCard?.id ?? null,
+      voteCardStance: voteCard?.stance ?? null,
+      cardCount: debate?.cards?.length ?? 0,
+      canSwipe,
+      isLoading: debateQuery.isLoading,
+      fetchError: debateQuery.isError,
+      isLoggedIn,
+      hasToken: !!token,
+      voteBusy,
+    });
+  }, [
+    summary.id,
+    debate?.id,
+    debate?.cards?.length,
+    voteCard?.id,
+    voteCard?.stance,
+    canSwipe,
+    debateQuery.isLoading,
+    debateQuery.isError,
+    isLoggedIn,
+    token,
+    voteBusy,
+  ]);
 
   const headline = summary.headline.toUpperCase();
   const votes = summary.analytics?.total_votes ?? 0;
@@ -99,7 +196,11 @@ export default function DebateHeroSwipeCard({
     : summary.source_url?.trim() ?? '';
 
   const openAuthForSwipe = useCallback(() => {
-    if (!debate) return;
+    if (!debate) {
+      logHero('openAuthForSwipe_skipped', {reason: 'no_debate'});
+      return;
+    }
+    logHero('openAuthForSwipe', {debateId: debate.id});
     const match = buildPlaceholderMatch(summary);
     rootNavigate('Login', {
       returnToDebate: {
@@ -110,27 +211,55 @@ export default function DebateHeroSwipeCard({
     });
   }, [debate, summary, buildPlaceholderMatch]);
 
-  const [voteBusy, setVoteBusy] = useState(false);
-
   const performVote = useCallback(
     async (voteType: 'upvote' | 'downvote') => {
-      if (!debate?.id || firstCard?.id == null) return;
+      if (!debate?.id || voteCard?.id == null) {
+        logHero('performVote_skipped', {reason: 'missing_debate_or_card'});
+        return;
+      }
       if (!isLoggedIn || !token) {
         openAuthForSwipe();
         return;
       }
-      if (voteBusy) return;
+      if (voteBusy) {
+        logHero('performVote_skipped', {reason: 'voteBusy'});
+        return;
+      }
+      logHero('performVote_start', {
+        debateId: debate.id,
+        cardId: voteCard.id,
+        voteType,
+      });
       setVoteBusy(true);
       try {
-        const counts = await setCardVote(token, debate.id, firstCard.id, voteType);
-        if (counts) onVoteSuccess();
+        const counts = await setCardVote(token, debate.id, voteCard.id, voteType);
+        if (counts) {
+          logHero('performVote_ok', {
+            debateId: debate.id,
+            cardId: voteCard.id,
+            voteType,
+            swipeVoteSucceeded: true,
+          });
+          onVoteSuccess({
+            debateId: debate.id,
+            cardId: voteCard.id,
+            voteType,
+          });
+        } else {
+          logHero('performVote_no_counts', {debateId: debate.id});
+        }
+      } catch (e) {
+        logHero('performVote_error', {
+          debateId: debate.id,
+          message: e instanceof Error ? e.message : String(e),
+        });
       } finally {
         setVoteBusy(false);
       }
     },
     [
       debate?.id,
-      firstCard?.id,
+      voteCard?.id,
       isLoggedIn,
       token,
       voteBusy,
@@ -141,23 +270,73 @@ export default function DebateHeroSwipeCard({
 
   const handlePanEnd = useCallback(
     (dx: number, dy: number) => {
+      const sid = summary.id;
+      logHero('panEnd', {
+        dx: Math.round(dx * 10) / 10,
+        dy: Math.round(dy * 10) / 10,
+        threshold: SWIPE_THRESHOLD,
+        canSwipe,
+        voteBusy,
+        isLoggedIn,
+        hasToken: !!token,
+      });
       if (Math.abs(dx) < 18 && Math.abs(dy) < 18) {
+        logHero('panEnd_action', {type: 'tap_open_detail'});
+        onPanResolved?.({summaryId: sid, kind: 'tap_open', dx, dy});
         onOpen();
         return;
       }
-      if (!canSwipe || voteBusy) return;
+      if (!canSwipe || voteBusy) {
+        const reason = !canSwipe ? 'not_ready_or_no_card' : 'voteBusy';
+        logHero('panEnd_action', {
+          type: 'ignored',
+          reason,
+        });
+        onPanResolved?.({summaryId: sid, kind: 'ignored', reason, dx, dy});
+        return;
+      }
       if (dx > SWIPE_THRESHOLD) {
-        if (!isLoggedIn || !token) openAuthForSwipe();
-        else void performVote('upvote');
+        if (!isLoggedIn || !token) {
+          logHero('panEnd_action', {type: 'swipe_right', outcome: 'auth'});
+          onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'auth', dx, dy});
+          openAuthForSwipe();
+        } else {
+          logHero('panEnd_action', {type: 'swipe_right', outcome: 'upvote'});
+          onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'upvote', dx, dy});
+          void performVote('upvote');
+        }
       } else if (dx < -SWIPE_THRESHOLD) {
-        if (!isLoggedIn || !token) openAuthForSwipe();
-        else void performVote('downvote');
+        if (!isLoggedIn || !token) {
+          logHero('panEnd_action', {type: 'swipe_left', outcome: 'auth'});
+          onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'auth', dx, dy});
+          openAuthForSwipe();
+        } else {
+          logHero('panEnd_action', {type: 'swipe_left', outcome: 'downvote'});
+          onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'downvote', dx, dy});
+          void performVote('downvote');
+        }
+      } else {
+        const absDx = Math.abs(dx);
+        logHero('panEnd_action', {
+          type: 'swipe_incomplete',
+          note: `|dx|=${absDx} did not exceed ${SWIPE_THRESHOLD}`,
+        });
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'swipe_incomplete',
+          dx,
+          dy,
+          absDx,
+          threshold: SWIPE_THRESHOLD,
+        });
       }
     },
     [
+      summary.id,
       canSwipe,
       voteBusy,
       onOpen,
+      onPanResolved,
       isLoggedIn,
       token,
       openAuthForSwipe,
@@ -272,7 +451,7 @@ export default function DebateHeroSwipeCard({
                 <Text style={styles.loadingText}>Loading card…</Text>
               </View>
             ) : null}
-            {!debateQuery.isLoading && !firstCard?.id ? (
+            {!debateQuery.isLoading && !voteCard?.id ? (
               <Text style={styles.warnText}>No swipe card for this debate.</Text>
             ) : null}
             <View style={styles.swipeRow}>

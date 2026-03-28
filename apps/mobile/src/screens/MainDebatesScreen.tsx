@@ -27,7 +27,10 @@ import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigate} from '../navigation/rootNavigation';
 import environment from '../config/environment';
-import DebateHeroSwipeCard from '../components/DebateHeroSwipeCard';
+import DebateHeroSwipeCard, {
+  type DebateHeroPanResult,
+  type DebateHeroVoteSuccessDetail,
+} from '../components/DebateHeroSwipeCard';
 
 /** Design tokens — Velocity Strike–style dark + lime (009 spec references) */
 const BG = '#0B0E14';
@@ -77,12 +80,25 @@ function consensusPercent(summary: DebateSummary): number {
   return Math.min(95, Math.max(22, Math.round(raw)));
 }
 
+function logMainDebatesHero(message: string, payload?: unknown) {
+  if (!__DEV__) return;
+  if (payload !== undefined) {
+    console.log(`[MainDebates hero] ${message}`, payload);
+  } else {
+    console.log(`[MainDebates hero] ${message}`);
+  }
+}
+
 const MainDebatesScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainDebatesNavigation>();
   const queryClient = useQueryClient();
   const {isLoggedIn, token, isReady} = useAuth();
   const brandName = environment.APP_NAME.toUpperCase();
+
+  const onHeroPanResolved = useCallback((result: DebateHeroPanResult) => {
+    logMainDebatesHero('pan resolved', result);
+  }, []);
 
   const query = useQuery({
     queryKey: ['mainDebatesFeed', isLoggedIn, token],
@@ -234,11 +250,36 @@ const MainDebatesScreen = () => {
             summary={hero!}
             isLoggedIn={isLoggedIn}
             token={token ?? null}
-            onOpen={() => onOpenSummary(hero!)}
-            onVoteSuccess={() => {
+            onPanResolved={onHeroPanResolved}
+            onOpen={() => {
+              logMainDebatesHero('onOpen (tap / small movement)', {
+                debateId: hero!.id,
+              });
+              onOpenSummary(hero!);
+            }}
+            onVoteSuccess={(detail: DebateHeroVoteSuccessDetail) => {
+              logMainDebatesHero('SWIPE_VOTE_SUCCEEDED (persisted on server)', {
+                success: true,
+                debateId: detail.debateId,
+                cardId: detail.cardId,
+                voteType: detail.voteType,
+              });
+              queryClient.setQueryData<UnifiedFeed>(
+                ['mainDebatesFeed', isLoggedIn, token],
+                old => {
+                  if (!old || old.kind !== 'auth') return old;
+                  const nextNew = old.new_debates.filter(s => s.id !== detail.debateId);
+                  const moved = old.new_debates.find(s => s.id === detail.debateId);
+                  const nextVoted =
+                    moved && !old.voted_debates.some(s => s.id === detail.debateId)
+                      ? [moved, ...old.voted_debates]
+                      : old.voted_debates;
+                  return {...old, new_debates: nextNew, voted_debates: nextVoted};
+                },
+              );
               void queryClient.invalidateQueries({queryKey: ['mainDebatesFeed']});
               void queryClient.invalidateQueries({
-                queryKey: ['debateHero', hero!.id],
+                queryKey: ['debateHero', detail.debateId],
               });
             }}
             buildPlaceholderMatch={buildPlaceholderMatch}
@@ -290,8 +331,8 @@ const MainDebatesScreen = () => {
         ) : votedList.length === 0 ? (
           <View style={styles.emptyInline}>
             <Text style={styles.muted}>
-              No completed debates yet. Finish voting on all cards in a debate
-              to see it here.
+              No completed debates yet. Swipe-vote on a debate above to see it
+              here.
             </Text>
           </View>
         ) : (

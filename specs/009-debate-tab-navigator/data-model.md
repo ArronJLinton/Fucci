@@ -11,7 +11,7 @@ No new tables are strictly required if “completion” is derived from existing
 | Entity | Source | Notes |
 |--------|--------|--------|
 | `debates` | 004/006 | `id`, `match_id`, `headline`, `description`, `debate_type`, … |
-| `debate_cards` | 004/006 | Typically three rows per debate (agree / disagree / wildcard); **feed completion** counts only **agree + disagree** (binary), matching the mobile UI |
+| `debate_cards` | 004/006 | Typically three rows per debate (agree / disagree / wildcard); **feed bucketing** uses **any** vote on **agree**/**disagree** (one vote per debate) |
 | `votes` | 006 | `user_id`, `debate_card_id`, `vote_type` (`upvote` \| `downvote`) for **card** swipe |
 | `comments` | 006 | Threaded replies, `parent_comment_id` for one level |
 | `comment_votes` | 006 | Up/down on comments |
@@ -20,10 +20,9 @@ No new tables are strictly required if “completion” is derived from existing
 
 For a given `user_id` and `debate_id`:
 
-- Let `C` = count of `debate_cards` where `stance IN ('agree', 'disagree')` (expected **2** for standard debates).
-- Let `V` = count of distinct **such** cards for which the user has **any** swipe vote row in `votes` (`vote_type` in `upvote`, `downvote`).
-- **Completed** (for **authenticated feed** bucketing) iff `V = C` and `C > 0`. Wildcard stance cards are **not** required for completion.
-- **New** iff `V < C` or the user has not voted on every binary card (includes zero votes).
+- Let `V` = whether the user has **any** swipe vote (`vote_type` in `upvote`, `downvote`) on **at least one** `debate_cards` row with `stance IN ('agree', 'disagree')`.
+- **Completed** (for **authenticated feed** bucketing) iff `V` is true — **one vote per debate**. Wildcard stance cards are **not** counted toward bucketing.
+- **New** iff the user has **no** such vote yet.
 
 ## API DTOs (logical)
 

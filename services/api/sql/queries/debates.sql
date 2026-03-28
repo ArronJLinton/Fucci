@@ -168,8 +168,8 @@ WHERE d.deleted_at IS NULL
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
 LIMIT $1;
 
--- Authenticated feed — "new": user has not cast swipe votes on all binary (agree/disagree) cards.
--- Wildcard cards do not count toward feed completion (matches mobile binary voting UI).
+-- Authenticated feed — "new": user has not cast any swipe vote on a binary (agree/disagree) card for this debate.
+-- One vote per debate (first swipe on any binary card moves the debate to "voted"). Wildcards do not count.
 -- name: ListDebatesFeedNewForUser :many
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
@@ -180,19 +180,17 @@ FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
-  AND (
-    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id AND dc_c.stance IN ('agree', 'disagree')
-  ) > COALESCE((
-    SELECT COUNT(DISTINCT dc3.id)::bigint
-    FROM debate_cards dc3
-    INNER JOIN votes v ON v.debate_card_id = dc3.id AND v.user_id = $1
+  AND NOT EXISTS (
+    SELECT 1
+    FROM debate_cards dc
+    INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
       AND v.vote_type IN ('upvote', 'downvote')
-    WHERE dc3.debate_id = d.id AND dc3.stance IN ('agree', 'disagree')
-  ), 0)
+    WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+  )
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
 LIMIT $2;
 
--- Authenticated feed — "voted": user has swipe votes on every agree/disagree card (binary completion).
+-- Authenticated feed — "voted": user has at least one swipe vote on any agree/disagree card for this debate.
 -- name: ListDebatesFeedVotedForUser :many
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
@@ -211,14 +209,12 @@ FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
-  AND (
-    SELECT COUNT(*)::bigint FROM debate_cards dc_c WHERE dc_c.debate_id = d.id AND dc_c.stance IN ('agree', 'disagree')
-  ) = (
-    SELECT COUNT(DISTINCT dc4.id)::bigint
-    FROM debate_cards dc4
-    INNER JOIN votes v2 ON v2.debate_card_id = dc4.id AND v2.user_id = $1
-      AND v2.vote_type IN ('upvote', 'downvote')
-    WHERE dc4.debate_id = d.id AND dc4.stance IN ('agree', 'disagree')
+  AND EXISTS (
+    SELECT 1
+    FROM debate_cards dc
+    INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
+      AND v.vote_type IN ('upvote', 'downvote')
+    WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
   )
 ORDER BY last_voted_at DESC NULLS LAST
 LIMIT $2;

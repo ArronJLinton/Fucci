@@ -119,14 +119,21 @@ const SingleDebateScreen = () => {
   const [voteSubmitting, setVoteSubmitting] = useState(false);
   const swipeStartX = useRef(0);
 
-  /** Binary voting only — agree + disagree; wildcard excluded (matches feed SQL completion). */
-  const voteCards: DebateCard[] = useMemo(
+  const allBinaryCards: DebateCard[] = useMemo(
     () =>
       (debate?.cards ?? []).filter(
         c => c.stance === 'agree' || c.stance === 'disagree',
       ),
     [debate?.cards],
   );
+  /** One swipe vote per debate: primary binary card (prefer agree) — matches GET /debates/feed bucketing. */
+  const voteCards: DebateCard[] = useMemo(() => {
+    const agree = allBinaryCards.find(c => c.stance === 'agree');
+    if (agree) return [agree];
+    const disagree = allBinaryCards.find(c => c.stance === 'disagree');
+    if (disagree) return [disagree];
+    return allBinaryCards.slice(0, 1);
+  }, [allBinaryCards]);
   const hasVotedAll =
     voteCards.length === 0 ||
     votedCardIds.size >= voteCards.length ||
@@ -665,9 +672,9 @@ const SingleDebateScreen = () => {
 
         {/* Single binary vote bar (agree / disagree share of community votes) */}
         {(() => {
-          if (voteCards.length === 0) return null;
-          const agreeCard = voteCards.find(c => c.stance === 'agree');
-          const disagreeCard = voteCards.find(c => c.stance === 'disagree');
+          if (allBinaryCards.length === 0) return null;
+          const agreeCard = allBinaryCards.find(c => c.stance === 'agree');
+          const disagreeCard = allBinaryCards.find(c => c.stance === 'disagree');
           const agreeVotes =
             agreeCard?.id != null
               ? (localCardVoteCounts[agreeCard.id]?.upvotes ??
@@ -729,7 +736,7 @@ const SingleDebateScreen = () => {
           );
         })()}
 
-        {/* Stacked cards — binary only; hidden when user finished both sides */}
+        {/* Stacked cards — single primary binary card; hidden after vote */}
         {showCardStack && voteCards[currentCardIndex] && (
           <View style={styles.cardStackSection}>
             {voteCards
