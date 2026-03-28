@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Image,
   Linking,
-  ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -156,6 +155,7 @@ export default function DebateHeroSwipeCard({
       return d;
     },
     enabled: Number.isFinite(summary.id) && summary.id > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   const debate = debateQuery.data;
@@ -496,12 +496,6 @@ export default function DebateHeroSwipeCard({
                 <Text style={styles.statText}>{formatVoteCount(votes)} voted</Text>
               </View>
             </View>
-            {debateQuery.isLoading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={LIME} />
-                <Text style={styles.loadingText}>Loading card…</Text>
-              </View>
-            ) : null}
             {!debateQuery.isLoading && !voteCard?.id ? (
               <Text style={styles.warnText}>No swipe card for this debate.</Text>
             ) : null}
@@ -595,16 +589,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: MUTED,
     fontWeight: '600',
-  },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
-  },
-  loadingText: {
-    fontSize: 13,
-    color: MUTED,
   },
   warnText: {
     marginTop: 8,

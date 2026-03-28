@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo} from 'react';
+import React, {useCallback, useEffect, useMemo} from 'react';
 import {
   View,
   Text,
@@ -77,7 +77,6 @@ type UnifiedFeed =
 type FeedRow =
   | {kind: 'hero'; summary: DebateSummary}
   | {kind: 'heroEmpty'}
-  | {kind: 'compact'; summary: DebateSummary}
   | {kind: 'guestCta'}
   | {kind: 'activityEmpty'}
   | {kind: 'activity'; summary: DebateSummary};
@@ -134,11 +133,10 @@ const MainDebatesScreen = () => {
 
   const {data, isLoading, isError, error, refetch, isRefetching} = query;
 
-  const {hero, restNew, votedList, isGuest} = useMemo(() => {
+  const {hero, votedList, isGuest} = useMemo(() => {
     if (!data) {
       return {
         hero: null as DebateSummary | null,
-        restNew: [] as DebateSummary[],
         votedList: [] as DebateSummary[],
         isGuest: true,
       };
@@ -147,7 +145,6 @@ const MainDebatesScreen = () => {
       const list = data.debates;
       return {
         hero: list[0] ?? null,
-        restNew: list.slice(1),
         votedList: [],
         isGuest: true,
       };
@@ -155,23 +152,31 @@ const MainDebatesScreen = () => {
     const n = data.new_debates;
     return {
       hero: n[0] ?? null,
-      restNew: n.slice(1),
       votedList: data.voted_debates,
       isGuest: false,
     };
   }, [data]);
 
+  /** Warm cache for upcoming heroes (not shown in UI) so the next card does not flash loading. */
+  useEffect(() => {
+    if (!data) return;
+    const ids =
+      data.kind === 'auth'
+        ? data.new_debates.slice(1, 6).map(s => s.id)
+        : data.debates.slice(1, 6).map(s => s.id);
+    for (const id of ids) {
+      if (id > 0) {
+        void queryClient.prefetchQuery({
+          queryKey: ['debateHero', id],
+          queryFn: () => fetchDebateById(id),
+        });
+      }
+    }
+  }, [data, queryClient]);
+
   const listSections = useMemo((): MainDebatesSection[] => {
     const newData: FeedRow[] =
-      hero != null
-        ? [
-            {kind: 'hero', summary: hero},
-            ...restNew.map(s => ({kind: 'compact' as const, summary: s})),
-          ]
-        : [
-            {kind: 'heroEmpty'},
-            ...restNew.map(s => ({kind: 'compact' as const, summary: s})),
-          ];
+      hero != null ? [{kind: 'hero', summary: hero}] : [{kind: 'heroEmpty'}];
     const activityData: FeedRow[] = isGuest
       ? [{kind: 'guestCta'}]
       : votedList.length === 0
@@ -181,9 +186,9 @@ const MainDebatesScreen = () => {
       {key: 'new', data: newData},
       {key: 'activity', data: activityData},
     ];
-  }, [hero, restNew, isGuest, votedList]);
+  }, [hero, isGuest, votedList]);
 
-  /** T018/T019: open `SingleDebate` from hero, NEW browse rows, and MY ACTIVITY (fetch full debate by id). */
+  /** T018/T019: open `SingleDebate` from hero and MY ACTIVITY (fetch full debate by id). */
   const onOpenSummary = useCallback(
     async (summary: DebateSummary) => {
       const full = await fetchDebateById(summary.id);
@@ -202,7 +207,7 @@ const MainDebatesScreen = () => {
     [navigation],
   );
 
-  const newSectionEmpty = hero == null && restNew.length === 0;
+  const newSectionEmpty = hero == null;
 
   const keyExtractor = useCallback((item: FeedRow) => {
     switch (item.kind) {
@@ -210,8 +215,6 @@ const MainDebatesScreen = () => {
         return `hero-${item.summary.id}`;
       case 'heroEmpty':
         return 'hero-empty';
-      case 'compact':
-        return `compact-${item.summary.id}`;
       case 'guestCta':
         return 'guest-cta';
       case 'activityEmpty':
@@ -299,12 +302,18 @@ const MainDebatesScreen = () => {
                     };
                   },
                 );
-                void queryClient.invalidateQueries({
-                  queryKey: ['mainDebatesFeed'],
-                });
-                void queryClient.invalidateQueries({
-                  queryKey: ['debateHero', detail.debateId],
-                });
+                const after = queryClient.getQueryData<UnifiedFeed>([
+                  'mainDebatesFeed',
+                  isLoggedIn,
+                ]);
+                const nextHeroId =
+                  after?.kind === 'auth' ? after.new_debates[0]?.id : undefined;
+                if (nextHeroId != null && nextHeroId !== detail.debateId) {
+                  void queryClient.prefetchQuery({
+                    queryKey: ['debateHero', nextHeroId],
+                    queryFn: () => fetchDebateById(nextHeroId),
+                  });
+                }
               }}
               buildPlaceholderMatch={buildPlaceholderMatch}
             />
@@ -321,13 +330,6 @@ const MainDebatesScreen = () => {
                   : 'Pull down to refresh for the latest debates.'}
               </Text>
             </View>
-          );
-        case 'compact':
-          return (
-            <CompactDebateRow
-              summary={item.summary}
-              onPress={() => onOpenSummary(item.summary)}
-            />
           );
         case 'guestCta':
           return (
@@ -432,49 +434,6 @@ const MainDebatesScreen = () => {
     </View>
   );
 };
-
-function CompactDebateRow({
-  summary,
-  onPress,
-}: {
-  summary: DebateSummary;
-  onPress: () => void;
-}) {
-  const hasSource =
-    !!summary.source_headline?.trim() || !!summary.source_url?.trim();
-  const sourceLabel = summary.source_headline?.trim()
-    ? summary.source_headline
-    : (summary.source_url?.trim() ?? '');
-
-  return (
-    <TouchableOpacity
-      style={styles.compactRow}
-      onPress={onPress}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={summary.headline}
-      accessibilityHint="Opens this debate">
-      <View style={styles.compactTextWrap}>
-        <Text style={styles.compactHeadline} numberOfLines={2}>
-          {summary.headline}
-        </Text>
-        {hasSource ? (
-          <Text
-            style={styles.compactSource}
-            numberOfLines={2}
-            onPress={() =>
-              summary.source_url
-                ? Linking.openURL(summary.source_url).catch(() => {})
-                : undefined
-            }>
-            {sourceLabel}
-          </Text>
-        ) : null}
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={MUTED} />
-    </TouchableOpacity>
-  );
-}
 
 function ActivityDebateCard({
   summary,
@@ -617,33 +576,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MUTED,
     lineHeight: 20,
-  },
-  compactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: CARD,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  compactTextWrap: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  compactHeadline: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: TEXT,
-  },
-  compactSource: {
-    marginTop: 6,
-    fontSize: 12,
-    color: LIME,
-    opacity: 0.9,
   },
   activityCard: {
     marginHorizontal: 16,
