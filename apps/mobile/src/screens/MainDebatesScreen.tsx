@@ -7,9 +7,10 @@ import {
   RefreshControl,
   ActivityIndicator,
   Linking,
-  ScrollView,
+  SectionList,
   StatusBar,
 } from 'react-native';
+import type {SectionListRenderItem} from 'react-native';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -71,6 +72,20 @@ type UnifiedFeed =
       new_debates: DebateSummary[];
       voted_debates: DebateSummary[];
     };
+
+/** Virtualized list rows — `kind` discriminates for SectionList renderItem / keyExtractor. */
+type FeedRow =
+  | {kind: 'hero'; summary: DebateSummary}
+  | {kind: 'heroEmpty'}
+  | {kind: 'compact'; summary: DebateSummary}
+  | {kind: 'guestCta'}
+  | {kind: 'activityEmpty'}
+  | {kind: 'activity'; summary: DebateSummary};
+
+type MainDebatesSection = {
+  key: 'new' | 'activity';
+  data: FeedRow[];
+};
 
 /** Visual consensus bar % from feed analytics (proxy — API has no poll % on summaries). */
 function consensusPercent(summary: DebateSummary): number {
@@ -145,6 +160,22 @@ const MainDebatesScreen = () => {
     };
   }, [data]);
 
+  const listSections = useMemo((): MainDebatesSection[] => {
+    const newData: FeedRow[] =
+      hero != null
+        ? [{kind: 'hero', summary: hero}, ...restNew.map(s => ({kind: 'compact' as const, summary: s}))]
+        : [{kind: 'heroEmpty'}, ...restNew.map(s => ({kind: 'compact' as const, summary: s}))];
+    const activityData: FeedRow[] = isGuest
+      ? [{kind: 'guestCta'}]
+      : votedList.length === 0
+        ? [{kind: 'activityEmpty'}]
+        : votedList.map(s => ({kind: 'activity' as const, summary: s}));
+    return [
+      {key: 'new', data: newData},
+      {key: 'activity', data: activityData},
+    ];
+  }, [hero, restNew, isGuest, votedList]);
+
   /** T018/T019: open `SingleDebate` from hero, NEW browse rows, and MY ACTIVITY (fetch full debate by id). */
   const onOpenSummary = useCallback(
     async (summary: DebateSummary) => {
@@ -194,68 +225,69 @@ const MainDebatesScreen = () => {
     );
   }
 
-  const showHero = hero != null;
-  const newSectionEmpty = !showHero && restNew.length === 0;
+  const newSectionEmpty = hero == null && restNew.length === 0;
 
-  return (
-    <View style={[styles.root, {paddingTop: insets.top}]}>
-      <StatusBar barStyle="light-content" backgroundColor={BG} />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        accessibilityLabel="Debates feed"
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
-            tintColor={LIME}
-            progressBackgroundColor={CARD}
-          />
-        }
-        showsVerticalScrollIndicator={false}>
-        {/* Top bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            onPress={goProfile}
-            style={styles.avatarBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Open profile">
-            <Ionicons name="person-circle" size={40} color={LIME} />
-          </TouchableOpacity>
-          <Text style={styles.brandMark} numberOfLines={1}>
-            {brandName}
-          </Text>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications">
-            <Ionicons name="notifications-outline" size={26} color={LIME} />
-          </TouchableOpacity>
-        </View>
+  const keyExtractor = useCallback((item: FeedRow) => {
+    switch (item.kind) {
+      case 'hero':
+        return `hero-${item.summary.id}`;
+      case 'heroEmpty':
+        return 'hero-empty';
+      case 'compact':
+        return `compact-${item.summary.id}`;
+      case 'guestCta':
+        return 'guest-cta';
+      case 'activityEmpty':
+        return 'activity-empty';
+      case 'activity':
+        return `activity-${item.summary.id}`;
+    }
+  }, []);
 
-        {/* NEW DEBATES */}
-        <View
-          style={styles.sectionTitleRow}
-          accessibilityRole="header"
-          accessibilityLabel="New debates">
-          <Text style={styles.sectionTitleLime}>NEW DEBATES</Text>
-          <View style={styles.livePill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE NOW</Text>
+  const renderSectionHeader = useCallback(
+    ({section}: {section: MainDebatesSection}) => {
+      if (section.key === 'new') {
+        return (
+          <View
+            style={styles.sectionTitleRow}
+            accessibilityRole="header"
+            accessibilityLabel="New debates">
+            <Text style={styles.sectionTitleLime}>NEW DEBATES</Text>
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE NOW</Text>
+            </View>
           </View>
+        );
+      }
+      return (
+        <View
+          style={[styles.sectionTitleRow, styles.sectionSpacer]}
+          accessibilityRole="header"
+          accessibilityLabel="My activity">
+          <Text style={styles.sectionTitleLime}>MY ACTIVITY</Text>
         </View>
+      );
+    },
+    [],
+  );
 
-        {showHero ? (
+  const renderItem = useCallback<
+    SectionListRenderItem<FeedRow, MainDebatesSection>
+  >(({item}) => {
+    switch (item.kind) {
+      case 'hero':
+        return (
           <DebateHeroSwipeCard
-            summary={hero!}
+            summary={item.summary}
             isLoggedIn={isLoggedIn}
             token={token ?? null}
             onPanResolved={onHeroPanResolved}
             onOpen={() => {
               logMainDebatesHero('onOpen (tap / small movement)', {
-                debateId: hero!.id,
+                debateId: item.summary.id,
               });
-              onOpenSummary(hero!);
+              onOpenSummary(item.summary);
             }}
             onVoteSuccess={(detail: DebateHeroVoteSuccessDetail) => {
               logMainDebatesHero('SWIPE_VOTE_SUCCEEDED (persisted on server)', {
@@ -268,8 +300,12 @@ const MainDebatesScreen = () => {
                 ['mainDebatesFeed', isLoggedIn, token],
                 old => {
                   if (!old || old.kind !== 'auth') return old;
-                  const nextNew = old.new_debates.filter(s => s.id !== detail.debateId);
-                  const moved = old.new_debates.find(s => s.id === detail.debateId);
+                  const nextNew = old.new_debates.filter(
+                    s => s.id !== detail.debateId,
+                  );
+                  const moved = old.new_debates.find(
+                    s => s.id === detail.debateId,
+                  );
                   const nextVoted =
                     moved && !old.voted_debates.some(s => s.id === detail.debateId)
                       ? [moved, ...old.voted_debates]
@@ -284,7 +320,9 @@ const MainDebatesScreen = () => {
             }}
             buildPlaceholderMatch={buildPlaceholderMatch}
           />
-        ) : (
+        );
+      case 'heroEmpty':
+        return (
           <View
             style={styles.heroEmpty}
             accessibilityLabel="No featured debate in new debates">
@@ -295,25 +333,16 @@ const MainDebatesScreen = () => {
                 : 'Pull down to refresh for the latest debates.'}
             </Text>
           </View>
-        )}
-
-        {restNew.map(s => (
+        );
+      case 'compact':
+        return (
           <CompactDebateRow
-            key={s.id}
-            summary={s}
-            onPress={() => onOpenSummary(s)}
+            summary={item.summary}
+            onPress={() => onOpenSummary(item.summary)}
           />
-        ))}
-
-        {/* MY ACTIVITY */}
-        <View
-          style={[styles.sectionTitleRow, styles.sectionSpacer]}
-          accessibilityRole="header"
-          accessibilityLabel="My activity">
-          <Text style={styles.sectionTitleLime}>MY ACTIVITY</Text>
-        </View>
-
-        {isGuest ? (
+        );
+      case 'guestCta':
+        return (
           <View
             style={styles.guestActivity}
             accessibilityLabel="Sign in to see your debate activity">
@@ -328,25 +357,84 @@ const MainDebatesScreen = () => {
               <Text style={styles.ctaButtonText}>Sign in</Text>
             </TouchableOpacity>
           </View>
-        ) : votedList.length === 0 ? (
+        );
+      case 'activityEmpty':
+        return (
           <View style={styles.emptyInline}>
             <Text style={styles.muted}>
               No completed debates yet. Swipe-vote on a debate above to see it
               here.
             </Text>
           </View>
-        ) : (
-          votedList.map(s => (
-            <ActivityDebateCard
-              key={s.id}
-              summary={s}
-              onPress={() => onOpenSummary(s)}
-            />
-          ))
-        )}
+        );
+      case 'activity':
+        return (
+          <ActivityDebateCard
+            summary={item.summary}
+            onPress={() => onOpenSummary(item.summary)}
+          />
+        );
+    }
+  }, [
+    isLoggedIn,
+    token,
+    onHeroPanResolved,
+    onOpenSummary,
+    queryClient,
+    newSectionEmpty,
+    isGuest,
+    votedList,
+  ]);
 
-        <View style={{height: 32}} />
-      </ScrollView>
+  const listHeader = useMemo(
+    () => (
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          onPress={goProfile}
+          style={styles.avatarBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Open profile">
+          <Ionicons name="person-circle" size={40} color={LIME} />
+        </TouchableOpacity>
+        <Text style={styles.brandMark} numberOfLines={1}>
+          {brandName}
+        </Text>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications">
+          <Ionicons name="notifications-outline" size={26} color={LIME} />
+        </TouchableOpacity>
+      </View>
+    ),
+    [brandName, goProfile],
+  );
+
+  return (
+    <View style={[styles.root, {paddingTop: insets.top}]}>
+      <StatusBar barStyle="light-content" backgroundColor={BG} />
+      <SectionList<FeedRow, MainDebatesSection>
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        sections={listSections}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={<View style={styles.listFooterSpacer} />}
+        stickySectionHeadersEnabled={false}
+        accessibilityLabel="Debates feed"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refetch()}
+            tintColor={LIME}
+            progressBackgroundColor={CARD}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      />
     </View>
   );
 };
@@ -666,6 +754,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MUTED,
     lineHeight: 20,
+  },
+  listFooterSpacer: {
+    height: 32,
   },
   ctaButton: {
     marginTop: 16,
