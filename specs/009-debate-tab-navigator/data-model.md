@@ -66,5 +66,5 @@ For a given `user_id` and `debate_id`:
 ## State Transitions
 
 ```
-[New section] user completes votes on **both** agree and disagree cards → debate moves from new_debates to voted_debates on next feed refresh
+[New section] user casts **any** swipe vote on an agree/disagree card (one vote per debate) → debate moves from new_debates to voted_debates on next feed refresh
 ```
