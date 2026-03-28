@@ -8,11 +8,9 @@ import {
   ActivityIndicator,
   Linking,
   ScrollView,
-  Image,
   StatusBar,
 } from 'react-native';
-import {LinearGradient} from 'expo-linear-gradient';
-import {useQuery} from '@tanstack/react-query';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -29,6 +27,7 @@ import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigate} from '../navigation/rootNavigation';
 import environment from '../config/environment';
+import DebateHeroSwipeCard from '../components/DebateHeroSwipeCard';
 
 /** Design tokens — Velocity Strike–style dark + lime (009 spec references) */
 const BG = '#0B0E14';
@@ -36,12 +35,7 @@ const LIME = '#C6FF00';
 const CARD = '#1A1F2E';
 const TEXT = '#FFFFFF';
 const MUTED = '#8B92A5';
-const RED_X = '#FF3B30';
 const LIVE_DOT = '#3B82F6';
-
-/** Stadium / pitch imagery for hero (Unsplash — football) */
-const HERO_IMAGE_URI =
-  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&q=80';
 
 type MainDebatesNavigation = NativeStackNavigationProp<
   DebatesStackParamList,
@@ -75,21 +69,6 @@ type UnifiedFeed =
       voted_debates: DebateSummary[];
     };
 
-function formatVoteCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return String(n);
-}
-
-function relativeTimeLabel(iso: string): string {
-  const t = new Date(iso).getTime();
-  const diff = Date.now() - t;
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return 'Just now';
-  if (h < 48) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
 /** Visual consensus bar % from feed analytics (proxy — API has no poll % on summaries). */
 function consensusPercent(summary: DebateSummary): number {
   const eng = summary.analytics?.engagement_score ?? 0;
@@ -98,13 +77,10 @@ function consensusPercent(summary: DebateSummary): number {
   return Math.min(95, Math.max(22, Math.round(raw)));
 }
 
-function debatePillLabel(debateType: string): string {
-  return debateType === 'post_match' ? 'CONTROVERSY' : 'PRE-MATCH';
-}
-
 const MainDebatesScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainDebatesNavigation>();
+  const queryClient = useQueryClient();
   const {isLoggedIn, token, isReady} = useAuth();
   const brandName = environment.APP_NAME.toUpperCase();
 
@@ -249,11 +225,18 @@ const MainDebatesScreen = () => {
         </View>
 
         {showHero ? (
-          <HeroDebateCard
+          <DebateHeroSwipeCard
             summary={hero!}
+            isLoggedIn={isLoggedIn}
+            token={token ?? null}
             onOpen={() => onOpenSummary(hero!)}
-            onDisagree={() => onOpenSummary(hero!)}
-            onAgree={() => onOpenSummary(hero!)}
+            onVoteSuccess={() => {
+              void queryClient.invalidateQueries({queryKey: ['mainDebatesFeed']});
+              void queryClient.invalidateQueries({
+                queryKey: ['debateHero', hero!.id],
+              });
+            }}
+            buildPlaceholderMatch={buildPlaceholderMatch}
           />
         ) : (
           <View style={styles.heroEmpty}>
@@ -314,81 +297,6 @@ const MainDebatesScreen = () => {
     </View>
   );
 };
-
-function HeroDebateCard({
-  summary,
-  onOpen,
-  onDisagree,
-  onAgree,
-}: {
-  summary: DebateSummary;
-  onOpen: () => void;
-  onDisagree: () => void;
-  onAgree: () => void;
-}) {
-  const votes = summary.analytics?.total_votes ?? 0;
-  const headline = summary.headline.toUpperCase();
-
-  return (
-    <TouchableOpacity
-      style={styles.heroOuter}
-      onPress={onOpen}
-      activeOpacity={0.92}
-      accessibilityRole="button"
-      accessibilityLabel={summary.headline}>
-      <View style={styles.heroClip}>
-        <Image
-          source={{uri: HERO_IMAGE_URI}}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-        <LinearGradient
-          colors={['rgba(11,14,20,0.15)', 'rgba(11,14,20,0.85)', BG]}
-          locations={[0, 0.45, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.heroInner}>
-          <View style={styles.pill}>
-            <Text style={styles.pillText}>{debatePillLabel(summary.debate_type)}</Text>
-          </View>
-          <Text style={styles.heroHeadline}>{headline}</Text>
-          <View style={styles.heroStats}>
-            <View style={styles.statItem}>
-              <Ionicons name="time-outline" size={16} color={MUTED} />
-              <Text style={styles.statText}>{relativeTimeLabel(summary.created_at)}</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Ionicons name="people-outline" size={16} color={MUTED} />
-              <Text style={styles.statText}>{formatVoteCount(votes)} voted</Text>
-            </View>
-          </View>
-          <View style={styles.swipeRow}>
-            <TouchableOpacity
-              style={styles.swipeBtnRed}
-              onPress={onDisagree}
-              accessibilityLabel="Open debate — disagree">
-              <Ionicons name="close" size={22} color={TEXT} />
-            </TouchableOpacity>
-            <View style={styles.swipeHint}>
-              <View style={styles.swipeLine} />
-              <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.swipeBtnLime}
-              onPress={onAgree}
-              accessibilityLabel="Open debate — agree">
-              <Ionicons name="checkmark" size={22} color="#0B0E14" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.swipeLabels}>
-            <Text style={styles.disagreeLabel}>DISAGREE</Text>
-            <Text style={styles.agreeLabel}>AGREE</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
 
 function CompactDebateRow({
   summary,
@@ -563,128 +471,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: MUTED,
     letterSpacing: 0.8,
-  },
-  heroOuter: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  heroClip: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    minHeight: 320,
-    backgroundColor: CARD,
-  },
-  heroImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-  },
-  heroInner: {
-    padding: 16,
-    paddingTop: 20,
-    minHeight: 300,
-    justifyContent: 'flex-end',
-  },
-  pill: {
-    alignSelf: 'flex-start',
-    backgroundColor: LIME,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginBottom: 12,
-  },
-  pillText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: BG,
-    letterSpacing: 0.8,
-  },
-  heroHeadline: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: TEXT,
-    lineHeight: 26,
-    letterSpacing: 0.3,
-  },
-  heroStats: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginTop: 12,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statText: {
-    fontSize: 13,
-    color: MUTED,
-    fontWeight: '600',
-  },
-  swipeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 20,
-    paddingHorizontal: 4,
-  },
-  swipeBtnRed: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: RED_X,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swipeBtnLime: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: LIME,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swipeHint: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  swipeLine: {
-    width: 56,
-    height: 2,
-    backgroundColor: MUTED,
-    opacity: 0.5,
-    marginBottom: 6,
-  },
-  swipeHintText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: MUTED,
-    letterSpacing: 1,
-  },
-  swipeLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  disagreeLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: RED_X,
-    width: 72,
-    textAlign: 'center',
-  },
-  agreeLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: LIME,
-    width: 72,
-    textAlign: 'center',
   },
   heroEmpty: {
     marginHorizontal: 16,

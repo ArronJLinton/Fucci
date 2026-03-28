@@ -11,6 +11,7 @@ import {rootNavigationRef} from './src/navigation/rootNavigation';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {StatusBar} from 'react-native';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {QueryClientProvider} from '@tanstack/react-query';
@@ -237,56 +238,58 @@ const MainStack = () => {
 
 function App(): React.JSX.Element {
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <NavigationContainer ref={rootNavigationRef}>
-            <Stack.Navigator screenOptions={{headerShown: false}}>
-              <Stack.Screen name="Main" component={MainStack} />
-              <Stack.Screen
-                name="SignUp"
-                component={SignUpScreen}
-                options={{title: 'Sign Up'}}
-              />
-              <Stack.Screen
-                name="Login"
-                component={LoginScreen}
-                options={{title: 'Login'}}
-              />
-              <Stack.Screen
-                name="ForgotPassword"
-                component={ForgotPasswordPlaceholderScreen}
-                options={{title: 'Forgot password'}}
-              />
-              <Stack.Screen
-                name="Settings"
-                component={SettingsScreen}
-                options={{title: 'Settings'}}
-              />
-              <Stack.Screen
-                name="CreatePlayerProfile"
-                component={CreatePlayerProfileScreen}
-                options={{title: 'Create Player Profile'}}
-              />
-              <Stack.Screen
-                name="PlayerProfile"
-                component={PlayerProfileScreen}
-                options={{title: 'Player Profile'}}
-              />
-              <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
+    <GestureHandlerRootView style={{flex: 1}}>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <NavigationContainer ref={rootNavigationRef}>
+              <Stack.Navigator screenOptions={{headerShown: false}}>
+                <Stack.Screen name="Main" component={MainStack} />
                 <Stack.Screen
-                  name="CameraPreview"
-                  component={CameraPreviewScreen}
-                  options={{
-                    animation: 'slide_from_bottom',
-                  }}
+                  name="SignUp"
+                  component={SignUpScreen}
+                  options={{title: 'Sign Up'}}
                 />
-              </Stack.Group>
-            </Stack.Navigator>
-          </NavigationContainer>
-        </AuthProvider>
-      </SafeAreaProvider>
-    </QueryClientProvider>
+                <Stack.Screen
+                  name="Login"
+                  component={LoginScreen}
+                  options={{title: 'Login'}}
+                />
+                <Stack.Screen
+                  name="ForgotPassword"
+                  component={ForgotPasswordPlaceholderScreen}
+                  options={{title: 'Forgot password'}}
+                />
+                <Stack.Screen
+                  name="Settings"
+                  component={SettingsScreen}
+                  options={{title: 'Settings'}}
+                />
+                <Stack.Screen
+                  name="CreatePlayerProfile"
+                  component={CreatePlayerProfileScreen}
+                  options={{title: 'Create Player Profile'}}
+                />
+                <Stack.Screen
+                  name="PlayerProfile"
+                  component={PlayerProfileScreen}
+                  options={{title: 'Player Profile'}}
+                />
+                <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
+                  <Stack.Screen
+                    name="CameraPreview"
+                    component={CameraPreviewScreen}
+                    options={{
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                </Stack.Group>
+              </Stack.Navigator>
+            </NavigationContainer>
+          </AuthProvider>
+        </SafeAreaProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
 

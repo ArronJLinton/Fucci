@@ -88,11 +88,13 @@
 
 **Independent test**: Logged-in swipe calls `PUT /v1/api/debates/{debateId}/cards/{cardId}/vote`; logged-out swipe opens auth flow.
 
-- [ ] T015 [US3] Extract or implement top-card stack UI with `react-native-gesture-handler` + `react-native-reanimated` (e.g. `apps/mobile/src/components/DebateHeroSwipeCard.tsx`) using **first** debate in `new_debates[0]` or guest `debates[0]` (first card of that debate—swipe still gates vote when logged out). Show **optional** provenance line on hero when `source_*` fields present (FR-009). **If `new_debates` / guest `debates` is empty, render no hero** (no fallback from `voted_debates` per spec).
-- [ ] T016 [US3] On swipe completion, call existing card-vote API from `apps/mobile/src/services/debate.ts` with correct `debateId` / `cardId` / `vote_type` (upvote/downvote per spec).
-- [ ] T017 [US3] When unauthenticated, intercept swipe to run **auth gate** (same `returnToDebate` / pending pattern as 006 if applicable) in `MainDebatesScreen.tsx` or hero component.
+- [x] T015 [US3] Extract or implement top-card stack UI with `react-native-gesture-handler` + `react-native-reanimated` (e.g. `apps/mobile/src/components/DebateHeroSwipeCard.tsx`) using **first** debate in `new_debates[0]` or guest `debates[0]` (first card of that debate—swipe still gates vote when logged out). Show **optional** provenance line on hero when `source_*` fields present (FR-009). **If `new_debates` / guest `debates` is empty, render no hero** (no fallback from `voted_debates` per spec).
+- [x] T016 [US3] On swipe completion, call existing card-vote API from `apps/mobile/src/services/debate.ts` with correct `debateId` / `cardId` / `vote_type` (upvote/downvote per spec).
+- [x] T017 [US3] When unauthenticated, intercept swipe to run **auth gate** (same `returnToDebate` / pending pattern as 006 if applicable) in `MainDebatesScreen.tsx` or hero component.
 
 **Checkpoint**: Swipe UX matches spec clarifications and 006 semantics.
+
+**Mobile note (RNGH)**: `GestureDetector` and the Gesture API must sit under **`GestureHandlerRootView`**. The root layout in `apps/mobile/App.tsx` wraps the navigation tree with `style={{ flex: 1 }}` so `DebateHeroSwipeCard` and any other gesture surfaces work at runtime.
 
 ---
 
@@ -224,4 +226,4 @@
 | US4 | T018–T019 | 2 |
 | US5 | T020–T021 | 2 |
 
-**Format validation**: All tasks use `- [ ] Tnnn [P?] [USn?] …` with at least one file path in the description.
+**Format validation**: Tasks use `- [ ] Tnnn …` when pending and `- [x] Tnnn …` when done; each description includes at least one file path.
