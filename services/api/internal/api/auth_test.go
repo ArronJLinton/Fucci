@@ -12,7 +12,10 @@ import (
 func authTestRequest(method, path string, body interface{}, userID int32) *http.Request {
 	var r *http.Request
 	if body != nil {
-		b, _ := json.Marshal(body)
+		b, err := json.Marshal(body)
+		if err != nil {
+			panic(err)
+		}
 		r = httptest.NewRequest(method, path, bytes.NewReader(b))
 		r.Header.Set("Content-Type", "application/json")
 	} else {
