@@ -26,6 +26,21 @@
 - **API**: `services/api/`
 - **Mobile**: `apps/mobile/`
 
+## Completion status
+
+| Scope | Tasks | Status |
+|-------|-------|--------|
+| Setup | T001–T002 | Done |
+| Foundational (feeds API) | T003–T007 | Done |
+| US1 Debates tab + feed | T008–T011 | Done |
+| US2 New vs activity + guest CTA | T012–T014 | Done |
+| US3 Hero swipe + card vote + auth | T015–T017 | Done |
+| US4 List → detail navigation | T018–T019 | Done |
+| US5 Detail comments + guest read-only | T020–T021 | Done |
+| Polish & cross-cutting | T022–T025 | **Open** |
+
+**Progress**: **21 / 25** tasks checked off below; remaining work is **Phase 8** (T022–T025).
+
 ---
 
 ## Phase 1: Setup (shared prerequisites)
