@@ -670,22 +670,43 @@ const SingleDebateScreen = () => {
           if (voteCards.length === 0) return null;
           const agreeCard = voteCards.find(c => c.stance === 'agree');
           const disagreeCard = voteCards.find(c => c.stance === 'disagree');
-          const agreeVotes =
+
+          // Use both upvotes and downvotes so the meter reflects swipe behavior.
+          const agreeUpvotes =
             agreeCard?.id != null
               ? localCardVoteCounts[agreeCard.id]?.upvotes ??
                 agreeCard.vote_counts?.upvotes ??
                 0
               : 0;
-          const disagreeVotes =
+          const agreeDownvotes =
+            agreeCard?.id != null
+              ? localCardVoteCounts[agreeCard.id]?.downvotes ??
+                agreeCard.vote_counts?.downvotes ??
+                0
+              : 0;
+          const disagreeUpvotes =
             disagreeCard?.id != null
               ? localCardVoteCounts[disagreeCard.id]?.upvotes ??
                 disagreeCard.vote_counts?.upvotes ??
                 0
               : 0;
-          const totalSide = agreeVotes + disagreeVotes;
+          const disagreeDownvotes =
+            disagreeCard?.id != null
+              ? localCardVoteCounts[disagreeCard.id]?.downvotes ??
+                disagreeCard.vote_counts?.downvotes ??
+                0
+              : 0;
+
+          // Map swipes to stance support:
+          // - Upvotes on a side's card support that side.
+          // - Downvotes on the opposing side's card also support this side.
+          const agreeSupport = agreeUpvotes + disagreeDownvotes;
+          const disagreeSupport = disagreeUpvotes + agreeDownvotes;
+
+          const totalSide = agreeSupport + disagreeSupport;
           const agreePct =
             totalSide > 0
-              ? Math.round((agreeVotes / totalSide) * 100)
+              ? Math.round((agreeSupport / totalSide) * 100)
               : 0;
           const disagreePct = totalSide > 0 ? 100 - agreePct : 0;
           const agreeTitle = agreeCard?.title?.trim() || 'Agree';
