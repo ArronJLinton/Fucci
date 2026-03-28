@@ -24,10 +24,15 @@ servers:
 paths:
   /upload/cloudinary/signature:
     post:
-      summary: Issue signed upload parameters for direct Cloudinary upload
+      summary: Issue Cloudinary upload parameters (signed and/or unsigned preset)
       description: |
-        Authenticated users only. Server uses `CLOUDINARY_API_SECRET` to compute `signature`.
-        Client then POSTs multipart form to `https://api.cloudinary.com/v1_1/{cloud_name}/image/upload`.
+        Authenticated users only. Depending on server configuration, the response includes a
+        **signed** upload (`signature` from `CLOUDINARY_API_SECRET`) and/or an **unsigned**
+        **`upload_preset`** (`CLOUDINARY_UPLOAD_PRESET`). At least one auth method MUST be present;
+        otherwise the server returns **500**.
+
+        Client POSTs multipart form to `https://api.cloudinary.com/v1_1/{cloud_name}/image/upload`.
+        When both `signature` and `upload_preset` are returned, prefer signed upload.
 
         **FR-004:** Upload MUST reject files **> 5 MB** client-side; `max_upload_bytes` in the response
         echoes the cap for UI validation. Cloudinary preset limits SHOULD match.
@@ -55,6 +60,10 @@ paths:
                 $ref: '#/components/schemas/CloudinarySignatureResponse'
         '401':
           description: Not authenticated
+        '500':
+          description: |
+            Cloudinary is not configured, or neither signed upload (`CLOUDINARY_API_SECRET`) nor
+            unsigned preset (`CLOUDINARY_UPLOAD_PRESET`) is available — client cannot upload.
 
   /users/profile:
     put:
@@ -140,22 +149,38 @@ components:
   schemas:
     CloudinarySignatureResponse:
       type: object
+      description: |
+        **Upload auth invariant:** At least one of `signature` or `upload_preset` MUST be non-empty.
+        The server returns **500** if Cloudinary is only partially configured (e.g. cloud name + API key
+        but neither API secret nor upload preset). When both are configured, both fields MAY be set;
+        clients SHOULD use signed upload when `signature` is present.
+
+        Omitting both (empty strings / absent optional keys) is not a valid success response.
       required:
         - cloud_name
         - api_key
         - timestamp
-        - signature
+        - folder
+        - max_upload_bytes
       properties:
         cloud_name:
           type: string
         api_key:
           type: string
-          description: Public API key (safe to send to client for signed upload)
+          description: Public API key (safe to send to the client)
         timestamp:
           type: integer
           format: int64
         signature:
           type: string
+          description: |
+            HMAC-SHA1 hex digest for **signed** direct upload. Empty or omitted when the server only
+            exposes an unsigned `upload_preset`.
+        upload_preset:
+          type: string
+          description: |
+            **Unsigned** upload preset name. Omitted when only signed upload is configured. May appear
+            together with `signature` when both are configured.
         folder:
           type: string
           description: Target folder under the Cloudinary cloud
