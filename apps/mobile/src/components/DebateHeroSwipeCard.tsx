@@ -6,6 +6,7 @@ import {
   Image,
   Linking,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
@@ -14,6 +15,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import {Ionicons} from '@expo/vector-icons';
 import {useQuery} from '@tanstack/react-query';
@@ -32,6 +34,9 @@ const HERO_IMAGE_URI =
   'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&q=80';
 
 const SWIPE_THRESHOLD = 80;
+const TAP_MAX = 18;
+/** Fly card fully past the clip; scales with screen width. */
+const OFFSCREEN_X = Dimensions.get('window').width * 1.35;
 
 function logHero(event: string, payload?: Record<string, unknown>) {
   if (!__DEV__) return;
@@ -140,6 +145,9 @@ export default function DebateHeroSwipeCard({
 }: DebateHeroSwipeCardProps) {
   const translateX = useSharedValue(0);
   const overlayDir = useSharedValue(0);
+  /** Mirrored for pan `.onEnd` worklet (must match handlePanEnd / spring vs fly-off). */
+  const canSwipeSV = useSharedValue(0);
+  const voteBusySV = useSharedValue(0);
 
   const debateQuery = useQuery({
     queryKey: ['debateHero', summary.id],
@@ -158,6 +166,14 @@ export default function DebateHeroSwipeCard({
   const canSwipe = !!debate?.id && voteCard?.id != null && !debateQuery.isLoading;
 
   const [voteBusy, setVoteBusy] = useState(false);
+
+  useEffect(() => {
+    canSwipeSV.value = canSwipe ? 1 : 0;
+  }, [canSwipe, canSwipeSV]);
+
+  useEffect(() => {
+    voteBusySV.value = voteBusy ? 1 : 0;
+  }, [voteBusy, voteBusySV]);
 
   useEffect(() => {
     logHero('state', {
@@ -283,7 +299,7 @@ export default function DebateHeroSwipeCard({
         isLoggedIn,
         hasToken: !!token,
       });
-      if (Math.abs(dx) < 18 && Math.abs(dy) < 18) {
+      if (Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX) {
         logHero('panEnd_action', {type: 'tap_open_detail'});
         onPanResolved?.({summaryId: sid, kind: 'tap_open', dx, dy});
         onOpen();
@@ -364,11 +380,38 @@ export default function DebateHeroSwipeCard({
           }
         })
         .onEnd(e => {
-          runOnJS(handlePanEnd)(e.translationX, e.translationY);
-          translateX.value = withSpring(0);
+          const dx = e.translationX;
+          const dy = e.translationY;
           overlayDir.value = 0;
+
+          const isTap =
+            Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX;
+          if (isTap) {
+            translateX.value = withSpring(0);
+            runOnJS(handlePanEnd)(dx, dy);
+            return;
+          }
+
+          const ready = canSwipeSV.value === 1;
+          const busy = voteBusySV.value === 1;
+          if (!ready || busy) {
+            translateX.value = withSpring(0);
+            runOnJS(handlePanEnd)(dx, dy);
+            return;
+          }
+
+          if (dx > SWIPE_THRESHOLD) {
+            translateX.value = withTiming(OFFSCREEN_X, {duration: 280});
+            runOnJS(handlePanEnd)(dx, dy);
+          } else if (dx < -SWIPE_THRESHOLD) {
+            translateX.value = withTiming(-OFFSCREEN_X, {duration: 280});
+            runOnJS(handlePanEnd)(dx, dy);
+          } else {
+            translateX.value = withSpring(0);
+            runOnJS(handlePanEnd)(dx, dy);
+          }
         }),
-    [voteBusy, translateX, overlayDir, handlePanEnd],
+    [voteBusy, translateX, overlayDir, handlePanEnd, canSwipeSV, voteBusySV],
   );
 
   const cardStyle = useAnimatedStyle(() => ({

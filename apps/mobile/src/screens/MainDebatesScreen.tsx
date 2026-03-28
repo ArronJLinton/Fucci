@@ -166,8 +166,14 @@ const MainDebatesScreen = () => {
   const listSections = useMemo((): MainDebatesSection[] => {
     const newData: FeedRow[] =
       hero != null
-        ? [{kind: 'hero', summary: hero}, ...restNew.map(s => ({kind: 'compact' as const, summary: s}))]
-        : [{kind: 'heroEmpty'}, ...restNew.map(s => ({kind: 'compact' as const, summary: s}))];
+        ? [
+            {kind: 'hero', summary: hero},
+            ...restNew.map(s => ({kind: 'compact' as const, summary: s})),
+          ]
+        : [
+            {kind: 'heroEmpty'},
+            ...restNew.map(s => ({kind: 'compact' as const, summary: s})),
+          ];
     const activityData: FeedRow[] = isGuest
       ? [{kind: 'guestCta'}]
       : votedList.length === 0
@@ -251,117 +257,131 @@ const MainDebatesScreen = () => {
 
   const renderItem = useCallback<
     SectionListRenderItem<FeedRow, MainDebatesSection>
-  >(({item}) => {
-    switch (item.kind) {
-      case 'hero':
-        return (
-          <DebateHeroSwipeCard
-            summary={item.summary}
-            isLoggedIn={isLoggedIn}
-            token={token ?? null}
-            onPanResolved={onHeroPanResolved}
-            onOpen={() => {
-              logMainDebatesHero('onOpen (tap / small movement)', {
-                debateId: item.summary.id,
-              });
-              onOpenSummary(item.summary);
-            }}
-            onVoteSuccess={(detail: DebateHeroVoteSuccessDetail) => {
-              logMainDebatesHero('SWIPE_VOTE_SUCCEEDED (persisted on server)', {
-                success: true,
-                debateId: detail.debateId,
-                cardId: detail.cardId,
-                voteType: detail.voteType,
-              });
-              queryClient.setQueryData<UnifiedFeed>(
-                ['mainDebatesFeed', isLoggedIn, token],
-                old => {
-                  if (!old || old.kind !== 'auth') return old;
-                  const nextNew = old.new_debates.filter(
-                    s => s.id !== detail.debateId,
-                  );
-                  const moved = old.new_debates.find(
-                    s => s.id === detail.debateId,
-                  );
-                  const nextVoted =
-                    moved && !old.voted_debates.some(s => s.id === detail.debateId)
-                      ? [moved, ...old.voted_debates]
-                      : old.voted_debates;
-                  return {...old, new_debates: nextNew, voted_debates: nextVoted};
-                },
-              );
-              void queryClient.invalidateQueries({queryKey: ['mainDebatesFeed']});
-              void queryClient.invalidateQueries({
-                queryKey: ['debateHero', detail.debateId],
-              });
-            }}
-            buildPlaceholderMatch={buildPlaceholderMatch}
-          />
-        );
-      case 'heroEmpty':
-        return (
-          <View
-            style={styles.heroEmpty}
-            accessibilityLabel="No featured debate in new debates">
-            <Text style={styles.heroEmptyTitle}>Nothing new yet</Text>
-            <Text style={styles.heroEmptySub}>
-              {newSectionEmpty && !isGuest && votedList.length > 0
-                ? 'Check My Activity below — or pull to refresh for new debates.'
-                : 'Pull down to refresh for the latest debates.'}
-            </Text>
-          </View>
-        );
-      case 'compact':
-        return (
-          <CompactDebateRow
-            summary={item.summary}
-            onPress={() => onOpenSummary(item.summary)}
-          />
-        );
-      case 'guestCta':
-        return (
-          <View
-            style={styles.guestActivity}
-            accessibilityLabel="Sign in to see your debate activity">
-            <Text style={styles.guestCopy}>
-              Sign in to see debates you have voted on and track your activity.
-            </Text>
-            <TouchableOpacity
-              style={styles.ctaButton}
-              onPress={() => rootNavigate('Login')}
-              accessibilityRole="button"
-              accessibilityLabel="Sign in">
-              <Text style={styles.ctaButtonText}>Sign in</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      case 'activityEmpty':
-        return (
-          <View style={styles.emptyInline}>
-            <Text style={styles.muted}>
-              No completed debates yet. Swipe-vote on a debate above to see it
-              here.
-            </Text>
-          </View>
-        );
-      case 'activity':
-        return (
-          <ActivityDebateCard
-            summary={item.summary}
-            onPress={() => onOpenSummary(item.summary)}
-          />
-        );
-    }
-  }, [
-    isLoggedIn,
-    token,
-    onHeroPanResolved,
-    onOpenSummary,
-    queryClient,
-    newSectionEmpty,
-    isGuest,
-    votedList,
-  ]);
+  >(
+    ({item}) => {
+      switch (item.kind) {
+        case 'hero':
+          return (
+            <DebateHeroSwipeCard
+              summary={item.summary}
+              isLoggedIn={isLoggedIn}
+              token={token ?? null}
+              onPanResolved={onHeroPanResolved}
+              onOpen={() => {
+                logMainDebatesHero('onOpen (tap / small movement)', {
+                  debateId: item.summary.id,
+                });
+                onOpenSummary(item.summary);
+              }}
+              onVoteSuccess={(detail: DebateHeroVoteSuccessDetail) => {
+                logMainDebatesHero(
+                  'SWIPE_VOTE_SUCCEEDED (persisted on server)',
+                  {
+                    success: true,
+                    debateId: detail.debateId,
+                    cardId: detail.cardId,
+                    voteType: detail.voteType,
+                  },
+                );
+                queryClient.setQueryData<UnifiedFeed>(
+                  ['mainDebatesFeed', isLoggedIn, token],
+                  old => {
+                    if (!old || old.kind !== 'auth') return old;
+                    const nextNew = old.new_debates.filter(
+                      s => s.id !== detail.debateId,
+                    );
+                    const moved = old.new_debates.find(
+                      s => s.id === detail.debateId,
+                    );
+                    const nextVoted =
+                      moved &&
+                      !old.voted_debates.some(s => s.id === detail.debateId)
+                        ? [moved, ...old.voted_debates]
+                        : old.voted_debates;
+                    return {
+                      ...old,
+                      new_debates: nextNew,
+                      voted_debates: nextVoted,
+                    };
+                  },
+                );
+                void queryClient.invalidateQueries({
+                  queryKey: ['mainDebatesFeed'],
+                });
+                void queryClient.invalidateQueries({
+                  queryKey: ['debateHero', detail.debateId],
+                });
+              }}
+              buildPlaceholderMatch={buildPlaceholderMatch}
+            />
+          );
+        case 'heroEmpty':
+          return (
+            <View
+              style={styles.heroEmpty}
+              accessibilityLabel="No featured debate in new debates">
+              <Text style={styles.heroEmptyTitle}>Nothing new yet</Text>
+              <Text style={styles.heroEmptySub}>
+                {newSectionEmpty && !isGuest && votedList.length > 0
+                  ? 'Check My Activity below — or pull to refresh for new debates.'
+                  : 'Pull down to refresh for the latest debates.'}
+              </Text>
+            </View>
+          );
+        case 'compact':
+          return (
+            <CompactDebateRow
+              summary={item.summary}
+              onPress={() => onOpenSummary(item.summary)}
+            />
+          );
+        case 'guestCta':
+          return (
+            <View
+              style={styles.guestActivity}
+              accessibilityLabel="Sign in to see your debate activity">
+              <Text style={styles.guestCopy}>
+                Sign in to see debates you have voted on and track your
+                activity.
+              </Text>
+              <TouchableOpacity
+                style={styles.ctaButton}
+                onPress={() => rootNavigate('Login')}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in">
+                <Text style={styles.ctaButtonText}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        case 'activityEmpty':
+          return (
+            <View style={styles.emptyInline}>
+              <Text style={styles.muted}>
+                No completed debates yet. Swipe-vote on a debate above to see it
+                here.
+              </Text>
+            </View>
+          );
+        case 'activity':
+          return (
+            <ActivityDebateCard
+              summary={item.summary}
+              onPress={() => onOpenSummary(item.summary)}
+            />
+          );
+      }
+    },
+    [
+      isLoggedIn,
+      token,
+      onHeroPanResolved,
+      onOpenSummary,
+      queryClient,
+      newSectionEmpty,
+      isGuest,
+      votedList,
+    ],
+  );
 
   const listHeader = useMemo(
     () => (
@@ -389,7 +409,11 @@ const MainDebatesScreen = () => {
 
   if (!isReady || (isLoading && !data)) {
     return (
-      <View style={[styles.centered, {paddingTop: insets.top, backgroundColor: BG}]}>
+      <View
+        style={[
+          styles.centered,
+          {paddingTop: insets.top, backgroundColor: BG},
+        ]}>
         <StatusBar barStyle="light-content" />
         <ActivityIndicator size="large" color={LIME} />
       </View>
@@ -453,7 +477,7 @@ function CompactDebateRow({
     !!summary.source_headline?.trim() || !!summary.source_url?.trim();
   const sourceLabel = summary.source_headline?.trim()
     ? summary.source_headline
-    : summary.source_url?.trim() ?? '';
+    : (summary.source_url?.trim() ?? '');
 
   return (
     <TouchableOpacity
@@ -494,13 +518,12 @@ function ActivityDebateCard({
 }) {
   const pct = consensusAgreePercent(summary);
   const barW = pct == null ? 0 : Math.min(100, pct);
-  const barColor =
-    pct == null ? MUTED : pct >= 50 ? LIME : MUTED;
+  const barColor = pct == null ? MUTED : pct >= 50 ? LIME : MUTED;
   const hasSource =
     !!summary.source_headline?.trim() || !!summary.source_url?.trim();
   const sourceLabel = summary.source_headline?.trim()
     ? summary.source_headline
-    : summary.source_url?.trim() ?? '';
+    : (summary.source_url?.trim() ?? '');
 
   return (
     <TouchableOpacity
@@ -535,7 +558,10 @@ function ActivityDebateCard({
       <View style={styles.barTrack}>
         {pct != null ? (
           <View
-            style={[styles.barFill, {width: `${barW}%`, backgroundColor: barColor}]}
+            style={[
+              styles.barFill,
+              {width: `${barW}%`, backgroundColor: barColor},
+            ]}
           />
         ) : null}
       </View>
