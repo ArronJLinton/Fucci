@@ -187,6 +187,7 @@ const MainDebatesScreen = () => {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
+        accessibilityLabel="Debates feed"
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -217,7 +218,10 @@ const MainDebatesScreen = () => {
         </View>
 
         {/* NEW DEBATES */}
-        <View style={styles.sectionTitleRow}>
+        <View
+          style={styles.sectionTitleRow}
+          accessibilityRole="header"
+          accessibilityLabel="New debates">
           <Text style={styles.sectionTitleLime}>NEW DEBATES</Text>
           <View style={styles.livePill}>
             <View style={styles.liveDot} />
@@ -240,7 +244,9 @@ const MainDebatesScreen = () => {
             buildPlaceholderMatch={buildPlaceholderMatch}
           />
         ) : (
-          <View style={styles.heroEmpty}>
+          <View
+            style={styles.heroEmpty}
+            accessibilityLabel="No featured debate in new debates">
             <Text style={styles.heroEmptyTitle}>Nothing new yet</Text>
             <Text style={styles.heroEmptySub}>
               {newSectionEmpty && !isGuest && votedList.length > 0
@@ -259,12 +265,17 @@ const MainDebatesScreen = () => {
         ))}
 
         {/* MY ACTIVITY */}
-        <View style={[styles.sectionTitleRow, styles.sectionSpacer]}>
+        <View
+          style={[styles.sectionTitleRow, styles.sectionSpacer]}
+          accessibilityRole="header"
+          accessibilityLabel="My activity">
           <Text style={styles.sectionTitleLime}>MY ACTIVITY</Text>
         </View>
 
         {isGuest ? (
-          <View style={styles.guestActivity}>
+          <View
+            style={styles.guestActivity}
+            accessibilityLabel="Sign in to see your debate activity">
             <Text style={styles.guestCopy}>
               Sign in to see debates you have voted on and track your activity.
             </Text>
@@ -316,7 +327,10 @@ function CompactDebateRow({
     <TouchableOpacity
       style={styles.compactRow}
       onPress={onPress}
-      activeOpacity={0.85}>
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={summary.headline}
+      accessibilityHint="Opens this debate">
       <View style={styles.compactTextWrap}>
         <Text style={styles.compactHeadline} numberOfLines={2}>
           {summary.headline}
@@ -359,7 +373,10 @@ function ActivityDebateCard({
     <TouchableOpacity
       style={styles.activityCard}
       onPress={onPress}
-      activeOpacity={0.88}>
+      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel={`${summary.headline}, voted`}
+      accessibilityHint="Opens this debate">
       <View style={styles.activityTop}>
         <Text style={styles.activityTitle} numberOfLines={3}>
           {summary.headline}

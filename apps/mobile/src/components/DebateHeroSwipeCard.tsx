@@ -203,10 +203,18 @@ export default function DebateHeroSwipeCard({
     opacity: overlayDir.value === -1 ? 0.95 : 0,
   }));
 
+  const heroA11yLabel = `Featured debate: ${summary.headline}`;
+
   return (
-    <View style={styles.heroOuter}>
+    <View
+      style={styles.heroOuter}
+      accessible
+      accessibilityLabel={heroA11yLabel}
+      accessibilityHint="Swipe right to agree, left to disagree. Short tap opens the full debate.">
       <GestureDetector gesture={pan}>
-        <Animated.View style={[styles.heroClip, cardStyle]}>
+        <Animated.View
+          style={[styles.heroClip, cardStyle]}
+          accessibilityElementsHidden>
           <Image
             source={{uri: HERO_IMAGE_URI}}
             style={styles.heroImage}

@@ -7,7 +7,7 @@
 - Backend: Go 1.22+, PostgreSQL, `services/api` running with `JWT` + DB migrations applied
 - Mobile: `apps/mobile` (Expo SDK 54), `yarn install` at monorepo root
 
-## Backend (feed endpoint — after implementation)
+## Backend (feed endpoints)
 
 1. Start API (from repo root or `services/api`):
 
@@ -15,9 +15,16 @@
    cd services/api && go run main.go
    ```
 
-2. Obtain a user JWT (login via `/v1/api/auth/login`).
+2. **Public browse feed** (no auth — guest / browse list):
 
-3. Call feed (expected once implemented):
+   ```bash
+   export API_ORIGIN=http://localhost:8080
+   curl -sS "$API_ORIGIN/v1/api/debates/public-feed?limit=30"
+   ```
+
+3. **Authenticated feed** (JWT — per-user `new_debates` / `voted_debates`):
+
+   Obtain a user JWT (login via `/v1/api/auth/login`), then:
 
    ```bash
    curl -sS -H "Authorization: Bearer $TOKEN" \

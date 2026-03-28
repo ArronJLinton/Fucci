@@ -37,9 +37,9 @@
 | US3 Hero swipe + card vote + auth | T015–T017 | Done |
 | US4 List → detail navigation | T018–T019 | Done |
 | US5 Detail comments + guest read-only | T020–T021 | Done |
-| Polish & cross-cutting | T022–T025 | **Open** |
+| Polish & cross-cutting | T022–T025 | Done |
 
-**Progress**: **21 / 25** tasks checked off below; remaining work is **Phase 8** (T022–T025).
+**Progress**: **25 / 25** tasks checked off below.
 
 ---
 
@@ -143,10 +143,10 @@
 
 **Purpose**: Docs, a11y, CI-style checks.
 
-- [ ] T022 [P] Update `specs/009-debate-tab-navigator/quickstart.md` with unauthenticated `curl` for `GET /v1/api/debates/public-feed?limit=30` alongside existing feed example.
-- [ ] T023 [P] Add accessibility labels to Debates tab in `apps/mobile/App.tsx` and main list/swipe regions in `MainDebatesScreen.tsx` / hero component.
-- [ ] T024 Run `go test ./...` in `services/api` and `yarn type-check` (or `tsc --noEmit`) in `apps/mobile`; fix regressions.
-- [ ] T025 [P] Per [plan.md](./plan.md) Next Steps: align **[004-ai-debate-generator](../004-ai-debate-generator/spec.md)** jobs/context bundle so generation emphasizes **top / trending world football news and headlines** (see `specs/009-debate-tab-navigator/research.md` §7). Implement or verify in **004** (and migrations for optional `source_*` on `debates` if product wants provenance in feeds); **009** does not own ingestion—document outcome in PR notes.
+- [x] T022 [P] Update `specs/009-debate-tab-navigator/quickstart.md` with unauthenticated `curl` for `GET /v1/api/debates/public-feed?limit=30` alongside existing feed example.
+- [x] T023 [P] Add accessibility labels to Debates tab in `apps/mobile/App.tsx` and main list/swipe regions in `MainDebatesScreen.tsx` / hero component.
+- [x] T024 Run `go test ./...` in `services/api` and `yarn type-check` (or `tsc --noEmit`) in `apps/mobile`; fix regressions.
+- [x] T025 [P] Per [plan.md](./plan.md) Next Steps: align **[004-ai-debate-generator](../004-ai-debate-generator/spec.md)** jobs/context bundle so generation emphasizes **top / trending world football news and headlines** (see `specs/009-debate-tab-navigator/research.md` §7). Implement or verify in **004** (and migrations for optional `source_*` on `debates` if product wants provenance in feeds); **009** does not own ingestion—document outcome in PR notes.
 
 ---
 

@@ -211,6 +211,7 @@ const MainStack = () => {
           component={DebatesStack}
           options={{
             headerShown: false,
+            tabBarAccessibilityLabel: 'Debates',
             tabBarIcon: ({color, size}) => (
               <Ionicons name="chatbubbles-outline" size={size} color={color} />
             ),

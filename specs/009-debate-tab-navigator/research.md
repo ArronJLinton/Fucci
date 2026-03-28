@@ -65,3 +65,12 @@
 - **009-specific headline scraper** — rejected (duplicates 004 Epic B / news stack; harder to moderate).
 - **Client-only headline display without 004 change** — rejected (headlines would not match debate content).
 - **Optional `source_headline` / URL on `debates`** — acceptable follow-up (004 or migration); feed DTO may expose optional provenance fields when present (see [data-model.md](./data-model.md)).
+
+### T025 (009 polish): Handoff to 004 — headline weighting
+
+**009 does not implement** ingestion, generation jobs, or migrations for `source_*` columns. **T025** is satisfied for 009 by **documenting** alignment with **[004-ai-debate-generator](../004-ai-debate-generator/spec.md)**:
+
+- Product/engineering should **verify in 004** that debate-generation context bundles **prioritize recent, relevant world football news and headlines** (see §7 above and [004 spec](../004-ai-debate-generator/spec.md)).
+- Optional **`source_headline` / `source_url` / `source_published_at`** in feeds presuppose those fields on `debates` when 004/DB work adds them.
+
+Record any 004 implementation or verification outcome in **PR / release notes**; track code changes under **004**, not **009**.
