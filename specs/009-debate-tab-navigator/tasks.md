@@ -32,8 +32,8 @@
 
 **Purpose**: Dependencies and tooling for swipe UX and sqlc workflow.
 
-- [ ] T001 Add `react-native-gesture-handler` and `react-native-reanimated` with Expo-compatible versions in `apps/mobile/package.json` (e.g. `npx expo install react-native-gesture-handler react-native-reanimated`); add Reanimated Babel plugin to `apps/mobile/babel.config.js` per Expo docs if missing.
-- [ ] T002 [P] Confirm `services/api/sqlc.yaml` (or project sqlc config) includes `sql/queries/debates.sql` and document regenerate command for implementers.
+- [x] T001 Add `react-native-gesture-handler` and `react-native-reanimated` with Expo-compatible versions in `apps/mobile/package.json` (e.g. `npx expo install react-native-gesture-handler react-native-reanimated`); add Reanimated Babel plugin to `apps/mobile/babel.config.js` per Expo docs if missing.
+- [x] T002 [P] Confirm `services/api/sqlc.yaml` (or project sqlc config) includes `sql/queries/debates.sql` and document regenerate command for implementers.
 
 **Checkpoint**: Mobile ready for gesture work; API ready for new sqlc queries.
 
