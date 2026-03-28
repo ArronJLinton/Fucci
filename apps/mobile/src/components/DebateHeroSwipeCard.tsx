@@ -65,7 +65,10 @@ function formatVoteCount(n: number): string {
 }
 
 function relativeTimeLabel(iso: string): string {
-  const t = new Date(iso).getTime();
+  const raw = iso?.trim() ?? '';
+  if (!raw) return '';
+  const t = new Date(raw).getTime();
+  if (Number.isNaN(t)) return '';
   const diff = Date.now() - t;
   const h = Math.floor(diff / 3600000);
   if (h < 1) return 'Just now';
