@@ -64,12 +64,12 @@ export default function SettingsScreen({
       const result =
         source === 'camera'
           ? await ImagePicker.launchCameraAsync({
-              mediaTypes: ['images'],
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: false,
               quality: 0.8,
             })
           : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ['images'],
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: false,
               quality: 0.8,
             });
