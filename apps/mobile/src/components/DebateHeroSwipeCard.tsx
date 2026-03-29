@@ -73,6 +73,27 @@ function relativeTimeLabel(iso: string): string {
   return `${d}d ago`;
 }
 
+/** API-sourced URLs: allow only http(s) to avoid custom-scheme / deep-link abuse. */
+function isHttpOrHttpsUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+async function openHttpUrlFromApi(url: string): Promise<void> {
+  const trimmed = url.trim();
+  if (!isHttpOrHttpsUrl(trimmed)) return;
+  try {
+    if (!(await Linking.canOpenURL(trimmed))) return;
+    await Linking.openURL(trimmed);
+  } catch {
+    // ignore failures
+  }
+}
+
 /** Fired once per pan end (JS thread) — use for screen-level logging / analytics. */
 export type DebateHeroPanResult =
   | {summaryId: number; kind: 'tap_open'; dx: number; dy: number}
@@ -285,10 +306,40 @@ export default function DebateHeroSwipeCard({
         return;
       }
       if (!canSwipeVote) {
-        const reason = authRequiredForVote
-          ? 'auth_required'
-          : 'not_ready_or_no_card';
-        onPanResolved?.({summaryId: sid, kind: 'ignored', reason, dx, dy});
+        if (authRequiredForVote) {
+          const pastThreshold =
+            dx > SWIPE_THRESHOLD || dx < -SWIPE_THRESHOLD;
+          if (pastThreshold) {
+            onPanResolved?.({
+              summaryId: sid,
+              kind: 'ignored',
+              reason: 'auth_required',
+              dx,
+              dy,
+            });
+            openAuthForSwipe();
+            springHeroCardBack();
+            return;
+          }
+          const absDx = Math.abs(dx);
+          onPanResolved?.({
+            summaryId: sid,
+            kind: 'swipe_incomplete',
+            dx,
+            dy,
+            absDx,
+            threshold: SWIPE_THRESHOLD,
+          });
+          springHeroCardBack();
+          return;
+        }
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'ignored',
+          reason: 'not_ready_or_no_card',
+          dx,
+          dy,
+        });
         springHeroCardBack();
         return;
       }
@@ -343,6 +394,7 @@ export default function DebateHeroSwipeCard({
       voteBusy,
       onOpen,
       onPanResolved,
+      openAuthForSwipe,
       performBinarySwipeVote,
       springHeroCardBack,
       flyHeroCardOff,
@@ -466,11 +518,10 @@ export default function DebateHeroSwipeCard({
               <Text
                 style={styles.heroSource}
                 numberOfLines={2}
-                onPress={() =>
-                  summary.source_url
-                    ? Linking.openURL(summary.source_url).catch(() => {})
-                    : undefined
-                }>
+                onPress={() => {
+                  const u = summary.source_url?.trim();
+                  if (u) void openHttpUrlFromApi(u);
+                }}>
                 {sourceLabel}
               </Text>
             ) : null}
