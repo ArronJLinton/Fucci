@@ -158,7 +158,7 @@ components:
         binary_consensus:
           $ref: '#/components/schemas/DebateBinaryConsensus'
           description: |
-            **Agree** side = upvotes on stance `agree` cards; **disagree** side = downvotes on stance `disagree` cards (006 swipe semantics).
+            **Agree** side = upvotes on stance `agree` cards. **Disagree** side = downvotes on `agree` plus all swipe votes on `disagree` cards (covers detail “no” on agree, hero disagree paths, legacy upvote-on-disagree).
             Percent agree among voters is `agree_upvotes / (agree_upvotes + disagree_upvotes)` when the sum is positive.
 
     DebateBinaryConsensus:
@@ -172,7 +172,7 @@ components:
           description: Count of **upvote** rows (swipe, `emoji` null) on cards with stance `agree`.
         disagree_upvotes:
           type: integer
-          description: Count of **downvote** rows (swipe, `emoji` null) on cards with stance `disagree`; names the disagree side of the bar.
+          description: Disagree-side tally — downvotes on `agree` cards plus upvotes and downvotes on `disagree` cards (swipe, `emoji` null). Field name is historical.
 
     DebateAnalyticsSummary:
       type: object

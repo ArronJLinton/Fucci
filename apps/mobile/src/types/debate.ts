@@ -29,7 +29,7 @@ export interface DebateAnalyticsSummary {
   engagement_score: number;
 }
 
-/** Feed bar: upvotes on agree cards vs downvotes on disagree cards (006/009; disagree_upvotes names the “no” side). */
+/** Feed bar: agree side = upvotes on agree cards; disagree side = API tally (downvotes on agree + votes on disagree cards). */
 export interface DebateBinaryConsensus {
   agree_upvotes: number;
   disagree_upvotes: number;

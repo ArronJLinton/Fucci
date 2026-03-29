@@ -70,6 +70,32 @@ function formatSourcePublishedAt(iso: string): string {
   }
 }
 
+/**
+ * Debate Pulse / feed `binary_consensus` alignment:
+ * agree side = upvotes on agree card; disagree side = downvotes on agree + all swipe votes on disagree card.
+ */
+function binaryPulseSideTotals(
+  binaryCards: DebateCard[],
+  localCounts: Record<number, {upvotes: number; downvotes: number}>,
+): {agreeVotes: number; disagreeVotes: number} {
+  let agreeVotes = 0;
+  let disagreeVotes = 0;
+  for (const c of binaryCards) {
+    if (c.id == null) continue;
+    const counts = localCounts[c.id] ?? {
+      upvotes: c.vote_counts?.upvotes ?? 0,
+      downvotes: c.vote_counts?.downvotes ?? 0,
+    };
+    if (c.stance === 'agree') {
+      agreeVotes += counts.upvotes;
+      disagreeVotes += counts.downvotes;
+    } else if (c.stance === 'disagree') {
+      disagreeVotes += counts.upvotes + counts.downvotes;
+    }
+  }
+  return {agreeVotes, disagreeVotes};
+}
+
 const SingleDebateScreen = () => {
   const route = useRoute<SingleDebateRouteProp>();
   const navigation = useNavigation();
@@ -692,24 +718,20 @@ const SingleDebateScreen = () => {
           if (allBinaryCards.length === 0) return null;
           const agreeCard = allBinaryCards.find(c => c.stance === 'agree');
           const disagreeCard = allBinaryCards.find(c => c.stance === 'disagree');
-          const agreeVotes =
-            agreeCard?.id != null
-              ? (localCardVoteCounts[agreeCard.id]?.upvotes ??
-                agreeCard.vote_counts?.upvotes ??
-                0)
-              : 0;
-          const disagreeVotes =
-            disagreeCard?.id != null
-              ? (localCardVoteCounts[disagreeCard.id]?.upvotes ??
-                disagreeCard.vote_counts?.upvotes ??
-                0)
-              : 0;
+          const {agreeVotes, disagreeVotes} = binaryPulseSideTotals(
+            allBinaryCards,
+            localCardVoteCounts,
+          );
           const totalSide = agreeVotes + disagreeVotes;
           const agreePct =
             totalSide > 0 ? Math.round((agreeVotes / totalSide) * 100) : 0;
           const disagreePct = totalSide > 0 ? 100 - agreePct : 0;
           const agreeTitle = agreeCard?.title?.trim() || 'Agree';
           const disagreeTitle = disagreeCard?.title?.trim() || 'Disagree';
+          const agreeCountLabel =
+            agreeVotes === 1 ? '1 vote' : `${agreeVotes} votes`;
+          const disagreeCountLabel =
+            disagreeVotes === 1 ? '1 vote' : `${disagreeVotes} votes`;
 
           return (
             <View style={styles.meterSection}>
@@ -719,11 +741,16 @@ const SingleDebateScreen = () => {
                   <View style={styles.censusPctCol}>
                     <Text style={styles.censusCaption}>AGREE</Text>
                     <Text style={styles.censusPctLarge}>{agreePct}%</Text>
+                    <Text style={styles.censusVoteCount}>{agreeCountLabel}</Text>
                   </View>
                   <View style={[styles.censusPctCol, styles.censusPctColEnd]}>
                     <Text style={styles.censusCaption}>DISAGREE</Text>
                     <Text style={styles.censusPctLargeDisagree}>
                       {disagreePct}%
+                    </Text>
+                    <Text
+                      style={[styles.censusVoteCount, styles.censusVoteCountEnd]}>
+                      {disagreeCountLabel}
                     </Text>
                   </View>
                 </View>
@@ -1074,6 +1101,15 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '800',
     color: RED,
+  },
+  censusVoteCount: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: MUTED,
+  },
+  censusVoteCountEnd: {
+    textAlign: 'right',
   },
   censusBarTrack: {
     flexDirection: 'row',

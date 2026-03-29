@@ -131,6 +131,8 @@ export type DebateHeroVoteSuccessDetail = {
   debateId: number;
   cardId: number;
   voteType: 'upvote' | 'downvote';
+  /** Binary stance card that received the vote (for feed `binary_consensus` cache updates). */
+  stance: 'agree' | 'disagree';
 };
 
 export type DebateHeroSwipeCardProps = {
@@ -266,6 +268,7 @@ export default function DebateHeroSwipeCard({
             debateId: debate.id,
             cardId: card.id,
             voteType,
+            stance: side,
           });
           return true;
         }

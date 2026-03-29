@@ -38,6 +38,7 @@ const LIME = '#C6FF00';
 const CARD = '#1A1F2E';
 const TEXT = '#FFFFFF';
 const MUTED = '#8B92A5';
+const RED = '#FF3B30';
 const LIVE_DOT = '#3B82F6';
 
 type MainDebatesNavigation = NativeStackNavigationProp<
@@ -85,15 +86,40 @@ type MainDebatesSection = {
   data: FeedRow[];
 };
 
-/** % agree among binary-card upvotes; null when API omits counts or there are no such votes yet. */
-function consensusAgreePercent(summary: DebateSummary): number | null {
+/** Agree vs disagree % from feed binary tallies; null when missing or zero total. */
+function consensusPercents(summary: DebateSummary): {
+  agreePct: number;
+  disagreePct: number;
+} | null {
   const bc = summary.binary_consensus;
   if (!bc) return null;
   const a = bc.agree_upvotes;
   const d = bc.disagree_upvotes;
   const t = a + d;
   if (t <= 0) return null;
-  return Math.round((a / t) * 100);
+  const agreePct = Math.round((a / t) * 100);
+  return {agreePct, disagreePct: 100 - agreePct};
+}
+
+/** After hero vote, bump feed consensus so MY ACTIVITY shows % before refetch completes. */
+function withHeroVoteInBinaryConsensus(
+  summary: DebateSummary,
+  stance: 'agree' | 'disagree',
+): DebateSummary {
+  const prev = summary.binary_consensus ?? {agree_upvotes: 0, disagree_upvotes: 0};
+  return {
+    ...summary,
+    binary_consensus:
+      stance === 'agree'
+        ? {
+            agree_upvotes: prev.agree_upvotes + 1,
+            disagree_upvotes: prev.disagree_upvotes,
+          }
+        : {
+            agree_upvotes: prev.agree_upvotes,
+            disagree_upvotes: prev.disagree_upvotes + 1,
+          },
+  };
 }
 
 const MainDebatesScreen = () => {
@@ -270,10 +296,13 @@ const MainDebatesScreen = () => {
                     const moved = old.new_debates.find(
                       s => s.id === detail.debateId,
                     );
+                    const movedWithConsensus = moved
+                      ? withHeroVoteInBinaryConsensus(moved, detail.stance)
+                      : undefined;
                     const nextVoted =
-                      moved &&
+                      movedWithConsensus &&
                       !old.voted_debates.some(s => s.id === detail.debateId)
-                        ? [moved, ...old.voted_debates]
+                        ? [movedWithConsensus, ...old.voted_debates]
                         : old.voted_debates;
                     return {
                       ...old,
@@ -282,6 +311,9 @@ const MainDebatesScreen = () => {
                     };
                   },
                 );
+                void queryClient.invalidateQueries({
+                  queryKey: mainDebatesFeedQueryKey,
+                });
                 const after =
                   queryClient.getQueryData<UnifiedFeed>(mainDebatesFeedQueryKey);
                 const nextHeroId =
@@ -420,14 +452,16 @@ function ActivityDebateCard({
   summary: DebateSummary;
   onPress: () => void;
 }) {
-  const pct = consensusAgreePercent(summary);
-  const barW = pct == null ? 0 : Math.min(100, pct);
-  const barColor = pct == null ? MUTED : pct >= 50 ? LIME : MUTED;
+  const split = consensusPercents(summary);
   const hasSource =
     !!summary.source_headline?.trim() || !!summary.source_url?.trim();
   const sourceLabel = summary.source_headline?.trim()
     ? summary.source_headline
     : (summary.source_url?.trim() ?? '');
+  const a11yConsensus =
+    split != null
+      ? `Consensus ${split.agreePct}% agree, ${split.disagreePct}% disagree. `
+      : '';
 
   return (
     <TouchableOpacity
@@ -435,7 +469,7 @@ function ActivityDebateCard({
       onPress={onPress}
       activeOpacity={0.88}
       accessibilityRole="button"
-      accessibilityLabel={`${summary.headline}, voted`}
+      accessibilityLabel={`${summary.headline}, voted. ${a11yConsensus}`}
       accessibilityHint="Opens this debate">
       <View style={styles.activityTop}>
         <Text style={styles.activityTitle} numberOfLines={3}>
@@ -460,18 +494,37 @@ function ActivityDebateCard({
       ) : null}
       <Text style={styles.consensusLabel}>CONSENSUS</Text>
       <View style={styles.barTrack}>
-        {pct != null ? (
-          <View
-            style={[
-              styles.barFill,
-              {width: `${barW}%`, backgroundColor: barColor},
-            ]}
-          />
+        {split != null ? (
+          <View style={styles.barSplit}>
+            <View
+              style={[
+                styles.barSegAgree,
+                {width: `${split.agreePct}%`},
+              ]}
+            />
+            <View
+              style={[
+                styles.barSegDisagree,
+                {width: `${split.disagreePct}%`},
+              ]}
+            />
+          </View>
         ) : null}
       </View>
-      <Text style={styles.consensusPct}>
-        {pct == null ? '—' : `${pct}% AGREE`}
-      </Text>
+      <View style={styles.consensusPctRow}>
+        {split == null ? (
+          <Text style={styles.consensusPctMuted}>—</Text>
+        ) : (
+          <>
+            <Text style={styles.consensusPctAgree}>
+              {split.agreePct}% AGREE
+            </Text>
+            <Text style={styles.consensusPctDisagree}>
+              {split.disagreePct}% DISAGREE
+            </Text>
+          </>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -611,15 +664,40 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
   },
-  barFill: {
+  barSplit: {
+    flexDirection: 'row',
     height: '100%',
-    borderRadius: 4,
+    width: '100%',
   },
-  consensusPct: {
+  barSegAgree: {
+    height: '100%',
+    backgroundColor: LIME,
+  },
+  barSegDisagree: {
+    height: '100%',
+    backgroundColor: RED,
+  },
+  consensusPctRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 8,
+    gap: 8,
+  },
+  consensusPctAgree: {
     fontSize: 13,
     fontWeight: '800',
-    color: TEXT,
+    color: LIME,
+  },
+  consensusPctDisagree: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: RED,
+  },
+  consensusPctMuted: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: MUTED,
   },
   guestActivity: {
     marginHorizontal: 16,
