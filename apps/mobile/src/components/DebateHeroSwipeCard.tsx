@@ -39,7 +39,7 @@ const TAP_MAX = 18;
 /** Fly card fully past the clip; scales with screen width. */
 const OFFSCREEN_X = Dimensions.get('window').width * 1.35;
 
-/** Binary hero: need both stance cards so swipe-right/upvote-agree vs swipe-left/upvote-disagree match feed `binary_consensus`. */
+/** Binary hero: both stance cards — swipe right = upvote agree, swipe left = downvote disagree (feed `binary_consensus`). */
 function pickBinaryStanceCards(cards: DebateCard[] | undefined): {
   agree?: DebateCard;
   disagree?: DebateCard;
@@ -223,10 +223,11 @@ export default function DebateHeroSwipeCard({
     [translateX],
   );
 
-  /** Swipe right → upvote agree card; swipe left → upvote disagree card (matches API binary_consensus). */
+  /** Swipe right → upvote agree card; swipe left → downvote disagree card (matches API binary_consensus). */
   const performBinarySwipeVote = useCallback(
     async (side: 'agree' | 'disagree'): Promise<boolean> => {
       const card = side === 'agree' ? agreeCard : disagreeCard;
+      const voteType = side === 'agree' ? 'upvote' : 'downvote';
       if (!debate?.id || card?.id == null) {
         return false;
       }
@@ -238,12 +239,12 @@ export default function DebateHeroSwipeCard({
       }
       setVoteBusy(true);
       try {
-        const counts = await setCardVote(token, debate.id, card.id, 'upvote');
+        const counts = await setCardVote(token, debate.id, card.id, voteType);
         if (counts) {
           onVoteSuccess({
             debateId: debate.id,
             cardId: card.id,
-            voteType: 'upvote',
+            voteType,
           });
           return true;
         }

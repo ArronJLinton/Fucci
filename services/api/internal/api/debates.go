@@ -222,7 +222,8 @@ type DebateAnalyticsSummary struct {
 	EngagementScore float64 `json:"engagement_score"`
 }
 
-// DebateBinaryConsensus is swipe upvote counts on agree vs disagree cards (feed list; matches Debate Pulse).
+// DebateBinaryConsensus is feed-list tallies: upvotes on agree cards vs downvotes on disagree cards (006/009).
+// JSON field disagree_upvotes names the disagree side of the bar (count is downvotes on the disagree card).
 type DebateBinaryConsensus struct {
 	AgreeUpvotes    int `json:"agree_upvotes"`
 	DisagreeUpvotes int `json:"disagree_upvotes"`

@@ -718,6 +718,23 @@ func (q *Queries) GetVotesByCard(ctx context.Context, debateCardID sql.NullInt32
 }
 
 const listDebatesFeedNewForUser = `-- name: ListDebatesFeedNewForUser :many
+WITH feed_candidates AS (
+    SELECT d.id
+    FROM debates d
+    LEFT JOIN debate_analytics da ON d.id = da.debate_id
+    WHERE d.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
+      AND NOT EXISTS (
+        SELECT 1
+        FROM debate_cards dc
+        INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
+          AND v.vote_type IN ('upvote', 'downvote')
+          AND v.emoji IS NULL
+        WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+      )
+    ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+    LIMIT $2
+)
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
@@ -726,30 +743,24 @@ SELECT
     COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
     COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes
 FROM debates d
+INNER JOIN feed_candidates fc ON fc.id = d.id
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 LEFT JOIN (
     SELECT
         dc.debate_id,
-        COUNT(*) FILTER (WHERE dc.stance = 'agree')::bigint AS binary_agree_upvotes,
-        COUNT(*) FILTER (WHERE dc.stance = 'disagree')::bigint AS binary_disagree_upvotes
+        COUNT(*) FILTER (WHERE dc.stance = 'agree' AND v.vote_type = 'upvote')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (WHERE dc.stance = 'disagree' AND v.vote_type = 'downvote')::bigint AS binary_disagree_upvotes
     FROM votes v
     INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-    WHERE v.vote_type = 'upvote' AND v.emoji IS NULL
-      AND dc.stance IN ('agree', 'disagree')
+    WHERE v.emoji IS NULL
+      AND (
+        (dc.stance = 'agree' AND v.vote_type = 'upvote')
+        OR (dc.stance = 'disagree' AND v.vote_type = 'downvote')
+      )
+      AND dc.debate_id IN (SELECT id FROM feed_candidates)
     GROUP BY dc.debate_id
 ) bbin ON bbin.debate_id = d.id
-WHERE d.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
-  AND NOT EXISTS (
-    SELECT 1
-    FROM debate_cards dc
-    INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
-      AND v.vote_type IN ('upvote', 'downvote')
-      AND v.emoji IS NULL
-    WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
-  )
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
-LIMIT $2
 `
 
 type ListDebatesFeedNewForUserParams struct {
@@ -815,6 +826,31 @@ func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebates
 }
 
 const listDebatesFeedVotedForUser = `-- name: ListDebatesFeedVotedForUser :many
+WITH feed_candidates AS (
+    SELECT d.id
+    FROM debates d
+    LEFT JOIN debate_analytics da ON d.id = da.debate_id
+    WHERE d.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
+      AND EXISTS (
+        SELECT 1
+        FROM debate_cards dc
+        INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
+          AND v.vote_type IN ('upvote', 'downvote')
+          AND v.emoji IS NULL
+        WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+      )
+    ORDER BY (
+      SELECT MAX(v.created_at)::timestamptz
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+        AND v.user_id = $1
+        AND v.vote_type IN ('upvote', 'downvote')
+        AND v.emoji IS NULL
+    ) DESC NULLS LAST
+    LIMIT $2
+)
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
@@ -832,30 +868,24 @@ SELECT
         AND v.emoji IS NULL
     ) AS last_voted_at
 FROM debates d
+INNER JOIN feed_candidates fc ON fc.id = d.id
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 LEFT JOIN (
     SELECT
         dc.debate_id,
-        COUNT(*) FILTER (WHERE dc.stance = 'agree')::bigint AS binary_agree_upvotes,
-        COUNT(*) FILTER (WHERE dc.stance = 'disagree')::bigint AS binary_disagree_upvotes
+        COUNT(*) FILTER (WHERE dc.stance = 'agree' AND v.vote_type = 'upvote')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (WHERE dc.stance = 'disagree' AND v.vote_type = 'downvote')::bigint AS binary_disagree_upvotes
     FROM votes v
     INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-    WHERE v.vote_type = 'upvote' AND v.emoji IS NULL
-      AND dc.stance IN ('agree', 'disagree')
+    WHERE v.emoji IS NULL
+      AND (
+        (dc.stance = 'agree' AND v.vote_type = 'upvote')
+        OR (dc.stance = 'disagree' AND v.vote_type = 'downvote')
+      )
+      AND dc.debate_id IN (SELECT id FROM feed_candidates)
     GROUP BY dc.debate_id
 ) bbin ON bbin.debate_id = d.id
-WHERE d.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
-  AND EXISTS (
-    SELECT 1
-    FROM debate_cards dc
-    INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
-      AND v.vote_type IN ('upvote', 'downvote')
-      AND v.emoji IS NULL
-    WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
-  )
 ORDER BY last_voted_at DESC NULLS LAST
-LIMIT $2
 `
 
 type ListDebatesFeedVotedForUserParams struct {
@@ -881,7 +911,7 @@ type ListDebatesFeedVotedForUserRow struct {
 	LastVotedAt           time.Time
 }
 
-// Authenticated feed — "voted": user has at least one swipe vote on any agree/disagree card for this debate.
+// Authenticated feed — "voted": user has at least one swipe vote (emoji IS NULL) on any agree/disagree card.
 func (q *Queries) ListDebatesFeedVotedForUser(ctx context.Context, arg ListDebatesFeedVotedForUserParams) ([]ListDebatesFeedVotedForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDebatesFeedVotedForUser, arg.UserID, arg.Limit)
 	if err != nil {
@@ -922,6 +952,15 @@ func (q *Queries) ListDebatesFeedVotedForUser(ctx context.Context, arg ListDebat
 }
 
 const listDebatesPublicFeed = `-- name: ListDebatesPublicFeed :many
+WITH feed_candidates AS (
+    SELECT d.id
+    FROM debates d
+    LEFT JOIN debate_analytics da ON d.id = da.debate_id
+    WHERE d.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM debate_cards dc WHERE dc.debate_id = d.id)
+    ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+    LIMIT $1
+)
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
@@ -930,22 +969,24 @@ SELECT
     COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
     COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes
 FROM debates d
+INNER JOIN feed_candidates fc ON fc.id = d.id
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 LEFT JOIN (
     SELECT
         dc.debate_id,
-        COUNT(*) FILTER (WHERE dc.stance = 'agree')::bigint AS binary_agree_upvotes,
-        COUNT(*) FILTER (WHERE dc.stance = 'disagree')::bigint AS binary_disagree_upvotes
+        COUNT(*) FILTER (WHERE dc.stance = 'agree' AND v.vote_type = 'upvote')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (WHERE dc.stance = 'disagree' AND v.vote_type = 'downvote')::bigint AS binary_disagree_upvotes
     FROM votes v
     INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-    WHERE v.vote_type = 'upvote' AND v.emoji IS NULL
-      AND dc.stance IN ('agree', 'disagree')
+    WHERE v.emoji IS NULL
+      AND (
+        (dc.stance = 'agree' AND v.vote_type = 'upvote')
+        OR (dc.stance = 'disagree' AND v.vote_type = 'downvote')
+      )
+      AND dc.debate_id IN (SELECT id FROM feed_candidates)
     GROUP BY dc.debate_id
 ) bbin ON bbin.debate_id = d.id
-WHERE d.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM debate_cards dc WHERE dc.debate_id = d.id)
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
-LIMIT $1
 `
 
 type ListDebatesPublicFeedRow struct {
@@ -966,7 +1007,8 @@ type ListDebatesPublicFeedRow struct {
 }
 
 // Public browse feed: engagement desc, tie-break created_at desc; only debates with at least one card.
-// Swipe upvotes on agree vs disagree cards (matches mobile Debate Pulse / MY ACTIVITY bar).
+// Binary consensus: upvotes on stance=agree cards vs downvotes on stance=disagree cards (006/009 swipe semantics).
+// Vote aggregates are scoped to debates in the limited feed (not the full votes table).
 func (q *Queries) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]ListDebatesPublicFeedRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDebatesPublicFeed, limit)
 	if err != nil {

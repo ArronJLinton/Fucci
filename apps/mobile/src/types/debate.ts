@@ -29,7 +29,7 @@ export interface DebateAnalyticsSummary {
   engagement_score: number;
 }
 
-/** Swipe upvotes on agree vs disagree cards — same basis as Debate Pulse (009 feed). */
+/** Feed bar: upvotes on agree cards vs downvotes on disagree cards (006/009; disagree_upvotes names the “no” side). */
 export interface DebateBinaryConsensus {
   agree_upvotes: number;
   disagree_upvotes: number;
@@ -49,7 +49,7 @@ export interface DebateSummary {
   created_at: string;
   updated_at?: string;
   analytics?: DebateAnalyticsSummary;
-  /** Real agree vs disagree swipe upvote counts for list UI (optional on older API builds). */
+  /** Agree-side upvotes vs disagree-side downvotes for list UI (optional on older API builds). */
   binary_consensus?: DebateBinaryConsensus;
   /** Authenticated “voted” list — latest swipe time for sorting */
   last_voted_at?: string;
