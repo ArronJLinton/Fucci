@@ -12,7 +12,10 @@ import {
   type NavigationState,
 } from '@react-navigation/native';
 import {rootNavigationRef} from './src/navigation/rootNavigation';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {
+  createBottomTabNavigator,
+  type BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {StatusBar} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
@@ -21,6 +24,10 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {QueryClientProvider} from '@tanstack/react-query';
 import {queryClient} from './src/config/queryClient';
 import {AuthProvider} from './src/context/AuthContext';
+import {
+  StyledTabBarButton,
+  TAB_LIME,
+} from './src/navigation/StyledTabBarButton';
 
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -58,17 +65,12 @@ const baseTabBarStyle = {
   borderTopWidth: 1,
   elevation: 0,
   shadowOpacity: 0,
-  height: 60,
-  paddingBottom: 8,
+  height: 64,
+  paddingBottom: 6,
+  paddingTop: 4,
 } as const;
 
-function getFocusedTabName(
-  state: Parameters<
-    typeof useNavigationState
-  >[0] extends (s: infer S) => unknown
-    ? S
-    : never,
-): string {
+function getFocusedTabName(state?: NavigationState): string {
   if (!state) {
     return 'Home';
   }
@@ -115,6 +117,12 @@ const MainStack = () => {
   const inactiveTint =
     focusedTab === 'Debates' || focusedTab === 'Profile' ? '#8E8E93' : '#666';
 
+  const tabChromeVariant =
+    focusedTab === 'Home' || focusedTab === 'News' ? 'light' : 'dark';
+
+  const tabActiveTint =
+    tabChromeVariant === 'dark' ? TAB_LIME : '#007AFF';
+
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: shellBg}}>
       <StatusBar
@@ -123,8 +131,27 @@ const MainStack = () => {
       />
       <TabNavigator
         screenOptions={{
-          tabBarActiveTintColor: '#007AFF',
+          tabBarActiveTintColor: tabActiveTint,
           tabBarInactiveTintColor: inactiveTint,
+          tabBarShowLabel: true,
+          tabBarLabelStyle: {
+            fontSize: 9,
+            fontWeight: '700',
+            letterSpacing: 0.6,
+            textTransform: 'uppercase',
+            marginTop: 2,
+          },
+          tabBarIconStyle: {marginBottom: 0},
+          tabBarButton: ({
+            ref: tabRef,
+            ...tabBtn
+          }: BottomTabBarButtonProps) => (
+            <StyledTabBarButton
+              {...tabBtn}
+              ref={tabRef as React.Ref<React.ComponentRef<typeof StyledTabBarButton>>}
+              variant={tabChromeVariant}
+            />
+          ),
           tabBarStyle: {
             ...baseTabBarStyle,
             backgroundColor: tabBarBg,
@@ -147,10 +174,14 @@ const MainStack = () => {
           component={HomeStack}
           options={{
             headerShown: false,
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="football-outline" size={size} color={color} />
+            tabBarLabel: 'Matches',
+            tabBarIcon: ({color, size, focused}) => (
+              <Ionicons
+                name={focused ? 'football' : 'football-outline'}
+                size={size}
+                color={color}
+              />
             ),
-            tabBarLabel: () => null,
             title: '',
           }}
         />
@@ -159,10 +190,14 @@ const MainStack = () => {
           component={NewsStack}
           options={{
             headerShown: false,
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="newspaper-outline" size={size} color={color} />
+            tabBarLabel: 'News',
+            tabBarIcon: ({color, size, focused}) => (
+              <Ionicons
+                name={focused ? 'newspaper' : 'newspaper-outline'}
+                size={size}
+                color={color}
+              />
             ),
-            tabBarLabel: () => null,
             title: '',
           }}
         />
@@ -172,10 +207,14 @@ const MainStack = () => {
           options={{
             headerShown: false,
             tabBarAccessibilityLabel: 'Debates',
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="chatbubbles-outline" size={size} color={color} />
+            tabBarLabel: 'Debates',
+            tabBarIcon: ({color, size, focused}) => (
+              <Ionicons
+                name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
+                size={size}
+                color={color}
+              />
             ),
-            tabBarLabel: () => null,
             title: '',
           }}
         />
@@ -185,10 +224,14 @@ const MainStack = () => {
           initialParams={{embeddedInTab: true}}
           options={{
             headerShown: false,
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="person-outline" size={size} color={color} />
+            tabBarLabel: 'Profile',
+            tabBarIcon: ({color, size, focused}) => (
+              <Ionicons
+                name={focused ? 'person' : 'person-outline'}
+                size={size}
+                color={color}
+              />
             ),
-            tabBarLabel: () => null,
             title: '',
           }}
         />
