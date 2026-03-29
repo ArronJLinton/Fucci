@@ -182,8 +182,8 @@ WHERE d.deleted_at IS NULL
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
 LIMIT $1;
 
--- Authenticated feed — "new": user has not cast any swipe vote on a binary (agree/disagree) card for this debate.
--- One vote per debate (first swipe on any binary card moves the debate to "voted"). Wildcards do not count.
+-- Authenticated feed — "new": user has not cast any swipe vote (upvote/downvote, emoji IS NULL) on a binary card.
+-- One vote per debate (first swipe on any binary card moves the debate to "voted"). Emoji reactions do not count. Wildcards do not count.
 -- name: ListDebatesFeedNewForUser :many
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
@@ -212,12 +212,13 @@ WHERE d.deleted_at IS NULL
     FROM debate_cards dc
     INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
       AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
     WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
   )
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
 LIMIT $2;
 
--- Authenticated feed — "voted": user has at least one swipe vote on any agree/disagree card for this debate.
+-- Authenticated feed — "voted": user has at least one swipe vote (emoji IS NULL) on any agree/disagree card.
 -- name: ListDebatesFeedVotedForUser :many
 SELECT 
     d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
@@ -233,6 +234,7 @@ SELECT
       WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
         AND v.user_id = $1
         AND v.vote_type IN ('upvote', 'downvote')
+        AND v.emoji IS NULL
     ) AS last_voted_at
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
@@ -254,6 +256,7 @@ WHERE d.deleted_at IS NULL
     FROM debate_cards dc
     INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
       AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
     WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
   )
 ORDER BY last_voted_at DESC NULLS LAST

@@ -745,6 +745,7 @@ WHERE d.deleted_at IS NULL
     FROM debate_cards dc
     INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
       AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
     WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
   )
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
@@ -773,8 +774,8 @@ type ListDebatesFeedNewForUserRow struct {
 	BinaryDisagreeUpvotes int64
 }
 
-// Authenticated feed — "new": user has not cast any swipe vote on a binary (agree/disagree) card for this debate.
-// One vote per debate (first swipe on any binary card moves the debate to "voted"). Wildcards do not count.
+// Authenticated feed — "new": user has not cast any swipe vote (upvote/downvote, emoji IS NULL) on a binary card.
+// One vote per debate (first swipe on any binary card moves the debate to "voted"). Emoji reactions do not count. Wildcards do not count.
 func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebatesFeedNewForUserParams) ([]ListDebatesFeedNewForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDebatesFeedNewForUser, arg.UserID, arg.Limit)
 	if err != nil {
@@ -828,6 +829,7 @@ SELECT
       WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
         AND v.user_id = $1
         AND v.vote_type IN ('upvote', 'downvote')
+        AND v.emoji IS NULL
     ) AS last_voted_at
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
@@ -849,6 +851,7 @@ WHERE d.deleted_at IS NULL
     FROM debate_cards dc
     INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
       AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
     WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
   )
 ORDER BY last_voted_at DESC NULLS LAST
