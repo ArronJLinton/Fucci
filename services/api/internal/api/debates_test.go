@@ -122,7 +122,10 @@ func TestDebateSummaryFromPublicFeedRowMapsAnalytics(t *testing.T) {
 		BinaryAgreeUpvotes:    int64(12),
 		BinaryDisagreeUpvotes: int64(8),
 	}
-	s := debateSummaryFromPublicFeedRow(row)
+	s, err := debateSummaryFromPublicFeedRow(row)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if s.Analytics == nil || s.Analytics.EngagementScore != 5.5 {
 		t.Fatalf("analytics: %+v", s.Analytics)
 	}
@@ -158,7 +161,10 @@ func TestDebateSummaryFromVotedFeedRowIncludesLastVotedAt(t *testing.T) {
 		BinaryDisagreeUpvotes: int64(1),
 		LastVotedAt:           ts,
 	}
-	s := debateSummaryFromVotedFeedRow(row)
+	s, err := debateSummaryFromVotedFeedRow(row)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if s.LastVotedAt == nil || !s.LastVotedAt.Equal(ts) {
 		t.Fatalf("last_voted_at: %+v", s.LastVotedAt)
 	}

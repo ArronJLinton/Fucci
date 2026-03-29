@@ -313,7 +313,7 @@ func buildDebateSummary(
 	totalVotes, totalComments sql.NullInt32,
 	engagementScore sql.NullString,
 	lastVotedAt *time.Time,
-) DebateSummary {
+) (DebateSummary, error) {
 	s := DebateSummary{
 		ID:         id,
 		MatchID:    matchID,
@@ -326,9 +326,10 @@ func buildDebateSummary(
 	if aiGenerated.Valid {
 		s.AIGenerated = aiGenerated.Bool
 	}
-	if createdAt.Valid {
-		s.CreatedAt = createdAt.Time
+	if !createdAt.Valid {
+		return DebateSummary{}, fmt.Errorf("missing created_at for debate_id=%d", id)
 	}
+	s.CreatedAt = createdAt.Time
 	if updatedAt.Valid {
 		s.UpdatedAt = updatedAt.Time
 	}
@@ -352,27 +353,33 @@ func buildDebateSummary(
 			EngagementScore: eng,
 		}
 	}
-	return s
+	return s, nil
 }
 
-func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) DebateSummary {
-	s := buildDebateSummary(
+func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) (DebateSummary, error) {
+	s, err := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
 		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
 	)
+	if err != nil {
+		return DebateSummary{}, err
+	}
 	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
-	return s
+	return s, nil
 }
 
-func debateSummaryFromNewFeedRow(row database.ListDebatesFeedNewForUserRow) DebateSummary {
-	s := buildDebateSummary(
+func debateSummaryFromNewFeedRow(row database.ListDebatesFeedNewForUserRow) (DebateSummary, error) {
+	s, err := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
 		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
 	)
+	if err != nil {
+		return DebateSummary{}, err
+	}
 	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
-	return s
+	return s, nil
 }
 
 func lastVotedAtFromSQLCIface(v interface{}) *time.Time {
@@ -411,15 +418,18 @@ func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryC
 	}
 }
 
-func debateSummaryFromVotedFeedRow(row database.ListDebatesFeedVotedForUserRow) DebateSummary {
-	s := buildDebateSummary(
+func debateSummaryFromVotedFeedRow(row database.ListDebatesFeedVotedForUserRow) (DebateSummary, error) {
+	s, err := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
 		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore,
 		lastVotedAtFromSQLCIface(row.LastVotedAt),
 	)
+	if err != nil {
+		return DebateSummary{}, err
+	}
 	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
-	return s
+	return s, nil
 }
 
 // debateSetCacheTTL is how long we cache a generated debate set.
@@ -1787,7 +1797,12 @@ func (c *Config) getDebatesPublicFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]DebateSummary, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, debateSummaryFromPublicFeedRow(row))
+		summary, buildErr := debateSummaryFromPublicFeedRow(row)
+		if buildErr != nil {
+			log.Printf("[debates/public-feed] dropping debate_id=%d: %v", row.ID, buildErr)
+			continue
+		}
+		out = append(out, summary)
 	}
 	respondWithJSON(w, http.StatusOK, PublicDebateFeedResponse{Debates: out})
 }
@@ -1826,11 +1841,21 @@ func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	newSummaries := make([]DebateSummary, 0, len(newRows))
 	for _, row := range newRows {
-		newSummaries = append(newSummaries, debateSummaryFromNewFeedRow(row))
+		summary, buildErr := debateSummaryFromNewFeedRow(row)
+		if buildErr != nil {
+			log.Printf("[debates/feed:new] dropping debate_id=%d: %v", row.ID, buildErr)
+			continue
+		}
+		newSummaries = append(newSummaries, summary)
 	}
 	votedSummaries := make([]DebateSummary, 0, len(votedRows))
 	for _, row := range votedRows {
-		votedSummaries = append(votedSummaries, debateSummaryFromVotedFeedRow(row))
+		summary, buildErr := debateSummaryFromVotedFeedRow(row)
+		if buildErr != nil {
+			log.Printf("[debates/feed:voted] dropping debate_id=%d: %v", row.ID, buildErr)
+			continue
+		}
+		votedSummaries = append(votedSummaries, summary)
 	}
 	respondWithJSON(w, http.StatusOK, DebateFeedResponse{
 		NewDebates:   newSummaries,
