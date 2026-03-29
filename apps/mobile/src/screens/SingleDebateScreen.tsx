@@ -654,11 +654,28 @@ const SingleDebateScreen = () => {
               <Text
                 style={styles.sourceLine}
                 numberOfLines={3}
-                onPress={() =>
-                  sourceUrl
-                    ? Linking.openURL(sourceUrl).catch(() => {})
-                    : undefined
-                }>
+                onPress={() => {
+                  if (!sourceUrl) {
+                    return;
+                  }
+                  try {
+                    const parsed = new URL(sourceUrl);
+                    const isHttp =
+                      parsed.protocol === 'http:' || parsed.protocol === 'https:';
+                    if (!isHttp) {
+                      return;
+                    }
+                    Linking.canOpenURL(sourceUrl)
+                      .then(supported => {
+                        if (supported) {
+                          Linking.openURL(sourceUrl).catch(() => {});
+                        }
+                      })
+                      .catch(() => {});
+                  } catch {
+                    // Invalid URL; do nothing
+                  }
+                }}>
                 {sourceHeadline || sourceUrl}
               </Text>
             ) : null}
