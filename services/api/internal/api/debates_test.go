@@ -556,6 +556,63 @@ func TestTeamsFromMatchInfoJSON_ValidNullRawMessage(t *testing.T) {
 	}
 }
 
+func TestTeamsFromMatchInfoJSON_InProgressIncludesZeroOnBothSides(t *testing.T) {
+	mi := MatchInfo{
+		HomeTeam: "A", AwayTeam: "B",
+		Status: "1H", HomeScore: 1, AwayScore: 0,
+	}
+	raw, err := json.Marshal(&mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	teams := teamsFromMatchInfoJSON(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+	if teams == nil {
+		t.Fatal("expected teams")
+	}
+	if teams.Home.Score == nil || teams.Away.Score == nil {
+		t.Fatalf("want both scores set during 1H: home=%v away=%v", teams.Home.Score, teams.Away.Score)
+	}
+	if *teams.Home.Score != 1 || *teams.Away.Score != 0 {
+		t.Fatalf("got home=%d away=%d", *teams.Home.Score, *teams.Away.Score)
+	}
+}
+
+func TestTeamsFromMatchInfoJSON_NotStartedOmitsScores(t *testing.T) {
+	mi := MatchInfo{
+		HomeTeam: "A", AwayTeam: "B",
+		Status: "NS", HomeScore: 0, AwayScore: 0,
+	}
+	raw, err := json.Marshal(&mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	teams := teamsFromMatchInfoJSON(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+	if teams == nil {
+		t.Fatal("expected teams")
+	}
+	if teams.Home.Score != nil || teams.Away.Score != nil {
+		t.Fatalf("pre-match should omit scores: home=%v away=%v", teams.Home.Score, teams.Away.Score)
+	}
+}
+
+func TestTeamsFromMatchInfoJSON_HalftimeZeroZeroShowsBothScores(t *testing.T) {
+	mi := MatchInfo{
+		HomeTeam: "A", AwayTeam: "B",
+		Status: "HT", HomeScore: 0, AwayScore: 0,
+	}
+	raw, err := json.Marshal(&mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	teams := teamsFromMatchInfoJSON(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+	if teams.Home.Score == nil || teams.Away.Score == nil {
+		t.Fatal("HT 0-0 should still expose both scores")
+	}
+	if *teams.Home.Score != 0 || *teams.Away.Score != 0 {
+		t.Fatalf("scores: %d–%d", *teams.Home.Score, *teams.Away.Score)
+	}
+}
+
 func TestAttachTeamsToSummaries_NoDBQueryWhenTeamsFromJSON(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {

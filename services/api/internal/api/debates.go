@@ -66,6 +66,38 @@ const (
 
 const errMsgTryAgain = "Something went wrong. Please try again."
 
+// Match status buckets for debate validation and feed scorelines (keep in sync with API-Football-style codes).
+var (
+	matchStatusesNotStarted = []string{"NS", "TBD", "POSTPONED", "CANCELLED", "SUSPENDED"}
+	matchStatusesInProgress = []string{"1H", "2H", "HT", "ET", "P", "BT"}
+	matchStatusesFinished   = []string{"FT", "AET", "PEN", "FT_PEN", "AET_PEN"}
+)
+
+// matchInfoShowsFullScoreline reports when both home and away scores should be exposed (including zeros).
+func matchInfoShowsFullScoreline(mi MatchInfo) bool {
+	st := mi.Status
+	if st == "" {
+		return mi.HomeScore > 0 || mi.AwayScore > 0
+	}
+	for _, s := range matchStatusesNotStarted {
+		if st == s {
+			return false
+		}
+	}
+	for _, s := range matchStatusesInProgress {
+		if st == s {
+			return true
+		}
+	}
+	for _, s := range matchStatusesFinished {
+		if st == s {
+			return true
+		}
+	}
+	// Unknown status: only infer a scoreline when at least one goal is present.
+	return mi.HomeScore > 0 || mi.AwayScore > 0
+}
+
 // Debate API types
 type CreateDebateRequest struct {
 	MatchID     string `json:"match_id"`
@@ -473,12 +505,10 @@ func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
 			Logo: mi.AwayTeamLogo,
 		},
 	}
-	if mi.HomeScore > 0 || mi.Status == "FT" || mi.Status == "AET" || mi.Status == "PEN" || mi.Status == "HT" {
+	if matchInfoShowsFullScoreline(mi) {
 		hs := mi.HomeScore
-		teams.Home.Score = &hs
-	}
-	if mi.AwayScore > 0 || mi.Status == "FT" || mi.Status == "AET" || mi.Status == "PEN" || mi.Status == "HT" {
 		as := mi.AwayScore
+		teams.Home.Score = &hs
 		teams.Away.Score = &as
 	}
 	if teams.Home.Name == "" && teams.Away.Name == "" {
@@ -1074,13 +1104,8 @@ func (c *Config) generateAIPrompt(w http.ResponseWriter, r *http.Request) {
 
 // validateMatchStatusForDebateType checks if the match status is appropriate for the requested debate type
 func (c *Config) validateMatchStatusForDebateType(matchStatus, debateType string) error {
-	// Define match status categories
-	notStartedStatuses := []string{"NS", "TBD", "POSTPONED", "CANCELLED", "SUSPENDED"}
-	inProgressStatuses := []string{"1H", "2H", "HT", "ET", "P", "BT"}
-	finishedStatuses := []string{"FT", "AET", "PEN", "FT_PEN", "AET_PEN"}
-
 	// Check if status is in not started category
-	for _, status := range notStartedStatuses {
+	for _, status := range matchStatusesNotStarted {
 		if matchStatus == status {
 			if debateType == "post_match" {
 				return fmt.Errorf("cannot generate post_match debate for a match that hasn't started (status: %s)", matchStatus)
@@ -1090,7 +1115,7 @@ func (c *Config) validateMatchStatusForDebateType(matchStatus, debateType string
 	}
 
 	// Check if status is in progress
-	for _, status := range inProgressStatuses {
+	for _, status := range matchStatusesInProgress {
 		if matchStatus == status {
 			if debateType == "post_match" {
 				return fmt.Errorf("cannot generate post_match debate for a match that is still in progress (status: %s)", matchStatus)
@@ -1100,7 +1125,7 @@ func (c *Config) validateMatchStatusForDebateType(matchStatus, debateType string
 	}
 
 	// Check if status is finished
-	for _, status := range finishedStatuses {
+	for _, status := range matchStatusesFinished {
 		if matchStatus == status {
 			if debateType == "pre_match" {
 				return fmt.Errorf("cannot generate pre_match debate for a finished match (status: %s)", matchStatus)
