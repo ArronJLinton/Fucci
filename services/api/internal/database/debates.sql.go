@@ -827,29 +827,31 @@ func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebates
 }
 
 const listDebatesFeedVotedForUser = `-- name: ListDebatesFeedVotedForUser :many
-WITH feed_candidates AS (
+WITH uv AS (
+    SELECT
+        dc.debate_id,
+        MAX(v.created_at)::timestamptz AS last_voted_at
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.user_id = $1
+      AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
+      AND dc.stance IN ('agree', 'disagree')
+    GROUP BY dc.debate_id
+),
+feed_candidates AS (
     SELECT d.id
     FROM debates d
+    INNER JOIN uv ON uv.debate_id = d.id
     LEFT JOIN debate_analytics da ON d.id = da.debate_id
     WHERE d.deleted_at IS NULL
-      AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
       AND EXISTS (
         SELECT 1
-        FROM debate_cards dc
-        INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
-          AND v.vote_type IN ('upvote', 'downvote')
-          AND v.emoji IS NULL
-        WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+        FROM debate_cards dc0
+        WHERE dc0.debate_id = d.id
+          AND dc0.stance IN ('agree', 'disagree')
       )
-    ORDER BY (
-      SELECT MAX(v.created_at)::timestamptz
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
-        AND v.user_id = $1
-        AND v.vote_type IN ('upvote', 'downvote')
-        AND v.emoji IS NULL
-    ) DESC NULLS LAST
+    ORDER BY uv.last_voted_at DESC NULLS LAST
     LIMIT $2
 )
 SELECT 
