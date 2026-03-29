@@ -10,8 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  PanResponder,
-  Dimensions,
   StatusBar,
   Linking,
 } from 'react-native';
@@ -19,15 +17,9 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
-import type {
-  DebateComment,
-  DebateCard,
-  CardVoteTotals,
-  ReactionCount,
-} from '../types/debate';
+import type {DebateComment, DebateCard, ReactionCount} from '../types/debate';
 import {
   listComments,
-  setCardVote,
   createComment as apiCreateComment,
   setCommentVote,
   addCommentReaction,
@@ -45,9 +37,6 @@ const TEXT = '#FFFFFF';
 const MUTED = '#8B92A5';
 const RED = '#FF3B30';
 const BORDER_SUB = 'rgba(255,255,255,0.08)';
-
-const {width: SCREEN_WIDTH} = Dimensions.get('window');
-const SWIPE_THRESHOLD = 80;
 
 type SingleDebateRouteProp = RouteProp<RootStackParamList, 'SingleDebate'>;
 
@@ -72,7 +61,7 @@ function formatSourcePublishedAt(iso: string): string {
 
 /**
  * Debate Pulse / feed `binary_consensus` alignment:
- * agree side = upvotes on agree card; disagree side = downvotes on agree + all swipe votes on disagree card.
+ * agree side = upvotes on agree card; disagree side = downvotes on agree + votes on disagree card.
  */
 function binaryPulseSideTotals(
   binaryCards: DebateCard[],
@@ -130,20 +119,10 @@ const SingleDebateScreen = () => {
   const [authGatePendingAction, setAuthGatePendingAction] =
     useState<AuthPendingAction | null>(null);
 
-  // Card vote (swipe) state — totals for meter, and which cards user has voted this session
-  const [cardVoteTotals, setCardVoteTotals] = useState<CardVoteTotals | null>(
-    debate?.card_vote_totals ?? null,
-  );
-  /** Per-card vote counts for live Debate Pulse; updated when user votes (setCardVote response) */
+  /** Per-card vote counts for Debate Pulse (from debate payload; vote on this screen is via feed/hero only). */
   const [localCardVoteCounts, setLocalCardVoteCounts] = useState<
     Record<number, {upvotes: number; downvotes: number}>
   >({});
-  const [votedCardIds, setVotedCardIds] = useState<Set<number>>(new Set());
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [swipeOverlay, setSwipeOverlay] = useState<'yes' | 'no' | null>(null);
-  const [voteSubmitting, setVoteSubmitting] = useState(false);
-  const swipeStartX = useRef(0);
 
   const allBinaryCards: DebateCard[] = useMemo(
     () =>
@@ -152,19 +131,6 @@ const SingleDebateScreen = () => {
       ),
     [debate?.cards],
   );
-  /** One swipe vote per debate: primary binary card (prefer agree) — matches GET /debates/feed bucketing. */
-  const voteCards: DebateCard[] = useMemo(() => {
-    const agree = allBinaryCards.find(c => c.stance === 'agree');
-    if (agree) return [agree];
-    const disagree = allBinaryCards.find(c => c.stance === 'disagree');
-    if (disagree) return [disagree];
-    return allBinaryCards.slice(0, 1);
-  }, [allBinaryCards]);
-  const hasVotedAll =
-    voteCards.length === 0 ||
-    votedCardIds.size >= voteCards.length ||
-    currentCardIndex >= voteCards.length;
-  const showCardStack = voteCards.length > 0 && !hasVotedAll;
 
   // Initialize per-card counts from debate when debate loads (e.g. new debate)
   useEffect(() => {
@@ -180,13 +146,6 @@ const SingleDebateScreen = () => {
     });
     setLocalCardVoteCounts(next);
   }, [debate?.id]);
-
-  // Keep card vote totals in sync with debate when refetched
-  useEffect(() => {
-    if (debate?.card_vote_totals) {
-      setCardVoteTotals(debate.card_vote_totals);
-    }
-  }, [debate?.card_vote_totals]);
 
   const loadComments = useCallback(async () => {
     const debateId = debate?.id;
@@ -234,85 +193,13 @@ const SingleDebateScreen = () => {
 
   const headline = debate?.headline ?? 'Debate';
 
-  const authGateContent = useMemo(() => {
-    if (authGatePendingAction === 'swipe') {
-      return {
-        title: 'Login to vote',
-        message: 'Sign in or create an account to vote on debate cards.',
-      };
-    }
-    return {
+  const authGateContent = useMemo(
+    () => ({
       title: 'Join the conversation',
       message:
         'Sign in or create an account to reply, vote, or react on comments.',
-    };
-  }, [authGatePendingAction]);
-
-  const submitCardVote = useCallback(
-    async (cardId: number, voteType: 'upvote' | 'downvote') => {
-      if (!debate?.id || !token) return;
-      setVoteSubmitting(true);
-      try {
-        const counts = await setCardVote(token, debate.id, cardId, voteType);
-        if (counts) {
-          setCardVoteTotals({
-            total_yes: counts.total_yes ?? 0,
-            total_no: counts.total_no ?? 0,
-          });
-          // Update live Debate Pulse: this card’s counts from API
-          setLocalCardVoteCounts(prev => ({
-            ...prev,
-            [cardId]: {
-              upvotes: counts.yes_count,
-              downvotes: counts.no_count,
-            },
-          }));
-        }
-        setVotedCardIds(prev => new Set(prev).add(cardId));
-        setCurrentCardIndex(prev => Math.min(prev + 1, voteCards.length));
-      } finally {
-        setVoteSubmitting(false);
-      }
-    },
-    [debate?.id, token, voteCards.length],
-  );
-
-  const handleSwipeVote = useCallback(
-    (voteType: 'upvote' | 'downvote') => {
-      if (!isLoggedIn) {
-        setAuthGatePendingAction('swipe');
-        return;
-      }
-      const card = voteCards[currentCardIndex];
-      if (!card?.id || voteSubmitting) return;
-      submitCardVote(card.id, voteType);
-    },
-    [isLoggedIn, voteCards, currentCardIndex, voteSubmitting, submitCardVote],
-  );
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => showCardStack && !voteSubmitting,
-        onMoveShouldSetPanResponder: (_, {dx}) => Math.abs(dx) > 10,
-        onPanResponderGrant: () => {
-          swipeStartX.current = 0;
-        },
-        onPanResponderMove: (_, {dx}) => {
-          setSwipeOffset(dx);
-          setSwipeOverlay(dx > 30 ? 'yes' : dx < -30 ? 'no' : null);
-        },
-        onPanResponderRelease: (_, {dx}) => {
-          setSwipeOffset(0);
-          setSwipeOverlay(null);
-          if (dx > SWIPE_THRESHOLD) {
-            handleSwipeVote('upvote');
-          } else if (dx < -SWIPE_THRESHOLD) {
-            handleSwipeVote('downvote');
-          }
-        },
-      }),
-    [showCardStack, voteSubmitting, handleSwipeVote],
+    }),
+    [],
   );
 
   const COMMENT_MAX_LENGTH = 500;
@@ -780,62 +667,7 @@ const SingleDebateScreen = () => {
           );
         })()}
 
-        {/* Stacked cards — single primary binary card; hidden after vote */}
-        {showCardStack && voteCards[currentCardIndex] && (
-          <View style={styles.cardStackSection}>
-            {voteCards
-              .slice(currentCardIndex + 1, currentCardIndex + 3)
-              .map((card, i) => (
-                <View
-                  key={card.id ?? i}
-                  style={[
-                    styles.stackedCard,
-                    styles.stackedCardBack,
-                    {top: 8 + i * 8, zIndex: 2 + i},
-                  ]}>
-                  <Text style={styles.stackedCardTitle}>{card.title}</Text>
-                  <Text style={styles.stackedCardDesc} numberOfLines={2}>
-                    {card.description}
-                  </Text>
-                </View>
-              ))}
-            <View
-              style={[
-                styles.stackedCard,
-                styles.stackedCardTop,
-                {
-                  transform: [{translateX: swipeOffset}],
-                  zIndex: 10,
-                },
-              ]}
-              {...panResponder.panHandlers}>
-              {swipeOverlay && (
-                <View
-                  style={[
-                    styles.swipeOverlay,
-                    swipeOverlay === 'yes'
-                      ? styles.swipeOverlayYes
-                      : styles.swipeOverlayNo,
-                  ]}>
-                  <Ionicons
-                    name={swipeOverlay === 'yes' ? 'thumbs-up' : 'thumbs-down'}
-                    size={64}
-                    color={TEXT}
-                  />
-                </View>
-              )}
-              <Text style={styles.stackedCardTitle}>
-                {voteCards[currentCardIndex].title}
-              </Text>
-              <Text style={styles.stackedCardDesc}>
-                {voteCards[currentCardIndex].description}
-              </Text>
-              <Text style={styles.swipeHint}>Swipe right 👍 or left 👎</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Comments — seeded viewpoints appear here as comments (no voting UI) */}
+        {/* Comments — API thread (seeded + user); card viewpoints are not shown here via swipe */}
         <View style={styles.commentsHeader}>
           <TouchableOpacity style={styles.sortRow}>
             <Text style={styles.sortLabel}>Top Comments</Text>
@@ -1175,65 +1007,6 @@ const styles = StyleSheet.create({
   meterLabelNo: {
     fontSize: 12,
     color: MUTED,
-  },
-  cardStackSection: {
-    marginBottom: 24,
-    minHeight: 160,
-    position: 'relative',
-  },
-  stackedCard: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    backgroundColor: CARD,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: BORDER_SUB,
-  },
-  stackedCardBack: {
-    top: 8,
-    marginLeft: 8,
-    marginRight: 28,
-    opacity: 0.85,
-  },
-  stackedCardTop: {
-    top: 0,
-  },
-  swipeOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swipeOverlayYes: {
-    backgroundColor: 'rgba(198, 255, 0, 0.35)',
-  },
-  swipeOverlayNo: {
-    backgroundColor: 'rgba(255, 59, 48, 0.45)',
-  },
-  swipeHint: {
-    fontSize: 11,
-    fontStyle: 'italic',
-    color: MUTED,
-    marginTop: 8,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  stackedCardTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: TEXT,
-    marginBottom: 6,
-  },
-  stackedCardDesc: {
-    fontSize: 14,
-    color: MUTED,
-    lineHeight: 20,
   },
   headline: {
     fontSize: 22,

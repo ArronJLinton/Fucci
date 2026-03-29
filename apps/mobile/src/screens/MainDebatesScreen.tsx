@@ -9,13 +9,11 @@ import {
   Linking,
   SectionList,
   StatusBar,
-  Platform,
 } from 'react-native';
 import type {SectionListRenderItem} from 'react-native';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {ScrollView as GHScrollView} from 'react-native-gesture-handler';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
 import {
@@ -424,12 +422,6 @@ const MainDebatesScreen = () => {
         ListFooterComponent={<View style={styles.listFooterSpacer} />}
         stickySectionHeadersEnabled={false}
         accessibilityLabel="Debates feed"
-        renderScrollComponent={props => (
-          <GHScrollView
-            {...props}
-            directionalLockEnabled={Platform.OS === 'ios'}
-          />
-        )}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
