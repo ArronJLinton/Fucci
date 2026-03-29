@@ -16,6 +16,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/ai"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
+	"github.com/sqlc-dev/pqtype"
 )
 
 // Stable client error codes for debate routes (never echo raw DB/driver errors).
@@ -322,6 +323,7 @@ func buildDebateSummary(
 	matchID, debateType, headline string,
 	description sql.NullString,
 	aiGenerated sql.NullBool,
+	matchInfo interface{},
 	createdAt, updatedAt sql.NullTime,
 	totalVotes, totalComments sql.NullInt32,
 	engagementScore sql.NullString,
@@ -349,6 +351,7 @@ func buildDebateSummary(
 	if lastVotedAt != nil {
 		s.LastVotedAt = lastVotedAt
 	}
+	s.Teams = teamsFromMatchInfoJSON(matchInfo)
 	if totalVotes.Valid {
 		eng := 0.0
 		if engagementScore.Valid {
@@ -372,7 +375,7 @@ func buildDebateSummary(
 func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) (DebateSummary, error) {
 	s, err := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
-		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.Description, row.AiGenerated, row.MatchInfo, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
 	)
 	if err != nil {
@@ -385,7 +388,7 @@ func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) (Deba
 func debateSummaryFromNewFeedRow(row database.ListDebatesFeedNewForUserRow) (DebateSummary, error) {
 	s, err := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
-		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.Description, row.AiGenerated, row.MatchInfo, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
 	)
 	if err != nil {
@@ -429,6 +432,70 @@ func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryC
 		AgreeUpvotes:    intFromSQLCIface(agreeIface),
 		DisagreeUpvotes: intFromSQLCIface(disagreeIface),
 	}
+}
+
+func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
+	if matchInfo == nil {
+		return nil
+	}
+	var raw []byte
+	switch v := matchInfo.(type) {
+	case pqtype.NullRawMessage:
+		if !v.Valid {
+			return nil
+		}
+		raw = v.RawMessage
+	case []byte:
+		raw = v
+	case string:
+		raw = []byte(v)
+	default:
+		encoded, err := json.Marshal(v)
+		if err != nil {
+			return nil
+		}
+		raw = encoded
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+	var mi MatchInfo
+	if err := json.Unmarshal(raw, &mi); err != nil {
+		return nil
+	}
+	teams := &DebateTeams{
+		Home: DebateTeamSide{
+			Name: mi.HomeTeam,
+			Logo: mi.HomeTeamLogo,
+		},
+		Away: DebateTeamSide{
+			Name: mi.AwayTeam,
+			Logo: mi.AwayTeamLogo,
+		},
+	}
+	if mi.HomeScore > 0 || mi.Status == "FT" || mi.Status == "AET" || mi.Status == "PEN" || mi.Status == "HT" {
+		hs := mi.HomeScore
+		teams.Home.Score = &hs
+	}
+	if mi.AwayScore > 0 || mi.Status == "FT" || mi.Status == "AET" || mi.Status == "PEN" || mi.Status == "HT" {
+		as := mi.AwayScore
+		teams.Away.Score = &as
+	}
+	if teams.Home.Name == "" && teams.Away.Name == "" {
+		return nil
+	}
+	return teams
+}
+
+func matchInfoToNullRawMessage(matchInfo *MatchInfo) pqtype.NullRawMessage {
+	if matchInfo == nil {
+		return pqtype.NullRawMessage{}
+	}
+	raw, err := json.Marshal(matchInfo)
+	if err != nil {
+		return pqtype.NullRawMessage{}
+	}
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
 }
 
 func normalizeMatchID(matchID string) string {
@@ -502,30 +569,6 @@ WHERE m.external_match_id IN (%s)
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	// Fallback: if match rows are missing in our DB, enrich from fixtures API.
-	for _, id := range ids {
-		if _, ok := out[id]; ok {
-			continue
-		}
-		matchInfo, err := c.getMatchInfo(ctx, id)
-		if err != nil {
-			continue
-		}
-		hs := matchInfo.HomeScore
-		as := matchInfo.AwayScore
-		out[id] = DebateTeams{
-			Home: DebateTeamSide{
-				Name:  matchInfo.HomeTeam,
-				Logo:  matchInfo.HomeTeamLogo,
-				Score: &hs,
-			},
-			Away: DebateTeamSide{
-				Name:  matchInfo.AwayTeam,
-				Logo:  matchInfo.AwayTeamLogo,
-				Score: &as,
-			},
-		}
-	}
 	return out, nil
 }
 
@@ -553,7 +596,7 @@ func (c *Config) attachTeamsToSummaries(ctx context.Context, summaries []DebateS
 func debateSummaryFromVotedFeedRow(row database.ListDebatesFeedVotedForUserRow) (DebateSummary, error) {
 	s, err := buildDebateSummary(
 		row.ID, row.MatchID, row.DebateType, row.Headline,
-		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.Description, row.AiGenerated, row.MatchInfo, row.CreatedAt, row.UpdatedAt,
 		row.TotalVotes, row.TotalComments, row.EngagementScore,
 		lastVotedAtFromSQLCIface(row.LastVotedAt),
 	)
@@ -667,6 +710,7 @@ func (c *Config) createDebate(w http.ResponseWriter, r *http.Request) {
 		Headline:    req.Headline,
 		Description: sql.NullString{String: req.Description, Valid: req.Description != ""},
 		AiGenerated: sql.NullBool{Bool: req.AIGenerated, Valid: true},
+		MatchInfo:   pqtype.NullRawMessage{},
 	})
 	if err != nil {
 		logErrorAndRespond500(w, "create debate", err, errCodeDebateCreate)
@@ -810,10 +854,13 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt:       analytics.UpdatedAt.Time,
 		}
 	}
+	response.Teams = teamsFromMatchInfoJSON(debate.MatchInfo)
 	if teamsByMatchID, teamsErr := c.loadDebateTeamsByMatchIDs(ctx, []string{debate.MatchID}); teamsErr == nil {
-		if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
-			t := teams
-			response.Teams = &t
+		if response.Teams == nil {
+			if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
+				t := teams
+				response.Teams = &t
+			}
 		}
 	}
 
@@ -861,13 +908,16 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 			AIGenerated: debate.AiGenerated.Bool,
 			CreatedAt:   debate.CreatedAt.Time,
 			UpdatedAt:   debate.UpdatedAt.Time,
+			Teams:       teamsFromMatchInfoJSON(debate.MatchInfo),
 		})
 	}
 	if teamsByMatchID, teamsErr := c.loadDebateTeamsByMatchIDs(ctx, matchIDs); teamsErr == nil {
 		for i := range response {
-			if teams, ok := teamsByMatchID[normalizeMatchID(response[i].MatchID)]; ok {
-				t := teams
-				response[i].Teams = &t
+			if response[i].Teams == nil {
+				if teams, ok := teamsByMatchID[normalizeMatchID(response[i].MatchID)]; ok {
+					t := teams
+					response[i].Teams = &t
+				}
 			}
 		}
 	}
@@ -1161,6 +1211,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		Headline:    prompt.Headline,
 		Description: sql.NullString{String: prompt.Description, Valid: prompt.Description != ""},
 		AiGenerated: sql.NullBool{Bool: true, Valid: true},
+		MatchInfo:   matchInfoToNullRawMessage(matchInfo),
 	})
 	if err != nil {
 		log.Printf("[debate] generate failed: match_id=%s CreateDebate: %v", req.MatchID, err)
@@ -1485,6 +1536,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 			Headline:    prompt.Headline,
 			Description: sql.NullString{String: prompt.Description, Valid: prompt.Description != ""},
 			AiGenerated: sql.NullBool{Bool: true, Valid: true},
+			MatchInfo:   matchInfoToNullRawMessage(matchInfo),
 		})
 		if err != nil {
 			log.Printf("[debate] generate-set CreateDebate: %v", err)
@@ -1664,10 +1716,13 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 		Cards:          cardResponses,
 		CardVoteTotals: &CardVoteTotals{TotalYes: totalYesSwipe, TotalNo: totalNoSwipe},
 	}
+	resp.Teams = teamsFromMatchInfoJSON(debate.MatchInfo)
 	if teamsByMatchID, err := c.loadDebateTeamsByMatchIDs(ctx, []string{debate.MatchID}); err == nil {
-		if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
-			t := teams
-			resp.Teams = &t
+		if resp.Teams == nil {
+			if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
+				t := teams
+				resp.Teams = &t
+			}
 		}
 	}
 
