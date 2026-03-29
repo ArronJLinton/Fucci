@@ -5,13 +5,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/sqlc-dev/pqtype"
 )
 
 func TestParsePositiveInt32Query(t *testing.T) {
@@ -363,18 +366,22 @@ func TestMultipleEmojiVotesOnDebateCard(t *testing.T) {
 
 // mockDebatesFeedStore records calls for handler-level feed tests.
 type mockDebatesFeedStore struct {
-	publicLimits []int32
-	newParams    []database.ListDebatesFeedNewForUserParams
-	votedParams  []database.ListDebatesFeedVotedForUserParams
-	publicErr    error
-	newErr       error
-	votedErr     error
+	publicLimits     []int32
+	publicFeedRows   []database.ListDebatesPublicFeedRow
+	newParams        []database.ListDebatesFeedNewForUserParams
+	votedParams      []database.ListDebatesFeedVotedForUserParams
+	publicErr        error
+	newErr           error
+	votedErr         error
 }
 
 func (m *mockDebatesFeedStore) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]database.ListDebatesPublicFeedRow, error) {
 	m.publicLimits = append(m.publicLimits, limit)
 	if m.publicErr != nil {
 		return nil, m.publicErr
+	}
+	if m.publicFeedRows != nil {
+		return m.publicFeedRows, nil
 	}
 	return nil, nil
 }
@@ -517,5 +524,160 @@ func TestGetDebatesFeed_NewListError(t *testing.T) {
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("code = %d, want 500", rec.Code)
+	}
+}
+
+func TestTeamsFromMatchInfoJSON_ValidNullRawMessage(t *testing.T) {
+	mi := MatchInfo{
+		HomeTeam: "North FC", AwayTeam: "South United",
+		HomeTeamLogo: "https://img/n.png", AwayTeamLogo: "https://img/s.png",
+		Status: "FT", HomeScore: 2, AwayScore: 1,
+	}
+	raw, err := json.Marshal(&mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nrm := pqtype.NullRawMessage{Valid: true, RawMessage: raw}
+	teams := teamsFromMatchInfoJSON(nrm)
+	if teams == nil {
+		t.Fatal("expected non-nil Teams")
+	}
+	if teams.Home.Name != "North FC" || teams.Away.Name != "South United" {
+		t.Fatalf("names: home=%q away=%q", teams.Home.Name, teams.Away.Name)
+	}
+	if teams.Home.Logo != "https://img/n.png" || teams.Away.Logo != "https://img/s.png" {
+		t.Fatalf("logos: home=%q away=%q", teams.Home.Logo, teams.Away.Logo)
+	}
+	if teams.Home.Score == nil || teams.Away.Score == nil {
+		t.Fatalf("expected scores: home=%v away=%v", teams.Home.Score, teams.Away.Score)
+	}
+	if *teams.Home.Score != 2 || *teams.Away.Score != 1 {
+		t.Fatalf("scores: home=%v away=%v", *teams.Home.Score, *teams.Away.Score)
+	}
+}
+
+func TestAttachTeamsToSummaries_NoDBQueryWhenTeamsFromJSON(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	c := &Config{DBConn: db}
+	home, away := 3, 0
+	summaries := []DebateSummary{{
+		MatchID: "fixture-100",
+		Teams: &DebateTeams{
+			Home: DebateTeamSide{Name: "FromJSONHome", Logo: "L1", Score: &home},
+			Away: DebateTeamSide{Name: "FromJSONAway", Logo: "L2", Score: &away},
+		},
+	}}
+	c.attachTeamsToSummaries(context.Background(), summaries)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unexpected DB interaction: %v", err)
+	}
+	if summaries[0].Teams.Home.Name != "FromJSONHome" {
+		t.Fatalf("home name overwritten: %q", summaries[0].Teams.Home.Name)
+	}
+}
+
+func TestAttachTeamsToSummaries_PreservesJSONTeamsWhenBackfillingNil(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	q := fmt.Sprintf(`
+SELECT m.external_match_id, ht.name, ht.logo_url, m.home_score, at.name, at.logo_url, m.away_score
+FROM matches m
+LEFT JOIN teams ht ON m.home_team_id = ht.id
+LEFT JOIN teams at ON m.away_team_id = at.id
+WHERE m.external_match_id IN (%s)
+`, "$1")
+	rows := sqlmock.NewRows([]string{"external_match_id", "hname", "hlogo", "home_score", "aname", "alogo", "away_score"}).
+		AddRow("needs-db", "DBHome", "http://db-h", int64(9), "DBAway", "http://db-a", int64(8))
+	mock.ExpectQuery(q).WithArgs("needs-db").WillReturnRows(rows)
+
+	c := &Config{DBConn: db}
+	summaries := []DebateSummary{
+		{
+			MatchID: "json-only",
+			Teams: &DebateTeams{
+				Home: DebateTeamSide{Name: "JSONHome", Logo: "j1"},
+				Away: DebateTeamSide{Name: "JSONAway", Logo: "j2"},
+			},
+		},
+		{MatchID: "needs-db", Teams: nil},
+	}
+	c.attachTeamsToSummaries(context.Background(), summaries)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("DB expectations: %v", err)
+	}
+	if summaries[0].Teams.Home.Name != "JSONHome" || summaries[0].Teams.Away.Name != "JSONAway" {
+		t.Fatalf("JSON debate teams mutated: %+v", summaries[0].Teams)
+	}
+	if summaries[1].Teams == nil {
+		t.Fatal("expected DB backfill for nil Teams")
+	}
+	if summaries[1].Teams.Home.Name != "DBHome" || summaries[1].Teams.Away.Name != "DBAway" {
+		t.Fatalf("DB backfill: %+v", summaries[1].Teams)
+	}
+	if summaries[1].Teams.Home.Score == nil || *summaries[1].Teams.Home.Score != 9 {
+		t.Fatalf("home score: %+v", summaries[1].Teams.Home.Score)
+	}
+}
+
+func TestGetDebatesPublicFeed_KeepsTeamsFromMatchInfoWithoutMatchesQuery(t *testing.T) {
+	mi := MatchInfo{
+		HomeTeam: "Stored Home", AwayTeam: "Stored Away",
+		HomeTeamLogo: "https://h", AwayTeamLogo: "https://a",
+		Status: "FT", HomeScore: 4, AwayScore: 4,
+	}
+	raw, err := json.Marshal(&mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Unix(1700, 0).UTC()
+	row := database.ListDebatesPublicFeedRow{
+		ID:         42,
+		MatchID:    "ext-match-1",
+		DebateType: "post_match",
+		Headline:   "Headline",
+		MatchInfo:  pqtype.NullRawMessage{Valid: true, RawMessage: raw},
+		CreatedAt:  sql.NullTime{Time: ts, Valid: true},
+		TotalVotes: sql.NullInt32{Int32: 1, Valid: true},
+	}
+	mock := &mockDebatesFeedStore{publicFeedRows: []database.ListDebatesPublicFeedRow{row}}
+
+	db, sqlMock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	c := &Config{DebatesFeedDB: mock, DBConn: db}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debates/public-feed", nil)
+	c.getDebatesPublicFeed(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := sqlMock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("matches/teams query should not run when match_info supplies teams: %v", err)
+	}
+	var out PublicDebateFeedResponse
+	if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Debates) != 1 {
+		t.Fatalf("debates len = %d", len(out.Debates))
+	}
+	teams := out.Debates[0].Teams
+	if teams == nil {
+		t.Fatal("expected teams from match_info")
+	}
+	if teams.Home.Name != "Stored Home" || teams.Away.Name != "Stored Away" {
+		t.Fatalf("teams: %+v", teams)
 	}
 }

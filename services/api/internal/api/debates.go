@@ -572,13 +572,21 @@ WHERE m.external_match_id IN (%s)
 	return out, nil
 }
 
+// attachTeamsToSummaries fills Teams from local matches+teams only when Teams is still nil
+// (e.g. legacy debates with no match_info). Stored match_info from buildDebateSummary must win.
 func (c *Config) attachTeamsToSummaries(ctx context.Context, summaries []DebateSummary) {
 	if len(summaries) == 0 {
 		return
 	}
 	matchIDs := make([]string, 0, len(summaries))
 	for _, s := range summaries {
+		if s.Teams != nil {
+			continue
+		}
 		matchIDs = append(matchIDs, s.MatchID)
+	}
+	if len(matchIDs) == 0 {
+		return
 	}
 	teamsByMatchID, err := c.loadDebateTeamsByMatchIDs(ctx, matchIDs)
 	if err != nil {
@@ -586,6 +594,9 @@ func (c *Config) attachTeamsToSummaries(ctx context.Context, summaries []DebateS
 		return
 	}
 	for i := range summaries {
+		if summaries[i].Teams != nil {
+			continue
+		}
 		if teams, ok := teamsByMatchID[normalizeMatchID(summaries[i].MatchID)]; ok {
 			t := teams
 			summaries[i].Teams = &t
