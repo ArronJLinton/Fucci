@@ -270,17 +270,19 @@ const HomeScreen = () => {
                             onPress={() => setSelectedLeague(league)}
                             activeOpacity={0.85}>
                             <View style={styles.leagueIconWrap}>
-                              {league.logo ? (
-                                <Image
-                                  source={{uri: league.logo}}
-                                  style={styles.leagueIconImg}
-                                  resizeMode="contain"
-                                />
-                              ) : (
-                                <Text style={styles.leagueIconFallback}>
-                                  {leagueStripLabel(league.name).slice(0, 2)}
-                                </Text>
-                              )}
+                              <View style={styles.leagueIconInner}>
+                                {league.logo ? (
+                                  <Image
+                                    source={{uri: league.logo}}
+                                    style={styles.leagueIconImg}
+                                    resizeMode="contain"
+                                  />
+                                ) : (
+                                  <Text style={styles.leagueIconFallback}>
+                                    {leagueStripLabel(league.name).slice(0, 2)}
+                                  </Text>
+                                )}
+                              </View>
                             </View>
                             <Text
                               style={[
@@ -366,19 +368,27 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: 'rgba(255,255,255,0.12)',
+    padding: 3,
     marginBottom: 6,
   },
+  leagueIconInner: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   leagueIconImg: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
   },
   leagueIconFallback: {
     fontSize: 11,
     fontWeight: '800',
-    color: MATCHES_MUTED,
+    color: '#0B0E14',
   },
   leagueName: {
     fontSize: 10,
