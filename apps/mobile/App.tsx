@@ -6,7 +6,11 @@
  */
 
 import React from 'react';
-import {NavigationContainer} from '@react-navigation/native';
+import {
+  NavigationContainer,
+  useNavigationState,
+  type NavigationState,
+} from '@react-navigation/native';
 import {rootNavigationRef} from './src/navigation/rootNavigation';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
@@ -45,6 +49,153 @@ const TabScreen = Tab.Screen as any;
 const StackNavigator = Stack.Navigator as any;
 const StackScreen = Stack.Screen as any;
 const StackGroup = Stack.Group as any;
+
+/** Matches MainDebatesScreen / Settings so safe areas and tab bar are not white bands. */
+const SHELL_DEBATES_BG = '#0B0E14';
+const SHELL_PROFILE_BG = '#030712';
+
+const baseTabBarStyle = {
+  borderTopWidth: 1,
+  elevation: 0,
+  shadowOpacity: 0,
+  height: 60,
+  paddingBottom: 8,
+} as const;
+
+function getFocusedTabName(
+  state: Parameters<
+    typeof useNavigationState
+  >[0] extends (s: infer S) => unknown
+    ? S
+    : never,
+): string {
+  if (!state) {
+    return 'Home';
+  }
+  const top = state.routes[state.index];
+  if (top.name !== 'Main' || !top.state) {
+    return 'Home';
+  }
+  const tabState = top.state as {
+    index: number;
+    routes: {name: string}[];
+  };
+  return tabState.routes[tabState.index]?.name ?? 'Home';
+}
+
+const MainStack = () => {
+  const focusedTab = useNavigationState(getFocusedTabName);
+
+  const shellBg =
+    focusedTab === 'Debates'
+      ? SHELL_DEBATES_BG
+      : focusedTab === 'Profile'
+        ? SHELL_PROFILE_BG
+        : focusedTab === 'News'
+          ? '#f5f5f5'
+          : '#fff';
+
+  const statusBarStyle =
+    focusedTab === 'Debates' || focusedTab === 'Profile'
+      ? 'light-content'
+      : 'dark-content';
+
+  const tabBarBg =
+    focusedTab === 'Debates'
+      ? SHELL_DEBATES_BG
+      : focusedTab === 'Profile'
+        ? SHELL_PROFILE_BG
+        : '#fff';
+
+  const tabBarBorder =
+    focusedTab === 'Debates' || focusedTab === 'Profile'
+      ? 'rgba(255,255,255,0.12)'
+      : '#e0e0e0';
+
+  const inactiveTint =
+    focusedTab === 'Debates' || focusedTab === 'Profile' ? '#8E8E93' : '#666';
+
+  return (
+    <SafeAreaView style={{flex: 1, backgroundColor: shellBg}}>
+      <StatusBar
+        barStyle={statusBarStyle}
+        backgroundColor={shellBg}
+      />
+      <TabNavigator
+        screenOptions={{
+          tabBarActiveTintColor: '#007AFF',
+          tabBarInactiveTintColor: inactiveTint,
+          tabBarStyle: {
+            ...baseTabBarStyle,
+            backgroundColor: tabBarBg,
+            borderTopColor: tabBarBorder,
+          },
+          headerStyle: {
+            backgroundColor: '#fff',
+            elevation: 0,
+            shadowOpacity: 0,
+            borderBottomWidth: 1,
+            borderBottomColor: '#e0e0e0',
+          },
+          headerTintColor: '#000',
+          headerTitleStyle: {
+            fontWeight: '600',
+          },
+        }}>
+        <Tab.Screen
+          name="Home"
+          component={HomeStack}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="football-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
+        <Tab.Screen
+          name="News"
+          component={NewsStack}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="newspaper-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
+        <Tab.Screen
+          name="Debates"
+          component={DebatesStack}
+          options={{
+            headerShown: false,
+            tabBarAccessibilityLabel: 'Debates',
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="chatbubbles-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={SettingsScreen}
+          initialParams={{embeddedInTab: true}}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({color, size}) => (
+              <Ionicons name="person-outline" size={size} color={color} />
+            ),
+            tabBarLabel: () => null,
+            title: '',
+          }}
+        />
+      </TabNavigator>
+    </SafeAreaView>
+  );
+};
 
 const HomeStack = () => {
   return (
@@ -150,90 +301,6 @@ const DebatesStack = () => {
         }}
       />
     </StackNavigator>
-  );
-};
-
-const MainStack = () => {
-  return (
-    <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <TabNavigator
-        screenOptions={{
-          tabBarActiveTintColor: '#007AFF',
-          tabBarInactiveTintColor: '#666',
-          tabBarStyle: {
-            backgroundColor: '#fff',
-            borderTopColor: '#e0e0e0',
-            borderTopWidth: 1,
-            elevation: 0,
-            shadowOpacity: 0,
-            height: 60,
-            paddingBottom: 8,
-          },
-          headerStyle: {
-            backgroundColor: '#fff',
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 1,
-            borderBottomColor: '#e0e0e0',
-          },
-          headerTintColor: '#000',
-          headerTitleStyle: {
-            fontWeight: '600',
-          },
-        }}>
-        <Tab.Screen
-          name="Home"
-          component={HomeStack}
-          options={{
-            headerShown: false,
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="football-outline" size={size} color={color} />
-            ),
-            tabBarLabel: () => null,
-            title: '',
-          }}
-        />
-        <Tab.Screen
-          name="News"
-          component={NewsStack}
-          options={{
-            headerShown: false,
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="newspaper-outline" size={size} color={color} />
-            ),
-            tabBarLabel: () => null,
-            title: '',
-          }}
-        />
-        <Tab.Screen
-          name="Debates"
-          component={DebatesStack}
-          options={{
-            headerShown: false,
-            tabBarAccessibilityLabel: 'Debates',
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="chatbubbles-outline" size={size} color={color} />
-            ),
-            tabBarLabel: () => null,
-            title: '',
-          }}
-        />
-        <Tab.Screen
-          name="Profile"
-          component={SettingsScreen}
-          initialParams={{embeddedInTab: true}}
-          options={{
-            headerShown: false,
-            tabBarIcon: ({color, size}) => (
-              <Ionicons name="person-outline" size={size} color={color} />
-            ),
-            tabBarLabel: () => null,
-            title: '',
-          }}
-        />
-      </TabNavigator>
-    </SafeAreaView>
   );
 };
 
