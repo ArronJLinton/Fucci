@@ -6,11 +6,13 @@ import {
   Image,
   Linking,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
+  runOnUI,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -86,21 +88,21 @@ export type DebateHeroPanResult =
   | {
       summaryId: number;
       kind: 'ignored';
-      reason: 'not_ready_or_no_card' | 'voteBusy';
+      reason: 'not_ready_or_no_card' | 'voteBusy' | 'auth_required';
       dx: number;
       dy: number;
     }
   | {
       summaryId: number;
       kind: 'swipe_right';
-      outcome: 'agree' | 'auth';
+      outcome: 'agree';
       dx: number;
       dy: number;
     }
   | {
       summaryId: number;
       kind: 'swipe_left';
-      outcome: 'disagree' | 'auth';
+      outcome: 'disagree';
       dx: number;
       dy: number;
     }
@@ -143,8 +145,8 @@ export default function DebateHeroSwipeCard({
 }: DebateHeroSwipeCardProps) {
   const translateX = useSharedValue(0);
   const overlayDir = useSharedValue(0);
-  /** Mirrored for pan `.onEnd` worklet (must match handlePanEnd / spring vs fly-off). */
-  const canSwipeSV = useSharedValue(0);
+  /** Mirrored for pan worklets — 1 only when swipe voting is allowed (logged in + binary cards). */
+  const voteEnabledSV = useSharedValue(0);
   const voteBusySV = useSharedValue(0);
 
   const debateQuery = useQuery({
@@ -162,17 +164,21 @@ export default function DebateHeroSwipeCard({
     () => pickBinaryStanceCards(debate?.cards),
     [debate?.cards],
   );
-  const canSwipe =
+  /** Debate loaded with both stance cards — UI can show vote affordances (guest sees sign-in). */
+  const binaryVoteUiReady =
     !!debate?.id &&
     agreeCard?.id != null &&
     disagreeCard?.id != null &&
     !debateQuery.isLoading;
+  /** Logged-in only: swipe-to-vote. */
+  const canSwipeVote = binaryVoteUiReady && isLoggedIn && !!token;
+  const authRequiredForVote = binaryVoteUiReady && (!isLoggedIn || !token);
 
   const [voteBusy, setVoteBusy] = useState(false);
 
   useEffect(() => {
-    canSwipeSV.value = canSwipe ? 1 : 0;
-  }, [canSwipe, canSwipeSV]);
+    voteEnabledSV.value = canSwipeVote ? 1 : 0;
+  }, [canSwipeVote, voteEnabledSV]);
 
   useEffect(() => {
     voteBusySV.value = voteBusy ? 1 : 0;
@@ -190,7 +196,7 @@ export default function DebateHeroSwipeCard({
       agreeCardId: agreeCard?.id ?? null,
       disagreeCardId: disagreeCard?.id ?? null,
       cardCount: debate?.cards?.length ?? 0,
-      canSwipe,
+      canSwipeVote,
       isLoading: debateQuery.isLoading,
       fetchError: debateQuery.isError,
       isLoggedIn,
@@ -203,7 +209,7 @@ export default function DebateHeroSwipeCard({
     debate?.cards?.length,
     agreeCard?.id,
     disagreeCard?.id,
-    canSwipe,
+    canSwipeVote,
     debateQuery.isLoading,
     debateQuery.isError,
     isLoggedIn,
@@ -238,21 +244,36 @@ export default function DebateHeroSwipeCard({
     });
   }, [debate, summary, buildPlaceholderMatch]);
 
+  const springHeroCardBack = useCallback(() => {
+    runOnUI(() => {
+      'worklet';
+      translateX.value = withSpring(0);
+    })();
+  }, [translateX]);
+
+  const flyHeroCardOff = useCallback((direction: 'left' | 'right') => {
+    const target = direction === 'right' ? OFFSCREEN_X : -OFFSCREEN_X;
+    runOnUI(() => {
+      'worklet';
+      translateX.value = withTiming(target, {duration: 280});
+    })();
+  }, [translateX]);
+
   /** Swipe right → upvote agree card; swipe left → upvote disagree card (matches API binary_consensus). */
   const performBinarySwipeVote = useCallback(
-    async (side: 'agree' | 'disagree') => {
+    async (side: 'agree' | 'disagree'): Promise<boolean> => {
       const card = side === 'agree' ? agreeCard : disagreeCard;
       if (!debate?.id || card?.id == null) {
         logHero('performVote_skipped', {reason: 'missing_debate_or_card'});
-        return;
+        return false;
       }
       if (!isLoggedIn || !token) {
-        openAuthForSwipe();
-        return;
+        logHero('performVote_skipped', {reason: 'not_signed_in'});
+        return false;
       }
       if (voteBusy) {
         logHero('performVote_skipped', {reason: 'voteBusy'});
-        return;
+        return false;
       }
       logHero('performVote_start', {
         debateId: debate.id,
@@ -276,14 +297,16 @@ export default function DebateHeroSwipeCard({
             cardId: card.id,
             voteType: 'upvote',
           });
-        } else {
-          logHero('performVote_no_counts', {debateId: debate.id});
+          return true;
         }
+        logHero('performVote_no_counts', {debateId: debate.id});
+        return false;
       } catch (e) {
         logHero('performVote_error', {
           debateId: debate.id,
           message: e instanceof Error ? e.message : String(e),
         });
+        return false;
       } finally {
         setVoteBusy(false);
       }
@@ -296,7 +319,6 @@ export default function DebateHeroSwipeCard({
       token,
       voteBusy,
       onVoteSuccess,
-      openAuthForSwipe,
     ],
   );
 
@@ -307,7 +329,7 @@ export default function DebateHeroSwipeCard({
         dx: Math.round(dx * 10) / 10,
         dy: Math.round(dy * 10) / 10,
         threshold: SWIPE_THRESHOLD,
-        canSwipe,
+        canSwipeVote,
         voteBusy,
         isLoggedIn,
         hasToken: !!token,
@@ -318,35 +340,40 @@ export default function DebateHeroSwipeCard({
         onOpen();
         return;
       }
-      if (!canSwipe || voteBusy) {
-        const reason = !canSwipe ? 'not_ready_or_no_card' : 'voteBusy';
-        logHero('panEnd_action', {
-          type: 'ignored',
-          reason,
-        });
+      if (voteBusy) {
+        logHero('panEnd_action', {type: 'ignored', reason: 'voteBusy'});
+        onPanResolved?.({summaryId: sid, kind: 'ignored', reason: 'voteBusy', dx, dy});
+        return;
+      }
+      if (!canSwipeVote) {
+        const reason = authRequiredForVote ? 'auth_required' : 'not_ready_or_no_card';
+        logHero('panEnd_action', {type: 'ignored', reason});
         onPanResolved?.({summaryId: sid, kind: 'ignored', reason, dx, dy});
+        springHeroCardBack();
         return;
       }
       if (dx > SWIPE_THRESHOLD) {
-        if (!isLoggedIn || !token) {
-          logHero('panEnd_action', {type: 'swipe_right', outcome: 'auth'});
-          onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'auth', dx, dy});
-          openAuthForSwipe();
-        } else {
-          logHero('panEnd_action', {type: 'swipe_right', outcome: 'agree'});
-          onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'agree', dx, dy});
-          void performBinarySwipeVote('agree');
-        }
+        logHero('panEnd_action', {type: 'swipe_right', outcome: 'agree'});
+        onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'agree', dx, dy});
+        void (async () => {
+          const ok = await performBinarySwipeVote('agree');
+          if (ok) {
+            flyHeroCardOff('right');
+          } else {
+            springHeroCardBack();
+          }
+        })();
       } else if (dx < -SWIPE_THRESHOLD) {
-        if (!isLoggedIn || !token) {
-          logHero('panEnd_action', {type: 'swipe_left', outcome: 'auth'});
-          onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'auth', dx, dy});
-          openAuthForSwipe();
-        } else {
-          logHero('panEnd_action', {type: 'swipe_left', outcome: 'disagree'});
-          onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'disagree', dx, dy});
-          void performBinarySwipeVote('disagree');
-        }
+        logHero('panEnd_action', {type: 'swipe_left', outcome: 'disagree'});
+        onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'disagree', dx, dy});
+        void (async () => {
+          const ok = await performBinarySwipeVote('disagree');
+          if (ok) {
+            flyHeroCardOff('left');
+          } else {
+            springHeroCardBack();
+          }
+        })();
       } else {
         const absDx = Math.abs(dx);
         logHero('panEnd_action', {
@@ -365,14 +392,14 @@ export default function DebateHeroSwipeCard({
     },
     [
       summary.id,
-      canSwipe,
+      canSwipeVote,
+      authRequiredForVote,
       voteBusy,
       onOpen,
       onPanResolved,
-      isLoggedIn,
-      token,
-      openAuthForSwipe,
       performBinarySwipeVote,
+      springHeroCardBack,
+      flyHeroCardOff,
     ],
   );
 
@@ -383,6 +410,11 @@ export default function DebateHeroSwipeCard({
         .activeOffsetX([-12, 12])
         .failOffsetY([-16, 16])
         .onUpdate(e => {
+          if (voteEnabledSV.value === 0) {
+            translateX.value = 0;
+            overlayDir.value = 0;
+            return;
+          }
           translateX.value = e.translationX;
           if (e.translationX > 24) {
             overlayDir.value = 1;
@@ -405,7 +437,7 @@ export default function DebateHeroSwipeCard({
             return;
           }
 
-          const ready = canSwipeSV.value === 1;
+          const ready = voteEnabledSV.value === 1;
           const busy = voteBusySV.value === 1;
           if (!ready || busy) {
             translateX.value = withSpring(0);
@@ -414,17 +446,15 @@ export default function DebateHeroSwipeCard({
           }
 
           if (dx > SWIPE_THRESHOLD) {
-            translateX.value = withTiming(OFFSCREEN_X, {duration: 280});
             runOnJS(handlePanEnd)(dx, dy);
           } else if (dx < -SWIPE_THRESHOLD) {
-            translateX.value = withTiming(-OFFSCREEN_X, {duration: 280});
             runOnJS(handlePanEnd)(dx, dy);
           } else {
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
           }
         }),
-    [voteBusy, translateX, overlayDir, handlePanEnd, canSwipeSV, voteBusySV],
+    [voteBusy, translateX, overlayDir, handlePanEnd, voteEnabledSV, voteBusySV],
   );
 
   const cardStyle = useAnimatedStyle(() => ({
@@ -442,13 +472,16 @@ export default function DebateHeroSwipeCard({
   }));
 
   const heroA11yLabel = `Featured debate: ${summary.headline}`;
+  const heroA11yHint = authRequiredForVote
+    ? 'Sign in to vote. Short tap opens the full debate.'
+    : 'Swipe right to agree, left to disagree. Short tap opens the full debate.';
 
   return (
     <View
       style={styles.heroOuter}
       accessible
       accessibilityLabel={heroA11yLabel}
-      accessibilityHint="Swipe right to agree, left to disagree. Short tap opens the full debate.">
+      accessibilityHint={heroA11yHint}>
       <GestureDetector gesture={pan}>
         <Animated.View
           style={[styles.heroClip, cardStyle]}
@@ -511,22 +544,40 @@ export default function DebateHeroSwipeCard({
                 This debate needs agree and disagree cards to swipe-vote.
               </Text>
             ) : null}
-            <View style={styles.swipeRow}>
-              <View style={styles.swipeBtnRed} pointerEvents="none">
-                <Ionicons name="close" size={22} color={TEXT} />
+            {authRequiredForVote ? (
+              <View style={styles.guestVoteCta} accessibilityRole="text">
+                <Text style={styles.guestVoteText}>
+                  Sign in to participate in debates and cast your vote.
+                </Text>
+                <TouchableOpacity
+                  onPress={openAuthForSwipe}
+                  style={styles.guestSignInBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in to vote">
+                  <Text style={styles.guestSignInBtnText}>Sign in</Text>
+                  <Ionicons name="chevron-forward" size={18} color={BG} />
+                </TouchableOpacity>
               </View>
-              <View style={styles.swipeHint}>
-                <View style={styles.swipeLine} />
-                <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
-              </View>
-              <View style={styles.swipeBtnLime} pointerEvents="none">
-                <Ionicons name="checkmark" size={22} color="#0B0E14" />
-              </View>
-            </View>
-            <View style={styles.swipeLabels}>
-              <Text style={styles.disagreeLabel}>DISAGREE</Text>
-              <Text style={styles.agreeLabel}>AGREE</Text>
-            </View>
+            ) : canSwipeVote ? (
+              <>
+                <View style={styles.swipeRow}>
+                  <View style={styles.swipeBtnRed} pointerEvents="none">
+                    <Ionicons name="close" size={22} color={TEXT} />
+                  </View>
+                  <View style={styles.swipeHint}>
+                    <View style={styles.swipeLine} />
+                    <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
+                  </View>
+                  <View style={styles.swipeBtnLime} pointerEvents="none">
+                    <Ionicons name="checkmark" size={22} color="#0B0E14" />
+                  </View>
+                </View>
+                <View style={styles.swipeLabels}>
+                  <Text style={styles.disagreeLabel}>DISAGREE</Text>
+                  <Text style={styles.agreeLabel}>AGREE</Text>
+                </View>
+              </>
+            ) : null}
           </View>
         </Animated.View>
       </GestureDetector>
@@ -606,6 +657,33 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: MUTED,
+  },
+  guestVoteCta: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    gap: 12,
+  },
+  guestVoteText: {
+    fontSize: 13,
+    color: MUTED,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  guestSignInBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: LIME,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  guestSignInBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BG,
   },
   swipeRow: {
     flexDirection: 'row',
