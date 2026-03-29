@@ -29,7 +29,6 @@ import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigate} from '../navigation/rootNavigation';
 import DebateHeroSwipeCard, {
-  type DebateHeroPanResult,
   type DebateHeroVoteSuccessDetail,
 } from '../components/DebateHeroSwipeCard';
 
@@ -97,15 +96,6 @@ function consensusAgreePercent(summary: DebateSummary): number | null {
   return Math.round((a / t) * 100);
 }
 
-function logMainDebatesHero(message: string, payload?: unknown) {
-  if (!__DEV__) return;
-  if (payload !== undefined) {
-    console.log(`[MainDebates hero] ${message}`, payload);
-  } else {
-    console.log(`[MainDebates hero] ${message}`);
-  }
-}
-
 const MainDebatesScreen = () => {
   const navigation = useNavigation<MainDebatesNavigation>();
   const queryClient = useQueryClient();
@@ -119,10 +109,6 @@ const MainDebatesScreen = () => {
         : ['mainDebatesFeed', 'guest'],
     [isLoggedIn, user?.id],
   );
-
-  const onHeroPanResolved = useCallback((result: DebateHeroPanResult) => {
-    logMainDebatesHero('pan resolved', result);
-  }, []);
 
   const query = useQuery({
     queryKey: mainDebatesFeedQueryKey,
@@ -272,23 +258,8 @@ const MainDebatesScreen = () => {
               summary={item.summary}
               isLoggedIn={isLoggedIn}
               token={token ?? null}
-              onPanResolved={onHeroPanResolved}
-              onOpen={() => {
-                logMainDebatesHero('onOpen (tap / small movement)', {
-                  debateId: item.summary.id,
-                });
-                onOpenSummary(item.summary);
-              }}
+              onOpen={() => onOpenSummary(item.summary)}
               onVoteSuccess={(detail: DebateHeroVoteSuccessDetail) => {
-                logMainDebatesHero(
-                  'SWIPE_VOTE_SUCCEEDED (persisted on server)',
-                  {
-                    success: true,
-                    debateId: detail.debateId,
-                    cardId: detail.cardId,
-                    voteType: detail.voteType,
-                  },
-                );
                 queryClient.setQueryData<UnifiedFeed>(
                   mainDebatesFeedQueryKey,
                   old => {
@@ -377,7 +348,6 @@ const MainDebatesScreen = () => {
     [
       isLoggedIn,
       token,
-      onHeroPanResolved,
       onOpenSummary,
       queryClient,
       mainDebatesFeedQueryKey,

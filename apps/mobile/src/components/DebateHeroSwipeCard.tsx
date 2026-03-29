@@ -39,15 +39,6 @@ const TAP_MAX = 18;
 /** Fly card fully past the clip; scales with screen width. */
 const OFFSCREEN_X = Dimensions.get('window').width * 1.35;
 
-function logHero(event: string, payload?: Record<string, unknown>) {
-  if (!__DEV__) return;
-  if (payload != null) {
-    console.log(`[DebateHeroSwipe] ${event}`, payload);
-  } else {
-    console.log(`[DebateHeroSwipe] ${event}`);
-  }
-}
-
 /** Binary hero: need both stance cards so swipe-right/upvote-agree vs swipe-left/upvote-disagree match feed `binary_consensus`. */
 function pickBinaryStanceCards(cards: DebateCard[] | undefined): {
   agree?: DebateCard;
@@ -189,34 +180,6 @@ export default function DebateHeroSwipeCard({
     overlayDir.value = 0;
   }, [summary.id]);
 
-  useEffect(() => {
-    logHero('state', {
-      summaryId: summary.id,
-      debateId: debate?.id ?? null,
-      agreeCardId: agreeCard?.id ?? null,
-      disagreeCardId: disagreeCard?.id ?? null,
-      cardCount: debate?.cards?.length ?? 0,
-      canSwipeVote,
-      isLoading: debateQuery.isLoading,
-      fetchError: debateQuery.isError,
-      isLoggedIn,
-      hasToken: !!token,
-      voteBusy,
-    });
-  }, [
-    summary.id,
-    debate?.id,
-    debate?.cards?.length,
-    agreeCard?.id,
-    disagreeCard?.id,
-    canSwipeVote,
-    debateQuery.isLoading,
-    debateQuery.isError,
-    isLoggedIn,
-    token,
-    voteBusy,
-  ]);
-
   const headline = summary.headline.toUpperCase();
   const votes = summary.analytics?.total_votes ?? 0;
 
@@ -230,10 +193,8 @@ export default function DebateHeroSwipeCard({
 
   const openAuthForSwipe = useCallback(() => {
     if (!debate) {
-      logHero('openAuthForSwipe_skipped', {reason: 'no_debate'});
       return;
     }
-    logHero('openAuthForSwipe', {debateId: debate.id});
     const match = buildPlaceholderMatch(summary);
     rootNavigate('Login', {
       returnToDebate: {
@@ -264,34 +225,18 @@ export default function DebateHeroSwipeCard({
     async (side: 'agree' | 'disagree'): Promise<boolean> => {
       const card = side === 'agree' ? agreeCard : disagreeCard;
       if (!debate?.id || card?.id == null) {
-        logHero('performVote_skipped', {reason: 'missing_debate_or_card'});
         return false;
       }
       if (!isLoggedIn || !token) {
-        logHero('performVote_skipped', {reason: 'not_signed_in'});
         return false;
       }
       if (voteBusy) {
-        logHero('performVote_skipped', {reason: 'voteBusy'});
         return false;
       }
-      logHero('performVote_start', {
-        debateId: debate.id,
-        cardId: card.id,
-        side,
-        voteType: 'upvote',
-      });
       setVoteBusy(true);
       try {
         const counts = await setCardVote(token, debate.id, card.id, 'upvote');
         if (counts) {
-          logHero('performVote_ok', {
-            debateId: debate.id,
-            cardId: card.id,
-            side,
-            voteType: 'upvote',
-            swipeVoteSucceeded: true,
-          });
           onVoteSuccess({
             debateId: debate.id,
             cardId: card.id,
@@ -299,13 +244,8 @@ export default function DebateHeroSwipeCard({
           });
           return true;
         }
-        logHero('performVote_no_counts', {debateId: debate.id});
         return false;
-      } catch (e) {
-        logHero('performVote_error', {
-          debateId: debate.id,
-          message: e instanceof Error ? e.message : String(e),
-        });
+      } catch {
         return false;
       } finally {
         setVoteBusy(false);
@@ -325,35 +265,22 @@ export default function DebateHeroSwipeCard({
   const handlePanEnd = useCallback(
     (dx: number, dy: number) => {
       const sid = summary.id;
-      logHero('panEnd', {
-        dx: Math.round(dx * 10) / 10,
-        dy: Math.round(dy * 10) / 10,
-        threshold: SWIPE_THRESHOLD,
-        canSwipeVote,
-        voteBusy,
-        isLoggedIn,
-        hasToken: !!token,
-      });
       if (Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX) {
-        logHero('panEnd_action', {type: 'tap_open_detail'});
         onPanResolved?.({summaryId: sid, kind: 'tap_open', dx, dy});
         onOpen();
         return;
       }
       if (voteBusy) {
-        logHero('panEnd_action', {type: 'ignored', reason: 'voteBusy'});
         onPanResolved?.({summaryId: sid, kind: 'ignored', reason: 'voteBusy', dx, dy});
         return;
       }
       if (!canSwipeVote) {
         const reason = authRequiredForVote ? 'auth_required' : 'not_ready_or_no_card';
-        logHero('panEnd_action', {type: 'ignored', reason});
         onPanResolved?.({summaryId: sid, kind: 'ignored', reason, dx, dy});
         springHeroCardBack();
         return;
       }
       if (dx > SWIPE_THRESHOLD) {
-        logHero('panEnd_action', {type: 'swipe_right', outcome: 'agree'});
         onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'agree', dx, dy});
         void (async () => {
           const ok = await performBinarySwipeVote('agree');
@@ -364,7 +291,6 @@ export default function DebateHeroSwipeCard({
           }
         })();
       } else if (dx < -SWIPE_THRESHOLD) {
-        logHero('panEnd_action', {type: 'swipe_left', outcome: 'disagree'});
         onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'disagree', dx, dy});
         void (async () => {
           const ok = await performBinarySwipeVote('disagree');
@@ -376,10 +302,6 @@ export default function DebateHeroSwipeCard({
         })();
       } else {
         const absDx = Math.abs(dx);
-        logHero('panEnd_action', {
-          type: 'swipe_incomplete',
-          note: `|dx|=${absDx} did not exceed ${SWIPE_THRESHOLD}`,
-        });
         onPanResolved?.({
           summaryId: sid,
           kind: 'swipe_incomplete',
