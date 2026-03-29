@@ -1,6 +1,6 @@
 -- name: CreateDebate :one
-INSERT INTO debates (match_id, debate_type, headline, description, ai_generated)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO debates (match_id, debate_type, headline, description, ai_generated, match_info)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetDebate :one
@@ -169,7 +169,7 @@ WITH feed_candidates AS (
     LIMIT $1
 )
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.match_info, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
     da.engagement_score,
@@ -217,7 +217,7 @@ WITH feed_candidates AS (
     LIMIT $2
 )
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.match_info, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
     da.engagement_score,
@@ -268,7 +268,7 @@ WITH feed_candidates AS (
     LIMIT $2
 )
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.match_info, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
     da.engagement_score,

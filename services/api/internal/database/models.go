@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 )
 
 type CommentReactions struct {
@@ -69,6 +70,7 @@ type Debates struct {
 	DeletedAt   sql.NullTime
 	CreatedAt   sql.NullTime
 	UpdatedAt   sql.NullTime
+	MatchInfo   pqtype.NullRawMessage
 }
 
 type Leagues struct {

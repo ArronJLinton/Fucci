@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
 )
 
 const createComment = `-- name: CreateComment :one
@@ -50,9 +51,9 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 }
 
 const createDebate = `-- name: CreateDebate :one
-INSERT INTO debates (match_id, debate_type, headline, description, ai_generated)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at
+INSERT INTO debates (match_id, debate_type, headline, description, ai_generated, match_info)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at, match_info
 `
 
 type CreateDebateParams struct {
@@ -61,6 +62,7 @@ type CreateDebateParams struct {
 	Headline    string
 	Description sql.NullString
 	AiGenerated sql.NullBool
+	MatchInfo   pqtype.NullRawMessage
 }
 
 func (q *Queries) CreateDebate(ctx context.Context, arg CreateDebateParams) (Debates, error) {
@@ -70,6 +72,7 @@ func (q *Queries) CreateDebate(ctx context.Context, arg CreateDebateParams) (Deb
 		arg.Headline,
 		arg.Description,
 		arg.AiGenerated,
+		arg.MatchInfo,
 	)
 	var i Debates
 	err := row.Scan(
@@ -82,6 +85,7 @@ func (q *Queries) CreateDebate(ctx context.Context, arg CreateDebateParams) (Deb
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MatchInfo,
 	)
 	return i, err
 }
@@ -376,7 +380,7 @@ func (q *Queries) GetComments(ctx context.Context, debateID sql.NullInt32) ([]Ge
 }
 
 const getDebate = `-- name: GetDebate :one
-SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at FROM debates WHERE id = $1 AND deleted_at IS NULL
+SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at, match_info FROM debates WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetDebate(ctx context.Context, id int32) (Debates, error) {
@@ -392,6 +396,7 @@ func (q *Queries) GetDebate(ctx context.Context, id int32) (Debates, error) {
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MatchInfo,
 	)
 	return i, err
 }
@@ -472,7 +477,7 @@ func (q *Queries) GetDebateCards(ctx context.Context, debateID sql.NullInt32) ([
 }
 
 const getDebatesByMatch = `-- name: GetDebatesByMatch :many
-SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at FROM debates 
+SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at, match_info FROM debates 
 WHERE match_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
@@ -496,6 +501,7 @@ func (q *Queries) GetDebatesByMatch(ctx context.Context, matchID string) ([]Deba
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MatchInfo,
 		); err != nil {
 			return nil, err
 		}
@@ -511,7 +517,7 @@ func (q *Queries) GetDebatesByMatch(ctx context.Context, matchID string) ([]Deba
 }
 
 const getDebatesByType = `-- name: GetDebatesByType :many
-SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at FROM debates 
+SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at, match_info FROM debates 
 WHERE debate_type = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
@@ -535,6 +541,7 @@ func (q *Queries) GetDebatesByType(ctx context.Context, debateType string) ([]De
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MatchInfo,
 		); err != nil {
 			return nil, err
 		}
@@ -551,7 +558,7 @@ func (q *Queries) GetDebatesByType(ctx context.Context, debateType string) ([]De
 
 const getTopDebates = `-- name: GetTopDebates :many
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at, d.match_info,
     da.total_votes,
     da.total_comments,
     da.engagement_score
@@ -572,6 +579,7 @@ type GetTopDebatesRow struct {
 	DeletedAt       sql.NullTime
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
+	MatchInfo       pqtype.NullRawMessage
 	TotalVotes      sql.NullInt32
 	TotalComments   sql.NullInt32
 	EngagementScore sql.NullString
@@ -596,6 +604,7 @@ func (q *Queries) GetTopDebates(ctx context.Context, limit int32) ([]GetTopDebat
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MatchInfo,
 			&i.TotalVotes,
 			&i.TotalComments,
 			&i.EngagementScore,
@@ -736,7 +745,7 @@ WITH feed_candidates AS (
     LIMIT $2
 )
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.match_info, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
     da.engagement_score,
@@ -776,6 +785,7 @@ type ListDebatesFeedNewForUserRow struct {
 	Headline              string
 	Description           sql.NullString
 	AiGenerated           sql.NullBool
+	MatchInfo             pqtype.NullRawMessage
 	DeletedAt             sql.NullTime
 	CreatedAt             sql.NullTime
 	UpdatedAt             sql.NullTime
@@ -804,6 +814,7 @@ func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebates
 			&i.Headline,
 			&i.Description,
 			&i.AiGenerated,
+			&i.MatchInfo,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -849,7 +860,7 @@ WITH feed_candidates AS (
     LIMIT $2
 )
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.match_info, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
     da.engagement_score,
@@ -890,6 +901,7 @@ type ListDebatesFeedVotedForUserRow struct {
 	Headline              string
 	Description           sql.NullString
 	AiGenerated           sql.NullBool
+	MatchInfo             pqtype.NullRawMessage
 	DeletedAt             sql.NullTime
 	CreatedAt             sql.NullTime
 	UpdatedAt             sql.NullTime
@@ -918,6 +930,7 @@ func (q *Queries) ListDebatesFeedVotedForUser(ctx context.Context, arg ListDebat
 			&i.Headline,
 			&i.Description,
 			&i.AiGenerated,
+			&i.MatchInfo,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -952,7 +965,7 @@ WITH feed_candidates AS (
     LIMIT $1
 )
 SELECT 
-    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.match_info, d.deleted_at, d.created_at, d.updated_at,
     da.total_votes,
     da.total_comments,
     da.engagement_score,
@@ -987,6 +1000,7 @@ type ListDebatesPublicFeedRow struct {
 	Headline              string
 	Description           sql.NullString
 	AiGenerated           sql.NullBool
+	MatchInfo             pqtype.NullRawMessage
 	DeletedAt             sql.NullTime
 	CreatedAt             sql.NullTime
 	UpdatedAt             sql.NullTime
@@ -1017,6 +1031,7 @@ func (q *Queries) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]Lis
 			&i.Headline,
 			&i.Description,
 			&i.AiGenerated,
+			&i.MatchInfo,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -1089,7 +1104,7 @@ const updateDebate = `-- name: UpdateDebate :one
 UPDATE debates 
 SET headline = $2, description = $3, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at
+RETURNING id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at, match_info
 `
 
 type UpdateDebateParams struct {
@@ -1111,6 +1126,7 @@ func (q *Queries) UpdateDebate(ctx context.Context, arg UpdateDebateParams) (Deb
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MatchInfo,
 	)
 	return i, err
 }
