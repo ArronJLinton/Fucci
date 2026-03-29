@@ -46,17 +46,16 @@ function logHero(event: string, payload?: Record<string, unknown>) {
   }
 }
 
-/**
- * Single swipe vote per debate on the hero: use the primary binary card (prefer `agree`
- * so DISAGREE/AGREE maps to downvote/upvote on that proposition).
- */
-function pickHeroSwipeVoteCard(cards: DebateCard[] | undefined): DebateCard | undefined {
-  if (!cards?.length) return undefined;
-  const agree = cards.find(c => c.stance === 'agree');
-  if (agree) return agree;
-  const disagree = cards.find(c => c.stance === 'disagree');
-  if (disagree) return disagree;
-  return cards[0];
+/** Binary hero: need both stance cards so swipe-right/upvote-agree vs swipe-left/upvote-disagree match feed `binary_consensus`. */
+function pickBinaryStanceCards(cards: DebateCard[] | undefined): {
+  agree?: DebateCard;
+  disagree?: DebateCard;
+} {
+  if (!cards?.length) return {};
+  return {
+    agree: cards.find(c => c.stance === 'agree'),
+    disagree: cards.find(c => c.stance === 'disagree'),
+  };
 }
 
 function debatePillLabel(debateType: string): string {
@@ -94,14 +93,14 @@ export type DebateHeroPanResult =
   | {
       summaryId: number;
       kind: 'swipe_right';
-      outcome: 'upvote' | 'auth';
+      outcome: 'agree' | 'auth';
       dx: number;
       dy: number;
     }
   | {
       summaryId: number;
       kind: 'swipe_left';
-      outcome: 'downvote' | 'auth';
+      outcome: 'disagree' | 'auth';
       dx: number;
       dy: number;
     }
@@ -159,11 +158,15 @@ export default function DebateHeroSwipeCard({
   });
 
   const debate = debateQuery.data;
-  const voteCard = useMemo(
-    () => pickHeroSwipeVoteCard(debate?.cards),
+  const {agree: agreeCard, disagree: disagreeCard} = useMemo(
+    () => pickBinaryStanceCards(debate?.cards),
     [debate?.cards],
   );
-  const canSwipe = !!debate?.id && voteCard?.id != null && !debateQuery.isLoading;
+  const canSwipe =
+    !!debate?.id &&
+    agreeCard?.id != null &&
+    disagreeCard?.id != null &&
+    !debateQuery.isLoading;
 
   const [voteBusy, setVoteBusy] = useState(false);
 
@@ -184,8 +187,8 @@ export default function DebateHeroSwipeCard({
     logHero('state', {
       summaryId: summary.id,
       debateId: debate?.id ?? null,
-      voteCardId: voteCard?.id ?? null,
-      voteCardStance: voteCard?.stance ?? null,
+      agreeCardId: agreeCard?.id ?? null,
+      disagreeCardId: disagreeCard?.id ?? null,
       cardCount: debate?.cards?.length ?? 0,
       canSwipe,
       isLoading: debateQuery.isLoading,
@@ -198,8 +201,8 @@ export default function DebateHeroSwipeCard({
     summary.id,
     debate?.id,
     debate?.cards?.length,
-    voteCard?.id,
-    voteCard?.stance,
+    agreeCard?.id,
+    disagreeCard?.id,
     canSwipe,
     debateQuery.isLoading,
     debateQuery.isError,
@@ -235,9 +238,11 @@ export default function DebateHeroSwipeCard({
     });
   }, [debate, summary, buildPlaceholderMatch]);
 
-  const performVote = useCallback(
-    async (voteType: 'upvote' | 'downvote') => {
-      if (!debate?.id || voteCard?.id == null) {
+  /** Swipe right → upvote agree card; swipe left → upvote disagree card (matches API binary_consensus). */
+  const performBinarySwipeVote = useCallback(
+    async (side: 'agree' | 'disagree') => {
+      const card = side === 'agree' ? agreeCard : disagreeCard;
+      if (!debate?.id || card?.id == null) {
         logHero('performVote_skipped', {reason: 'missing_debate_or_card'});
         return;
       }
@@ -251,23 +256,25 @@ export default function DebateHeroSwipeCard({
       }
       logHero('performVote_start', {
         debateId: debate.id,
-        cardId: voteCard.id,
-        voteType,
+        cardId: card.id,
+        side,
+        voteType: 'upvote',
       });
       setVoteBusy(true);
       try {
-        const counts = await setCardVote(token, debate.id, voteCard.id, voteType);
+        const counts = await setCardVote(token, debate.id, card.id, 'upvote');
         if (counts) {
           logHero('performVote_ok', {
             debateId: debate.id,
-            cardId: voteCard.id,
-            voteType,
+            cardId: card.id,
+            side,
+            voteType: 'upvote',
             swipeVoteSucceeded: true,
           });
           onVoteSuccess({
             debateId: debate.id,
-            cardId: voteCard.id,
-            voteType,
+            cardId: card.id,
+            voteType: 'upvote',
           });
         } else {
           logHero('performVote_no_counts', {debateId: debate.id});
@@ -283,7 +290,8 @@ export default function DebateHeroSwipeCard({
     },
     [
       debate?.id,
-      voteCard?.id,
+      agreeCard?.id,
+      disagreeCard?.id,
       isLoggedIn,
       token,
       voteBusy,
@@ -325,9 +333,9 @@ export default function DebateHeroSwipeCard({
           onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'auth', dx, dy});
           openAuthForSwipe();
         } else {
-          logHero('panEnd_action', {type: 'swipe_right', outcome: 'upvote'});
-          onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'upvote', dx, dy});
-          void performVote('upvote');
+          logHero('panEnd_action', {type: 'swipe_right', outcome: 'agree'});
+          onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'agree', dx, dy});
+          void performBinarySwipeVote('agree');
         }
       } else if (dx < -SWIPE_THRESHOLD) {
         if (!isLoggedIn || !token) {
@@ -335,9 +343,9 @@ export default function DebateHeroSwipeCard({
           onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'auth', dx, dy});
           openAuthForSwipe();
         } else {
-          logHero('panEnd_action', {type: 'swipe_left', outcome: 'downvote'});
-          onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'downvote', dx, dy});
-          void performVote('downvote');
+          logHero('panEnd_action', {type: 'swipe_left', outcome: 'disagree'});
+          onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'disagree', dx, dy});
+          void performBinarySwipeVote('disagree');
         }
       } else {
         const absDx = Math.abs(dx);
@@ -364,7 +372,7 @@ export default function DebateHeroSwipeCard({
       isLoggedIn,
       token,
       openAuthForSwipe,
-      performVote,
+      performBinarySwipeVote,
     ],
   );
 
@@ -496,8 +504,12 @@ export default function DebateHeroSwipeCard({
                 <Text style={styles.statText}>{formatVoteCount(votes)} voted</Text>
               </View>
             </View>
-            {!debateQuery.isLoading && !voteCard?.id ? (
-              <Text style={styles.warnText}>No swipe card for this debate.</Text>
+            {!debateQuery.isLoading &&
+            debate &&
+            (!agreeCard?.id || !disagreeCard?.id) ? (
+              <Text style={styles.warnText}>
+                This debate needs agree and disagree cards to swipe-vote.
+              </Text>
             ) : null}
             <View style={styles.swipeRow}>
               <View style={styles.swipeBtnRed} pointerEvents="none">
