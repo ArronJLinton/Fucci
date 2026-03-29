@@ -59,6 +59,7 @@ const StackGroup = Stack.Group as any;
 
 /** Matches MainDebatesScreen / Settings so safe areas and tab bar are not white bands. */
 const SHELL_DEBATES_BG = '#0B0E14';
+const SHELL_MATCHES_BG = '#0B0E14';
 const SHELL_PROFILE_BG = '#030712';
 
 const baseTabBarStyle = {
@@ -95,10 +96,14 @@ const MainStack = () => {
         ? SHELL_PROFILE_BG
         : focusedTab === 'News'
           ? '#f5f5f5'
-          : '#fff';
+          : focusedTab === 'Home'
+            ? SHELL_MATCHES_BG
+            : '#fff';
 
   const statusBarStyle =
-    focusedTab === 'Debates' || focusedTab === 'Profile'
+    focusedTab === 'Debates' ||
+    focusedTab === 'Profile' ||
+    focusedTab === 'Home'
       ? 'light-content'
       : 'dark-content';
 
@@ -107,18 +112,23 @@ const MainStack = () => {
       ? SHELL_DEBATES_BG
       : focusedTab === 'Profile'
         ? SHELL_PROFILE_BG
-        : '#fff';
+        : focusedTab === 'Home'
+          ? SHELL_MATCHES_BG
+          : '#fff';
 
   const tabBarBorder =
-    focusedTab === 'Debates' || focusedTab === 'Profile'
+    focusedTab === 'Debates' ||
+    focusedTab === 'Profile' ||
+    focusedTab === 'Home'
       ? 'rgba(255,255,255,0.12)'
       : '#e0e0e0';
 
   const inactiveTint =
-    focusedTab === 'Debates' || focusedTab === 'Profile' ? '#8E8E93' : '#666';
+    focusedTab === 'Debates' || focusedTab === 'Profile' || focusedTab === 'Home'
+      ? '#8E8E93'
+      : '#666';
 
-  const tabChromeVariant =
-    focusedTab === 'Home' || focusedTab === 'News' ? 'light' : 'dark';
+  const tabChromeVariant = focusedTab === 'News' ? 'light' : 'dark';
 
   const tabActiveTint =
     tabChromeVariant === 'dark' ? TAB_LIME : '#007AFF';

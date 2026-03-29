@@ -11,11 +11,11 @@ import {
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import type {NavigationState} from '@react-navigation/native';
 import {useNavigation, useRoute} from '@react-navigation/native';
-// Search icon temporarily removed
-// import {Ionicons} from '@expo/vector-icons';
+import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
 import {fetchMatches} from '../services/api';
 import {LEAGUES, DEFAULT_LEAGUE, type League} from '../constants/leagues';
+import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -25,29 +25,43 @@ const Tab = createMaterialTopTabNavigator<RootTabParamList>();
 const TabNavigator = Tab.Navigator as any;
 const TabScreen = Tab.Screen as any;
 
-const getTabLabel = (date: Date) => {
+/** Short labels for league strip (design: PREMIER, etc.) */
+function leagueStripLabel(name: string): string {
+  const map: Record<string, string> = {
+    'Premier League': 'PREMIER',
+    'La Liga': 'LA LIGA',
+    'Serie A': 'SERIE A',
+    Bundesliga: 'BUNDES',
+    'Ligue 1': 'LIGUE 1',
+    'UEFA Champions League': 'UCL',
+    'International Competitions': 'INTL',
+  };
+  return map[name] ?? name.split(' ')[0]?.toUpperCase() ?? name;
+}
+
+const getTabLabel = (date: Date): string => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
 
   if (compareDate.getTime() === today.getTime()) {
-    return 'Today';
+    return 'TODAY';
   }
 
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   if (compareDate.getTime() === yesterday.getTime()) {
-    return 'Yesterday';
+    return 'YESTERDAY';
   }
 
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
   if (compareDate.getTime() === tomorrow.getTime()) {
-    return 'Tomorrow';
+    return 'TOMORROW';
   }
 
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   return `${days[date.getDay()]} ${date.getDate()}`;
 };
 
@@ -63,7 +77,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   selectedLeague,
 }) => {
   const route = useRoute();
-  const navigation = useNavigation();
+  const navigation = require('@react-navigation/native').useNavigation();
   const currentRoute = (navigation.getState() as NavigationState).routes[
     (navigation.getState() as NavigationState).index
   ].name;
@@ -73,22 +87,18 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const hasLoadedRef = React.useRef(false);
   const isLoadingRef = React.useRef(false);
 
-  // Create a cache key based on date and league
   const cacheKey = React.useMemo(
     () => `${date.toISOString()}-${selectedLeague?.id || 'all'}`,
     [date, selectedLeague?.id],
   );
   const loadedCacheKeysRef = React.useRef<Set<string>>(new Set());
 
-  // Combined effect to handle both reset and fetch
   React.useEffect(() => {
-    // If cache key changed, reset state and clear from loaded set
     if (!loadedCacheKeysRef.current.has(cacheKey)) {
       hasLoadedRef.current = false;
       setMatches([]);
     }
 
-    // Fetch matches if tab is selected, league is selected, and this cache key hasn't been loaded
     if (
       isSelected &&
       selectedLeague &&
@@ -101,9 +111,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
       const currentCacheKey = cacheKey;
       const currentLeague = selectedLeague;
 
-      // Small delay to allow for smooth tab transitions
       const timeoutId = setTimeout(() => {
-        // Verify cache key still matches and we still need to fetch
         if (
           currentCacheKey === cacheKey &&
           isSelected &&
@@ -111,7 +119,6 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
         ) {
           fetchMatches(date, currentLeague.id)
             .then(data => {
-              // Verify cache key still matches before setting results
               if (currentCacheKey === cacheKey && data) {
                 setMatches(data);
                 loadedCacheKeysRef.current.add(currentCacheKey);
@@ -120,7 +127,6 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
             })
             .catch(error => {
               console.error('Error loading matches:', error);
-              // Don't mark as loaded on error so we can retry
             })
             .finally(() => {
               if (currentCacheKey === cacheKey) {
@@ -129,7 +135,6 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
               }
             });
         } else {
-          // Cache key changed or already loaded, reset flags
           isLoadingRef.current = false;
           setIsLoading(false);
         }
@@ -165,9 +170,6 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
 
 const HomeScreen = () => {
   const {width} = useWindowDimensions();
-  // Search temporarily removed
-  // const [searchQuery, setSearchQuery] = useState('');
-  // const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
     DEFAULT_LEAGUE,
   );
@@ -175,15 +177,11 @@ const HomeScreen = () => {
   const dates = useMemo(() => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dateArray = [];
-
-    for (let i = -3; i <= 3; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dateArray.push(date);
-    }
-
-    return dateArray;
+    return [-1, 0, 1].map(offset => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + offset);
+      return d;
+    });
   }, []);
 
   const todayIndex = useMemo(() => {
@@ -193,101 +191,119 @@ const HomeScreen = () => {
   }, [dates]);
 
   const initialRoute = useMemo(() => {
-    const initialDate = dates[todayIndex !== -1 ? todayIndex : 0];
+    const initialDate = dates[todayIndex !== -1 ? todayIndex : 1];
     return `date-${initialDate.toISOString()}`;
   }, [dates, todayIndex]);
 
   return (
-    <View style={{flex: 1}}>
-      {/* Search temporarily removed */}
-      {/* <SearchBar
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        placeholder="Search teams or competitions..."
-        isVisible={isSearchVisible}
-        onClose={() => {
-          setIsSearchVisible(false);
-          setSearchQuery('');
-        }}
-      /> */}
-      {/* Date Tabs on Top */}
+    <View style={styles.root}>
       <TabNavigator
         initialRouteName={initialRoute}
         screenOptions={{
-          tabBarScrollEnabled: true,
+          tabBarScrollEnabled: false,
           tabBarItemStyle: {
             width: width / 3,
           },
           tabBarStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: MATCHES_BG,
+            elevation: 0,
+            shadowOpacity: 0,
             borderBottomWidth: 1,
-            borderBottomColor: '#e0e0e0',
+            borderBottomColor: 'rgba(255,255,255,0.08)',
           },
           tabBarIndicatorStyle: {
-            backgroundColor: '#007AFF',
-            height: 3,
+            height: 0,
           },
-          tabBarActiveTintColor: '#007AFF',
-          tabBarInactiveTintColor: 'gray',
-          tabBarPressColor: '#E3F2FD',
-          tabBarPressOpacity: 0.8,
+          tabBarActiveTintColor: MATCHES_LIME,
+          tabBarInactiveTintColor: MATCHES_MUTED,
+          tabBarPressColor: 'rgba(198,255,0,0.12)',
+          tabBarPressOpacity: 0.9,
           lazy: true,
         }}>
         {dates.map(date => {
           const dateString = date.toISOString();
           const screenKey = `date-${dateString}`;
+          const label = getTabLabel(date);
 
           return (
             <TabScreen
               key={screenKey}
               name={screenKey}
               options={{
-                title: getTabLabel(date),
-                tabBarLabel: getTabLabel(date),
-                tabBarAccessibilityLabel: `Switch to ${getTabLabel(date)}`,
+                title: label,
+                tabBarLabel: ({focused}: {focused: boolean}) => (
+                  <View
+                    style={styles.dateTabInner}
+                    accessibilityLabel={label}>
+                    {focused ? (
+                      <LinearGradient
+                        colors={['#C6FF00', '#E8FF66']}
+                        start={{x: 0, y: 0.5}}
+                        end={{x: 1, y: 0.5}}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.dateTabText,
+                        focused && styles.dateTabTextActive,
+                      ]}>
+                      {label}
+                    </Text>
+                  </View>
+                ),
+                tabBarAccessibilityLabel: `Switch to ${label}`,
               }}>
               {() => (
-                <View style={{flex: 1}}>
-                  {/* League Tabs Below Date Tabs */}
-                  <View style={styles.leagueTabsHeader}>
+                <View style={styles.tabBody}>
+                  <View style={styles.leagueStrip}>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.leagueTabsContainer}
-                      style={styles.leagueTabsScroll}>
+                      contentContainerStyle={styles.leagueStripContent}>
                       {LEAGUES.map(league => {
                         const isSelected = selectedLeague?.id === league.id;
                         return (
                           <TouchableOpacity
                             key={league.id}
-                            style={[
-                              styles.leagueTab,
-                              isSelected && styles.leagueTabSelected,
-                            ]}
-                            onPress={() => setSelectedLeague(league)}>
-                            {league.logo && (
-                              <Image
-                                source={{uri: league.logo}}
-                                style={styles.leagueLogo}
-                                resizeMode="contain"
-                              />
-                            )}
+                            style={styles.leagueItem}
+                            onPress={() => setSelectedLeague(league)}
+                            activeOpacity={0.85}>
+                            <View style={styles.leagueIconWrap}>
+                              {league.logo ? (
+                                <Image
+                                  source={{uri: league.logo}}
+                                  style={styles.leagueIconImg}
+                                  resizeMode="contain"
+                                />
+                              ) : (
+                                <Text style={styles.leagueIconFallback}>
+                                  {leagueStripLabel(league.name).slice(0, 2)}
+                                </Text>
+                              )}
+                            </View>
                             <Text
                               style={[
-                                styles.leagueTabText,
-                                isSelected && styles.leagueTabTextSelected,
-                              ]}>
-                              {league.name}
+                                styles.leagueName,
+                                isSelected && styles.leagueNameSelected,
+                              ]}
+                              numberOfLines={1}>
+                              {leagueStripLabel(league.name)}
                             </Text>
+                            {isSelected ? (
+                              <View style={styles.leagueUnderline} />
+                            ) : (
+                              <View style={styles.leagueUnderlinePlaceholder} />
+                            )}
                           </TouchableOpacity>
                         );
                       })}
                     </ScrollView>
                   </View>
-                  <View style={{flex: 1}}>
+                  <View style={styles.dateContent}>
                     <DateTabScreen
                       date={date}
-                      searchQuery="" // Search temporarily removed
+                      searchQuery=""
                       selectedLeague={selectedLeague}
                     />
                   </View>
@@ -302,55 +318,93 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  leagueTabsHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-    borderBottomColor: '#e0e0e0',
-    borderBottomWidth: 1,
-    minHeight: 100,
+  root: {
+    flex: 1,
+    backgroundColor: MATCHES_BG,
   },
-  leagueTabsScroll: {
+  dateTabInner: {
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    overflow: 'hidden',
+    minWidth: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateTabText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    color: MATCHES_MUTED,
+    zIndex: 1,
+  },
+  dateTabTextActive: {
+    color: '#0B0E14',
+  },
+  tabBody: {
+    flex: 1,
+    backgroundColor: MATCHES_BG,
+  },
+  leagueStrip: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  leagueStripContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+  },
+  leagueItem: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+    minWidth: 64,
+  },
+  leagueIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  leagueIconImg: {
+    width: 28,
+    height: 28,
+  },
+  leagueIconFallback: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: MATCHES_MUTED,
+  },
+  leagueName: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    color: MATCHES_MUTED,
+    textAlign: 'center',
+  },
+  leagueNameSelected: {
+    color: MATCHES_LIME,
+  },
+  leagueUnderline: {
+    marginTop: 6,
+    height: 3,
+    width: 32,
+    borderRadius: 2,
+    backgroundColor: MATCHES_LIME,
+  },
+  leagueUnderlinePlaceholder: {
+    marginTop: 6,
+    height: 3,
+    width: 32,
+  },
+  dateContent: {
     flex: 1,
   },
-  leagueTabsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 8,
-  },
-  leagueTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  leagueTabSelected: {
-    backgroundColor: '#FFD700', // Yellow background for selected
-    borderColor: '#FFD700',
-  },
-  leagueLogo: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-  },
-  leagueTabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  leagueTabTextSelected: {
-    color: '#000',
-    fontWeight: '700',
-  },
-  // Search button temporarily removed
-  // searchButton: {
-  //   padding: 8,
-  // },
 });
 
 export default HomeScreen;
