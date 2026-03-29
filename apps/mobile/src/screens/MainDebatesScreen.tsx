@@ -127,18 +127,18 @@ const MainDebatesScreen = () => {
 
   /** Segment feed cache per account; avoids showing another user's feed after switch. */
   const mainDebatesFeedQueryKey = useMemo(
-    (): readonly ['mainDebatesFeed', number | 'guest'] =>
-      isLoggedIn && user != null
-        ? ['mainDebatesFeed', user.id]
+    (): readonly ['mainDebatesFeed', number | 'guest' | 'auth'] =>
+      token
+        ? ['mainDebatesFeed', user?.id ?? 'auth']
         : ['mainDebatesFeed', 'guest'],
-    [isLoggedIn, user?.id],
+    [token, user?.id],
   );
 
   const query = useQuery({
     queryKey: mainDebatesFeedQueryKey,
-    enabled: isReady && (!isLoggedIn || user != null),
+    enabled: isReady,
     queryFn: async (): Promise<UnifiedFeed> => {
-      if (isLoggedIn && token) {
+      if (token) {
         const data = await fetchDebatesFeed(token, {
           new_limit: 30,
           voted_limit: 30,
@@ -444,6 +444,25 @@ function ActivityDebateCard({
   summary: DebateSummary;
   onPress: () => void;
 }) {
+  const handleOpenSource = useCallback(() => {
+    const url = summary.source_url?.trim();
+    if (!url) return;
+    try {
+      const parsed = new URL(url);
+      const isHttp = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      if (!isHttp) return;
+      Linking.canOpenURL(url)
+        .then(supported => {
+          if (supported) {
+            Linking.openURL(url).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // Invalid URL, ignore tap.
+    }
+  }, [summary.source_url]);
+
   const split = consensusPercents(summary);
   const hasSource =
     !!summary.source_headline?.trim() || !!summary.source_url?.trim();
@@ -476,11 +495,7 @@ function ActivityDebateCard({
         <Text
           style={styles.activitySource}
           numberOfLines={2}
-          onPress={() =>
-            summary.source_url
-              ? Linking.openURL(summary.source_url).catch(() => {})
-              : undefined
-          }>
+          onPress={handleOpenSource}>
           {sourceLabel}
         </Text>
       ) : null}
