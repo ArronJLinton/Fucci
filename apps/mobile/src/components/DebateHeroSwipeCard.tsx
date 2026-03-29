@@ -31,8 +31,8 @@ const CARD = '#1A1F2E';
 const TEXT = '#FFFFFF';
 const MUTED = '#8B92A5';
 const RED_X = '#FF3B30';
-const HERO_IMAGE = require('../../assets/debate-hero.jpg');
-const HERO_IMAGE_URI = Image.resolveAssetSource(HERO_IMAGE).uri;
+const HERO_IMAGE_URI =
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200&q=80';
 
 const SWIPE_THRESHOLD = 80;
 const TAP_MAX = 18;
@@ -189,7 +189,7 @@ export default function DebateHeroSwipeCard({
     !!summary.source_published_at?.trim();
   const sourceLabel = summary.source_headline?.trim()
     ? summary.source_headline
-    : summary.source_url?.trim() ?? '';
+    : (summary.source_url?.trim() ?? '');
 
   const openAuthForSwipe = useCallback(() => {
     if (!debate) {
@@ -212,13 +212,16 @@ export default function DebateHeroSwipeCard({
     })();
   }, [translateX]);
 
-  const flyHeroCardOff = useCallback((direction: 'left' | 'right') => {
-    const target = direction === 'right' ? OFFSCREEN_X : -OFFSCREEN_X;
-    runOnUI(() => {
-      'worklet';
-      translateX.value = withTiming(target, {duration: 280});
-    })();
-  }, [translateX]);
+  const flyHeroCardOff = useCallback(
+    (direction: 'left' | 'right') => {
+      const target = direction === 'right' ? OFFSCREEN_X : -OFFSCREEN_X;
+      runOnUI(() => {
+        'worklet';
+        translateX.value = withTiming(target, {duration: 280});
+      })();
+    },
+    [translateX],
+  );
 
   /** Swipe right → upvote agree card; swipe left → upvote disagree card (matches API binary_consensus). */
   const performBinarySwipeVote = useCallback(
@@ -271,17 +274,31 @@ export default function DebateHeroSwipeCard({
         return;
       }
       if (voteBusy) {
-        onPanResolved?.({summaryId: sid, kind: 'ignored', reason: 'voteBusy', dx, dy});
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'ignored',
+          reason: 'voteBusy',
+          dx,
+          dy,
+        });
         return;
       }
       if (!canSwipeVote) {
-        const reason = authRequiredForVote ? 'auth_required' : 'not_ready_or_no_card';
+        const reason = authRequiredForVote
+          ? 'auth_required'
+          : 'not_ready_or_no_card';
         onPanResolved?.({summaryId: sid, kind: 'ignored', reason, dx, dy});
         springHeroCardBack();
         return;
       }
       if (dx > SWIPE_THRESHOLD) {
-        onPanResolved?.({summaryId: sid, kind: 'swipe_right', outcome: 'agree', dx, dy});
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'swipe_right',
+          outcome: 'agree',
+          dx,
+          dy,
+        });
         void (async () => {
           const ok = await performBinarySwipeVote('agree');
           if (ok) {
@@ -291,7 +308,13 @@ export default function DebateHeroSwipeCard({
           }
         })();
       } else if (dx < -SWIPE_THRESHOLD) {
-        onPanResolved?.({summaryId: sid, kind: 'swipe_left', outcome: 'disagree', dx, dy});
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'swipe_left',
+          outcome: 'disagree',
+          dx,
+          dy,
+        });
         void (async () => {
           const ok = await performBinarySwipeVote('disagree');
           if (ok) {
@@ -351,8 +374,7 @@ export default function DebateHeroSwipeCard({
           const dy = e.translationY;
           overlayDir.value = 0;
 
-          const isTap =
-            Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX;
+          const isTap = Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX;
           if (isTap) {
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
@@ -419,7 +441,11 @@ export default function DebateHeroSwipeCard({
             style={StyleSheet.absoluteFill}
           />
           <Animated.View
-            style={[styles.swipeOverlay, styles.swipeOverlayYes, overlayYesStyle]}
+            style={[
+              styles.swipeOverlay,
+              styles.swipeOverlayYes,
+              overlayYesStyle,
+            ]}
             pointerEvents="none">
             <Ionicons name="thumbs-up" size={56} color={TEXT} />
           </Animated.View>
@@ -456,7 +482,9 @@ export default function DebateHeroSwipeCard({
               </View>
               <View style={styles.statItem}>
                 <Ionicons name="people-outline" size={16} color={MUTED} />
-                <Text style={styles.statText}>{formatVoteCount(votes)} voted</Text>
+                <Text style={styles.statText}>
+                  {formatVoteCount(votes)} voted
+                </Text>
               </View>
             </View>
             {!debateQuery.isLoading &&
