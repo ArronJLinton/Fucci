@@ -495,7 +495,10 @@ function ActivityDebateCard({
         <Text
           style={styles.activitySource}
           numberOfLines={2}
-          onPress={handleOpenSource}>
+          onPress={event => {
+            event.stopPropagation();
+            handleOpenSource();
+          }}>
           {sourceLabel}
         </Text>
       ) : null}
