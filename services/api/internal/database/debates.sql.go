@@ -723,22 +723,21 @@ SELECT
     da.total_votes,
     da.total_comments,
     da.engagement_score,
-    COALESCE((
-      SELECT COUNT(*)::bigint
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
-        AND v.vote_type = 'upvote' AND v.emoji IS NULL
-    ), 0) AS binary_agree_upvotes,
-    COALESCE((
-      SELECT COUNT(*)::bigint
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
-        AND v.vote_type = 'upvote' AND v.emoji IS NULL
-    ), 0) AS binary_disagree_upvotes
+    COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
+    COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN (
+    SELECT
+        dc.debate_id,
+        COUNT(*) FILTER (WHERE dc.stance = 'agree')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (WHERE dc.stance = 'disagree')::bigint AS binary_disagree_upvotes
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.vote_type = 'upvote' AND v.emoji IS NULL
+      AND dc.stance IN ('agree', 'disagree')
+    GROUP BY dc.debate_id
+) bbin ON bbin.debate_id = d.id
 WHERE d.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
   AND NOT EXISTS (
@@ -770,8 +769,8 @@ type ListDebatesFeedNewForUserRow struct {
 	TotalVotes            sql.NullInt32
 	TotalComments         sql.NullInt32
 	EngagementScore       sql.NullString
-	BinaryAgreeUpvotes    interface{}
-	BinaryDisagreeUpvotes interface{}
+	BinaryAgreeUpvotes    int64
+	BinaryDisagreeUpvotes int64
 }
 
 // Authenticated feed — "new": user has not cast any swipe vote on a binary (agree/disagree) card for this debate.
@@ -820,20 +819,8 @@ SELECT
     da.total_votes,
     da.total_comments,
     da.engagement_score,
-    COALESCE((
-      SELECT COUNT(*)::bigint
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
-        AND v.vote_type = 'upvote' AND v.emoji IS NULL
-    ), 0) AS binary_agree_upvotes,
-    COALESCE((
-      SELECT COUNT(*)::bigint
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
-        AND v.vote_type = 'upvote' AND v.emoji IS NULL
-    ), 0) AS binary_disagree_upvotes,
+    COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
+    COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes,
     (
       SELECT MAX(v.created_at)::timestamptz
       FROM votes v
@@ -844,6 +831,17 @@ SELECT
     ) AS last_voted_at
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN (
+    SELECT
+        dc.debate_id,
+        COUNT(*) FILTER (WHERE dc.stance = 'agree')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (WHERE dc.stance = 'disagree')::bigint AS binary_disagree_upvotes
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.vote_type = 'upvote' AND v.emoji IS NULL
+      AND dc.stance IN ('agree', 'disagree')
+    GROUP BY dc.debate_id
+) bbin ON bbin.debate_id = d.id
 WHERE d.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
   AND EXISTS (
@@ -875,8 +873,8 @@ type ListDebatesFeedVotedForUserRow struct {
 	TotalVotes            sql.NullInt32
 	TotalComments         sql.NullInt32
 	EngagementScore       sql.NullString
-	BinaryAgreeUpvotes    interface{}
-	BinaryDisagreeUpvotes interface{}
+	BinaryAgreeUpvotes    int64
+	BinaryDisagreeUpvotes int64
 	LastVotedAt           time.Time
 }
 
@@ -926,22 +924,21 @@ SELECT
     da.total_votes,
     da.total_comments,
     da.engagement_score,
-    COALESCE((
-      SELECT COUNT(*)::bigint
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance = 'agree'
-        AND v.vote_type = 'upvote' AND v.emoji IS NULL
-    ), 0) AS binary_agree_upvotes,
-    COALESCE((
-      SELECT COUNT(*)::bigint
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance = 'disagree'
-        AND v.vote_type = 'upvote' AND v.emoji IS NULL
-    ), 0) AS binary_disagree_upvotes
+    COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
+    COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN (
+    SELECT
+        dc.debate_id,
+        COUNT(*) FILTER (WHERE dc.stance = 'agree')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (WHERE dc.stance = 'disagree')::bigint AS binary_disagree_upvotes
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.vote_type = 'upvote' AND v.emoji IS NULL
+      AND dc.stance IN ('agree', 'disagree')
+    GROUP BY dc.debate_id
+) bbin ON bbin.debate_id = d.id
 WHERE d.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM debate_cards dc WHERE dc.debate_id = d.id)
 ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
@@ -961,8 +958,8 @@ type ListDebatesPublicFeedRow struct {
 	TotalVotes            sql.NullInt32
 	TotalComments         sql.NullInt32
 	EngagementScore       sql.NullString
-	BinaryAgreeUpvotes    interface{}
-	BinaryDisagreeUpvotes interface{}
+	BinaryAgreeUpvotes    int64
+	BinaryDisagreeUpvotes int64
 }
 
 // Public browse feed: engagement desc, tie-break created_at desc; only debates with at least one card.
