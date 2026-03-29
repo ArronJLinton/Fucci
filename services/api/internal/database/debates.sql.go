@@ -827,30 +827,24 @@ func (q *Queries) ListDebatesFeedNewForUser(ctx context.Context, arg ListDebates
 }
 
 const listDebatesFeedVotedForUser = `-- name: ListDebatesFeedVotedForUser :many
-WITH uv AS (
-    SELECT
+WITH feed_candidates AS (
+    SELECT d.id, uv.last_voted_at
+    FROM debates d
+    INNER JOIN (
+      SELECT
         dc.debate_id,
         MAX(v.created_at)::timestamptz AS last_voted_at
-    FROM votes v
-    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-    WHERE v.user_id = $1
-      AND v.vote_type IN ('upvote', 'downvote')
-      AND v.emoji IS NULL
-      AND dc.stance IN ('agree', 'disagree')
-    GROUP BY dc.debate_id
-),
-feed_candidates AS (
-    SELECT d.id
-    FROM debates d
-    INNER JOIN uv ON uv.debate_id = d.id
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.stance IN ('agree', 'disagree')
+        AND v.user_id = $1
+        AND v.vote_type IN ('upvote', 'downvote')
+        AND v.emoji IS NULL
+      GROUP BY dc.debate_id
+    ) uv ON uv.debate_id = d.id
     LEFT JOIN debate_analytics da ON d.id = da.debate_id
     WHERE d.deleted_at IS NULL
-      AND EXISTS (
-        SELECT 1
-        FROM debate_cards dc0
-        WHERE dc0.debate_id = d.id
-          AND dc0.stance IN ('agree', 'disagree')
-      )
+      AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
     ORDER BY uv.last_voted_at DESC NULLS LAST
     LIMIT $2
 )
@@ -861,15 +855,7 @@ SELECT
     da.engagement_score,
     COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
     COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes,
-    (
-      SELECT MAX(v.created_at)::timestamptz
-      FROM votes v
-      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
-      WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
-        AND v.user_id = $1
-        AND v.vote_type IN ('upvote', 'downvote')
-        AND v.emoji IS NULL
-    ) AS last_voted_at
+    fc.last_voted_at
 FROM debates d
 INNER JOIN feed_candidates fc ON fc.id = d.id
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
