@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,18 +151,38 @@ func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
 	return user.ID, nil
 }
 
-// insertSeededComments creates one comment per card for the debate, attributed to the system user (Fucci).
-func (c *Config) insertSeededComments(ctx context.Context, debateID int32, cards []ai.DebateCard) {
+// insertSeededComments inserts up to three thread starters from AI prompt.comments, with fallback to card titles.
+func (c *Config) insertSeededComments(ctx context.Context, debateID int32, prompt *ai.DebatePrompt) {
+	if prompt == nil {
+		return
+	}
 	systemUserID, err := c.getSystemUserID(ctx)
 	if err != nil {
 		log.Printf("[debate] seeded comments skipped: system user not found (set SYSTEM_USER_EMAIL to your system user email, e.g. contact@magistri.dev): %v", err)
 		return
 	}
-	for _, card := range cards {
-		content := card.Description
-		if content == "" {
-			content = card.Title
+	var contents []string
+	for _, s := range prompt.Comments {
+		if t := strings.TrimSpace(s); t != "" && len(contents) < 3 {
+			contents = append(contents, t)
 		}
+	}
+	for _, card := range prompt.Cards {
+		if len(contents) >= 3 {
+			break
+		}
+		if card.Stance != "agree" && card.Stance != "disagree" {
+			continue
+		}
+		t := strings.TrimSpace(card.Description)
+		if t == "" {
+			t = strings.TrimSpace(card.Title)
+		}
+		if t != "" {
+			contents = append(contents, t)
+		}
+	}
+	for _, content := range contents {
 		if content == "" {
 			continue
 		}
@@ -968,10 +989,10 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate prompt structure
-	if prompt.Headline == "" || len(prompt.Cards) == 0 {
+	// Validate prompt structure (binary agree/disagree + headline)
+	if !ai.DebatePromptBinaryOK(prompt) {
 		log.Printf("[debate] generate failed: match_id=%s invalid prompt (headline=%q cards=%d)", req.MatchID, prompt.Headline, len(prompt.Cards))
-		respondWithErrorCode(w, http.StatusInternalServerError, "Generated prompt is invalid (missing headline or cards)", errCodeGenPromptInvalid)
+		respondWithErrorCode(w, http.StatusInternalServerError, "Generated prompt is invalid (need headline plus agree and disagree cards)", errCodeGenPromptInvalid)
 		return
 	}
 
@@ -1003,24 +1024,24 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	// Create debate cards
 	var cardResponses []DebateCardResponse
 	for _, card := range prompt.Cards {
-		// Validate card data
 		if card.Stance == "" || card.Title == "" {
 			fmt.Printf("Skipping invalid card: stance=%s, title=%s\n", card.Stance, card.Title)
 			continue
 		}
-
-		// Validate stance
-		if card.Stance != "agree" && card.Stance != "disagree" && card.Stance != "wildcard" {
-			fmt.Printf("Skipping card with invalid stance: %s\n", card.Stance)
+		if card.Stance != "agree" && card.Stance != "disagree" {
+			fmt.Printf("Skipping card with invalid stance (binary debates only): %s\n", card.Stance)
 			continue
 		}
 
-		// Create the card in the database
+		desc := card.Description
+		if strings.TrimSpace(desc) == "" {
+			desc = card.Title
+		}
 		dbCard, err := c.DB.CreateDebateCard(ctx, database.CreateDebateCardParams{
 			DebateID:    sql.NullInt32{Int32: debate.ID, Valid: true},
 			Stance:      card.Stance,
 			Title:       card.Title,
-			Description: sql.NullString{String: card.Description, Valid: card.Description != ""},
+			Description: sql.NullString{String: desc, Valid: desc != ""},
 			AiGenerated: sql.NullBool{Bool: true, Valid: true},
 		})
 		if err != nil {
@@ -1047,8 +1068,8 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		cardResponses = append(cardResponses, cardResponse)
 	}
 
-	// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
-	c.insertSeededComments(ctx, debate.ID, prompt.Cards)
+	// Seeded comments from AI (agree / disagree / wildcard fan takes)
+	c.insertSeededComments(ctx, debate.ID, prompt)
 
 	// Ensure we have at least one card
 	if len(cardResponses) == 0 {
@@ -1297,7 +1318,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 
 	var responses []DebateResponse
 	for _, prompt := range prompts {
-		if prompt.Headline == "" || len(prompt.Cards) == 0 {
+		if !ai.DebatePromptBinaryOK(&prompt) {
 			continue
 		}
 		debate, err := c.DB.CreateDebate(ctx, database.CreateDebateParams{
@@ -1349,8 +1370,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 			continue
 		}
-		// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
-		c.insertSeededComments(ctx, debate.ID, prompt.Cards)
+		c.insertSeededComments(ctx, debate.ID, &prompt)
 		responses = append(responses, DebateResponse{
 			ID:          debate.ID,
 			MatchID:     debate.MatchID,
