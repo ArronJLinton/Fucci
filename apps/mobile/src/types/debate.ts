@@ -35,6 +35,17 @@ export interface DebateBinaryConsensus {
   disagree_upvotes: number;
 }
 
+export interface DebateTeamSide {
+  name?: string;
+  logo?: string;
+  score?: number;
+}
+
+export interface DebateTeams {
+  home?: DebateTeamSide;
+  away?: DebateTeamSide;
+}
+
 /**
  * Minimal debate row for main feeds (009) — aligns with contracts/debates-feed.yaml.
  * Optional provenance fields when API/DB expose them (004).
@@ -56,6 +67,7 @@ export interface DebateSummary {
   source_headline?: string;
   source_url?: string;
   source_published_at?: string;
+  teams?: DebateTeams;
 }
 
 /** Guest browse — GET /debates/public-feed */
@@ -110,6 +122,7 @@ export interface DebateResponse extends DebateContent {
   source_headline?: string;
   source_url?: string;
   source_published_at?: string;
+  teams?: DebateTeams;
 }
 
 export type DebateType = 'pre_match' | 'post_match';

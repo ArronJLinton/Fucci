@@ -109,6 +109,17 @@ type CardVoteTotals struct {
 	TotalNo  int `json:"total_no"`
 }
 
+type DebateTeamSide struct {
+	Name  string `json:"name,omitempty"`
+	Logo  string `json:"logo,omitempty"`
+	Score *int   `json:"score,omitempty"`
+}
+
+type DebateTeams struct {
+	Home DebateTeamSide `json:"home"`
+	Away DebateTeamSide `json:"away"`
+}
+
 type DebateResponse struct {
 	ID              int32                    `json:"id"`
 	MatchID         string                   `json:"match_id"`
@@ -121,6 +132,7 @@ type DebateResponse struct {
 	Cards           []DebateCardResponse     `json:"cards,omitempty"`
 	CardVoteTotals  *CardVoteTotals          `json:"card_vote_totals,omitempty"`
 	Analytics       *DebateAnalyticsResponse `json:"analytics,omitempty"`
+	Teams           *DebateTeams             `json:"teams,omitempty"`
 }
 
 type DebateCardResponse struct {
@@ -267,6 +279,7 @@ type DebateSummary struct {
 	SourceHeadline    *string                 `json:"source_headline,omitempty"`
 	SourceURL         *string                 `json:"source_url,omitempty"`
 	SourcePublishedAt *time.Time              `json:"source_published_at,omitempty"`
+	Teams             *DebateTeams            `json:"teams,omitempty"`
 }
 
 // PublicDebateFeedResponse is GET /debates/public-feed (guest browse).
@@ -415,6 +428,125 @@ func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryC
 	return DebateBinaryConsensus{
 		AgreeUpvotes:    intFromSQLCIface(agreeIface),
 		DisagreeUpvotes: intFromSQLCIface(disagreeIface),
+	}
+}
+
+func normalizeMatchID(matchID string) string {
+	return strings.TrimSpace(matchID)
+}
+
+func (c *Config) loadDebateTeamsByMatchIDs(ctx context.Context, matchIDs []string) (map[string]DebateTeams, error) {
+	if c.DBConn == nil || len(matchIDs) == 0 {
+		return map[string]DebateTeams{}, nil
+	}
+	seen := make(map[string]struct{}, len(matchIDs))
+	ids := make([]string, 0, len(matchIDs))
+	for _, raw := range matchIDs {
+		id := normalizeMatchID(raw)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return map[string]DebateTeams{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	q := fmt.Sprintf(`
+SELECT m.external_match_id, ht.name, ht.logo_url, m.home_score, at.name, at.logo_url, m.away_score
+FROM matches m
+LEFT JOIN teams ht ON m.home_team_id = ht.id
+LEFT JOIN teams at ON m.away_team_id = at.id
+WHERE m.external_match_id IN (%s)
+`, strings.Join(placeholders, ","))
+
+	rows, err := c.DBConn.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[string]DebateTeams, len(ids))
+	for rows.Next() {
+		var matchID string
+		var homeName, homeLogo, awayName, awayLogo sql.NullString
+		var homeScore, awayScore sql.NullInt32
+		if err := rows.Scan(&matchID, &homeName, &homeLogo, &homeScore, &awayName, &awayLogo, &awayScore); err != nil {
+			return nil, err
+		}
+		var homeScorePtr *int
+		if homeScore.Valid {
+			v := int(homeScore.Int32)
+			homeScorePtr = &v
+		}
+		var awayScorePtr *int
+		if awayScore.Valid {
+			v := int(awayScore.Int32)
+			awayScorePtr = &v
+		}
+		out[normalizeMatchID(matchID)] = DebateTeams{
+			Home: DebateTeamSide{Name: homeName.String, Logo: homeLogo.String, Score: homeScorePtr},
+			Away: DebateTeamSide{Name: awayName.String, Logo: awayLogo.String, Score: awayScorePtr},
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Fallback: if match rows are missing in our DB, enrich from fixtures API.
+	for _, id := range ids {
+		if _, ok := out[id]; ok {
+			continue
+		}
+		matchInfo, err := c.getMatchInfo(ctx, id)
+		if err != nil {
+			continue
+		}
+		hs := matchInfo.HomeScore
+		as := matchInfo.AwayScore
+		out[id] = DebateTeams{
+			Home: DebateTeamSide{
+				Name:  matchInfo.HomeTeam,
+				Logo:  matchInfo.HomeTeamLogo,
+				Score: &hs,
+			},
+			Away: DebateTeamSide{
+				Name:  matchInfo.AwayTeam,
+				Logo:  matchInfo.AwayTeamLogo,
+				Score: &as,
+			},
+		}
+	}
+	return out, nil
+}
+
+func (c *Config) attachTeamsToSummaries(ctx context.Context, summaries []DebateSummary) {
+	if len(summaries) == 0 {
+		return
+	}
+	matchIDs := make([]string, 0, len(summaries))
+	for _, s := range summaries {
+		matchIDs = append(matchIDs, s.MatchID)
+	}
+	teamsByMatchID, err := c.loadDebateTeamsByMatchIDs(ctx, matchIDs)
+	if err != nil {
+		log.Printf("[debates] attach teams to summaries failed: %v", err)
+		return
+	}
+	for i := range summaries {
+		if teams, ok := teamsByMatchID[normalizeMatchID(summaries[i].MatchID)]; ok {
+			t := teams
+			summaries[i].Teams = &t
+		}
 	}
 }
 
@@ -678,6 +810,12 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt:       analytics.UpdatedAt.Time,
 		}
 	}
+	if teamsByMatchID, teamsErr := c.loadDebateTeamsByMatchIDs(ctx, []string{debate.MatchID}); teamsErr == nil {
+		if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
+			t := teams
+			response.Teams = &t
+		}
+	}
 
 	respondWithJSON(w, http.StatusOK, response)
 }
@@ -711,7 +849,9 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 
 	// Convert to response format (list of debates; client may fetch full debate by ID for cards)
 	var response []DebateResponse
+	matchIDs := make([]string, 0, len(debates))
 	for _, debate := range debates {
+		matchIDs = append(matchIDs, debate.MatchID)
 		response = append(response, DebateResponse{
 			ID:          debate.ID,
 			MatchID:     debate.MatchID,
@@ -722,6 +862,14 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   debate.CreatedAt.Time,
 			UpdatedAt:   debate.UpdatedAt.Time,
 		})
+	}
+	if teamsByMatchID, teamsErr := c.loadDebateTeamsByMatchIDs(ctx, matchIDs); teamsErr == nil {
+		for i := range response {
+			if teams, ok := teamsByMatchID[normalizeMatchID(response[i].MatchID)]; ok {
+				t := teams
+				response[i].Teams = &t
+			}
+		}
 	}
 
 	respondWithJSON(w, http.StatusOK, response)
@@ -1516,6 +1664,12 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 		Cards:          cardResponses,
 		CardVoteTotals: &CardVoteTotals{TotalYes: totalYesSwipe, TotalNo: totalNoSwipe},
 	}
+	if teamsByMatchID, err := c.loadDebateTeamsByMatchIDs(ctx, []string{debate.MatchID}); err == nil {
+		if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
+			t := teams
+			resp.Teams = &t
+		}
+	}
 
 	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err == nil {
@@ -1624,10 +1778,12 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 				Home struct {
 					ID   int    `json:"id"`
 					Name string `json:"name"`
+					Logo string `json:"logo"`
 				} `json:"home"`
 				Away struct {
 					ID   int    `json:"id"`
 					Name string `json:"name"`
+					Logo string `json:"logo"`
 				} `json:"away"`
 			} `json:"teams"`
 			Goals struct {
@@ -1698,6 +1854,8 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 	return &MatchInfo{
 		HomeTeam:        match.Teams.Home.Name,
 		AwayTeam:        match.Teams.Away.Name,
+		HomeTeamLogo:    match.Teams.Home.Logo,
+		AwayTeamLogo:    match.Teams.Away.Logo,
 		Date:            match.Fixture.Date,
 		Status:          match.Fixture.Status.Short,
 		HomeScore:       homeScore,
@@ -1804,6 +1962,7 @@ func (c *Config) getDebatesPublicFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, summary)
 	}
+	c.attachTeamsToSummaries(ctx, out)
 	respondWithJSON(w, http.StatusOK, PublicDebateFeedResponse{Debates: out})
 }
 
@@ -1857,6 +2016,8 @@ func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		votedSummaries = append(votedSummaries, summary)
 	}
+	c.attachTeamsToSummaries(ctx, newSummaries)
+	c.attachTeamsToSummaries(ctx, votedSummaries)
 	respondWithJSON(w, http.StatusOK, DebateFeedResponse{
 		NewDebates:   newSummaries,
 		VotedDebates: votedSummaries,
@@ -2033,6 +2194,8 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 type MatchInfo struct {
 	HomeTeam        string
 	AwayTeam        string
+	HomeTeamLogo    string
+	AwayTeamLogo    string
 	Date            string
 	Status          string
 	HomeScore       int

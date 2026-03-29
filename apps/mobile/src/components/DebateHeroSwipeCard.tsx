@@ -20,7 +20,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import {Ionicons} from '@expo/vector-icons';
 import {useQuery} from '@tanstack/react-query';
-import type {DebateSummary, DebateResponse, DebateCard} from '../types/debate';
+import type {
+  DebateSummary,
+  DebateResponse,
+  DebateCard,
+  DebateTeams,
+} from '../types/debate';
 import type {Match} from '../types/match';
 import {fetchDebateById, setCardVote} from '../services/debate';
 import {rootNavigate} from '../navigation/rootNavigation';
@@ -58,6 +63,13 @@ function debatePillLabel(debateType: string): string {
 function formatVoteCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(n);
+}
+
+function resolveDebateTeams(
+  debate: DebateResponse | null | undefined,
+  summary: DebateSummary,
+): DebateTeams | undefined {
+  return debate?.teams ?? summary.teams;
 }
 
 function relativeTimeLabel(iso: string): string {
@@ -205,6 +217,18 @@ export default function DebateHeroSwipeCard({
 
   const headline = summary.headline.toUpperCase();
   const votes = summary.analytics?.total_votes ?? 0;
+  const teams = resolveDebateTeams(debate, summary);
+  const homeName = teams?.home?.name?.trim() ?? '';
+  const awayName = teams?.away?.name?.trim() ?? '';
+  const homeLogo = teams?.home?.logo?.trim() ?? '';
+  const awayLogo = teams?.away?.logo?.trim() ?? '';
+  const homeScore = teams?.home?.score;
+  const awayScore = teams?.away?.score;
+  const showTeamsRow = !!homeName || !!awayName;
+  const showScore =
+    summary.debate_type === 'post_match' &&
+    Number.isFinite(homeScore) &&
+    Number.isFinite(awayScore);
 
   const hasSource =
     !!summary.source_headline?.trim() ||
@@ -310,8 +334,7 @@ export default function DebateHeroSwipeCard({
       }
       if (!canSwipeVote) {
         if (authRequiredForVote) {
-          const pastThreshold =
-            dx > SWIPE_THRESHOLD || dx < -SWIPE_THRESHOLD;
+          const pastThreshold = dx > SWIPE_THRESHOLD || dx < -SWIPE_THRESHOLD;
           if (pastThreshold) {
             onPanResolved?.({
               summaryId: sid,
@@ -511,11 +534,52 @@ export default function DebateHeroSwipeCard({
             <Ionicons name="thumbs-down" size={56} color={TEXT} />
           </Animated.View>
           <View style={styles.heroInner}>
-            <View style={styles.pill}>
-              <Text style={styles.pillText}>
-                {debatePillLabel(summary.debate_type)}
-              </Text>
-            </View>
+            {showTeamsRow ? (
+              <View style={styles.teamsRow} accessibilityRole="text">
+                <View style={styles.teamSide}>
+                  {homeLogo ? (
+                    <Image
+                      source={{uri: homeLogo}}
+                      style={styles.teamLogo}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.teamLogoFallback}>
+                      <Ionicons name="shield-outline" size={14} color={MUTED} />
+                    </View>
+                  )}
+                  <Text style={styles.teamName} numberOfLines={1}>
+                    {homeName || 'Home'}
+                  </Text>
+                </View>
+                <Text style={styles.teamsVs}>
+                  {showScore ? `${homeScore} - ${awayScore}` : 'VS'}
+                </Text>
+                <View style={[styles.teamSide, styles.teamSideRight]}>
+                  {awayLogo ? (
+                    <Image
+                      source={{uri: awayLogo}}
+                      style={styles.teamLogo}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.teamLogoFallback}>
+                      <Ionicons name="shield-outline" size={14} color={MUTED} />
+                    </View>
+                  )}
+                  <Text style={styles.teamName} numberOfLines={1}>
+                    {awayName || 'Away'}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>
+                  {debatePillLabel(summary.debate_type)}
+                </Text>
+              </View>
+            )}
+            {showTeamsRow ? <View style={styles.teamsHeadlineDivider} /> : null}
             <Text style={styles.heroHeadline}>{headline}</Text>
             {hasSource ? (
               <Text
@@ -627,6 +691,61 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: BG,
     letterSpacing: 0.8,
+  },
+  teamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  teamSide: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 0,
+  },
+  teamSideRight: {
+    justifyContent: 'center',
+  },
+  teamLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  teamLogoFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  teamName: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    maxWidth: 120,
+  },
+  teamsVs: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    minWidth: 54,
+    textAlign: 'center',
+  },
+  teamsHeadlineDivider: {
+    alignSelf: 'center',
+    width: '80%',
+    height: 1,
+    backgroundColor: MUTED,
+    opacity: 0.6,
+    marginBottom: 12,
   },
   heroHeadline: {
     fontSize: 20,

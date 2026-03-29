@@ -104,7 +104,10 @@ function withHeroVoteInBinaryConsensus(
   summary: DebateSummary,
   stance: 'agree' | 'disagree',
 ): DebateSummary {
-  const prev = summary.binary_consensus ?? {agree_upvotes: 0, disagree_upvotes: 0};
+  const prev = summary.binary_consensus ?? {
+    agree_upvotes: 0,
+    disagree_upvotes: 0,
+  };
   return {
     ...summary,
     binary_consensus:
@@ -312,8 +315,9 @@ const MainDebatesScreen = () => {
                 void queryClient.invalidateQueries({
                   queryKey: mainDebatesFeedQueryKey,
                 });
-                const after =
-                  queryClient.getQueryData<UnifiedFeed>(mainDebatesFeedQueryKey);
+                const after = queryClient.getQueryData<UnifiedFeed>(
+                  mainDebatesFeedQueryKey,
+                );
                 const nextHeroId =
                   after?.kind === 'auth' ? after.new_debates[0]?.id : undefined;
                 if (nextHeroId != null && nextHeroId !== detail.debateId) {
@@ -398,8 +402,7 @@ const MainDebatesScreen = () => {
 
   if (isError) {
     return (
-      <View
-        style={[styles.centered, styles.errorWrap, {backgroundColor: BG}]}>
+      <View style={[styles.centered, styles.errorWrap, {backgroundColor: BG}]}>
         <StatusBar barStyle="light-content" />
         <Text style={styles.errorText}>{userFacingApiMessage(error)}</Text>
         <TouchableOpacity style={styles.ctaButton} onPress={() => refetch()}>
@@ -449,7 +452,8 @@ function ActivityDebateCard({
     if (!url) return;
     try {
       const parsed = new URL(url);
-      const isHttp = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      const isHttp =
+        parsed.protocol === 'http:' || parsed.protocol === 'https:';
       if (!isHttp) return;
       Linking.canOpenURL(url)
         .then(supported => {
@@ -506,17 +510,9 @@ function ActivityDebateCard({
       <View style={styles.barTrack}>
         {split != null ? (
           <View style={styles.barSplit}>
+            <View style={[styles.barSegAgree, {width: `${split.agreePct}%`}]} />
             <View
-              style={[
-                styles.barSegAgree,
-                {width: `${split.agreePct}%`},
-              ]}
-            />
-            <View
-              style={[
-                styles.barSegDisagree,
-                {width: `${split.disagreePct}%`},
-              ]}
+              style={[styles.barSegDisagree, {width: `${split.disagreePct}%`}]}
             />
           </View>
         ) : null}

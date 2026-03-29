@@ -16,8 +16,10 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
+import {useQuery} from '@tanstack/react-query';
 import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
 import type {DebateComment, DebateCard, ReactionCount} from '../types/debate';
+import {fetchDebateById} from '../services/debate';
 import {
   listComments,
   createComment as apiCreateComment,
@@ -91,6 +93,46 @@ const SingleDebateScreen = () => {
   const insets = useSafeAreaInsets();
   const {match, debate} = route.params;
   const {token, isLoggedIn} = useAuth();
+
+  const debateDetailQuery = useQuery({
+    queryKey: ['singleDebate', debate?.id],
+    queryFn: async () => {
+      if (debate?.id == null) return null;
+      return fetchDebateById(debate.id);
+    },
+    enabled: typeof debate?.id === 'number' && debate.id > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const teams = useMemo(() => {
+    const payloadTeams = debateDetailQuery.data?.teams ?? debate?.teams;
+    if (payloadTeams?.home?.name || payloadTeams?.away?.name) {
+      return payloadTeams;
+    }
+    const matchHomeName = match?.teams?.home?.name?.trim() ?? '';
+    const matchAwayName = match?.teams?.away?.name?.trim() ?? '';
+    const matchHomeLogo = match?.teams?.home?.logo?.trim() ?? '';
+    const matchAwayLogo = match?.teams?.away?.logo?.trim() ?? '';
+    if (!matchHomeName && !matchAwayName) {
+      return payloadTeams;
+    }
+    return {
+      home: {name: matchHomeName, logo: matchHomeLogo, score: match?.goals?.home ?? undefined},
+      away: {name: matchAwayName, logo: matchAwayLogo, score: match?.goals?.away ?? undefined},
+    };
+  }, [debateDetailQuery.data?.teams, debate?.teams, match]);
+
+  const homeName = teams?.home?.name?.trim() ?? '';
+  const awayName = teams?.away?.name?.trim() ?? '';
+  const homeLogo = teams?.home?.logo?.trim() ?? '';
+  const awayLogo = teams?.away?.logo?.trim() ?? '';
+  const homeScore = teams?.home?.score;
+  const awayScore = teams?.away?.score;
+  const showTeamsRow = !!homeName || !!awayName;
+  const showScore =
+    debate?.debate_type === 'post_match' &&
+    Number.isFinite(homeScore) &&
+    Number.isFinite(awayScore);
 
   const [comments, setComments] = useState<DebateComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -560,6 +602,40 @@ const SingleDebateScreen = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         {/* FR-006c: no AI analysis strip; optional source provenance only (FR-009). */}
+        {showTeamsRow ? (
+          <>
+            <View style={styles.teamsRow} accessibilityRole="text">
+              <View style={styles.teamSide}>
+                {homeLogo ? (
+                  <Image source={{uri: homeLogo}} style={styles.teamLogo} resizeMode="contain" />
+                ) : (
+                  <View style={styles.teamLogoFallback}>
+                    <Ionicons name="shield-outline" size={14} color={MUTED} />
+                  </View>
+                )}
+                <Text style={styles.teamName} numberOfLines={2}>
+                  {homeName || 'Home'}
+                </Text>
+              </View>
+              <Text style={styles.teamsVs}>
+                {showScore ? `${homeScore} - ${awayScore}` : 'VS'}
+              </Text>
+              <View style={[styles.teamSide, styles.teamSideRight]}>
+                {awayLogo ? (
+                  <Image source={{uri: awayLogo}} style={styles.teamLogo} resizeMode="contain" />
+                ) : (
+                  <View style={styles.teamLogoFallback}>
+                    <Ionicons name="shield-outline" size={14} color={MUTED} />
+                  </View>
+                )}
+                <Text style={styles.teamName} numberOfLines={2}>
+                  {awayName || 'Away'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.teamsHeadlineDivider} />
+          </>
+        ) : null}
         <Text style={styles.headline}>{headline}</Text>
         {sourceHeadline || sourceUrl || sourcePublishedAt ? (
           <View style={styles.sourceBlock}>
@@ -888,6 +964,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 24,
+  },
+  teamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  teamSide: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 0,
+  },
+  teamSideRight: {
+    justifyContent: 'center',
+  },
+  teamLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  teamLogoFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  teamName: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    maxWidth: 120,
+  },
+  teamsVs: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    minWidth: 54,
+    textAlign: 'center',
+  },
+  teamsHeadlineDivider: {
+    alignSelf: 'center',
+    width: '80%',
+    height: 1,
+    backgroundColor: MUTED,
+    opacity: 0.6,
+    marginBottom: 12,
   },
   meterSection: {
     marginBottom: 20,
