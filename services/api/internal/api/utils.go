@@ -11,23 +11,48 @@ import (
 	"time"
 )
 
+// apiErrorBody is the standard JSON error shape for API clients.
+type apiErrorBody struct {
+	Error string `json:"error"`
+	Code  string `json:"code,omitempty"`
+}
+
 func respondWithError(w http.ResponseWriter, code int, msg string) {
 	if code > 499 {
 		log.Println("Responding with 5XX error: ", msg)
 	}
-	type errResponse struct {
-		Error string `json:"error"`
+	respondWithJSON(w, code, apiErrorBody{Error: msg})
+}
+
+// respondWithErrorCode sends a stable client message plus a machine-readable code (omit err details).
+func respondWithErrorCode(w http.ResponseWriter, httpCode int, publicMsg, errCode string) {
+	if httpCode > 499 {
+		log.Printf("Responding with 5XX: %s (code=%s)", publicMsg, errCode)
 	}
-	respondWithJSON(w, code, errResponse{
-		Error: msg,
+	respondWithJSON(w, httpCode, apiErrorBody{Error: publicMsg, Code: errCode})
+}
+
+// logErrorAndRespond500 logs the underlying error server-side and returns a generic 500 + code.
+func logErrorAndRespond500(w http.ResponseWriter, logCtx string, err error, errCode string) {
+	log.Printf("api %s: %v", logCtx, err)
+	respondWithJSON(w, http.StatusInternalServerError, apiErrorBody{
+		Error: "Something went wrong. Please try again.",
+		Code:  errCode,
 	})
 }
+
+const errCodeJSONMarshal = "API_RESPONSE_ENCODE_FAILED"
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Failed to marshal JSON response: %v", payload)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to marshal JSON response: %v", err))
+		log.Printf("Failed to marshal JSON response: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(apiErrorBody{
+			Error: "Something went wrong. Please try again.",
+			Code:  errCodeJSONMarshal,
+		})
 		return
 	}
 

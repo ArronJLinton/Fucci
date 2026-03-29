@@ -22,6 +22,65 @@ export interface DebateContent {
 
 export interface DebatePrompt extends DebateContent {}
 
+/** Analytics snippet on feed summaries (009 GET …/public-feed, …/feed) */
+export interface DebateAnalyticsSummary {
+  total_votes: number;
+  total_comments: number;
+  engagement_score: number;
+}
+
+/** Feed bar: agree side = upvotes on agree cards; disagree side = API tally (downvotes on agree + votes on disagree cards). */
+export interface DebateBinaryConsensus {
+  agree_upvotes: number;
+  disagree_upvotes: number;
+}
+
+export interface DebateTeamSide {
+  name?: string;
+  logo?: string;
+  score?: number;
+}
+
+export interface DebateTeams {
+  home?: DebateTeamSide;
+  away?: DebateTeamSide;
+}
+
+/**
+ * Minimal debate row for main feeds (009) — aligns with contracts/debates-feed.yaml.
+ * Optional provenance fields when API/DB expose them (004).
+ */
+export interface DebateSummary {
+  id: number;
+  match_id: string;
+  headline: string;
+  description?: string;
+  debate_type: string;
+  ai_generated?: boolean;
+  created_at: string;
+  updated_at?: string;
+  analytics?: DebateAnalyticsSummary;
+  /** Agree-side upvotes vs disagree-side downvotes for list UI (optional on older API builds). */
+  binary_consensus?: DebateBinaryConsensus;
+  /** Authenticated “voted” list — latest swipe time for sorting */
+  last_voted_at?: string;
+  source_headline?: string;
+  source_url?: string;
+  source_published_at?: string;
+  teams?: DebateTeams;
+}
+
+/** Guest browse — GET /debates/public-feed */
+export interface PublicDebateFeedResponse {
+  debates: DebateSummary[];
+}
+
+/** Signed-in — GET /debates/feed */
+export interface DebateFeedResponse {
+  new_debates: DebateSummary[];
+  voted_debates: DebateSummary[];
+}
+
 /** List item from GET /debates/match (no cards) */
 export interface DebateListItem {
   id: number;
@@ -59,6 +118,11 @@ export interface DebateResponse extends DebateContent {
   updated_at?: string;
   cards: DebateCard[];
   card_vote_totals?: CardVoteTotals;
+  /** Optional 004/009 provenance when API exposes it */
+  source_headline?: string;
+  source_url?: string;
+  source_published_at?: string;
+  teams?: DebateTeams;
 }
 
 export type DebateType = 'pre_match' | 'post_match';

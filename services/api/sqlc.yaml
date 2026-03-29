@@ -1,3 +1,6 @@
+# All *.sql files under queries/ are included (e.g. sql/queries/debates.sql).
+# Regenerate Go: cd services/api && sqlc generate
+# Requires: sqlc CLI — https://docs.sqlc.dev/en/latest/overview/install.html
 version: "2"
 sql:
   - engine: "postgresql"

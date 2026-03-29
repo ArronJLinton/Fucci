@@ -81,12 +81,66 @@ type DebatePrompt struct {
 	Headline    string       `json:"headline"`
 	Description string       `json:"description"`
 	Cards       []DebateCard `json:"cards"`
+	// Three seeded thread starters: pro agree, pro disagree, wildcard/hot-take (passionate fan voice).
+	Comments []string `json:"comments"`
 }
 
 type DebateCard struct {
-	Stance      string `json:"stance"` // "agree", "disagree", "wildcard"
+	Stance      string `json:"stance"` // "agree", "disagree" (one binary vote per debate)
 	Title       string `json:"title"`
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
+}
+
+// NormalizeDebatePrompt keeps one agree + one disagree card, fills empty descriptions from title, caps comments at 3.
+func NormalizeDebatePrompt(p *DebatePrompt) {
+	if p == nil {
+		return
+	}
+	var agreeCard, disagreeCard DebateCard
+	var hasAgree, hasDisagree bool
+	for _, c := range p.Cards {
+		if c.Stance == "agree" && strings.TrimSpace(c.Title) != "" && !hasAgree {
+			hasAgree = true
+			agreeCard = c
+		}
+		if c.Stance == "disagree" && strings.TrimSpace(c.Title) != "" && !hasDisagree {
+			hasDisagree = true
+			disagreeCard = c
+		}
+	}
+	p.Cards = nil
+	if hasAgree {
+		if strings.TrimSpace(agreeCard.Description) == "" {
+			agreeCard.Description = agreeCard.Title
+		}
+		p.Cards = append(p.Cards, agreeCard)
+	}
+	if hasDisagree {
+		if strings.TrimSpace(disagreeCard.Description) == "" {
+			disagreeCard.Description = disagreeCard.Title
+		}
+		p.Cards = append(p.Cards, disagreeCard)
+	}
+	if len(p.Comments) > 3 {
+		p.Comments = p.Comments[:3]
+	}
+}
+
+// DebatePromptBinaryOK is true when there is a headline and exactly one usable agree + disagree card pair.
+func DebatePromptBinaryOK(p *DebatePrompt) bool {
+	if p == nil || strings.TrimSpace(p.Headline) == "" {
+		return false
+	}
+	var hasAgree, hasDisagree bool
+	for _, c := range p.Cards {
+		if c.Stance == "agree" && strings.TrimSpace(c.Title) != "" {
+			hasAgree = true
+		}
+		if c.Stance == "disagree" && strings.TrimSpace(c.Title) != "" {
+			hasDisagree = true
+		}
+	}
+	return hasAgree && hasDisagree
 }
 
 // DefaultDebateSetCount is the default number of debates returned per type when generating a set.
@@ -204,6 +258,7 @@ func (pg *PromptGenerator) generatePrompt(ctx context.Context, matchData MatchDa
 		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
 	}
 
+	NormalizeDebatePrompt(&prompt)
 	return &prompt, nil
 }
 
@@ -233,83 +288,68 @@ func extractJSONArrayFromContent(content string) string {
 
 func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
 	if promptType == "pre_match" {
-		return `You are a football debate prompt generator. Create engaging, controversial debate topics for PRE-MATCH discussions.
+		return `You are a football debate prompt generator for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
 
-IMPORTANT: This is a PRE-MATCH debate. The match has NOT happened yet. Focus on predictions, expectations, and pre-match analysis.
+IMPORTANT: PRE-MATCH — the match has NOT happened yet. No final scores or post-match outcomes.
 
-Respond with ONLY a single JSON object (no markdown, no code fences, no extra text). Use this structure:
+The headline must read as a clear statement or question fans can answer YES or NO to (agree vs disagree). Frame it so "agree" and "disagree" are natural opposites.
+
+Respond with ONLY one JSON object (no markdown, no code fences, no extra text). Exact shape:
 {
-  "headline": "A compelling, controversial headline that will spark debate",
-  "description": "A brief description providing context for the debate",
+  "headline": "Bold, controversial line fans can agree or disagree with (e.g. claim or polarizing question)",
+  "description": "Short context that raises the stakes (why it matters for this fixture)",
   "cards": [
-    {
-      "stance": "agree",
-      "title": "Title for the agree stance",
-      "description": "Brief description supporting this stance"
-    },
-    {
-      "stance": "disagree", 
-      "title": "Title for the disagree stance",
-      "description": "Brief description supporting this stance"
-    },
-    {
-      "stance": "wildcard",
-      "title": "Title for a wildcard/unexpected stance",
-      "description": "Brief description for an unexpected perspective"
-    }
+    { "stance": "agree", "title": "Short label for the YES / agree side (e.g. how you'd vote if you buy the headline)" },
+    { "stance": "disagree", "title": "Short label for the NO / disagree side (e.g. how you'd vote if you reject the headline)" }
+  ],
+  "comments": [
+    "First comment: passionate fan voice backing the agree side",
+    "Second comment: passionate fan voice backing the disagree side",
+    "Third comment: spicy wildcard / hot-take or angle that still fits the debate (not analyst-speak)"
   ]
 }
 
-Focus on:
-- Lineup decisions and tactical choices
-- Player form and selection controversies
-- Managerial decisions
-- Bold predictions about what will happen
-- Historical context and rivalries
-- Pre-match expectations and concerns
+Rules:
+- Exactly two cards: only "agree" and "disagree". No wildcard card. No third card.
+- Card objects use only "stance" and "title" (no per-card description field).
+- Exactly three strings in "comments". They seed the comments section before real users post.
+- Comments must sound like real supporters in the stands or group chat: emotional, direct, maybe messy, NEVER like a polished TV pundit. Avoid jargon stacks (e.g. don't lean on "low block", "xG", "progressive carries" unless a normal fan would say it). Short clauses, heat, banter, and belief are good.
+- Keep everything PG-13: no slurs, threats, hate, or harassment.
 
-DO NOT reference match results, final scores, or post-match analysis since the match hasn't happened yet.
+Topic angles for pre-match:
+- Lineups, form, pressure, predictions, rivalries, manager calls, expectations.
 
-Make the debate engaging and controversial but respectful.`
-	} else {
-		return `You are a football debate prompt generator. Create engaging, controversial debate topics for POST-MATCH discussions.
-
-IMPORTANT: This is a POST-MATCH debate. The match has already happened. Focus on analysis of what occurred.
-
-Respond with ONLY a single JSON object (no markdown, no code fences, no extra text). Use this structure:
-{
-  "headline": "A compelling, controversial headline that will spark debate",
-  "description": "A brief description providing context for the debate",
-  "cards": [
-    {
-      "stance": "agree",
-      "title": "Title for the agree stance", 
-      "description": "Brief description supporting this stance"
-    },
-    {
-      "stance": "disagree",
-      "title": "Title for the disagree stance",
-      "description": "Brief description supporting this stance"
-    },
-    {
-      "stance": "wildcard",
-      "title": "Title for a wildcard/unexpected stance",
-      "description": "Brief description for an unexpected perspective"
-    }
-  ]
-}
-
-Focus on:
-- Key moments and turning points from the match
-- Controversial decisions (refereeing, VAR)
-- Player performances and impact
-- Tactical changes and their effectiveness
-- Social media reactions and fan sentiment
-- Post-match analysis and what-ifs
-- Analysis of the final result
-
-Make the debate engaging and controversial but respectful.`
+DO NOT reference final score or "after the match" facts.`
 	}
+	return `You are a football debate prompt generator for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
+
+IMPORTANT: POST-MATCH — the match has finished. Use what happened; reference result and moments when useful.
+
+The headline must read as a clear statement or question fans can answer YES or NO to. "Agree" and "disagree" must be direct opposites.
+
+Respond with ONLY one JSON object (no markdown, no code fences, no extra text). Exact shape:
+{
+  "headline": "Bold line fans can agree or disagree with",
+  "description": "Short context from the match that fuels the argument",
+  "cards": [
+    { "stance": "agree", "title": "Short label for the YES / agree side" },
+    { "stance": "disagree", "title": "Short label for the NO / disagree side" }
+  ],
+  "comments": [
+    "Passionate fan comment supporting the agree side",
+    "Passionate fan comment supporting the disagree side",
+    "Wildcard / hot-take comment (still about this debate; fan voice not pundit voice)"
+  ]
+}
+
+Rules:
+- Exactly two cards: only "agree" and "disagree". No wildcard card.
+- Card objects: only "stance" and "title".
+- Exactly three "comments" strings for seeded replies.
+- Comments: passionate fan energy, engaging, conversational; NOT polished analyst prose or heavy tactical jargon unless a fan would naturally say it.
+- PG-13 only.
+
+Good angles: turning points, calls, performances, blame, praise, narratives after the result.`
 }
 
 func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType string) string {
@@ -472,76 +512,33 @@ func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int)
 		phaseNote = "The match has already happened. Focus on what actually happened, who delivered, who failed, tactical consequences, emotional fallout, blame, praise, and legacy-defining takeaways."
 	}
 
-	return fmt.Sprintf(`You are an elite football debate producer creating highly engaging, hot-topic debate prompts for fans.
-
-	Your tone should feel like a mix of:
-		- high-energy studio debate television
-		- elite football punditry
-		- dramatic matchday storytelling
-		- social-first, comment-driving football media
-
-	The goal is to create debates that feel:
-		- engaging
-		- controversial
-		- entertaining
-		- bold
-		- juicy
-		- emotionally charged
-		- opinion-splitting
-		- fun
-		- sharp
-		- irresistible to comment on
+	return fmt.Sprintf(`You are an elite football debate producer for a mobile app: ONE vote per debate (agree vs disagree on a single proposition).
 
 	IMPORTANT: This is a %s debate. %s
 
-	You are NOT writing dry analysis.
-	You are writing football debate topics that feel explosive, urgent, and impossible to ignore.
+	Each debate is binary: a headline fans can agree or disagree with, two stance labels (agree/disagree), and three seeded comments in a passionate FAN voice (not polished pundit copy; avoid analyst jargon unless a normal supporter would say it). Comments should feel like stands or group-chat energy: short, heated, believable, PG-13.
 
-	Style requirements:
-		- Every debate must feel like something fans would argue about immediately in the comments.
-		- Use strong football language: bottled it, exposed, statement win, fraud talk, legacy game, overhyped, disrespected, carrying, invisible, big-game player, tactically outclassed, etc. Only when it fits naturally.
-		- Create tension, conflict, and personality in the framing.
-		- Lean into pressure, pride, rivalry, momentum, star power, tactics, manager decisions, fan expectations, and legacy.
-		- Debate headlines should feel punchy, provocative, and entertaining.
-		- Descriptions should add context and raise the stakes.
-		- Keep it PG-13: fiery and controversial, but never hateful, abusive, defamatory, sexually explicit, discriminatory, or threatening.
-		- Do not promote violence or harassment.
-		- Avoid repetitive phrasing and generic headlines.
+	JSON rules for EVERY object in the array:
+	- Exactly two cards: { "stance": "agree", "title": "..." } and { "stance": "disagree", "title": "..." } only. No wildcard card. No "description" on cards.
+	- "comments" must be an array of exactly three strings: (1) backs agree, (2) backs disagree, (3) wildcard/hot-take still tied to this debate.
+	- Headline frames an agree/disagree split; description adds match-specific stakes.
 
-	Debate quality bar:
-		- Each debate should sound like a segment title from a top football studio show.
-		- Each debate should be specific to the match context, not generic football filler.
-		- Each debate should invite multiple valid opinions, not have one obvious answer.
-		- The best debates should make fans want to defend their club, attack a rival view, or back a player/manager passionately.
+	Keep debates distinct: different angles, emotions, and stakes; no recycled headlines.
 
-	Card requirements:
-		- "agree" should sound like a strong, assertive take.
-		- "disagree" should sound like a strong counterpunch.
-		- "wildcard" should add a surprising third angle, twist, or bigger-picture angle.
-		- Card titles should be short, punchy, and memorable.
-		- Card descriptions should clearly explain the stance in an engaging way.
+	Respond with ONLY a JSON array of exactly %d objects (no markdown, no code fences, no extra text).
 
-	Respond with ONLY a JSON array of exactly %d debate objects (no markdown, no code fences, no extra text).
-
-	Each object must use this exact structure:
+	Each object must match this structure:
 	{
-	"headline": "A bold, provocative football debate headline",
-	"description": "A sharp, high-stakes setup that gives context and invites argument",
+	"headline": "Statement or question fans can agree or disagree with",
+	"description": "Context that fuels the split",
 	"cards": [
-		{ "stance": "agree", "title": "Punchy pro stance", "description": "Why this take is valid" },
-		{ "stance": "disagree", "title": "Punchy counter stance", "description": "Why this take should be challenged" },
-		{ "stance": "wildcard", "title": "Unexpected third angle", "description": "A twist, bigger-picture view, or more nuanced take" }
-		]
+		{ "stance": "agree", "title": "Short YES-side label" },
+		{ "stance": "disagree", "title": "Short NO-side label" }
+	],
+	"comments": ["fan comment pro-agree", "fan comment pro-disagree", "fan wildcard take"]
 	}
 
-	Make each of the %d debates clearly distinct:
-	- different football angles
-	- different emotional triggers
-	- different players/managers/tactical themes/stakes
-	- no duplicate framing
-	- no recycled language
-
-	Return only the JSON array.`, phase, phaseNote, count, count)
+	Return only the JSON array.`, phase, phaseNote, count)
 }
 
 // GenerateDebateSetPrompt performs one AI call and returns multiple debate prompts (e.g. 3) for the given type.
@@ -574,6 +571,9 @@ func (pg *PromptGenerator) GenerateDebateSetPrompt(ctx context.Context, matchDat
 	var prompts []DebatePrompt
 	if err := json.Unmarshal([]byte(content), &prompts); err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAI response as array: %w", err)
+	}
+	for i := range prompts {
+		NormalizeDebatePrompt(&prompts[i])
 	}
 	return prompts, nil
 }

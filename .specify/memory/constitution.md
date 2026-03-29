@@ -100,8 +100,9 @@ The codebase MUST be approachable for new developers and support efficient devel
 - Dependency management with lock files
 - Environment configuration management
 - Code review templates and guidelines
+- **Documentation paths**: Specs, tasks, READMEs, plans, and other shared docs MUST reference locations with **repository-relative paths** from the monorepo root (e.g. `specs/009-feature-name/`, `services/api/…`). **Do not** embed machine-specific **absolute paths** (`/Users/…`, `/home/…`, `C:\…`) in committed documentation, templates, or CI config — they break for other contributors and automation.
 
-**Rationale**: Good developer experience reduces onboarding time, improves team productivity, and enables faster feature delivery.
+**Rationale**: Good developer experience reduces onboarding time, improves team productivity, and enables faster feature delivery. Portable paths keep docs and tooling usable everywhere.
 
 ## Development Workflow
 
@@ -175,4 +176,4 @@ This constitution supersedes all other development practices and MUST be followe
 
 **Compliance**: All pull requests and code reviews MUST verify constitution compliance. Violations require justification or remediation before merge.
 
-**Version**: 1.0.0 | **Ratified**: 2025-01-23 | **Last Amended**: 2025-01-23
+**Version**: 1.0.0 | **Ratified**: 2025-01-23 | **Last Amended**: 2026-03-27

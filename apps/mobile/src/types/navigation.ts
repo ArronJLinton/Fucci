@@ -14,10 +14,25 @@ export type ReturnToDebateParams = {
   pendingAction?: AuthPendingAction;
 };
 
+/** Stack inside the Debates tab (mirrors HomeStack: list → detail) */
+export type DebatesStackParamList = {
+  MainDebates: undefined;
+  SingleDebate: {
+    match: Match;
+    debate: DebateResponse;
+    selectedCardIndex?: number;
+    pendingAction?: AuthPendingAction;
+  };
+  NewsWebView: {
+    url: string;
+  };
+};
+
 /** Tab screens inside the Main (bottom tab) navigator */
 export type MainTabParamList = {
   Home: undefined;
   News: undefined;
+  Debates: undefined;
   Profile: undefined;
 };
 

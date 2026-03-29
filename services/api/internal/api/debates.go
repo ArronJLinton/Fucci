@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +17,53 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 )
+
+// Stable client error codes for debate routes (never echo raw DB/driver errors).
+const (
+	errCodeDebateDBNotConfigured = "DEBATE_DB_NOT_CONFIGURED"
+	errCodeDebateAuthRequired      = "DEBATE_AUTH_REQUIRED"
+
+	errCodeDebateInvalidBody     = "DEBATE_INVALID_BODY"
+	errCodeDebateValidation      = "DEBATE_VALIDATION_FAILED"
+	errCodeDebateInvalidType     = "DEBATE_INVALID_DEBATE_TYPE"
+	errCodeDebateInvalidID       = "DEBATE_INVALID_ID"
+	errCodeDebateNotFound        = "DEBATE_NOT_FOUND"
+	errCodeDebateMatchIDRequired = "DEBATE_MATCH_ID_REQUIRED"
+	errCodeDebateInvalidStance   = "DEBATE_INVALID_STANCE"
+	errCodeDebateInvalidMatchID  = "DEBATE_INVALID_MATCH_ID"
+
+	errCodeDebateCreate    = "DEBATE_CREATE_FAILED"
+	errCodeDebateGet       = "DEBATE_GET_FAILED"
+	errCodeDebateCards     = "DEBATE_CARDS_LOAD_FAILED"
+	errCodeDebateAnalytics = "DEBATE_ANALYTICS_LOAD_FAILED"
+	errCodeVoteCounts      = "DEBATE_VOTE_COUNTS_FAILED"
+	errCodeDebateListMatch = "DEBATE_LIST_MATCH_FAILED"
+	errCodeMatchInfo       = "DEBATE_MATCH_INFO_FAILED"
+	errCodeAggregateMatch  = "DEBATE_MATCH_AGGREGATE_FAILED"
+	errCodeAIPrompt        = "DEBATE_AI_PROMPT_FAILED"
+	errCodeSoftDelete      = "DEBATE_SOFT_DELETE_FAILED"
+	errCodeCreateCard      = "DEBATE_CARD_CREATE_FAILED"
+	errCodeComments        = "DEBATE_COMMENTS_LOAD_FAILED"
+	errCodeGenSetMatch     = "DEBATE_GENSET_MATCH_FAILED"
+	errCodeGenSetAggregate = "DEBATE_GENSET_AGGREGATE_FAILED"
+	errCodeGenSetGenerate  = "DEBATE_GENSET_GENERATE_FAILED"
+	errCodeGenSetEmpty     = "DEBATE_GENSET_EMPTY"
+	errCodeGenSetTimeout   = "DEBATE_GENSET_TIMEOUT"
+	errCodeFeedPublic      = "DEBATE_FEED_PUBLIC_FAILED"
+	errCodeFeedNew         = "DEBATE_FEED_NEW_FAILED"
+	errCodeFeedVoted       = "DEBATE_FEED_VOTED_FAILED"
+	errCodeTopDebates      = "DEBATE_TOP_FAILED"
+	errCodeBuildResponse   = "DEBATE_RESPONSE_BUILD_FAILED"
+	errCodeDelete          = "DEBATE_DELETE_FAILED"
+	errCodeRestore         = "DEBATE_RESTORE_FAILED"
+	errCodeAINotConfigured = "DEBATE_AI_NOT_CONFIGURED"
+	errCodeGenPromptInvalid = "DEBATE_GENERATION_INVALID_PROMPT"
+	errCodeNoValidCards    = "DEBATE_NO_VALID_CARDS"
+	errCodeGenSetInFlight  = "DEBATE_GENSET_IN_PROGRESS"
+	errCodeGenSetRateLimit = "DEBATE_GENSET_RATE_LIMIT"
+)
+
+const errMsgTryAgain = "Something went wrong. Please try again."
 
 // Debate API types
 type CreateDebateRequest struct {
@@ -61,6 +109,17 @@ type CardVoteTotals struct {
 	TotalNo  int `json:"total_no"`
 }
 
+type DebateTeamSide struct {
+	Name  string `json:"name,omitempty"`
+	Logo  string `json:"logo,omitempty"`
+	Score *int   `json:"score,omitempty"`
+}
+
+type DebateTeams struct {
+	Home DebateTeamSide `json:"home"`
+	Away DebateTeamSide `json:"away"`
+}
+
 type DebateResponse struct {
 	ID              int32                    `json:"id"`
 	MatchID         string                   `json:"match_id"`
@@ -73,6 +132,7 @@ type DebateResponse struct {
 	Cards           []DebateCardResponse     `json:"cards,omitempty"`
 	CardVoteTotals  *CardVoteTotals          `json:"card_vote_totals,omitempty"`
 	Analytics       *DebateAnalyticsResponse `json:"analytics,omitempty"`
+	Teams           *DebateTeams             `json:"teams,omitempty"`
 }
 
 type DebateCardResponse struct {
@@ -103,18 +163,38 @@ func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
 	return user.ID, nil
 }
 
-// insertSeededComments creates one comment per card for the debate, attributed to the system user (Fucci).
-func (c *Config) insertSeededComments(ctx context.Context, debateID int32, cards []ai.DebateCard) {
+// insertSeededComments inserts up to three thread starters from AI prompt.comments, with fallback to card titles.
+func (c *Config) insertSeededComments(ctx context.Context, debateID int32, prompt *ai.DebatePrompt) {
+	if prompt == nil {
+		return
+	}
 	systemUserID, err := c.getSystemUserID(ctx)
 	if err != nil {
 		log.Printf("[debate] seeded comments skipped: system user not found (set SYSTEM_USER_EMAIL to your system user email, e.g. contact@magistri.dev): %v", err)
 		return
 	}
-	for _, card := range cards {
-		content := card.Description
-		if content == "" {
-			content = card.Title
+	var contents []string
+	for _, s := range prompt.Comments {
+		if t := strings.TrimSpace(s); t != "" && len(contents) < 3 {
+			contents = append(contents, t)
 		}
+	}
+	for _, card := range prompt.Cards {
+		if len(contents) >= 3 {
+			break
+		}
+		if card.Stance != "agree" && card.Stance != "disagree" {
+			continue
+		}
+		t := strings.TrimSpace(card.Description)
+		if t == "" {
+			t = strings.TrimSpace(card.Title)
+		}
+		if t != "" {
+			contents = append(contents, t)
+		}
+	}
+	for _, content := range contents {
 		if content == "" {
 			continue
 		}
@@ -168,6 +248,322 @@ type DebateAnalyticsResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+// DebateAnalyticsSummary is the feed/list analytics shape (009 debates-feed contract).
+type DebateAnalyticsSummary struct {
+	TotalVotes      int     `json:"total_votes"`
+	TotalComments   int     `json:"total_comments"`
+	EngagementScore float64 `json:"engagement_score"`
+}
+
+// DebateBinaryConsensus is feed-list tallies for the pulse bar: agree side = upvotes on agree cards;
+// disagree side = downvotes on agree plus all swipe votes on disagree cards (legacy upvote-on-disagree + downvote-on-disagree).
+// JSON field disagree_upvotes names the disagree side of the bar (not only literal upvotes).
+type DebateBinaryConsensus struct {
+	AgreeUpvotes    int `json:"agree_upvotes"`
+	DisagreeUpvotes int `json:"disagree_upvotes"`
+}
+
+// DebateSummary is a minimal debate row for public and authenticated feed responses (009).
+type DebateSummary struct {
+	ID                int32                   `json:"id"`
+	MatchID           string                  `json:"match_id"`
+	Headline          string                  `json:"headline"`
+	Description       string                  `json:"description,omitempty"`
+	DebateType        string                  `json:"debate_type"`
+	AIGenerated       bool                    `json:"ai_generated,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at,omitempty"`
+	Analytics         *DebateAnalyticsSummary `json:"analytics,omitempty"`
+	BinaryConsensus   DebateBinaryConsensus   `json:"binary_consensus"`
+	LastVotedAt       *time.Time              `json:"last_voted_at,omitempty"`
+	SourceHeadline    *string                 `json:"source_headline,omitempty"`
+	SourceURL         *string                 `json:"source_url,omitempty"`
+	SourcePublishedAt *time.Time              `json:"source_published_at,omitempty"`
+	Teams             *DebateTeams            `json:"teams,omitempty"`
+}
+
+// PublicDebateFeedResponse is GET /debates/public-feed (guest browse).
+type PublicDebateFeedResponse struct {
+	Debates []DebateSummary `json:"debates"`
+}
+
+// DebateFeedResponse is GET /debates/feed (authenticated new vs voted buckets).
+type DebateFeedResponse struct {
+	NewDebates   []DebateSummary `json:"new_debates"`
+	VotedDebates []DebateSummary `json:"voted_debates"`
+}
+
+const (
+	defaultPublicFeedLimit   = int32(30)
+	maxPublicFeedLimit       = int32(50)
+	defaultFeedBucketLimit   = int32(20)
+	maxFeedBucketLimit       = int32(50)
+)
+
+// parsePositiveInt32Query parses a query param as a positive int32, clamped to [1, max]; invalid/missing uses def.
+func parsePositiveInt32Query(r *http.Request, name string, def, max int32) int32 {
+	s := r.URL.Query().Get(name)
+	if s == "" {
+		return def
+	}
+	v, err := strconv.ParseInt(s, 10, 32)
+	if err != nil || v < 1 {
+		return def
+	}
+	out := int32(v)
+	if out > max {
+		return max
+	}
+	return out
+}
+
+func buildDebateSummary(
+	id int32,
+	matchID, debateType, headline string,
+	description sql.NullString,
+	aiGenerated sql.NullBool,
+	createdAt, updatedAt sql.NullTime,
+	totalVotes, totalComments sql.NullInt32,
+	engagementScore sql.NullString,
+	lastVotedAt *time.Time,
+) (DebateSummary, error) {
+	s := DebateSummary{
+		ID:         id,
+		MatchID:    matchID,
+		DebateType: debateType,
+		Headline:   headline,
+	}
+	if description.Valid {
+		s.Description = description.String
+	}
+	if aiGenerated.Valid {
+		s.AIGenerated = aiGenerated.Bool
+	}
+	if !createdAt.Valid {
+		return DebateSummary{}, fmt.Errorf("missing created_at for debate_id=%d", id)
+	}
+	s.CreatedAt = createdAt.Time
+	if updatedAt.Valid {
+		s.UpdatedAt = updatedAt.Time
+	}
+	if lastVotedAt != nil {
+		s.LastVotedAt = lastVotedAt
+	}
+	if totalVotes.Valid {
+		eng := 0.0
+		if engagementScore.Valid {
+			if score, err := strconv.ParseFloat(engagementScore.String, 64); err == nil {
+				eng = score
+			}
+		}
+		tc := 0
+		if totalComments.Valid {
+			tc = int(totalComments.Int32)
+		}
+		s.Analytics = &DebateAnalyticsSummary{
+			TotalVotes:      int(totalVotes.Int32),
+			TotalComments:   tc,
+			EngagementScore: eng,
+		}
+	}
+	return s, nil
+}
+
+func debateSummaryFromPublicFeedRow(row database.ListDebatesPublicFeedRow) (DebateSummary, error) {
+	s, err := buildDebateSummary(
+		row.ID, row.MatchID, row.DebateType, row.Headline,
+		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
+	)
+	if err != nil {
+		return DebateSummary{}, err
+	}
+	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
+	return s, nil
+}
+
+func debateSummaryFromNewFeedRow(row database.ListDebatesFeedNewForUserRow) (DebateSummary, error) {
+	s, err := buildDebateSummary(
+		row.ID, row.MatchID, row.DebateType, row.Headline,
+		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.TotalVotes, row.TotalComments, row.EngagementScore, nil,
+	)
+	if err != nil {
+		return DebateSummary{}, err
+	}
+	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
+	return s, nil
+}
+
+func lastVotedAtFromSQLCIface(v interface{}) *time.Time {
+	if v == nil {
+		return nil
+	}
+	if t, ok := v.(time.Time); ok {
+		return &t
+	}
+	return nil
+}
+
+// intFromSQLCIface coerces COUNT() / bigint driver values from sqlc interface{} fields.
+func intFromSQLCIface(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	switch n := v.(type) {
+	case int64:
+		return int(n)
+	case int32:
+		return int(n)
+	case int:
+		return n
+	case uint64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryConsensus {
+	return DebateBinaryConsensus{
+		AgreeUpvotes:    intFromSQLCIface(agreeIface),
+		DisagreeUpvotes: intFromSQLCIface(disagreeIface),
+	}
+}
+
+func normalizeMatchID(matchID string) string {
+	return strings.TrimSpace(matchID)
+}
+
+func (c *Config) loadDebateTeamsByMatchIDs(ctx context.Context, matchIDs []string) (map[string]DebateTeams, error) {
+	if c.DBConn == nil || len(matchIDs) == 0 {
+		return map[string]DebateTeams{}, nil
+	}
+	seen := make(map[string]struct{}, len(matchIDs))
+	ids := make([]string, 0, len(matchIDs))
+	for _, raw := range matchIDs {
+		id := normalizeMatchID(raw)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return map[string]DebateTeams{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	q := fmt.Sprintf(`
+SELECT m.external_match_id, ht.name, ht.logo_url, m.home_score, at.name, at.logo_url, m.away_score
+FROM matches m
+LEFT JOIN teams ht ON m.home_team_id = ht.id
+LEFT JOIN teams at ON m.away_team_id = at.id
+WHERE m.external_match_id IN (%s)
+`, strings.Join(placeholders, ","))
+
+	rows, err := c.DBConn.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[string]DebateTeams, len(ids))
+	for rows.Next() {
+		var matchID string
+		var homeName, homeLogo, awayName, awayLogo sql.NullString
+		var homeScore, awayScore sql.NullInt32
+		if err := rows.Scan(&matchID, &homeName, &homeLogo, &homeScore, &awayName, &awayLogo, &awayScore); err != nil {
+			return nil, err
+		}
+		var homeScorePtr *int
+		if homeScore.Valid {
+			v := int(homeScore.Int32)
+			homeScorePtr = &v
+		}
+		var awayScorePtr *int
+		if awayScore.Valid {
+			v := int(awayScore.Int32)
+			awayScorePtr = &v
+		}
+		out[normalizeMatchID(matchID)] = DebateTeams{
+			Home: DebateTeamSide{Name: homeName.String, Logo: homeLogo.String, Score: homeScorePtr},
+			Away: DebateTeamSide{Name: awayName.String, Logo: awayLogo.String, Score: awayScorePtr},
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Fallback: if match rows are missing in our DB, enrich from fixtures API.
+	for _, id := range ids {
+		if _, ok := out[id]; ok {
+			continue
+		}
+		matchInfo, err := c.getMatchInfo(ctx, id)
+		if err != nil {
+			continue
+		}
+		hs := matchInfo.HomeScore
+		as := matchInfo.AwayScore
+		out[id] = DebateTeams{
+			Home: DebateTeamSide{
+				Name:  matchInfo.HomeTeam,
+				Logo:  matchInfo.HomeTeamLogo,
+				Score: &hs,
+			},
+			Away: DebateTeamSide{
+				Name:  matchInfo.AwayTeam,
+				Logo:  matchInfo.AwayTeamLogo,
+				Score: &as,
+			},
+		}
+	}
+	return out, nil
+}
+
+func (c *Config) attachTeamsToSummaries(ctx context.Context, summaries []DebateSummary) {
+	if len(summaries) == 0 {
+		return
+	}
+	matchIDs := make([]string, 0, len(summaries))
+	for _, s := range summaries {
+		matchIDs = append(matchIDs, s.MatchID)
+	}
+	teamsByMatchID, err := c.loadDebateTeamsByMatchIDs(ctx, matchIDs)
+	if err != nil {
+		log.Printf("[debates] attach teams to summaries failed: %v", err)
+		return
+	}
+	for i := range summaries {
+		if teams, ok := teamsByMatchID[normalizeMatchID(summaries[i].MatchID)]; ok {
+			t := teams
+			summaries[i].Teams = &t
+		}
+	}
+}
+
+func debateSummaryFromVotedFeedRow(row database.ListDebatesFeedVotedForUserRow) (DebateSummary, error) {
+	s, err := buildDebateSummary(
+		row.ID, row.MatchID, row.DebateType, row.Headline,
+		row.Description, row.AiGenerated, row.CreatedAt, row.UpdatedAt,
+		row.TotalVotes, row.TotalComments, row.EngagementScore,
+		lastVotedAtFromSQLCIface(row.LastVotedAt),
+	)
+	if err != nil {
+		return DebateSummary{}, err
+	}
+	s.BinaryConsensus = binaryConsensusFromRow(row.BinaryAgreeUpvotes, row.BinaryDisagreeUpvotes)
+	return s, nil
+}
+
 // debateSetCacheTTL is how long we cache a generated debate set.
 const debateSetCacheTTL = 24 * time.Hour
 
@@ -182,27 +578,29 @@ type generateSetInflight struct {
 	code    int    // HTTP status code to return
 	info    string // optional message (e.g. validation error or rate limit)
 	partial bool   // true when fewer valid debates than requested
+	errCode string // machine-readable code for JSON clients (empty on success)
 }
 
-func (g *generateSetInflight) signal(debates []DebateResponse, code int, info string, partial bool) {
+func (g *generateSetInflight) signal(debates []DebateResponse, code int, info string, partial bool, errCode string) {
 	g.mu.Lock()
 	g.debates = debates
 	g.code = code
 	g.info = info
 	g.partial = partial
+	g.errCode = errCode
 	g.mu.Unlock()
 	close(g.done)
 }
 
-func (g *generateSetInflight) waitAndGet(timeout time.Duration) (debates []DebateResponse, code int, info string, partial bool) {
+func (g *generateSetInflight) waitAndGet(timeout time.Duration) (debates []DebateResponse, code int, info string, partial bool, errCode string) {
 	select {
 	case <-g.done:
 		g.mu.Lock()
-		debates, code, info, partial = g.debates, g.code, g.info, g.partial
+		debates, code, info, partial, errCode = g.debates, g.code, g.info, g.partial, g.errCode
 		g.mu.Unlock()
-		return debates, code, info, partial
+		return debates, code, info, partial, errCode
 	case <-time.After(timeout):
-		return nil, http.StatusGatewayTimeout, "generation timed out", false
+		return nil, http.StatusGatewayTimeout, "The request timed out. Please try again.", false, errCodeGenSetTimeout
 	}
 }
 
@@ -247,18 +645,18 @@ func (c *Config) createDebate(w http.ResponseWriter, r *http.Request) {
 
 	var req CreateDebateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
 		return
 	}
 
 	// Validate required fields
 	if req.MatchID == "" || req.DebateType == "" || req.Headline == "" {
-		respondWithError(w, http.StatusBadRequest, "match_id, debate_type, and headline are required")
+		respondWithErrorCode(w, http.StatusBadRequest, "match_id, debate_type, and headline are required", errCodeDebateValidation)
 		return
 	}
 
 	if req.DebateType != "pre_match" && req.DebateType != "post_match" {
-		respondWithError(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'")
+		respondWithErrorCode(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'", errCodeDebateInvalidType)
 		return
 	}
 
@@ -271,7 +669,7 @@ func (c *Config) createDebate(w http.ResponseWriter, r *http.Request) {
 		AiGenerated: sql.NullBool{Bool: req.AIGenerated, Valid: true},
 	})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create debate: %v", err))
+		logErrorAndRespond500(w, "create debate", err, errCodeDebateCreate)
 		return
 	}
 
@@ -299,7 +697,7 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 	debateIDStr := chi.URLParam(r, "id")
 	debateID, err := strconv.ParseInt(debateIDStr, 10, 32)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid debate ID")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid debate ID", errCodeDebateInvalidID)
 		return
 	}
 
@@ -307,24 +705,24 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 	debate, err := c.DB.GetDebate(ctx, int32(debateID))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			respondWithError(w, http.StatusNotFound, "Debate not found")
+			respondWithErrorCode(w, http.StatusNotFound, "Debate not found", errCodeDebateNotFound)
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate: %v", err))
+		logErrorAndRespond500(w, "get debate", err, errCodeDebateGet)
 		return
 	}
 
 	// Get debate cards
 	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate cards: %v", err))
+		logErrorAndRespond500(w, "get debate cards", err, errCodeDebateCards)
 		return
 	}
 
 	// Get analytics
 	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err != nil && err != sql.ErrNoRows {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate analytics: %v", err))
+		logErrorAndRespond500(w, "get debate analytics", err, errCodeDebateAnalytics)
 		return
 	}
 
@@ -349,7 +747,7 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 	if len(cardIDs) > 0 {
 		voteCounts, err := c.DB.GetVoteCounts(ctx, cardIDs)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get vote counts: %v", err))
+			logErrorAndRespond500(w, "get vote counts", err, errCodeVoteCounts)
 			return
 		}
 
@@ -412,6 +810,12 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt:       analytics.UpdatedAt.Time,
 		}
 	}
+	if teamsByMatchID, teamsErr := c.loadDebateTeamsByMatchIDs(ctx, []string{debate.MatchID}); teamsErr == nil {
+		if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
+			t := teams
+			response.Teams = &t
+		}
+	}
 
 	respondWithJSON(w, http.StatusOK, response)
 }
@@ -421,14 +825,14 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 
 	matchID := r.URL.Query().Get("match_id")
 	if matchID == "" {
-		respondWithError(w, http.StatusBadRequest, "match_id parameter is required")
+		respondWithErrorCode(w, http.StatusBadRequest, "match_id parameter is required", errCodeDebateMatchIDRequired)
 		return
 	}
 	debateTypeFilter := r.URL.Query().Get("debate_type") // optional: pre_match | post_match
 
 	debates, err := c.DB.GetDebatesByMatch(ctx, matchID)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debates: %v", err))
+		logErrorAndRespond500(w, "get debates by match", err, errCodeDebateListMatch)
 		return
 	}
 
@@ -445,7 +849,9 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 
 	// Convert to response format (list of debates; client may fetch full debate by ID for cards)
 	var response []DebateResponse
+	matchIDs := make([]string, 0, len(debates))
 	for _, debate := range debates {
+		matchIDs = append(matchIDs, debate.MatchID)
 		response = append(response, DebateResponse{
 			ID:          debate.ID,
 			MatchID:     debate.MatchID,
@@ -457,6 +863,14 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt:   debate.UpdatedAt.Time,
 		})
 	}
+	if teamsByMatchID, teamsErr := c.loadDebateTeamsByMatchIDs(ctx, matchIDs); teamsErr == nil {
+		for i := range response {
+			if teams, ok := teamsByMatchID[normalizeMatchID(response[i].MatchID)]; ok {
+				t := teams
+				response[i].Teams = &t
+			}
+		}
+	}
 
 	respondWithJSON(w, http.StatusOK, response)
 }
@@ -466,18 +880,18 @@ func (c *Config) createDebateCard(w http.ResponseWriter, r *http.Request) {
 
 	var req CreateDebateCardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
 		return
 	}
 
 	// Validate required fields
 	if req.DebateID == 0 || req.Stance == "" || req.Title == "" {
-		respondWithError(w, http.StatusBadRequest, "debate_id, stance, and title are required")
+		respondWithErrorCode(w, http.StatusBadRequest, "debate_id, stance, and title are required", errCodeDebateValidation)
 		return
 	}
 
 	if req.Stance != "agree" && req.Stance != "disagree" && req.Stance != "wildcard" {
-		respondWithError(w, http.StatusBadRequest, "stance must be 'agree', 'disagree', or 'wildcard'")
+		respondWithErrorCode(w, http.StatusBadRequest, "stance must be 'agree', 'disagree', or 'wildcard'", errCodeDebateInvalidStance)
 		return
 	}
 
@@ -490,7 +904,7 @@ func (c *Config) createDebateCard(w http.ResponseWriter, r *http.Request) {
 		AiGenerated: sql.NullBool{Bool: req.AIGenerated, Valid: true},
 	})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create debate card: %v", err))
+		logErrorAndRespond500(w, "create debate card", err, errCodeCreateCard)
 		return
 	}
 
@@ -506,13 +920,13 @@ func (c *Config) getComments(w http.ResponseWriter, r *http.Request) {
 	debateIDStr := chi.URLParam(r, "debateId")
 	debateID, err := strconv.ParseInt(debateIDStr, 10, 32)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid debate ID")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid debate ID", errCodeDebateInvalidID)
 		return
 	}
 
 	comments, err := c.DB.GetComments(ctx, sql.NullInt32{Int32: int32(debateID), Valid: true})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get comments: %v", err))
+		logErrorAndRespond500(w, "get comments", err, errCodeComments)
 		return
 	}
 
@@ -544,7 +958,7 @@ func (c *Config) generateAIPrompt(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if c.AIPromptGenerator == nil {
-		respondWithError(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.")
+		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
 		return
 	}
 
@@ -552,19 +966,19 @@ func (c *Config) generateAIPrompt(w http.ResponseWriter, r *http.Request) {
 	promptType := r.URL.Query().Get("type") // "pre_match" or "post_match"
 
 	if matchID == "" || promptType == "" {
-		respondWithError(w, http.StatusBadRequest, "match_id and type parameters are required")
+		respondWithErrorCode(w, http.StatusBadRequest, "match_id and type parameters are required", errCodeDebateValidation)
 		return
 	}
 
 	if promptType != "pre_match" && promptType != "post_match" {
-		respondWithError(w, http.StatusBadRequest, "type must be 'pre_match' or 'post_match'")
+		respondWithErrorCode(w, http.StatusBadRequest, "type must be 'pre_match' or 'post_match'", errCodeDebateInvalidType)
 		return
 	}
 
 	// Get basic match information first
 	matchInfo, err := c.getMatchInfo(ctx, matchID)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err))
+		logErrorAndRespond500(w, "get match info", err, errCodeMatchInfo)
 		return
 	}
 
@@ -578,7 +992,7 @@ func (c *Config) generateAIPrompt(w http.ResponseWriter, r *http.Request) {
 	aggregator := NewDebateDataAggregator(c)
 	matchData, err := aggregator.AggregateMatchData(ctx, c.buildMatchDataRequest(matchID, matchInfo))
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err))
+		logErrorAndRespond500(w, "aggregate match data", err, errCodeAggregateMatch)
 		return
 	}
 
@@ -590,7 +1004,7 @@ func (c *Config) generateAIPrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to generate AI prompt: %v", err))
+		logErrorAndRespond500(w, "generate AI prompt", err, errCodeAIPrompt)
 		return
 	}
 
@@ -646,30 +1060,30 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if c.AIPromptGenerator == nil {
-		respondWithError(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.")
+		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
 		return
 	}
 
 	var req GenerateDebateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
 		return
 	}
 
 	// Validate required fields
 	if req.MatchID == "" || req.DebateType == "" {
-		respondWithError(w, http.StatusBadRequest, "match_id and debate_type are required")
+		respondWithErrorCode(w, http.StatusBadRequest, "match_id and debate_type are required", errCodeDebateValidation)
 		return
 	}
 
 	if req.DebateType != "pre_match" && req.DebateType != "post_match" {
-		respondWithError(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'")
+		respondWithErrorCode(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'", errCodeDebateInvalidType)
 		return
 	}
 
 	// Validate match_id format (should be numeric)
 	if _, err := strconv.ParseInt(req.MatchID, 10, 64); err != nil {
-		respondWithError(w, http.StatusBadRequest, "match_id must be a valid numeric ID")
+		respondWithErrorCode(w, http.StatusBadRequest, "match_id must be a valid numeric ID", errCodeDebateInvalidMatchID)
 		return
 	}
 
@@ -686,7 +1100,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 					// Soft delete existing debate to regenerate
 					err := c.DB.SoftDeleteDebate(ctx, existing.ID)
 					if err != nil {
-						respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to soft delete existing debate: %v", err))
+						logErrorAndRespond500(w, "soft delete existing debate", err, errCodeSoftDelete)
 						return
 					}
 					fmt.Printf("Regenerating debate for match %s, type %s\n", req.MatchID, req.DebateType)
@@ -699,7 +1113,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	matchInfo, err := c.getMatchInfo(ctx, req.MatchID)
 	if err != nil {
 		log.Printf("[debate] generate failed: match_id=%s getMatchInfo: %v", req.MatchID, err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err))
+		logErrorAndRespond500(w, "get match info", err, errCodeMatchInfo)
 		return
 	}
 
@@ -715,7 +1129,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	matchData, err := aggregator.AggregateMatchData(ctx, c.buildMatchDataRequest(req.MatchID, matchInfo))
 	if err != nil {
 		log.Printf("[debate] generate failed: match_id=%s aggregate: %v", req.MatchID, err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err))
+		logErrorAndRespond500(w, "aggregate match data", err, errCodeAggregateMatch)
 		return
 	}
 
@@ -729,14 +1143,14 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf("[debate] generate failed: match_id=%s type=%s AI prompt: %v", req.MatchID, req.DebateType, err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to generate AI prompt: %v", err))
+		logErrorAndRespond500(w, "generate AI prompt", err, errCodeAIPrompt)
 		return
 	}
 
-	// Validate prompt structure
-	if prompt.Headline == "" || len(prompt.Cards) == 0 {
+	// Validate prompt structure (binary agree/disagree + headline)
+	if !ai.DebatePromptBinaryOK(prompt) {
 		log.Printf("[debate] generate failed: match_id=%s invalid prompt (headline=%q cards=%d)", req.MatchID, prompt.Headline, len(prompt.Cards))
-		respondWithError(w, http.StatusInternalServerError, "Generated prompt is invalid (missing headline or cards)")
+		respondWithErrorCode(w, http.StatusInternalServerError, "Generated prompt is invalid (need headline plus agree and disagree cards)", errCodeGenPromptInvalid)
 		return
 	}
 
@@ -750,7 +1164,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("[debate] generate failed: match_id=%s CreateDebate: %v", req.MatchID, err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create debate: %v", err))
+		logErrorAndRespond500(w, "create debate", err, errCodeDebateCreate)
 		return
 	}
 
@@ -768,28 +1182,28 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	// Create debate cards
 	var cardResponses []DebateCardResponse
 	for _, card := range prompt.Cards {
-		// Validate card data
 		if card.Stance == "" || card.Title == "" {
 			fmt.Printf("Skipping invalid card: stance=%s, title=%s\n", card.Stance, card.Title)
 			continue
 		}
-
-		// Validate stance
-		if card.Stance != "agree" && card.Stance != "disagree" && card.Stance != "wildcard" {
-			fmt.Printf("Skipping card with invalid stance: %s\n", card.Stance)
+		if card.Stance != "agree" && card.Stance != "disagree" {
+			fmt.Printf("Skipping card with invalid stance (binary debates only): %s\n", card.Stance)
 			continue
 		}
 
-		// Create the card in the database
+		desc := card.Description
+		if strings.TrimSpace(desc) == "" {
+			desc = card.Title
+		}
 		dbCard, err := c.DB.CreateDebateCard(ctx, database.CreateDebateCardParams{
 			DebateID:    sql.NullInt32{Int32: debate.ID, Valid: true},
 			Stance:      card.Stance,
 			Title:       card.Title,
-			Description: sql.NullString{String: card.Description, Valid: card.Description != ""},
+			Description: sql.NullString{String: desc, Valid: desc != ""},
 			AiGenerated: sql.NullBool{Bool: true, Valid: true},
 		})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create debate card: %v", err))
+			logErrorAndRespond500(w, "create debate card", err, errCodeCreateCard)
 			return
 		}
 
@@ -812,12 +1226,12 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		cardResponses = append(cardResponses, cardResponse)
 	}
 
-	// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
-	c.insertSeededComments(ctx, debate.ID, prompt.Cards)
+	// Seeded comments from AI (agree / disagree / wildcard fan takes)
+	c.insertSeededComments(ctx, debate.ID, prompt)
 
 	// Ensure we have at least one card
 	if len(cardResponses) == 0 {
-		respondWithError(w, http.StatusInternalServerError, "No valid debate cards were created")
+		respondWithErrorCode(w, http.StatusInternalServerError, "No valid debate cards were created", errCodeNoValidCards)
 		return
 	}
 
@@ -886,22 +1300,22 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if c.AIPromptGenerator == nil {
-		respondWithError(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.")
+		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
 		return
 	}
 
 	var req GenerateDebateSetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
 		return
 	}
 
 	if req.MatchID == "" || req.DebateType == "" {
-		respondWithError(w, http.StatusBadRequest, "match_id and debate_type are required")
+		respondWithErrorCode(w, http.StatusBadRequest, "match_id and debate_type are required", errCodeDebateValidation)
 		return
 	}
 	if req.DebateType != "pre_match" && req.DebateType != "post_match" {
-		respondWithError(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'")
+		respondWithErrorCode(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'", errCodeDebateInvalidType)
 		return
 	}
 	count := req.Count
@@ -946,7 +1360,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 				}
 				time.Sleep(waiterPollInterval)
 			}
-			respondWithError(w, http.StatusServiceUnavailable, "generate-set in progress on another instance; try again shortly")
+			respondWithErrorCode(w, http.StatusServiceUnavailable, "generate-set in progress on another instance; try again shortly", errCodeGenSetInFlight)
 			return
 		} else {
 			weAcquiredLock = true
@@ -963,8 +1377,8 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	gen, exists := generateSetInFlight[inflightKey]
 	if exists {
 		generateSetInFlightMu.Unlock()
-		debates, code, info, partial := gen.waitAndGet(60 * time.Second)
-		generateSetRespond(w, debates, code, info, partial)
+		debates, code, info, partial, errCode := gen.waitAndGet(60 * time.Second)
+		generateSetRespond(w, debates, code, info, partial, errCode)
 		return
 	}
 	gen = &generateSetInflight{done: make(chan struct{})}
@@ -981,12 +1395,12 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	matchInfo, err := c.getMatchInfo(ctx, req.MatchID)
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s getMatchInfo: %v", req.MatchID, err)
-		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err), false)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get match info: %v", err))
+		gen.signal(nil, http.StatusInternalServerError, errMsgTryAgain, false, errCodeGenSetMatch)
+		respondWithErrorCode(w, http.StatusInternalServerError, errMsgTryAgain, errCodeGenSetMatch)
 		return
 	}
 	if err := c.validateMatchStatusForDebateType(matchInfo.Status, req.DebateType); err != nil {
-		gen.signal(nil, http.StatusOK, err.Error(), false)
+		gen.signal(nil, http.StatusOK, err.Error(), false, errCodeDebateValidation)
 		respondWithJSON(w, http.StatusOK, map[string]interface{}{"info": err.Error(), "debates": []DebateResponse{}})
 		return
 	}
@@ -1026,7 +1440,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 					if c.Cache != nil {
 						_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
 					}
-					gen.signal(responses, http.StatusOK, "", false)
+					gen.signal(responses, http.StatusOK, "", false, "")
 					respondWithJSON(w, http.StatusOK, GenerateDebateSetResponse{Debates: responses})
 					return
 				}
@@ -1036,9 +1450,10 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 
 	// Rate limit only when we're about to call the AI (cache/DB miss). Cache hits and existing-DB returns don't consume the budget.
 	if !checkGenerateSetRateLimit(ctx, c, req.MatchID) {
-		gen.signal(nil, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match", false)
+		rlMsg := "rate limit exceeded: max 3 generate-set requests per hour per match"
+		gen.signal(nil, http.StatusTooManyRequests, rlMsg, false, errCodeGenSetRateLimit)
 		w.Header().Set("Retry-After", "3600")
-		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded: max 3 generate-set requests per hour per match")
+		respondWithErrorCode(w, http.StatusTooManyRequests, rlMsg, errCodeGenSetRateLimit)
 		return
 	}
 
@@ -1046,22 +1461,22 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	matchData, err := aggregator.AggregateMatchData(ctx, c.buildMatchDataRequest(req.MatchID, matchInfo))
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s aggregate: %v", req.MatchID, err)
-		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err), false)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to aggregate match data: %v", err))
+		gen.signal(nil, http.StatusInternalServerError, errMsgTryAgain, false, errCodeGenSetAggregate)
+		respondWithErrorCode(w, http.StatusInternalServerError, errMsgTryAgain, errCodeGenSetAggregate)
 		return
 	}
 
 	prompts, err := c.AIPromptGenerator.GenerateDebateSetPrompt(ctx, *matchData, req.DebateType, count)
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s AI: %v", req.MatchID, err)
-		gen.signal(nil, http.StatusInternalServerError, fmt.Sprintf("Failed to generate debate set: %v", err), false)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to generate debate set: %v", err))
+		gen.signal(nil, http.StatusInternalServerError, errMsgTryAgain, false, errCodeGenSetGenerate)
+		respondWithErrorCode(w, http.StatusInternalServerError, errMsgTryAgain, errCodeGenSetGenerate)
 		return
 	}
 
 	var responses []DebateResponse
 	for _, prompt := range prompts {
-		if prompt.Headline == "" || len(prompt.Cards) == 0 {
+		if !ai.DebatePromptBinaryOK(&prompt) {
 			continue
 		}
 		debate, err := c.DB.CreateDebate(ctx, database.CreateDebateParams{
@@ -1113,8 +1528,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 			continue
 		}
-		// Insert three seeded comments (one per card) attributed to system user (Fucci) — 006 US1
-		c.insertSeededComments(ctx, debate.ID, prompt.Cards)
+		c.insertSeededComments(ctx, debate.ID, &prompt)
 		responses = append(responses, DebateResponse{
 			ID:          debate.ID,
 			MatchID:     debate.MatchID,
@@ -1130,8 +1544,8 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(responses) == 0 {
-		gen.signal(nil, http.StatusInternalServerError, "No valid debates were generated", false)
-		respondWithError(w, http.StatusInternalServerError, "No valid debates were generated")
+		gen.signal(nil, http.StatusInternalServerError, "No valid debates were generated", false, errCodeGenSetEmpty)
+		respondWithErrorCode(w, http.StatusInternalServerError, "No valid debates were generated", errCodeGenSetEmpty)
 		return
 	}
 
@@ -1139,13 +1553,13 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	if c.Cache != nil {
 		_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
 	}
-	gen.signal(responses, http.StatusCreated, "", partialSet)
+	gen.signal(responses, http.StatusCreated, "", partialSet, "")
 	log.Printf("[debate] generate-set success: match_id=%s type=%s count=%d (partial=%v)", req.MatchID, req.DebateType, len(responses), partialSet)
 	respondWithJSON(w, http.StatusCreated, GenerateDebateSetResponse{Debates: responses, PartialSet: partialSet})
 }
 
 // generateSetRespond writes the appropriate HTTP response for a generate-set result (used by both generator and waiters).
-func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code int, info string, partial bool) {
+func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code int, info string, partial bool, errCode string) {
 	if debates == nil {
 		debates = []DebateResponse{}
 	}
@@ -1157,7 +1571,7 @@ func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code in
 		if msg == "" {
 			msg = http.StatusText(code)
 		}
-		respondWithError(w, code, msg)
+		respondWithErrorCode(w, code, msg, errCode)
 		return
 	}
 	if code == http.StatusOK && info != "" {
@@ -1250,6 +1664,12 @@ func (c *Config) buildFullDebateResponse(ctx context.Context, debate database.De
 		Cards:          cardResponses,
 		CardVoteTotals: &CardVoteTotals{TotalYes: totalYesSwipe, TotalNo: totalNoSwipe},
 	}
+	if teamsByMatchID, err := c.loadDebateTeamsByMatchIDs(ctx, []string{debate.MatchID}); err == nil {
+		if teams, ok := teamsByMatchID[normalizeMatchID(debate.MatchID)]; ok {
+			t := teams
+			resp.Teams = &t
+		}
+	}
 
 	analytics, err := c.DB.GetDebateAnalytics(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err == nil {
@@ -1297,22 +1717,22 @@ func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID 
 	debate, err := c.DB.GetDebate(ctx, debateID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			respondWithError(w, http.StatusNotFound, "Debate not found")
+			respondWithErrorCode(w, http.StatusNotFound, "Debate not found", errCodeDebateNotFound)
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate: %v", err))
+		logErrorAndRespond500(w, "get debate", err, errCodeDebateGet)
 		return
 	}
 
 	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get debate cards: %v", err))
+		logErrorAndRespond500(w, "get debate cards", err, errCodeDebateCards)
 		return
 	}
 
 	response, err := c.buildFullDebateResponse(ctx, debate, cards)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to build debate response: %v", err))
+		logErrorAndRespond500(w, "build debate response", err, errCodeBuildResponse)
 		return
 	}
 	respondWithJSON(w, http.StatusOK, response)
@@ -1358,10 +1778,12 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 				Home struct {
 					ID   int    `json:"id"`
 					Name string `json:"name"`
+					Logo string `json:"logo"`
 				} `json:"home"`
 				Away struct {
 					ID   int    `json:"id"`
 					Name string `json:"name"`
+					Logo string `json:"logo"`
 				} `json:"away"`
 			} `json:"teams"`
 			Goals struct {
@@ -1432,6 +1854,8 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 	return &MatchInfo{
 		HomeTeam:        match.Teams.Home.Name,
 		AwayTeam:        match.Teams.Away.Name,
+		HomeTeamLogo:    match.Teams.Home.Logo,
+		AwayTeamLogo:    match.Teams.Away.Logo,
 		Date:            match.Fixture.Date,
 		Status:          match.Fixture.Status.Short,
 		HomeScore:       homeScore,
@@ -1472,7 +1896,7 @@ func (c *Config) getTopDebates(w http.ResponseWriter, r *http.Request) {
 
 	debates, err := c.DB.GetTopDebates(ctx, limit)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get top debates: %v", err))
+		logErrorAndRespond500(w, "get top debates", err, errCodeTopDebates)
 		return
 	}
 
@@ -1514,6 +1938,90 @@ func (c *Config) getTopDebates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, response)
+}
+
+func (c *Config) getDebatesPublicFeed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	store := c.debatesFeedStore()
+	if store == nil {
+		respondWithErrorCode(w, http.StatusInternalServerError, "database not configured", errCodeDebateDBNotConfigured)
+		return
+	}
+	limit := parsePositiveInt32Query(r, "limit", defaultPublicFeedLimit, maxPublicFeedLimit)
+	rows, err := store.ListDebatesPublicFeed(ctx, limit)
+	if err != nil {
+		logErrorAndRespond500(w, "list public feed", err, errCodeFeedPublic)
+		return
+	}
+	out := make([]DebateSummary, 0, len(rows))
+	for _, row := range rows {
+		summary, buildErr := debateSummaryFromPublicFeedRow(row)
+		if buildErr != nil {
+			log.Printf("[debates/public-feed] dropping debate_id=%d: %v", row.ID, buildErr)
+			continue
+		}
+		out = append(out, summary)
+	}
+	c.attachTeamsToSummaries(ctx, out)
+	respondWithJSON(w, http.StatusOK, PublicDebateFeedResponse{Debates: out})
+}
+
+func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	store := c.debatesFeedStore()
+	if store == nil {
+		respondWithErrorCode(w, http.StatusInternalServerError, "database not configured", errCodeDebateDBNotConfigured)
+		return
+	}
+	uidVal := ctx.Value("user_id")
+	userID, ok := uidVal.(int32)
+	if !ok {
+		respondWithErrorCode(w, http.StatusUnauthorized, "authentication required", errCodeDebateAuthRequired)
+		return
+	}
+	newLimit := parsePositiveInt32Query(r, "new_limit", defaultFeedBucketLimit, maxFeedBucketLimit)
+	votedLimit := parsePositiveInt32Query(r, "voted_limit", defaultFeedBucketLimit, maxFeedBucketLimit)
+
+	newRows, err := store.ListDebatesFeedNewForUser(ctx, database.ListDebatesFeedNewForUserParams{
+		UserID: sql.NullInt32{Int32: userID, Valid: true},
+		Limit:  newLimit,
+	})
+	if err != nil {
+		logErrorAndRespond500(w, "list new debates", err, errCodeFeedNew)
+		return
+	}
+	votedRows, err := store.ListDebatesFeedVotedForUser(ctx, database.ListDebatesFeedVotedForUserParams{
+		UserID: sql.NullInt32{Int32: userID, Valid: true},
+		Limit:  votedLimit,
+	})
+	if err != nil {
+		logErrorAndRespond500(w, "list voted debates", err, errCodeFeedVoted)
+		return
+	}
+	newSummaries := make([]DebateSummary, 0, len(newRows))
+	for _, row := range newRows {
+		summary, buildErr := debateSummaryFromNewFeedRow(row)
+		if buildErr != nil {
+			log.Printf("[debates/feed:new] dropping debate_id=%d: %v", row.ID, buildErr)
+			continue
+		}
+		newSummaries = append(newSummaries, summary)
+	}
+	votedSummaries := make([]DebateSummary, 0, len(votedRows))
+	for _, row := range votedRows {
+		summary, buildErr := debateSummaryFromVotedFeedRow(row)
+		if buildErr != nil {
+			log.Printf("[debates/feed:voted] dropping debate_id=%d: %v", row.ID, buildErr)
+			continue
+		}
+		votedSummaries = append(votedSummaries, summary)
+	}
+	c.attachTeamsToSummaries(ctx, newSummaries)
+	c.attachTeamsToSummaries(ctx, votedSummaries)
+	respondWithJSON(w, http.StatusOK, DebateFeedResponse{
+		NewDebates:   newSummaries,
+		VotedDebates: votedSummaries,
+	})
 }
 
 // Helper function to update debate analytics
@@ -1633,7 +2141,7 @@ func (c *Config) hardDeleteDebate(w http.ResponseWriter, r *http.Request) {
 	debateIDStr := chi.URLParam(r, "id")
 	debateID, err := strconv.Atoi(debateIDStr)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid debate ID")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid debate ID", errCodeDebateInvalidID)
 		return
 	}
 
@@ -1644,10 +2152,10 @@ func (c *Config) hardDeleteDebate(w http.ResponseWriter, r *http.Request) {
 	err = c.DB.DeleteDebate(ctx, int32(debateID))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			respondWithError(w, http.StatusNotFound, "Debate not found")
+			respondWithErrorCode(w, http.StatusNotFound, "Debate not found", errCodeDebateNotFound)
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to delete debate: %v", err))
+		logErrorAndRespond500(w, "delete debate", err, errCodeDelete)
 		return
 	}
 
@@ -1663,7 +2171,7 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 	debateIDStr := chi.URLParam(r, "id")
 	debateID, err := strconv.Atoi(debateIDStr)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid debate ID")
+		respondWithErrorCode(w, http.StatusBadRequest, "Invalid debate ID", errCodeDebateInvalidID)
 		return
 	}
 
@@ -1671,10 +2179,10 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 	err = c.DB.RestoreDebate(ctx, int32(debateID))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			respondWithError(w, http.StatusNotFound, "Debate not found")
+			respondWithErrorCode(w, http.StatusNotFound, "Debate not found", errCodeDebateNotFound)
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to restore debate: %v", err))
+		logErrorAndRespond500(w, "restore debate", err, errCodeRestore)
 		return
 	}
 
@@ -1686,6 +2194,8 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 type MatchInfo struct {
 	HomeTeam        string
 	AwayTeam        string
+	HomeTeamLogo    string
+	AwayTeamLogo    string
 	Date            string
 	Status          string
 	HomeScore       int

@@ -152,4 +152,146 @@ FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
 WHERE d.deleted_at IS NULL
 ORDER BY da.engagement_score DESC NULLS LAST
-LIMIT $1; 
+LIMIT $1;
+
+-- Public browse feed: engagement desc, tie-break created_at desc; only debates with at least one card.
+-- Binary consensus for list UI: agree side = upvotes on agree cards; disagree side = downvotes on agree
+-- plus all swipe votes on disagree cards (covers detail-screen “no” on agree, hero left as downvote on disagree, legacy upvote-on-disagree).
+-- Vote aggregates are scoped to debates in the limited feed (not the full votes table).
+-- name: ListDebatesPublicFeed :many
+WITH feed_candidates AS (
+    SELECT d.id
+    FROM debates d
+    LEFT JOIN debate_analytics da ON d.id = da.debate_id
+    WHERE d.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM debate_cards dc WHERE dc.debate_id = d.id)
+    ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+    LIMIT $1
+)
+SELECT 
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    da.total_votes,
+    da.total_comments,
+    da.engagement_score,
+    COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
+    COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes
+FROM debates d
+INNER JOIN feed_candidates fc ON fc.id = d.id
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN (
+    SELECT
+        dc.debate_id,
+        COUNT(*) FILTER (WHERE dc.stance = 'agree' AND v.vote_type = 'upvote')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (
+          WHERE (dc.stance = 'agree' AND v.vote_type = 'downvote')
+             OR (dc.stance = 'disagree' AND v.vote_type IN ('upvote', 'downvote'))
+        )::bigint AS binary_disagree_upvotes
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.emoji IS NULL
+      AND v.vote_type IN ('upvote', 'downvote')
+      AND dc.stance IN ('agree', 'disagree')
+      AND dc.debate_id IN (SELECT id FROM feed_candidates)
+    GROUP BY dc.debate_id
+) bbin ON bbin.debate_id = d.id
+ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC;
+
+-- Authenticated feed — "new": user has not cast any swipe vote (upvote/downvote, emoji IS NULL) on a binary card.
+-- One vote per debate (first swipe on any binary card moves the debate to "voted"). Emoji reactions do not count. Wildcards do not count.
+-- name: ListDebatesFeedNewForUser :many
+WITH feed_candidates AS (
+    SELECT d.id
+    FROM debates d
+    LEFT JOIN debate_analytics da ON d.id = da.debate_id
+    WHERE d.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
+      AND NOT EXISTS (
+        SELECT 1
+        FROM debate_cards dc
+        INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
+          AND v.vote_type IN ('upvote', 'downvote')
+          AND v.emoji IS NULL
+        WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+      )
+    ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+    LIMIT $2
+)
+SELECT 
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    da.total_votes,
+    da.total_comments,
+    da.engagement_score,
+    COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
+    COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes
+FROM debates d
+INNER JOIN feed_candidates fc ON fc.id = d.id
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN (
+    SELECT
+        dc.debate_id,
+        COUNT(*) FILTER (WHERE dc.stance = 'agree' AND v.vote_type = 'upvote')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (
+          WHERE (dc.stance = 'agree' AND v.vote_type = 'downvote')
+             OR (dc.stance = 'disagree' AND v.vote_type IN ('upvote', 'downvote'))
+        )::bigint AS binary_disagree_upvotes
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.emoji IS NULL
+      AND v.vote_type IN ('upvote', 'downvote')
+      AND dc.stance IN ('agree', 'disagree')
+      AND dc.debate_id IN (SELECT id FROM feed_candidates)
+    GROUP BY dc.debate_id
+) bbin ON bbin.debate_id = d.id
+ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC;
+
+-- Authenticated feed — "voted": user has at least one swipe vote (emoji IS NULL) on any agree/disagree card.
+-- name: ListDebatesFeedVotedForUser :many
+WITH feed_candidates AS (
+    SELECT d.id, uv.last_voted_at
+    FROM debates d
+    INNER JOIN (
+      SELECT
+        dc.debate_id,
+        MAX(v.created_at)::timestamptz AS last_voted_at
+      FROM votes v
+      INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+      WHERE dc.stance IN ('agree', 'disagree')
+        AND v.user_id = $1
+        AND v.vote_type IN ('upvote', 'downvote')
+        AND v.emoji IS NULL
+      GROUP BY dc.debate_id
+    ) uv ON uv.debate_id = d.id
+    LEFT JOIN debate_analytics da ON d.id = da.debate_id
+    WHERE d.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
+    ORDER BY uv.last_voted_at DESC NULLS LAST
+    LIMIT $2
+)
+SELECT 
+    d.id, d.match_id, d.debate_type, d.headline, d.description, d.ai_generated, d.deleted_at, d.created_at, d.updated_at,
+    da.total_votes,
+    da.total_comments,
+    da.engagement_score,
+    COALESCE(bbin.binary_agree_upvotes, 0) AS binary_agree_upvotes,
+    COALESCE(bbin.binary_disagree_upvotes, 0) AS binary_disagree_upvotes,
+    fc.last_voted_at
+FROM debates d
+INNER JOIN feed_candidates fc ON fc.id = d.id
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN (
+    SELECT
+        dc.debate_id,
+        COUNT(*) FILTER (WHERE dc.stance = 'agree' AND v.vote_type = 'upvote')::bigint AS binary_agree_upvotes,
+        COUNT(*) FILTER (
+          WHERE (dc.stance = 'agree' AND v.vote_type = 'downvote')
+             OR (dc.stance = 'disagree' AND v.vote_type IN ('upvote', 'downvote'))
+        )::bigint AS binary_disagree_upvotes
+    FROM votes v
+    INNER JOIN debate_cards dc ON v.debate_card_id = dc.id
+    WHERE v.emoji IS NULL
+      AND v.vote_type IN ('upvote', 'downvote')
+      AND dc.stance IN ('agree', 'disagree')
+      AND dc.debate_id IN (SELECT id FROM feed_candidates)
+    GROUP BY dc.debate_id
+) bbin ON bbin.debate_id = d.id
+ORDER BY last_voted_at DESC NULLS LAST;
