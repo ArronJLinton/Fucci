@@ -109,15 +109,24 @@ function logMainDebatesHero(message: string, payload?: unknown) {
 const MainDebatesScreen = () => {
   const navigation = useNavigation<MainDebatesNavigation>();
   const queryClient = useQueryClient();
-  const {isLoggedIn, token, isReady} = useAuth();
+  const {isLoggedIn, token, isReady, user} = useAuth();
+
+  /** Segment feed cache per account; avoids showing another user's feed after switch. */
+  const mainDebatesFeedQueryKey = useMemo(
+    (): readonly ['mainDebatesFeed', number | 'guest'] =>
+      isLoggedIn && user != null
+        ? ['mainDebatesFeed', user.id]
+        : ['mainDebatesFeed', 'guest'],
+    [isLoggedIn, user?.id],
+  );
 
   const onHeroPanResolved = useCallback((result: DebateHeroPanResult) => {
     logMainDebatesHero('pan resolved', result);
   }, []);
 
   const query = useQuery({
-    queryKey: ['mainDebatesFeed', isLoggedIn],
-    enabled: isReady,
+    queryKey: mainDebatesFeedQueryKey,
+    enabled: isReady && (!isLoggedIn || user != null),
     queryFn: async (): Promise<UnifiedFeed> => {
       if (isLoggedIn && token) {
         const data = await fetchDebatesFeed(token, {
@@ -281,7 +290,7 @@ const MainDebatesScreen = () => {
                   },
                 );
                 queryClient.setQueryData<UnifiedFeed>(
-                  ['mainDebatesFeed', isLoggedIn],
+                  mainDebatesFeedQueryKey,
                   old => {
                     if (!old || old.kind !== 'auth') return old;
                     const nextNew = old.new_debates.filter(
@@ -302,10 +311,8 @@ const MainDebatesScreen = () => {
                     };
                   },
                 );
-                const after = queryClient.getQueryData<UnifiedFeed>([
-                  'mainDebatesFeed',
-                  isLoggedIn,
-                ]);
+                const after =
+                  queryClient.getQueryData<UnifiedFeed>(mainDebatesFeedQueryKey);
                 const nextHeroId =
                   after?.kind === 'auth' ? after.new_debates[0]?.id : undefined;
                 if (nextHeroId != null && nextHeroId !== detail.debateId) {
@@ -373,6 +380,7 @@ const MainDebatesScreen = () => {
       onHeroPanResolved,
       onOpenSummary,
       queryClient,
+      mainDebatesFeedQueryKey,
       newSectionEmpty,
       isGuest,
       votedList,
