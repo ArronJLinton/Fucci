@@ -10,7 +10,6 @@ import {
   Image,
   ImageBackground,
   Dimensions,
-  Pressable,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
