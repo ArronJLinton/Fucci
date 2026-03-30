@@ -24,20 +24,6 @@ const Tab = createMaterialTopTabNavigator<RootTabParamList>();
 const TabNavigator = Tab.Navigator as any;
 const TabScreen = Tab.Screen as any;
 
-/** Short labels for league strip (design: PREMIER, etc.) */
-function leagueStripLabel(name: string): string {
-  const map: Record<string, string> = {
-    'Premier League': 'PREMIER',
-    'La Liga': 'LA LIGA',
-    'Serie A': 'SERIE A',
-    Bundesliga: 'BUNDES',
-    'Ligue 1': 'LIGUE 1',
-    'UEFA Champions League': 'UCL',
-    'International Competitions': 'INTL',
-  };
-  return map[name] ?? name.split(' ')[0]?.toUpperCase() ?? name;
-}
-
 const getTabLabel = (date: Date): string => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
