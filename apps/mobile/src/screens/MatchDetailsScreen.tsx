@@ -292,6 +292,9 @@ const MatchDetailsScreen = () => {
             tabPress: () => {
               scrollY.value = 0;
             },
+            focus: () => {
+              scrollY.value = 0;
+            },
           }}
           style={styles.tabNavigator}
           screenOptions={{
