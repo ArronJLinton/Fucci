@@ -202,8 +202,7 @@ const MatchDetailsScreen = () => {
             <Ionicons name="chevron-back" size={26} color={MATCH_CENTER_LIME} />
           </TouchableOpacity>
           <Pressable
-            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
-            onPress={() => {}}>
+            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}>
             <Ionicons
               name="ellipsis-vertical"
               size={22}
