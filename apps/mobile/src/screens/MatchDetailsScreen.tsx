@@ -4,12 +4,10 @@ import {
   Text,
   StyleSheet,
   Image,
-  ImageBackground,
   TouchableOpacity,
   useWindowDimensions,
   Pressable,
 } from 'react-native';
-import {LinearGradient} from 'expo-linear-gradient';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
