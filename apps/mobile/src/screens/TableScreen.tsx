@@ -164,7 +164,26 @@ export const TableScreen: React.FC<TableScreenProps> = ({
             );
 
           const isExpanded = expandedGroups[groupIdx] === true;
-          const displayRows = isExpanded ? group : group.slice(0, PREVIEW_ROWS);
+          let displayRows: Standing[];
+          if (isExpanded) {
+            displayRows = group;
+          } else {
+            const baseRows = group.slice(0, PREVIEW_ROWS);
+            if (!focusStanding) {
+              displayRows = baseRows;
+            } else {
+              const focusAlreadyIncluded = baseRows.includes(focusStanding);
+              if (focusAlreadyIncluded) {
+                displayRows = baseRows;
+              } else {
+                // Replace the last preview row with the focused team
+                displayRows = [
+                  ...baseRows.slice(0, Math.max(PREVIEW_ROWS - 1, 0)),
+                  focusStanding,
+                ];
+              }
+            }
+          }
           const hasMore = group.length > PREVIEW_ROWS;
 
           return (
