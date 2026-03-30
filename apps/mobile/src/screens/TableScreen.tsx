@@ -65,12 +65,6 @@ function formatGD(v: number): string {
   return String(v);
 }
 
-function formatSeasonLabel(season: number): string {
-  const y = season % 100;
-  const next = (y + 1) % 100;
-  return `SEASON ${String(y).padStart(2, '0')}/${String(next).padStart(2, '0')}`;
-}
-
 function leagueTitleParts(name: string): {lineA: string; lineB: string} {
   const u = name.toUpperCase().trim();
   const parts = u.split(/\s+/).filter(Boolean);
