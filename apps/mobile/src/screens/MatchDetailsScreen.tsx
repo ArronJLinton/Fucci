@@ -109,7 +109,6 @@ const MatchDetailsScreen = () => {
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
-  const [stadiumBgError, setStadiumBgError] = useState(false);
   const isMountedRef = useRef(true);
 
   const scrollY = useSharedValue(0);
