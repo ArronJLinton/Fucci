@@ -121,9 +121,6 @@ export const TableScreen: React.FC<TableScreenProps> = ({
     loadStandings();
   }, [match]);
 
-  const heroSeason = formatSeasonLabel(match.league.season);
-  const {lineA, lineB} = leagueTitleParts(match.league.name);
-
   const insightCopy = useMemo(() => {
     const flat = standings.flat();
     if (flat.length === 0) return null;
