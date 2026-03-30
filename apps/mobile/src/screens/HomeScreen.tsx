@@ -61,7 +61,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   selectedLeague,
 }) => {
   const route = useRoute();
-  const navigation = require('@react-navigation/native').useNavigation();
+  const navigation = useNavigation();
   const currentRoute = (navigation.getState() as NavigationState).routes[
     (navigation.getState() as NavigationState).index
   ].name;
