@@ -4,11 +4,12 @@ import {
   Text,
   StyleSheet,
   Image,
+  ImageBackground,
   TouchableOpacity,
   useWindowDimensions,
   Pressable,
 } from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {LinearGradient} from 'expo-linear-gradient';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
@@ -105,10 +106,10 @@ const MatchDetailsScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
+  const [stadiumBgError, setStadiumBgError] = useState(false);
   const isMountedRef = useRef(true);
 
   const scrollY = useSharedValue(0);
@@ -188,12 +189,7 @@ const MatchDetailsScreen = () => {
   const live = isLiveStatus(match.fixture.status.short);
 
   const MatchHero = () => (
-    <Animated.View
-      style={[
-        styles.heroOuter,
-        {paddingTop: insets.top},
-        heroAnimatedStyle,
-      ]}>
+    <Animated.View style={[styles.heroOuter, heroAnimatedStyle]}>
       <View style={styles.heroInner}>
         <View style={styles.heroTopRow}>
           <TouchableOpacity
@@ -215,7 +211,7 @@ const MatchDetailsScreen = () => {
         </View>
 
         <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
-          <View style={styles.teamBlock}>
+          <View style={[styles.teamBlock, styles.teamBlockSide]}>
             {!homeLogoError && match.teams.home.logo ? (
               <Image
                 source={{uri: match.teams.home.logo}}
@@ -233,7 +229,7 @@ const MatchDetailsScreen = () => {
             </Text>
           </View>
 
-          <View style={styles.scoreMid}>
+          <View style={[styles.scoreMid, styles.scoreMidCenter]}>
             <Text style={styles.scoreText}>
               {match.goals.home ?? 0} - {match.goals.away ?? 0}
             </Text>
@@ -252,7 +248,7 @@ const MatchDetailsScreen = () => {
             </View>
           </View>
 
-          <View style={styles.teamBlock}>
+          <View style={[styles.teamBlock, styles.teamBlockSide]}>
             {!awayLogoError && match.teams.away.logo ? (
               <Image
                 source={{uri: match.teams.away.logo}}
@@ -368,26 +364,40 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
+  heroBgFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
   heroInner: {
     flex: 1,
     paddingHorizontal: 16,
     paddingBottom: 8,
+    zIndex: 1,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    minHeight: 36,
+    marginBottom: 8,
+    minHeight: 32,
+    paddingTop: 4,
   },
   heroScoreBlock: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 0,
   },
   teamBlock: {
-    flex: 1,
     alignItems: 'center',
+  },
+  teamBlockSide: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  scoreMidCenter: {
+    flex: 1,
+    justifyContent: 'center',
   },
   badge: {
     width: 52,
@@ -408,13 +418,16 @@ const styles = StyleSheet.create({
   },
   scoreMid: {
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   scoreText: {
     fontSize: 28,
     fontWeight: '800',
     color: MATCH_CENTER_TEXT,
     letterSpacing: 1,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 10,
   },
   statusPill: {
     marginTop: 8,

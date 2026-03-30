@@ -1,4 +1,8 @@
 /** Match Center — dark shell + lime + cyan (debate / details hero) */
+/** Soccer stadium — Unsplash (night floodlights); used as hero ImageBackground */
+export const MATCH_CENTER_STADIUM_BG_URI =
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1400&q=85&auto=format&fit=crop';
+
 export const MATCH_CENTER_BG = '#0A0E14';
 export const MATCH_CENTER_BLACK = '#000000';
 export const MATCH_CENTER_LIME = '#DFFF00';
