@@ -9,7 +9,6 @@ import {
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import type {NavigationState} from '@react-navigation/native';
 import {useNavigation, useRoute} from '@react-navigation/native';
-import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
 import {fetchMatches} from '../services/api';
 import {DEFAULT_LEAGUE, type League} from '../constants/leagues';
