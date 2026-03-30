@@ -65,15 +65,6 @@ function formatGD(v: number): string {
   return String(v);
 }
 
-function leagueTitleParts(name: string): {lineA: string; lineB: string} {
-  const u = name.toUpperCase().trim();
-  const parts = u.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return {lineA: parts[0], lineB: parts.slice(1).join(' ')};
-  }
-  return {lineA: u, lineB: ''};
-}
-
 interface TableScreenProps {
   match: Match;
   matchScrollHandler?: MatchDetailsScrollHandler;
