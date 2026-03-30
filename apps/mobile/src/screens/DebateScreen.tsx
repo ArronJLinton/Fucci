@@ -85,12 +85,6 @@ function yesNoFromDebate(d: DebateResponse): {yes: number; no: number} {
   };
 }
 
-function joinedLabel(id: number | undefined, index: number): string {
-  const s = id ?? index * 997;
-  const v = 0.7 + (Math.abs(s) % 35) / 10;
-  return `${v.toFixed(1)}k Joined`;
-}
-
 interface DebateScreenProps {
   match: Match;
   stackNavigation?: NativeStackNavigationProp<RootStackParamList>;
@@ -306,9 +300,6 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
             <View style={styles.hotPill}>
               <Text style={styles.hotPillText}>HOT TOPIC</Text>
             </View>
-            <Text style={styles.joinedMuted}>
-              {joinedLabel(hot.id, 0)}
-            </Text>
           </View>
           <Text style={styles.quoteText}>&ldquo;{hot.headline}&rdquo;</Text>
           <View style={styles.pollRow}>
@@ -343,9 +334,6 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
               <View style={styles.refPill}>
                 <Text style={styles.refPillText}>REFEREE WATCH</Text>
               </View>
-              <Text style={styles.joinedMuted}>
-                {joinedLabel(referee.id, 1)}
-              </Text>
             </View>
             <Text style={styles.refQuestion}>{referee.headline}</Text>
             <View style={styles.refButtons}>
