@@ -2,7 +2,6 @@ import React, {useMemo, useState} from 'react';
 import {
   useWindowDimensions,
   View,
-  TouchableOpacity,
   StyleSheet,
   Text,
 } from 'react-native';
