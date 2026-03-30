@@ -41,7 +41,9 @@ function getDefaultDebateType(match: Match): DebateType {
   return FINISHED_STATUSES.includes(short) ? 'post_match' : 'pre_match';
 }
 
-function agreePercentFromDebate(d: DebateResponse): number {
+function agreePercentFromDebate(
+  d: DebateResponse,
+): {agreePct: number; hasVotes: boolean} {
   let agree = 0;
   let disagree = 0;
   for (const c of d.cards ?? []) {
@@ -50,8 +52,10 @@ function agreePercentFromDebate(d: DebateResponse): number {
     if (c.stance === 'disagree') disagree += u;
   }
   const t = agree + disagree;
-  if (t < 1) return 68;
-  return Math.round((agree / t) * 100);
+  if (t < 1) {
+    return {agreePct: 50, hasVotes: false};
+  }
+  return {agreePct: Math.round((agree / t) * 100), hasVotes: true};
 }
 
 function yesNoFromDebate(d: DebateResponse): {yes: number; no: number} {
@@ -266,7 +270,9 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
 
   const hot = debateList[0];
   const referee = debateList.length > 1 ? debateList[1] : null;
-  const agreePct = agreePercentFromDebate(hot);
+  const hotConsensus = agreePercentFromDebate(hot);
+  const agreePct = hotConsensus.agreePct;
+  const hasVotes = hotConsensus.hasVotes;
   const disagreePct = 100 - agreePct;
   const refYN = referee ? yesNoFromDebate(referee) : {yes: 50, no: 50};
 
@@ -306,11 +312,21 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           </View>
           <Text style={styles.quoteText}>&ldquo;{hot.headline}&rdquo;</Text>
           <View style={styles.pollRow}>
-            <Text style={styles.agreeLabel}>AGREE ({agreePct}%)</Text>
-            <Text style={styles.disagreeLabel}>DISAGREE ({disagreePct}%)</Text>
+            {hasVotes ? (
+              <>
+                <Text style={styles.agreeLabel}>AGREE ({agreePct}%)</Text>
+                <Text style={styles.disagreeLabel}>DISAGREE ({disagreePct}%)</Text>
+              </>
+            ) : (
+              <Text style={styles.noVotesLabel}>NO VOTES YET</Text>
+            )}
           </View>
           <View style={styles.barTrack}>
-            <View style={[styles.barFill, {width: `${agreePct}%`}]} />
+            {hasVotes ? (
+              <View style={[styles.barFill, {width: `${agreePct}%`}]} />
+            ) : (
+              <View style={styles.barEmpty} />
+            )}
           </View>
           <TouchableOpacity
             style={styles.joinCta}
@@ -497,6 +513,12 @@ const styles = StyleSheet.create({
     color: MATCH_CENTER_MUTED,
     letterSpacing: 0.3,
   },
+  noVotesLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: MATCH_CENTER_MUTED,
+    letterSpacing: 0.4,
+  },
   barTrack: {
     height: 8,
     borderRadius: 4,
@@ -508,6 +530,11 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: MATCH_CENTER_LIME,
     borderRadius: 4,
+  },
+  barEmpty: {
+    height: '100%',
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   joinCta: {
     flexDirection: 'row',
