@@ -6,7 +6,6 @@ import {
   Image,
   TouchableOpacity,
   useWindowDimensions,
-  Pressable,
 } from 'react-native';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -201,14 +200,13 @@ const MatchDetailsScreen = () => {
             accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={26} color={MATCH_CENTER_LIME} />
           </TouchableOpacity>
-          <Pressable
-            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}>
+          <View pointerEvents="none">
             <Ionicons
               name="ellipsis-vertical"
               size={22}
               color={MATCH_CENTER_LIME}
             />
-          </Pressable>
+          </View>
         </View>
 
         <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
