@@ -1,4 +1,4 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,59 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  ImageBackground,
+  Dimensions,
+  Pressable,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
+import {LinearGradient} from 'expo-linear-gradient';
 import type {NavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
+import type {League} from '../constants/leagues';
+import {
+  NEWS_BG,
+  NEWS_CARD,
+  NEWS_CARD_BORDER,
+  NEWS_ACCENT,
+  NEWS_CYAN,
+  NEWS_TEXT,
+  NEWS_MUTED,
+  NEWS_EXCLUSIVE,
+} from '../constants/newsUi';
+import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
+import {
+  type NewsCategoryId,
+  mergeAndSortArticles,
+  filterByCategory,
+  filterByLeague,
+  articleCategoryLabel,
+} from '../utils/newsFilters';
+
+const {width: SCREEN_W} = Dimensions.get('window');
+const PAGE_PAD = 16;
+const GRID_GAP = 10;
+const GRID_COL_W = (SCREEN_W - PAGE_PAD * 2 - GRID_GAP) / 2;
+
+const STORY_RINGS: {
+  key: string;
+  label: string;
+  category: NewsCategoryId;
+  name: React.ComponentProps<typeof Ionicons>['name'];
+}[] = [
+  {key: 'goals', label: 'TOP GOALS', category: 'match', name: 'football'},
+  {key: 'rumours', label: 'RUMOURS', category: 'transfers', name: 'people'},
+  {key: 'matchday', label: 'MATCH DAY', category: 'match', name: 'flash'},
+  {key: 'mystory', label: 'MY STORY', category: 'all', name: 'add'},
+];
 
 const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
+  const [category, setCategory] = useState<NewsCategoryId>('all');
+  const [leagueFilter, setLeagueFilter] = useState<League | null>(null);
   const {
     todayArticles,
     historyArticles,
@@ -33,50 +76,139 @@ const NewsScreen: React.FC = () => {
 
   const handleRefresh = () => {
     setFailedImageIds(new Set());
-    // Invalidate cache to mark as stale and trigger refetch
-    // This respects React Query's caching strategy while ensuring fresh data
     invalidateCache();
   };
 
-  const handleNewsItemPress = (url: string) => {
-    navigation.navigate('NewsWebView', {url});
+  const handleNewsItemPress = useCallback(
+    (url: string) => {
+      navigation.navigate('NewsWebView', {url});
+    },
+    [navigation],
+  );
+
+  const merged = useMemo(
+    () => mergeAndSortArticles(todayArticles, historyArticles),
+    [todayArticles, historyArticles],
+  );
+
+  const filteredArticles = useMemo(() => {
+    let list = filterByCategory(merged, category);
+    list = filterByLeague(list, leagueFilter);
+    return list;
+  }, [merged, category, leagueFilter]);
+
+  const featured = filteredArticles[0];
+  const gridArticles = filteredArticles.slice(1);
+
+  const onStoryPress = (s: (typeof STORY_RINGS)[0]) => {
+    if (s.key === 'mystory') {
+      return;
+    }
+    setCategory(s.category);
   };
 
-  const renderImage = (article: NewsArticle) => {
-    const showPlaceholder = !article.imageUrl || failedImageIds.has(article.id);
-    const placeholder = (
-      <View style={[styles.newsImage, styles.placeholderImage]}>
-        <Ionicons name="football-outline" size={32} color="#999" />
+  const renderFeatured = (article: NewsArticle) => {
+    const imgOk = Boolean(article.imageUrl && !failedImageIds.has(article.id));
+    const snippet =
+      article.snippet?.trim() ||
+      article.title.slice(0, 120) + (article.title.length > 120 ? '…' : '');
+
+    const overlayInner = (
+      <View style={styles.featuredStack}>
+        <LinearGradient
+          colors={['rgba(13,17,23,0.15)', 'rgba(13,17,23,0.55)', '#0D1117']}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.featuredContent}>
+          <View style={styles.exclusivePill}>
+            <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
+          </View>
+          <Text style={styles.featuredTitle} numberOfLines={4}>
+            {article.title.toUpperCase()}
+          </Text>
+          <Text style={styles.featuredSnippet} numberOfLines={2}>
+            {snippet}
+          </Text>
+          <View style={styles.featuredFooter}>
+            <View style={styles.authorDot}>
+              <Ionicons name="person" size={14} color={NEWS_BG} />
+            </View>
+            <Text style={styles.featuredByline} numberOfLines={1}>
+              BY {article.sourceName.toUpperCase()} •{' '}
+              {article.relativeTime.toUpperCase()}
+            </Text>
+          </View>
+        </View>
       </View>
     );
-    if (showPlaceholder) {
-      return placeholder;
-    }
+
     return (
-      <Image
-        source={{uri: article.imageUrl}}
-        style={styles.newsImage}
-        resizeMode="cover"
-        onError={() => handleImageError(article.id)}
-      />
+      <TouchableOpacity
+        style={styles.featuredOuter}
+        onPress={() => handleNewsItemPress(article.sourceUrl)}
+        activeOpacity={0.92}>
+        {imgOk ? (
+          <ImageBackground
+            source={{uri: article.imageUrl!}}
+            style={styles.featuredBg}
+            imageStyle={styles.featuredBgImg}
+            onError={() => handleImageError(article.id)}>
+            {overlayInner}
+          </ImageBackground>
+        ) : (
+          <LinearGradient
+            colors={['#1c2433', '#0D1117']}
+            style={styles.featuredBg}>
+            {overlayInner}
+          </LinearGradient>
+        )}
+      </TouchableOpacity>
     );
   };
 
-  const todayArticlesToShow = todayArticles.slice(0, 5);
-  const historyArticlesToShow = historyArticles.slice(0, 5);
-  const hasArticles =
-    todayArticlesToShow.length > 0 || historyArticlesToShow.length > 0;
+  const renderGridCard = (article: NewsArticle) => {
+    const imgOk = article.imageUrl && !failedImageIds.has(article.id);
+    const tag = articleCategoryLabel(article);
+    return (
+      <TouchableOpacity
+        key={article.id}
+        style={styles.gridCard}
+        onPress={() => handleNewsItemPress(article.sourceUrl)}
+        activeOpacity={0.9}>
+        <View style={styles.gridImageWrap}>
+          {imgOk ? (
+            <Image
+              source={{uri: article.imageUrl}}
+              style={styles.gridImage}
+              resizeMode="cover"
+              onError={() => handleImageError(article.id)}
+            />
+          ) : (
+            <View style={[styles.gridImage, styles.gridPlaceholder]}>
+              <Ionicons name="image-outline" size={32} color={NEWS_MUTED} />
+            </View>
+          )}
+        </View>
+        <Text style={styles.gridTitle} numberOfLines={3}>
+          {article.title.toUpperCase()}
+        </Text>
+        <Text style={styles.gridMeta} numberOfLines={2}>
+          {tag} • {article.relativeTime.toUpperCase()}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
-  if (loading && !hasArticles) {
+  if (loading && merged.length === 0) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={NEWS_ACCENT} />
         <Text style={styles.loadingText}>Loading news...</Text>
       </View>
     );
   }
 
-  if (error && !hasArticles) {
+  if (error && merged.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#ff6b6b" />
@@ -84,24 +216,29 @@ const NewsScreen: React.FC = () => {
           {error?.message || 'Failed to load news'}
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-          <Ionicons name="refresh" size={20} color="#fff" style={styles.icon} />
+          <Ionicons
+            name="refresh"
+            size={20}
+            color={NEWS_BG}
+            style={{marginRight: 8}}
+          />
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  if (!hasArticles) {
+  if (!loading && merged.length === 0) {
     return (
       <View style={styles.centerContainer}>
-        <Ionicons name="newspaper-outline" size={48} color="#999" />
+        <Ionicons name="newspaper-outline" size={48} color={NEWS_MUTED} />
         <Text style={styles.noDataText}>No news available right now</Text>
         <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
           <Ionicons
             name="refresh"
             size={20}
-            color="#007AFF"
-            style={styles.icon}
+            color={NEWS_ACCENT}
+            style={{marginRight: 8}}
           />
           <Text style={styles.refreshText}>Refresh</Text>
         </TouchableOpacity>
@@ -110,110 +247,305 @@ const NewsScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor="#007AFF"
-        />
-      }>
-      <View style={styles.newsContainer}>
-        {/* Today's News Section */}
-        {todayArticlesToShow.length > 0 && (
-          <>
-            <View style={[styles.sectionHeader, styles.firstSectionHeader]}>
-              <Text style={styles.sectionTitle}>Today's News</Text>
-            </View>
-            {todayArticlesToShow.map((item: NewsArticle) => (
+    <View style={styles.safe}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={NEWS_ACCENT}
+          />
+        }>
+        {/* Story rings */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.storyRow}>
+          {STORY_RINGS.map(s => {
+            return (
               <TouchableOpacity
-                key={item.id}
-                style={styles.newsItem}
-                onPress={() => handleNewsItemPress(item.sourceUrl)}
-                activeOpacity={0.7}>
-                <View style={styles.newsContent}>
-                  <Text style={styles.newsTitle} numberOfLines={3}>
-                    {item.title}
-                  </Text>
-                  <View style={styles.meta}>
-                    <Text style={styles.newsPublisher}>{item.sourceName}</Text>
-                    <Text style={styles.separator}>•</Text>
-                    <Text style={styles.time}>{item.relativeTime}</Text>
+                key={s.key}
+                style={styles.storyItem}
+                onPress={() => onStoryPress(s)}
+                activeOpacity={0.88}>
+                <LinearGradient
+                  colors={[NEWS_ACCENT, NEWS_CYAN]}
+                  start={{x: 0, y: 0}}
+                  end={{x: 1, y: 1}}
+                  style={styles.storyGradient}>
+                  <View style={styles.storyInner}>
+                    {s.key === 'mystory' ? (
+                      <Ionicons name="add" size={32} color={NEWS_MUTED} />
+                    ) : (
+                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
+                    )}
                   </View>
-                </View>
-                {renderImage(item)}
+                </LinearGradient>
+                <Text style={styles.storyLabel}>{s.label}</Text>
               </TouchableOpacity>
-            ))}
-          </>
-        )}
+            );
+          })}
+        </ScrollView>
 
-        {/* World Football History Section */}
-        {historyArticlesToShow.length > 0 && (
+        <LeagueHorizontalStrip
+          selectedLeague={leagueFilter}
+          onSelect={setLeagueFilter}
+          includeAllOption
+          accentColor={NEWS_ACCENT}
+          mutedColor={NEWS_MUTED}
+        />
+
+        {filteredArticles.length === 0 ? (
+          <View style={styles.emptyFilter}>
+            <Text style={styles.emptyFilterText}>
+              No articles match these filters
+            </Text>
+            <Text style={styles.emptyFilterHint}>
+              Try another story ring or league
+            </Text>
+          </View>
+        ) : (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>World Football History</Text>
-            </View>
-            {historyArticlesToShow.map((item: NewsArticle) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.newsItem}
-                onPress={() => handleNewsItemPress(item.sourceUrl)}
-                activeOpacity={0.7}>
-                <View style={styles.newsContent}>
-                  <Text style={styles.newsTitle} numberOfLines={3}>
-                    {item.title}
-                  </Text>
-                  <View style={styles.meta}>
-                    <Text style={styles.newsPublisher}>{item.sourceName}</Text>
-                    <Text style={styles.separator}>•</Text>
-                    <Text style={styles.time}>{item.relativeTime}</Text>
-                  </View>
+            {featured ? renderFeatured(featured) : null}
+            <View style={styles.grid}>
+              {gridArticles.map(a => (
+                <View key={a.id} style={{width: GRID_COL_W}}>
+                  {renderGridCard(a)}
                 </View>
-                {renderImage(item)}
-              </TouchableOpacity>
-            ))}
+              ))}
+            </View>
           </>
         )}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: NEWS_BG,
+  },
+  scroll: {
+    flex: 1,
+    backgroundColor: NEWS_BG,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+    paddingTop: 4,
+  },
+  storyRow: {
+    paddingHorizontal: PAGE_PAD,
+    paddingTop: 8,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  storyItem: {
+    alignItems: 'center',
+    marginRight: 14,
+    width: 78,
+  },
+  storyGradient: {
+    borderRadius: 18,
+    padding: 3,
+  },
+  storyGradientActive: {
+    opacity: 1,
+  },
+  storyInner: {
+    width: 72,
+    height: 72,
+    borderRadius: 15,
+    backgroundColor: NEWS_CARD,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  storyLabel: {
+    marginTop: 8,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    color: NEWS_TEXT,
+    textAlign: 'center',
+  },
+  latestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: PAGE_PAD,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  latestTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    letterSpacing: 0.8,
+    color: NEWS_TEXT,
+  },
+  viewAll: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: NEWS_ACCENT,
+    textDecorationLine: 'underline',
+  },
+  featuredOuter: {
+    marginHorizontal: PAGE_PAD,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: NEWS_CARD_BORDER,
+  },
+  featuredBg: {
+    minHeight: 320,
+    justifyContent: 'flex-end',
+  },
+  featuredBgImg: {
+    borderRadius: 20,
+  },
+  featuredStack: {
+    flex: 1,
+    minHeight: 320,
+    justifyContent: 'flex-end',
+  },
+  featuredContent: {
+    padding: 18,
+  },
+  exclusivePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: NEWS_EXCLUSIVE,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginBottom: 10,
+  },
+  exclusiveText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    color: '#0D1117',
+  },
+  featuredTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    letterSpacing: 0.5,
+    color: NEWS_TEXT,
+    lineHeight: 28,
+    marginBottom: 10,
+  },
+  featuredSnippet: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: NEWS_MUTED,
+    marginBottom: 14,
+  },
+  featuredFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  authorDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: NEWS_ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  featuredByline: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: NEWS_TEXT,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: PAGE_PAD,
+    justifyContent: 'space-between',
+  },
+  gridCard: {
+    width: '100%',
+    marginBottom: GRID_GAP + 6,
+    backgroundColor: NEWS_CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: NEWS_CARD_BORDER,
+    overflow: 'hidden',
+    paddingBottom: 10,
+  },
+  gridImageWrap: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  gridImage: {
+    width: '100%',
+    height: 110,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  gridPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    letterSpacing: 0.3,
+    color: NEWS_TEXT,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    lineHeight: 16,
+  },
+  gridMeta: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: NEWS_MUTED,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    textTransform: 'uppercase',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: NEWS_BG,
+    paddingHorizontal: 24,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: NEWS_MUTED,
   },
   errorText: {
     fontSize: 16,
-    color: '#ff3b30',
+    color: '#ff6b6b',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    marginTop: 12,
   },
   noDataText: {
     fontSize: 16,
-    color: '#666',
+    color: NEWS_MUTED,
     textAlign: 'center',
-    paddingHorizontal: 20,
     marginTop: 16,
     marginBottom: 24,
   },
   retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: NEWS_ACCENT,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -222,127 +554,39 @@ const styles = StyleSheet.create({
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#007AFF',
-    marginTop: 16,
-  },
-  icon: {
-    marginRight: 8,
+    borderColor: NEWS_ACCENT,
+    marginTop: 8,
   },
   retryText: {
-    color: '#fff',
+    color: NEWS_BG,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   refreshText: {
-    color: '#007AFF',
+    color: NEWS_ACCENT,
     fontSize: 16,
-    fontWeight: '600',
-  },
-  meta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  separator: {
-    fontSize: 12,
-    color: '#999',
-    marginHorizontal: 6,
-  },
-  time: {
-    fontSize: 12,
-    color: '#999',
-  },
-  placeholderTitle: {
-    fontSize: 10,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
-    fontWeight: '500',
-    paddingHorizontal: 4,
-  },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-  newsContainer: {
-    padding: 16,
-  },
-  sectionHeader: {
-    marginTop: 8,
-    marginBottom: 12,
-    paddingBottom: 8,
-  },
-  firstSectionHeader: {
-    marginTop: 0,
-  },
-  sectionTitle: {
-    fontSize: 20,
     fontWeight: '700',
-    color: '#333',
-    letterSpacing: -0.3,
   },
-  newsItem: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-    overflow: 'hidden',
-    minHeight: 120,
-  },
-  newsContent: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  newsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    lineHeight: 22,
-    flexShrink: 1,
-  },
-  newsPublisher: {
-    fontSize: 12,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  newsImage: {
-    width: 120,
-    height: '100%',
-    minHeight: 120,
-    backgroundColor: '#e0e0e0',
-  },
-  placeholderImage: {
-    backgroundColor: '#e0e0e0',
-    justifyContent: 'center',
+  emptyFilter: {
+    padding: 24,
     alignItems: 'center',
+  },
+  emptyFilterText: {
+    color: NEWS_TEXT,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emptyFilterHint: {
+    color: NEWS_MUTED,
+    fontSize: 13,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
 

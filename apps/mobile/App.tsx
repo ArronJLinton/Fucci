@@ -28,6 +28,7 @@ import {
   StyledTabBarButton,
   TAB_LIME,
 } from './src/navigation/StyledTabBarButton';
+import {NEWS_BG} from './src/constants/newsUi';
 
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -95,7 +96,7 @@ const MainStack = () => {
       : focusedTab === 'Profile'
         ? SHELL_PROFILE_BG
         : focusedTab === 'News'
-          ? '#f5f5f5'
+          ? NEWS_BG
           : focusedTab === 'Home'
             ? SHELL_MATCHES_BG
             : '#fff';
@@ -103,7 +104,8 @@ const MainStack = () => {
   const statusBarStyle =
     focusedTab === 'Debates' ||
     focusedTab === 'Profile' ||
-    focusedTab === 'Home'
+    focusedTab === 'Home' ||
+    focusedTab === 'News'
       ? 'light-content'
       : 'dark-content';
 
@@ -112,23 +114,35 @@ const MainStack = () => {
       ? SHELL_DEBATES_BG
       : focusedTab === 'Profile'
         ? SHELL_PROFILE_BG
-        : focusedTab === 'Home'
-          ? SHELL_MATCHES_BG
-          : '#fff';
+        : focusedTab === 'News'
+          ? NEWS_BG
+          : focusedTab === 'Home'
+            ? SHELL_MATCHES_BG
+            : '#fff';
 
   const tabBarBorder =
     focusedTab === 'Debates' ||
     focusedTab === 'Profile' ||
-    focusedTab === 'Home'
+    focusedTab === 'Home' ||
+    focusedTab === 'News'
       ? 'rgba(255,255,255,0.12)'
       : '#e0e0e0';
 
   const inactiveTint =
-    focusedTab === 'Debates' || focusedTab === 'Profile' || focusedTab === 'Home'
+    focusedTab === 'Debates' ||
+    focusedTab === 'Profile' ||
+    focusedTab === 'Home' ||
+    focusedTab === 'News'
       ? '#8E8E93'
       : '#666';
 
-  const tabChromeVariant = focusedTab === 'News' ? 'light' : 'dark';
+  const tabChromeVariant =
+    focusedTab === 'Debates' ||
+    focusedTab === 'Profile' ||
+    focusedTab === 'Home' ||
+    focusedTab === 'News'
+      ? 'dark'
+      : 'light';
 
   const tabActiveTint =
     tabChromeVariant === 'dark' ? TAB_LIME : '#007AFF';

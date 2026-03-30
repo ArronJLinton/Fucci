@@ -21,3 +21,17 @@ export const LEAGUES: League[] = [
 ];
 
 export const DEFAULT_LEAGUE = LEAGUES[0]; // Premier League
+
+/** Short labels for horizontal league strips (PREMIER, LA LIGA, …). */
+export function leagueStripLabel(name: string): string {
+  const map: Record<string, string> = {
+    'Premier League': 'PREMIER',
+    'La Liga': 'LA LIGA',
+    'Serie A': 'SERIE A',
+    Bundesliga: 'BUNDES',
+    'Ligue 1': 'LIGUE 1',
+    'UEFA Champions League': 'UCL',
+    'International Competitions': 'INTL',
+  };
+  return map[name] ?? name.split(' ')[0]?.toUpperCase() ?? name;
+}

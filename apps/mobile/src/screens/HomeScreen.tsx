@@ -5,8 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Text,
-  ScrollView,
-  Image,
 } from 'react-native';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import type {NavigationState} from '@react-navigation/native';
@@ -14,8 +12,9 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
 import {fetchMatches} from '../services/api';
-import {LEAGUES, DEFAULT_LEAGUE, type League} from '../constants/leagues';
+import {DEFAULT_LEAGUE, type League} from '../constants/leagues';
 import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
+import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -256,52 +255,13 @@ const HomeScreen = () => {
               }}>
               {() => (
                 <View style={styles.tabBody}>
-                  <View style={styles.leagueStrip}>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.leagueStripContent}>
-                      {LEAGUES.map(league => {
-                        const isSelected = selectedLeague?.id === league.id;
-                        return (
-                          <TouchableOpacity
-                            key={league.id}
-                            style={styles.leagueItem}
-                            onPress={() => setSelectedLeague(league)}
-                            activeOpacity={0.85}>
-                            <View style={styles.leagueIconWrap}>
-                              <View style={styles.leagueIconInner}>
-                                {league.logo ? (
-                                  <Image
-                                    source={{uri: league.logo}}
-                                    style={styles.leagueIconImg}
-                                    resizeMode="contain"
-                                  />
-                                ) : (
-                                  <Text style={styles.leagueIconFallback}>
-                                    {leagueStripLabel(league.name).slice(0, 2)}
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-                            <Text
-                              style={[
-                                styles.leagueName,
-                                isSelected && styles.leagueNameSelected,
-                              ]}
-                              numberOfLines={1}>
-                              {leagueStripLabel(league.name)}
-                            </Text>
-                            {isSelected ? (
-                              <View style={styles.leagueUnderline} />
-                            ) : (
-                              <View style={styles.leagueUnderlinePlaceholder} />
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
+                  <LeagueHorizontalStrip
+                    selectedLeague={selectedLeague}
+                    onSelect={setSelectedLeague}
+                    includeAllOption={false}
+                    accentColor={MATCHES_LIME}
+                    mutedColor={MATCHES_MUTED}
+                  />
                   <View style={styles.dateContent}>
                     <DateTabScreen
                       date={date}
@@ -346,71 +306,6 @@ const styles = StyleSheet.create({
   tabBody: {
     flex: 1,
     backgroundColor: MATCHES_BG,
-  },
-  leagueStrip: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  leagueStripContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-  },
-  leagueItem: {
-    alignItems: 'center',
-    marginHorizontal: 8,
-    minWidth: 64,
-  },
-  leagueIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    padding: 3,
-    marginBottom: 6,
-  },
-  leagueIconInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  leagueIconImg: {
-    width: 30,
-    height: 30,
-  },
-  leagueIconFallback: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0B0E14',
-  },
-  leagueName: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    color: MATCHES_MUTED,
-    textAlign: 'center',
-  },
-  leagueNameSelected: {
-    color: MATCHES_LIME,
-  },
-  leagueUnderline: {
-    marginTop: 6,
-    height: 3,
-    width: 32,
-    borderRadius: 2,
-    backgroundColor: MATCHES_LIME,
-  },
-  leagueUnderlinePlaceholder: {
-    marginTop: 6,
-    height: 3,
-    width: 32,
   },
   dateContent: {
     flex: 1,
