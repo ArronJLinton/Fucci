@@ -20,7 +20,10 @@ import {
   fetchDebateById,
   generateDebateSet,
 } from '../services/api';
-import {useMatchDetailsScroll} from '../context/MatchDetailsScrollContext';
+import {
+  useMatchDetailsScroll,
+  type MatchDetailsScrollHandler,
+} from '../context/MatchDetailsScrollContext';
 import {
   MATCH_CENTER_BG,
   MATCH_CENTER_BLACK,
@@ -87,13 +90,19 @@ function joinedLabel(id: number | undefined, index: number): string {
 interface DebateScreenProps {
   match: Match;
   stackNavigation?: NativeStackNavigationProp<RootStackParamList>;
+  matchScrollHandler?: MatchDetailsScrollHandler;
 }
 
 const PAGE = 16;
 
-const DebateScreen: React.FC<DebateScreenProps> = ({match, stackNavigation}) => {
+const DebateScreen: React.FC<DebateScreenProps> = ({
+  match,
+  stackNavigation,
+  matchScrollHandler,
+}) => {
   const stackNav = stackNavigation ?? null;
   const matchScroll = useMatchDetailsScroll();
+  const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
 
   const [debateList, setDebateList] = useState<DebateResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -270,8 +279,9 @@ const DebateScreen: React.FC<DebateScreenProps> = ({match, stackNavigation}) => 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        onScroll={matchScroll?.scrollHandler}
+        onScroll={onScroll}
         scrollEventThrottle={16}
+        nestedScrollEnabled
         showsVerticalScrollIndicator={false}>
         <LinearGradient
           colors={['#1a2332', MATCH_CENTER_CARD]}

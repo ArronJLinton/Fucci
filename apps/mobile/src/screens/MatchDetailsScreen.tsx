@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useEffect, useRef, useMemo} from 'react';
 import {
   View,
   Text,
@@ -118,6 +118,11 @@ const MatchDetailsScreen = () => {
       scrollY.value = event.contentOffset.y;
     },
   });
+
+  const scrollContextValue = useMemo(
+    () => ({scrollHandler}),
+    [scrollHandler],
+  );
 
   useEffect(() => {
     return () => {
@@ -283,14 +288,16 @@ const MatchDetailsScreen = () => {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <MatchDetailsScrollProvider value={{scrollHandler}}>
+      <MatchDetailsScrollProvider value={scrollContextValue}>
         <MatchHero />
-        <TabNavigator
+        <View style={styles.tabsWrap}>
+          <TabNavigator
           screenListeners={{
             tabPress: () => {
               scrollY.value = 0;
             },
           }}
+          style={styles.tabNavigator}
           screenOptions={{
             tabBarScrollEnabled: true,
             tabBarItemStyle: {
@@ -325,30 +332,46 @@ const MatchDetailsScreen = () => {
             options={{
               tabBarLabel: 'Lineup',
             }}>
-            {() => <LineupScreen match={match} />}
+            {() => (
+              <LineupScreen match={match} matchScrollHandler={scrollHandler} />
+            )}
           </TabScreen>
           <TabScreen
             name="Table"
             options={{
               tabBarLabel: 'Table',
             }}>
-            {() => <TableScreen match={match} />}
+            {() => (
+              <TableScreen match={match} matchScrollHandler={scrollHandler} />
+            )}
           </TabScreen>
           <TabScreen
             name="News"
             options={{
               tabBarLabel: 'News',
             }}>
-            {() => <MatchNewsScreen match={match} />}
+            {() => (
+              <MatchNewsScreen
+                match={match}
+                matchScrollHandler={scrollHandler}
+              />
+            )}
           </TabScreen>
           <TabScreen
             name="Debate"
             options={{
               tabBarLabel: 'Debate',
             }}>
-            {() => <DebateScreen match={match} stackNavigation={navigation} />}
+            {() => (
+              <DebateScreen
+                match={match}
+                stackNavigation={navigation}
+                matchScrollHandler={scrollHandler}
+              />
+            )}
           </TabScreen>
         </TabNavigator>
+        </View>
       </MatchDetailsScrollProvider>
     </View>
   );
@@ -358,6 +381,14 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: MATCH_CENTER_BG,
+  },
+  /** Fills space under hero so tab scenes get a bounded height and vertical ScrollViews actually scroll. */
+  tabsWrap: {
+    flex: 1,
+    minHeight: 0,
+  },
+  tabNavigator: {
+    flex: 1,
   },
   heroOuter: {
     backgroundColor: MATCH_CENTER_BLACK,

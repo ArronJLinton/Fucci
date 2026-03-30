@@ -1,8 +1,12 @@
 import React, {createContext, useContext} from 'react';
 import type {ScrollHandlerProcessed} from 'react-native-reanimated';
 
+/** Pass from `MatchDetailsScreen` into tab screens so scroll-driven hero collapse always works (navigator-safe). */
+export type MatchDetailsScrollHandler =
+  ScrollHandlerProcessed<Record<string, unknown>>;
+
 export type MatchDetailsScrollContextValue = {
-  scrollHandler: ScrollHandlerProcessed<Record<string, unknown>>;
+  scrollHandler: MatchDetailsScrollHandler;
 };
 
 const MatchDetailsScrollContext =

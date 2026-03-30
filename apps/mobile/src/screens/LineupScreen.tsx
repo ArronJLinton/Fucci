@@ -10,7 +10,10 @@ import {
 import Animated from 'react-native-reanimated';
 import type {Match} from '../types/match';
 import {fetchLineup} from '../services/api';
-import {useMatchDetailsScroll} from '../context/MatchDetailsScrollContext';
+import {
+  useMatchDetailsScroll,
+  type MatchDetailsScrollHandler,
+} from '../context/MatchDetailsScrollContext';
 import {
   MATCH_CENTER_BG,
   MATCH_CENTER_CARD,
@@ -34,6 +37,7 @@ interface PlayerCardProps {
 
 interface LineupScreenProps {
   match: Match;
+  matchScrollHandler?: MatchDetailsScrollHandler;
 }
 
 interface Player {
@@ -134,9 +138,13 @@ const SubstituteCard: React.FC<{player: Player}> = ({player}) => {
   );
 };
 
-const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
+const LineupScreen: React.FC<LineupScreenProps> = ({
+  match,
+  matchScrollHandler,
+}) => {
   const {width} = useWindowDimensions();
   const matchScroll = useMatchDetailsScroll();
+  const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
   const [lineupData, setLineupData] = useState<LineupData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,8 +209,9 @@ const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
   return (
     <Animated.ScrollView
       style={styles.container}
-      onScroll={matchScroll?.scrollHandler}
-      scrollEventThrottle={16}>
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      nestedScrollEnabled>
       <View style={[styles.field, {width: width, height: width * 2.0}]}>
         {/* Field markings */}
         <View style={styles.halfwayLine} />

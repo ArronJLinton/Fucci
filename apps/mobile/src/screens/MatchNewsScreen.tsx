@@ -28,10 +28,14 @@ import {
   NEWS_EXCLUSIVE,
 } from '../constants/newsUi';
 import {articleCategoryLabel} from '../utils/newsFilters';
-import {useMatchDetailsScroll} from '../context/MatchDetailsScrollContext';
+import {
+  useMatchDetailsScroll,
+  type MatchDetailsScrollHandler,
+} from '../context/MatchDetailsScrollContext';
 
 interface MatchNewsScreenProps {
   match: Match;
+  matchScrollHandler?: MatchDetailsScrollHandler;
 }
 
 const PAGE_PAD = 16;
@@ -138,9 +142,13 @@ function sortByPublishedDesc(list: NewsArticle[]): NewsArticle[] {
   );
 }
 
-const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
+const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({
+  match,
+  matchScrollHandler,
+}) => {
   const navigation = useNavigation<NavigationProp>();
   const matchScroll = useMatchDetailsScroll();
+  const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
   const homeTeam = match.teams.home.name;
   const awayTeam = match.teams.away.name;
   const matchId = match.fixture.id.toString();
@@ -459,8 +467,9 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
-      onScroll={matchScroll?.scrollHandler}
+      onScroll={onScroll}
       scrollEventThrottle={16}
+      nestedScrollEnabled
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
