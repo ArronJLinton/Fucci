@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Image,
   ImageBackground,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -28,6 +28,7 @@ import {
   NEWS_EXCLUSIVE,
 } from '../constants/newsUi';
 import {articleCategoryLabel} from '../utils/newsFilters';
+import {useMatchDetailsScroll} from '../context/MatchDetailsScrollContext';
 
 interface MatchNewsScreenProps {
   match: Match;
@@ -139,6 +140,7 @@ function sortByPublishedDesc(list: NewsArticle[]): NewsArticle[] {
 
 const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
   const navigation = useNavigation<NavigationProp>();
+  const matchScroll = useMatchDetailsScroll();
   const homeTeam = match.teams.home.name;
   const awayTeam = match.teams.away.name;
   const matchId = match.fixture.id.toString();
@@ -453,10 +455,12 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
   }
 
   return (
-    <ScrollView
+    <Animated.ScrollView
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
+      onScroll={matchScroll?.scrollHandler}
+      scrollEventThrottle={16}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -482,7 +486,7 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({match}) => {
       })}
 
       <View style={styles.scrollBottomSpacer} />
-    </ScrollView>
+    </Animated.ScrollView>
   );
 };
 

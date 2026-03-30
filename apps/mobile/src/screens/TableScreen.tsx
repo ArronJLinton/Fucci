@@ -3,12 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Image,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Match } from '../types/match';
 import { fetchStandings } from '../services/api';
+import { useMatchDetailsScroll } from '../context/MatchDetailsScrollContext';
 
 type Standing = {
   rank: number;
@@ -38,6 +39,7 @@ interface TableScreenProps {
 }
 
 export const TableScreen: React.FC<TableScreenProps> = ({ match }) => {
+  const matchScroll = useMatchDetailsScroll();
   const [standings, setStandings] = useState<Standing[][]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,10 @@ export const TableScreen: React.FC<TableScreenProps> = ({ match }) => {
     );
   }
   return (
-    <ScrollView style={styles.container}>
+    <Animated.ScrollView
+      style={styles.container}
+      onScroll={matchScroll?.scrollHandler}
+      scrollEventThrottle={16}>
       <View style={styles.tableContainer}>
         {Array.isArray(standings) &&
           standings.map((group: Standing[], groupIdx: number) => (
@@ -167,7 +172,7 @@ export const TableScreen: React.FC<TableScreenProps> = ({ match }) => {
             </View>
           ))}
       </View>
-    </ScrollView>
+    </Animated.ScrollView>
   );
 };
 

@@ -4,27 +4,46 @@ import {
   Text,
   StyleSheet,
   Image,
-  SafeAreaView,
+  TouchableOpacity,
   useWindowDimensions,
+  Pressable,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
+import {StatusBar} from 'expo-status-bar';
+import {Ionicons} from '@expo/vector-icons';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedScrollHandler,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import type {RootStackParamList} from '../types/navigation';
-// import StoryScreen from './StoryScreen';
 import LineupScreen from './LineupScreen';
 import MatchNewsScreen from './MatchNewsScreen';
 import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
 import {generateDebateSet} from '../services/api';
+import {MatchDetailsScrollProvider} from '../context/MatchDetailsScrollContext';
+import {
+  MATCH_CENTER_BG,
+  MATCH_CENTER_BLACK,
+  MATCH_CENTER_LIME,
+  MATCH_CENTER_CYAN,
+  MATCH_CENTER_TEXT,
+  MATCH_CENTER_TAB_INACTIVE,
+  HERO_EXPANDED_HEIGHT,
+  HERO_COLLAPSED_HEIGHT,
+  HERO_COLLAPSE_SCROLL_RANGE,
+} from '../constants/matchCenterUi';
+import type {Match} from '../types/match';
 
 const MAX_PRELOAD_KEYS = 64;
-
-/** Keys we've successfully preloaded this session (avoid repeated POST). Only add on success so transient failures can retry. */
 const preloadFiredFor = new Set<string>();
-/** FIFO order for eviction when at capacity. */
 const preloadFiredOrder: string[] = [];
-/** In-flight preload keys so we don't double-fire while a request is pending. */
 const preloadInFlight = new Set<string>();
 
 function preloadKey(matchId: number, debateType: string): string {
@@ -46,36 +65,76 @@ const Tab = createMaterialTopTabNavigator();
 const TabNavigator = Tab.Navigator as any;
 const TabScreen = Tab.Screen as any;
 
+function statusPillLabel(match: Match): string {
+  const short = match.fixture.status.short;
+  const long = match.fixture.status.long ?? '';
+  const elapsed = match.fixture.status.elapsed;
+
+  if (['1H', '2H', 'ET'].includes(short) && elapsed != null) {
+    return `LIVE ${elapsed}'`;
+  }
+  const map: Record<string, string> = {
+    NS: 'NOT STARTED',
+    TBD: 'NOT STARTED',
+    '1H': 'FIRST HALF',
+    HT: 'HALF TIME',
+    '2H': 'SECOND HALF',
+    ET: 'EXTRA TIME',
+    BT: 'BREAK TIME',
+    PEN: 'PENALTIES',
+    FT: 'FULL TIME',
+    AET: 'AFTER EXTRA TIME',
+    FT_PEN: 'FULL TIME',
+    AET_PEN: 'AFTER EXTRA TIME',
+    PST: 'POSTPONED',
+    CANC: 'CANCELLED',
+    ABD: 'ABANDONED',
+    AWD: 'AWARDED',
+    WO: 'WALKOVER',
+    LIVE: 'LIVE',
+  };
+  return map[short] ?? long.toUpperCase().slice(0, 28);
+}
+
+function isLiveStatus(short: string): boolean {
+  return ['1H', '2H', 'ET', 'BT', 'PEN', 'LIVE'].includes(short);
+}
+
 const MatchDetailsScreen = () => {
   const route = useRoute<MatchDetailsRouteProp>();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
   const isMountedRef = useRef(true);
 
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: event => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
   useEffect(() => {
-    // Track if component is mounted
     return () => {
       isMountedRef.current = false;
     };
   }, []);
 
-  // Preload debate set when Match Details opens (background; do not block UI).
-  // Only mark as fired after success so 429/5xx/offline can retry later; bound set with LRU to avoid unbounded growth.
   useEffect(() => {
     const matchId = match?.fixture?.id;
     if (!matchId) return;
     const status = match?.fixture?.status?.short ?? '';
-    // Align with backend: only match-actually-finished statuses get post_match preload (skip PST/CANC/ABD etc.)
     const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'].includes(status);
     const debateType = finished ? 'post_match' : 'pre_match';
     const key = preloadKey(matchId, debateType);
     if (preloadFiredFor.has(key) || preloadInFlight.has(key)) return;
     preloadInFlight.add(key);
     generateDebateSet(matchId, debateType, 3)
-      .then((result) => {
+      .then(result => {
         if (result != null && !result.rateLimited) {
           markPreloadFired(key);
         }
@@ -86,175 +145,315 @@ const MatchDetailsScreen = () => {
       });
   }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
-  const MatchHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.matchInfoContainer}>
-        <View style={styles.teamContainer}>
-          {!homeLogoError && match.teams.home.logo ? (
-            <Image
-              source={{uri: match.teams.home.logo}}
-              style={styles.teamLogo}
-              resizeMode="contain"
-              onError={() => {
-                if (isMountedRef.current) {
-                  setHomeLogoError(true);
-                }
-              }}
+  const heroAnimatedStyle = useAnimatedStyle(() => {
+    const h = interpolate(
+      scrollY.value,
+      [0, HERO_COLLAPSE_SCROLL_RANGE],
+      [HERO_EXPANDED_HEIGHT, HERO_COLLAPSED_HEIGHT],
+      Extrapolation.CLAMP,
+    );
+    return {
+      height: h,
+      overflow: 'hidden' as const,
+    };
+  });
+
+  /** Fades and collapses expanded score row so compact strip can dominate when scrolled */
+  const expandedScoreStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      scrollY.value,
+      [0, 72],
+      [1, 0],
+      Extrapolation.CLAMP,
+    ),
+    maxHeight: interpolate(
+      scrollY.value,
+      [0, 100],
+      [200, 0],
+      Extrapolation.CLAMP,
+    ),
+    overflow: 'hidden' as const,
+  }));
+
+  const heroCompactOpacityStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      scrollY.value,
+      [28, 88],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  const statusLabel = statusPillLabel(match);
+  const live = isLiveStatus(match.fixture.status.short);
+
+  const MatchHero = () => (
+    <Animated.View
+      style={[
+        styles.heroOuter,
+        {paddingTop: insets.top},
+        heroAnimatedStyle,
+      ]}>
+      <View style={styles.heroInner}>
+        <View style={styles.heroTopRow}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
+            <Ionicons name="chevron-back" size={26} color={MATCH_CENTER_LIME} />
+          </TouchableOpacity>
+          <Pressable
+            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+            onPress={() => {}}>
+            <Ionicons
+              name="ellipsis-vertical"
+              size={22}
+              color={MATCH_CENTER_LIME}
             />
-          ) : (
-            <View style={[styles.teamLogo, styles.placeholderLogo]} />
-          )}
-          <Text style={styles.teamName}>{match.teams.home.name}</Text>
+          </Pressable>
         </View>
-        <View style={styles.scoreContainer}>
-          <Text style={styles.scoreText}>
-            {match.goals.home} - {match.goals.away}
+
+        <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
+          <View style={styles.teamBlock}>
+            {!homeLogoError && match.teams.home.logo ? (
+              <Image
+                source={{uri: match.teams.home.logo}}
+                style={styles.badge}
+                resizeMode="contain"
+                onError={() => {
+                  if (isMountedRef.current) setHomeLogoError(true);
+                }}
+              />
+            ) : (
+              <View style={[styles.badge, styles.badgePlaceholder]} />
+            )}
+            <Text style={styles.teamName} numberOfLines={2}>
+              {match.teams.home.name.toUpperCase()}
+            </Text>
+          </View>
+
+          <View style={styles.scoreMid}>
+            <Text style={styles.scoreText}>
+              {match.goals.home ?? 0} - {match.goals.away ?? 0}
+            </Text>
+            <View
+              style={[
+                styles.statusPill,
+                live && styles.statusPillLive,
+              ]}>
+              <Text
+                style={[
+                  styles.statusPillText,
+                  live && styles.statusPillTextLive,
+                ]}>
+                {statusLabel}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.teamBlock}>
+            {!awayLogoError && match.teams.away.logo ? (
+              <Image
+                source={{uri: match.teams.away.logo}}
+                style={styles.badge}
+                resizeMode="contain"
+                onError={() => {
+                  if (isMountedRef.current) setAwayLogoError(true);
+                }}
+              />
+            ) : (
+              <View style={[styles.badge, styles.badgePlaceholder]} />
+            )}
+            <Text style={styles.teamName} numberOfLines={2}>
+              {match.teams.away.name.toUpperCase()}
+            </Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.heroCompactRow, heroCompactOpacityStyle]}>
+          <Text style={styles.heroCompactScore} numberOfLines={1}>
+            {match.teams.home.name.slice(0, 3).toUpperCase()}{' '}
+            <Text style={styles.heroCompactNums}>
+              {match.goals.home ?? 0}-{match.goals.away ?? 0}
+            </Text>{' '}
+            {match.teams.away.name.slice(0, 3).toUpperCase()}
           </Text>
-        </View>
-        <View style={styles.teamContainer}>
-          {!awayLogoError && match.teams.away.logo ? (
-            <Image
-              source={{uri: match.teams.away.logo}}
-              style={styles.teamLogo}
-              resizeMode="contain"
-              onError={() => {
-                if (isMountedRef.current) {
-                  setAwayLogoError(true);
-                }
-              }}
-            />
-          ) : (
-            <View style={[styles.teamLogo, styles.placeholderLogo]} />
-          )}
-          <Text style={styles.teamName}>{match.teams.away.name}</Text>
-        </View>
+        </Animated.View>
       </View>
-    </View>
+    </Animated.View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <MatchHeader />
-      <TabNavigator
-        screenOptions={{
-          tabBarScrollEnabled: true,
-          tabBarItemStyle: {
-            width: width / 4,
-            alignItems: 'center',
-            justifyContent: 'center',
-          },
-          tabBarStyle: {
-            backgroundColor: '#fff',
-          },
-          tabBarIndicatorStyle: {
-            backgroundColor: '#007AFF',
-            height: 3,
-          },
-          tabBarActiveTintColor: '#007AFF',
-          tabBarInactiveTintColor: 'gray',
-          tabBarPressColor: '#E3F2FD',
-          tabBarPressOpacity: 0.8,
-        }}>
-        {/* <TabScreen
-          name="Story"
-          component={StoryScreen}
-          options={{
-            tabBarLabel: 'Story',
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <MatchDetailsScrollProvider value={{scrollHandler}}>
+        <MatchHero />
+        <TabNavigator
+          screenListeners={{
+            tabPress: () => {
+              scrollY.value = 0;
+            },
           }}
-        /> */}
-        <TabScreen
-          name="Lineup"
-          options={{
-            tabBarLabel: 'Lineup',
+          screenOptions={{
+            tabBarScrollEnabled: true,
+            tabBarItemStyle: {
+              width: width / 4,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            tabBarStyle: {
+              backgroundColor: MATCH_CENTER_BG,
+              elevation: 0,
+              shadowOpacity: 0,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: 'rgba(255,255,255,0.08)',
+            },
+            tabBarIndicatorStyle: {
+              backgroundColor: MATCH_CENTER_LIME,
+              height: 3,
+            },
+            tabBarActiveTintColor: MATCH_CENTER_LIME,
+            tabBarInactiveTintColor: MATCH_CENTER_TAB_INACTIVE,
+            tabBarLabelStyle: {
+              fontWeight: '800',
+              fontSize: 10,
+              letterSpacing: 0.6,
+              textTransform: 'uppercase',
+            },
+            tabBarPressColor: 'rgba(223,255,0,0.12)',
+            tabBarPressOpacity: 0.85,
           }}>
-          {() => <LineupScreen match={match} />}
-        </TabScreen>
-        <TabScreen
-          name="Table"
-          options={{
-            tabBarLabel: 'Table',
-          }}>
-          {() => <TableScreen match={match} />}
-        </TabScreen>
-        <TabScreen
-          name="News"
-          options={{
-            tabBarLabel: 'News',
-          }}>
-          {() => <MatchNewsScreen match={match} />}
-        </TabScreen>
-        <TabScreen
-          name="Debate"
-          options={{
-            tabBarLabel: 'Debate',
-          }}>
-          {() => <DebateScreen match={match} stackNavigation={navigation} />}
-        </TabScreen>
-      </TabNavigator>
-    </SafeAreaView>
+          <TabScreen
+            name="Lineup"
+            options={{
+              tabBarLabel: 'Lineup',
+            }}>
+            {() => <LineupScreen match={match} />}
+          </TabScreen>
+          <TabScreen
+            name="Table"
+            options={{
+              tabBarLabel: 'Table',
+            }}>
+            {() => <TableScreen match={match} />}
+          </TabScreen>
+          <TabScreen
+            name="News"
+            options={{
+              tabBarLabel: 'News',
+            }}>
+            {() => <MatchNewsScreen match={match} />}
+          </TabScreen>
+          <TabScreen
+            name="Debate"
+            options={{
+              tabBarLabel: 'Debate',
+            }}>
+            {() => <DebateScreen match={match} stackNavigation={navigation} />}
+          </TabScreen>
+        </TabNavigator>
+      </MatchDetailsScrollProvider>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: MATCH_CENTER_BG,
   },
-  headerContainer: {
-    padding: 16,
-    backgroundColor: '#fff',
+  heroOuter: {
+    backgroundColor: MATCH_CENTER_BLACK,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  matchInfoContainer: {
+  heroInner: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  heroTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    minHeight: 36,
   },
-  teamContainer: {
+  heroScoreBlock: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  teamBlock: {
     flex: 1,
     alignItems: 'center',
   },
-  teamLogo: {
-    width: 40,
-    height: 40,
+  badge: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
     marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  badgePlaceholder: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   teamName: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
+    color: MATCH_CENTER_TEXT,
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
-  scoreContainer: {
-    paddingHorizontal: 16,
+  scoreMid: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
   },
   scoreText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
+    color: MATCH_CENTER_TEXT,
+    letterSpacing: 1,
   },
-  headerActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  headerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
+  statusPill: {
+    marginTop: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: MATCH_CENTER_CYAN,
+    backgroundColor: 'rgba(0,229,255,0.08)',
   },
-  headerButtonText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '600',
+  statusPillLive: {
+    borderColor: MATCH_CENTER_LIME,
+    backgroundColor: 'rgba(223,255,0,0.1)',
   },
-  placeholderLogo: {
-    backgroundColor: '#E0E0E0',
-    justifyContent: 'center',
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: MATCH_CENTER_CYAN,
+  },
+  statusPillTextLive: {
+    color: MATCH_CENTER_LIME,
+  },
+  heroCompactRow: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 10,
     alignItems: 'center',
+  },
+  heroCompactScore: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: MATCH_CENTER_TEXT,
+    letterSpacing: 0.5,
+  },
+  heroCompactNums: {
+    color: MATCH_CENTER_LIME,
+    fontSize: 15,
   },
 });
 

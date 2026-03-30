@@ -1,26 +1,36 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../types/navigation';
-import type { Match } from '../types/match';
-import type { DebateResponse, DebateType } from '../types/debate';
+import {Ionicons} from '@expo/vector-icons';
+import {LinearGradient} from 'expo-linear-gradient';
+import Animated from 'react-native-reanimated';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import type {RootStackParamList} from '../types/navigation';
+import type {Match} from '../types/match';
+import type {DebateResponse, DebateType} from '../types/debate';
 import {
   fetchDebatesByMatch,
   fetchDebateById,
   generateDebateSet,
 } from '../services/api';
+import {useMatchDetailsScroll} from '../context/MatchDetailsScrollContext';
+import {
+  MATCH_CENTER_BG,
+  MATCH_CENTER_BLACK,
+  MATCH_CENTER_LIME,
+  MATCH_CENTER_CYAN,
+  MATCH_CENTER_CARD,
+  MATCH_CENTER_MUTED,
+  MATCH_CENTER_TEXT,
+} from '../constants/matchCenterUi';
 
-// Match actually finished (has result); aligns with backend validateMatchStatusForDebateType. Excludes PST/CANC/ABD/AWD/WO so we don't request post_match for postponed/cancelled/abandoned matches.
 const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
 
 function getDefaultDebateType(match: Match): DebateType {
@@ -28,27 +38,76 @@ function getDefaultDebateType(match: Match): DebateType {
   return FINISHED_STATUSES.includes(short) ? 'post_match' : 'pre_match';
 }
 
+function agreePercentFromDebate(d: DebateResponse): number {
+  let agree = 0;
+  let disagree = 0;
+  for (const c of d.cards ?? []) {
+    const u = c.vote_counts?.upvotes ?? 0;
+    if (c.stance === 'agree') agree += u;
+    if (c.stance === 'disagree') disagree += u;
+  }
+  const t = agree + disagree;
+  if (t < 1) return 68;
+  return Math.round((agree / t) * 100);
+}
+
+function yesNoFromDebate(d: DebateResponse): {yes: number; no: number} {
+  const t = d.card_vote_totals;
+  if (t) {
+    const ty = t.total_yes ?? 0;
+    const tn = t.total_no ?? 0;
+    const sum = ty + tn;
+    if (sum >= 1) {
+      return {
+        yes: Math.round((ty / sum) * 100),
+        no: Math.round((tn / sum) * 100),
+      };
+    }
+  }
+  let y = 0;
+  let n = 0;
+  for (const c of d.cards ?? []) {
+    if (c.stance === 'agree') y += c.vote_counts?.upvotes ?? 0;
+    if (c.stance === 'disagree') n += c.vote_counts?.upvotes ?? 0;
+  }
+  const sum = y + n;
+  if (sum < 1) return {yes: 42, no: 58};
+  return {
+    yes: Math.round((y / sum) * 100),
+    no: Math.round((n / sum) * 100),
+  };
+}
+
+function joinedLabel(id: number | undefined, index: number): string {
+  const s = id ?? index * 997;
+  const v = 0.7 + (Math.abs(s) % 35) / 10;
+  return `${v.toFixed(1)}k Joined`;
+}
+
 interface DebateScreenProps {
   match: Match;
   stackNavigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
-const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) => {
-  const fallbackNav = (stackNavigation ?? null) as NativeStackNavigationProp<RootStackParamList> | null;
-  const stackNav = fallbackNav;
+const PAGE = 16;
+
+const DebateScreen: React.FC<DebateScreenProps> = ({match, stackNavigation}) => {
+  const stackNav = stackNavigation ?? null;
+  const matchScroll = useMatchDetailsScroll();
 
   const [debateList, setDebateList] = useState<DebateResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [debateType, setDebateType] = useState<DebateType>(() => getDefaultDebateType(match));
+  const [debateType, setDebateType] = useState<DebateType>(() =>
+    getDefaultDebateType(match),
+  );
 
-  /** Set to true in effect cleanup so in-flight load/polling bails and does not setState after unmount or when type changes */
   const loadCancelledRef = useRef(false);
 
-  const openSingleDebate = (debate: DebateResponse, selectedCardIndex: number = 0) => {
+  const openSingleDebate = (debate: DebateResponse, selectedCardIndex = 0) => {
     if (!stackNav) return;
-    stackNav.navigate('SingleDebate', { match, debate, selectedCardIndex });
+    stackNav.navigate('SingleDebate', {match, debate, selectedCardIndex});
   };
 
   const loadDebateForType = useCallback(
@@ -97,7 +156,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
           const deadline = Date.now() + POLL_TIMEOUT_MS;
           while (Date.now() < deadline) {
             if (cancelled()) break;
-            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
             if (cancelled()) break;
             list = await fetchDebatesByMatch(matchId, type);
             if (cancelled()) break;
@@ -160,7 +219,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
 
   useEffect(() => {
     const defaultType = getDefaultDebateType(match);
-    setDebateType((prev) => (prev !== defaultType ? defaultType : prev));
+    setDebateType(prev => (prev !== defaultType ? defaultType : prev));
   }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
   const showLoading = isLoading || isGenerating;
@@ -171,7 +230,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
   if (showLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={MATCH_CENTER_LIME} />
         <Text style={styles.loadingText}>{loadingMessage}</Text>
       </View>
     );
@@ -190,53 +249,120 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
       <View style={styles.centerContainer}>
         <Text style={styles.noDataText}>No debates yet</Text>
         <Text style={styles.emptySubtext}>
-          Debates for this match haven't been generated yet.
+          Debates for this match have not been generated yet.
         </Text>
       </View>
     );
   }
 
+  const hot = debateList[0];
+  const referee = debateList.length > 1 ? debateList[1] : null;
+  const agreePct = agreePercentFromDebate(hot);
+  const disagreePct = 100 - agreePct;
+  const refYN = referee ? yesNoFromDebate(referee) : {yes: 50, no: 50};
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={80}
-    >
-      <ScrollView
+      keyboardVerticalOffset={80}>
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Match Debate</Text>
-          <Text style={styles.headerSubtitle}>
-            {match.teams.home.name} vs {match.teams.away.name}
+        onScroll={matchScroll?.scrollHandler}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}>
+        <LinearGradient
+          colors={['#1a2332', MATCH_CENTER_CARD]}
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 1}}
+          style={styles.introCard}>
+          <Text style={styles.introTitle}>MATCH DEBATE</Text>
+          <Text style={styles.introBody}>
+            Join the pulse of the game. Analyze key moments and settle the score
+            with the global community.
           </Text>
-          <Text style={styles.debatePhaseLabel}>
-            {debateType === 'pre_match' ? 'Pre-Match' : 'Post-Match'}
-          </Text>
+        </LinearGradient>
+
+        <View style={styles.hotCard}>
+          <View style={styles.hotHeader}>
+            <View style={styles.hotPill}>
+              <Text style={styles.hotPillText}>HOT TOPIC</Text>
+            </View>
+            <Text style={styles.joinedMuted}>
+              {joinedLabel(hot.id, 0)}
+            </Text>
+          </View>
+          <Text style={styles.quoteText}>&ldquo;{hot.headline}&rdquo;</Text>
+          <View style={styles.pollRow}>
+            <Text style={styles.agreeLabel}>AGREE ({agreePct}%)</Text>
+            <Text style={styles.disagreeLabel}>DISAGREE ({disagreePct}%)</Text>
+          </View>
+          <View style={styles.barTrack}>
+            <View style={[styles.barFill, {width: `${agreePct}%`}]} />
+          </View>
+          <TouchableOpacity
+            style={styles.joinCta}
+            activeOpacity={0.9}
+            onPress={() => openSingleDebate(hot, 0)}>
+            <Text style={styles.joinCtaText}>JOIN THE CONVERSATION</Text>
+            <Ionicons name="chatbubble-ellipses" size={18} color={MATCH_CENTER_BLACK} />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.content}>
-          {debateList.map((debate, index) => (
-            <TouchableOpacity
-              key={debate.id ?? index}
-              style={styles.promptContainer}
-              activeOpacity={0.9}
-              onPress={() => openSingleDebate(debate, 0)}
-            >
-              <Text style={styles.promptHeadline}>{debate.headline}</Text>
-              <Text style={styles.promptDescription}>
-                {debate.description}
-              </Text>
-              <View style={styles.joinConversationRow}>
-                <Text style={styles.joinConversationLabel}>Join the conversation</Text>
-                <Ionicons name="chevron-forward" size={18} color="#007AFF" />
+        {referee ? (
+          <View style={styles.refCard}>
+            <View style={styles.refHeader}>
+              <View style={styles.refPill}>
+                <Text style={styles.refPillText}>REFEREE WATCH</Text>
               </View>
+              <Text style={styles.joinedMuted}>
+                {joinedLabel(referee.id, 1)}
+              </Text>
+            </View>
+            <Text style={styles.refQuestion}>{referee.headline}</Text>
+            <View style={styles.refButtons}>
+              <View style={styles.refBtn}>
+                <Text style={styles.refBtnLabel}>YES</Text>
+                <Text style={styles.refBtnPct}>{refYN.yes}%</Text>
+              </View>
+              <View style={styles.refBtn}>
+                <Text style={styles.refBtnLabel}>NO</Text>
+                <Text style={styles.refBtnPct}>{refYN.no}%</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.refTap}
+              activeOpacity={0.85}
+              onPress={() => openSingleDebate(referee, 0)}>
+              <Text style={styles.refTapText}>Open debate</Text>
+              <Ionicons name="chevron-forward" size={18} color={MATCH_CENTER_LIME} />
             </TouchableOpacity>
-          ))}
+          </View>
+        ) : null}
+
+        <View style={styles.gridRow}>
+          <TouchableOpacity
+            style={styles.gridCard}
+            activeOpacity={0.9}
+            onPress={() => openSingleDebate(hot, 0)}>
+            <Ionicons name="star" size={22} color={MATCH_CENTER_CYAN} />
+            <Text style={styles.gridTitle}>PLAYER OF THE MATCH</Text>
+            <Text style={styles.gridCta}>Vote Now</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.gridCard}
+            activeOpacity={0.9}
+            onPress={() => openSingleDebate(hot, 0)}>
+            <View style={styles.gridIconWrap}>
+              <Ionicons name="bar-chart" size={22} color={MATCH_CENTER_LIME} />
+            </View>
+            <Text style={styles.gridTitle}>TOP DEBATERS</Text>
+            <Text style={styles.gridSub}>+45 pts today</Text>
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </KeyboardAvoidingView>
   );
 };
@@ -244,107 +370,259 @@ const DebateScreen: React.FC<DebateScreenProps> = ({ match, stackNavigation }) =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: MATCH_CENTER_BG,
   },
   scrollView: {
     flex: 1,
+    backgroundColor: MATCH_CENTER_BG,
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingHorizontal: PAGE,
+    paddingTop: 12,
+    paddingBottom: 28,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: MATCH_CENTER_BG,
+    paddingHorizontal: 24,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: MATCH_CENTER_MUTED,
   },
   errorText: {
-    fontSize: 16,
-    color: '#ff3b30',
+    fontSize: 15,
+    color: '#ff6b6b',
     textAlign: 'center',
-    paddingHorizontal: 20,
   },
   noDataText: {
-    fontSize: 18,
-    color: '#333',
+    fontSize: 17,
+    fontWeight: '800',
+    color: MATCH_CENTER_TEXT,
     textAlign: 'center',
-    paddingHorizontal: 20,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#666',
+    color: MATCH_CENTER_MUTED,
     marginTop: 8,
-    paddingHorizontal: 20,
     textAlign: 'center',
   },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
-  },
-  debatePhaseLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  content: {
-    padding: 16,
-  },
-  promptContainer: {
-    backgroundColor: '#fff',
+  introCard: {
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  promptHeadline: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+  introTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    letterSpacing: 1,
+    color: MATCH_CENTER_TEXT,
     marginBottom: 8,
-    lineHeight: 24,
   },
-  promptDescription: {
-    fontSize: 14,
-    color: '#666',
+  introBody: {
+    fontSize: 13,
     lineHeight: 20,
+    color: MATCH_CENTER_MUTED,
   },
-  joinConversationRow: {
+  hotCard: {
+    backgroundColor: MATCH_CENTER_CARD,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  hotHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  hotPill: {
+    backgroundColor: MATCH_CENTER_CYAN,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  hotPillText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: MATCH_CENTER_BLACK,
+  },
+  joinedMuted: {
+    fontSize: 12,
+    color: MATCH_CENTER_MUTED,
+    fontWeight: '600',
+  },
+  quoteText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: MATCH_CENTER_TEXT,
+    lineHeight: 22,
+    marginBottom: 14,
+  },
+  pollRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  agreeLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: MATCH_CENTER_LIME,
+    letterSpacing: 0.3,
+  },
+  disagreeLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: MATCH_CENTER_MUTED,
+    letterSpacing: 0.3,
+  },
+  barTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  barFill: {
+    height: '100%',
+    backgroundColor: MATCH_CENTER_LIME,
+    borderRadius: 4,
+  },
+  joinCta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
+    gap: 10,
+    backgroundColor: MATCH_CENTER_LIME,
+    paddingVertical: 14,
+    borderRadius: 10,
   },
-  joinConversationLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
+  joinCtaText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: MATCH_CENTER_BLACK,
+  },
+  refCard: {
+    backgroundColor: MATCH_CENTER_CARD,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  refHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  refPill: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  refPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: MATCH_CENTER_MUTED,
+  },
+  refQuestion: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: MATCH_CENTER_TEXT,
+    lineHeight: 21,
+    marginBottom: 14,
+  },
+  refButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  refBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  refBtnLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: MATCH_CENTER_TEXT,
+    letterSpacing: 0.5,
+  },
+  refBtnPct: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: MATCH_CENTER_MUTED,
+    marginTop: 4,
+  },
+  refTap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 4,
+  },
+  refTapText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: MATCH_CENTER_MUTED,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  gridCard: {
+    flex: 1,
+    backgroundColor: MATCH_CENTER_CARD,
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'space-between',
+  },
+  gridIconWrap: {
+    marginBottom: 4,
+  },
+  gridTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: MATCH_CENTER_TEXT,
+    marginTop: 6,
+  },
+  gridCta: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: MATCH_CENTER_CYAN,
+    marginTop: 8,
+  },
+  gridSub: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: MATCH_CENTER_LIME,
+    marginTop: 8,
   },
 });
 

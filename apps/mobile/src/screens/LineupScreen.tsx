@@ -3,13 +3,14 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   useWindowDimensions,
   Image,
   ActivityIndicator,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import type {Match} from '../types/match';
 import {fetchLineup} from '../services/api';
+import {useMatchDetailsScroll} from '../context/MatchDetailsScrollContext';
 
 interface PlayerCardProps {
   player: {
@@ -128,6 +129,7 @@ const SubstituteCard: React.FC<{player: Player}> = ({player}) => {
 
 const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
   const {width} = useWindowDimensions();
+  const matchScroll = useMatchDetailsScroll();
   const [lineupData, setLineupData] = useState<LineupData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,7 +192,10 @@ const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <Animated.ScrollView
+      style={styles.container}
+      onScroll={matchScroll?.scrollHandler}
+      scrollEventThrottle={16}>
       <View style={[styles.field, {width: width, height: width * 2.0}]}>
         {/* Field markings */}
         <View style={styles.halfwayLine} />
@@ -376,7 +381,7 @@ const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
           </View>
         </View>
       </View>
-    </ScrollView>
+    </Animated.ScrollView>
   );
 };
 

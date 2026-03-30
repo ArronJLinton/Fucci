@@ -279,12 +279,7 @@ const HomeStack = () => {
         name="MatchDetails"
         component={MatchDetailsScreen}
         options={{
-          title: '',
-          headerStyle: {
-            backgroundColor: '#fff',
-          },
-          headerShadowVisible: false,
-          headerTintColor: '#007AFF',
+          headerShown: false,
         }}
       />
       <StackScreen
