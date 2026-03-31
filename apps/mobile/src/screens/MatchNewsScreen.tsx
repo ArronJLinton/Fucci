@@ -41,16 +41,13 @@ interface MatchNewsScreenProps {
 const PAGE_PAD = 16;
 const CARD_RADIUS = 12;
 
-// Completed match statuses (FT, AET, PEN, etc.)
+// Actually played + finished statuses only.
 const COMPLETED_STATUSES = [
   'FT',
   'AET',
   'PEN',
-  'AWD',
-  'WO',
-  'CANC',
-  'ABD',
-  'PST',
+  'FT_PEN',
+  'AET_PEN',
 ];
 
 function isMatchCompleted(statusShort: string): boolean {
