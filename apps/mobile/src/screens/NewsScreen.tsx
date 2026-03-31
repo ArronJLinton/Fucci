@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useMemo, useRef} from 'react';
+import React, {useState, useCallback, useMemo, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -95,6 +95,11 @@ const NewsScreen: React.FC = () => {
     list = filterByLeague(list, leagueFilter);
     return list;
   }, [merged, category, leagueFilter]);
+
+  // Keep the featured card in view when filters change.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({y: 0, animated: true});
+  }, [category, leagueFilter?.id]);
 
   const featured = filteredArticles[0];
   const gridArticles = filteredArticles.slice(1);
