@@ -34,33 +34,9 @@ import type {
 } from '../types/playerProfile';
 import {CountryPicker} from '../components/CountryPicker';
 import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
+import {PlayerTraitBadgeRow} from '../components/player_traits';
 
 type TabId = 'profile' | 'stats' | 'career';
-
-/** Trait code to Ionicon name for gamified hexagonal badges (FIFA-style) */
-const TRAIT_ICONS: Record<string, string> = {
-  LEADERSHIP: 'star',
-  FINESSE_SHOT: 'football',
-  PLAYMAKER: 'git-branch',
-  SPEED_DRIBBLER: 'flash',
-  LONG_SHOT_TAKER: 'arrow-redo',
-  OUTSIDE_FOOT_SHOT: 'footsteps',
-  POWER_HEADER: 'ellipse',
-  FLAIR: 'ribbon',
-  POWER_FREE_KICK: 'lock-closed',
-};
-
-const TRAIT_LABELS: Record<string, string> = {
-  LEADERSHIP: 'Leadership',
-  FINESSE_SHOT: 'Finesse Shot',
-  PLAYMAKER: 'Playmaker',
-  SPEED_DRIBBLER: 'Speed Dribbler',
-  LONG_SHOT_TAKER: 'Long Shot Taker',
-  OUTSIDE_FOOT_SHOT: 'Outside Foot Shot',
-  POWER_HEADER: 'Power Header',
-  FLAIR: 'Flair',
-  POWER_FREE_KICK: 'Power Free Kick',
-};
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 const HERO_HEIGHT = Math.max(320, SCREEN_HEIGHT * 0.45);
@@ -538,10 +514,10 @@ export default function PlayerProfileScreen() {
             </View>
           ) : null}
 
-          {/* Traits as rarity-based badges (perks) */}
+          {/* Traits — hex art + TRAIT # / name (reference sheet) */}
           <View style={styles.traitsSection}>
             <View style={styles.traitsHeader}>
-              <Text style={styles.sectionTitle}>Player Traits</Text>
+              <Text style={styles.sectionTitle}>Traits</Text>
               <TouchableOpacity
                 style={styles.addTraitsBtn}
                 onPress={() => setShowTraitsModal(true)}>
@@ -558,39 +534,13 @@ export default function PlayerProfileScreen() {
                   </Text>
                 </View>
               ) : (
-                (profile.traits ?? []).map((code: string) => {
-                  const rarity =
-                    code === 'LEADERSHIP' || code === 'FLAIR'
-                      ? 'legendary'
-                      : code === 'LONG_SHOT_TAKER' || code === 'POWER_FREE_KICK'
-                        ? 'elite'
-                        : code === 'SPEED_DRIBBLER' || code === 'POWER_HEADER'
-                          ? 'rare'
-                          : 'common';
-                  const badgeStyle =
-                    rarity === 'legendary'
-                      ? styles.traitBadgeLegendary
-                      : rarity === 'elite'
-                        ? styles.traitBadgeElite
-                        : rarity === 'rare'
-                          ? styles.traitBadgeRare
-                          : styles.traitBadgeCommon;
-
-                  return (
-                    <View key={code} style={styles.traitBadgeShell}>
-                      <View style={[styles.traitBadgeHex, badgeStyle]}>
-                        <Ionicons
-                          name={(TRAIT_ICONS[code] ?? 'shield-outline') as any}
-                          size={22}
-                          color="#fff"
-                        />
-                      </View>
-                      <Text style={styles.traitBadgeLabel} numberOfLines={2}>
-                        {TRAIT_LABELS[code] ?? code.replace(/_/g, ' ')}
-                      </Text>
-                    </View>
-                  );
-                })
+                (profile.traits ?? []).map((code: string) => (
+                  <PlayerTraitBadgeRow
+                    key={code}
+                    code={code}
+                    shellStyle={styles.traitBadgeShell}
+                  />
+                ))
               )}
             </View>
           </View>
@@ -1125,46 +1075,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 10,
+    rowGap: 14,
+    width: '100%',
   },
+  /** Two columns: ~48% each; remainder is the gutter (space-between). */
   traitBadgeShell: {
-    width: (SCREEN_WIDTH - 16 * 2 - 10 * 2) / 3,
-    maxWidth: 110,
-    alignItems: 'center',
-  },
-  traitBadgeHex: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-    backgroundColor: '#111827',
-  },
-  traitBadgeCommon: {
-    borderColor: '#22d3ee',
-  },
-  traitBadgeRare: {
-    borderColor: '#38bdf8',
-  },
-  traitBadgeElite: {
-    borderColor: '#818cf8',
-  },
-  traitBadgeLegendary: {
-    borderColor: '#84cc16',
-  },
-  traitBadgeLocked: {
-    opacity: 0.55,
-  },
-  traitBadgeLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#e2e8f0',
-    textAlign: 'center',
-  },
-  traitBadgeLabelLocked: {
-    color: '#9ca3af',
+    width: '48%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
   traitsEmptyCard: {
     paddingVertical: 24,
