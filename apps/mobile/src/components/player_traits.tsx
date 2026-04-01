@@ -4,6 +4,7 @@ import {
   type ImageSourcePropType,
   StyleSheet,
   Text,
+  type TextStyle,
   View,
   type ViewStyle,
 } from 'react-native';
@@ -89,15 +90,38 @@ export function TraitHexImage({
 export function PlayerTraitBadgeRow({
   code,
   shellStyle,
+  nameStyle,
 }: {
   code: string;
   shellStyle?: ViewStyle;
+  /** Override label color (e.g. white on profile cards). */
+  nameStyle?: TextStyle;
 }) {
   const label = PLAYER_TRAIT_LABELS[code] ?? code.replace(/_/g, ' ');
   return (
     <View style={[styles.badgeShell, shellStyle]}>
       <TraitHexImage code={code} size={50} />
-      <Text style={styles.traitNameText}>{label.toUpperCase()}</Text>
+      <Text style={[styles.traitNameText, nameStyle]}>{label.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+/** Horizontal strip: rounded square tile + label (profile mock). */
+export function PlayerTraitStripItem({code}: {code: string}) {
+  const label = PLAYER_TRAIT_LABELS[code] ?? code.replace(/_/g, ' ');
+  const accent = code === 'LONG_SHOT_TAKER';
+  return (
+    <View style={stripStyles.cell}>
+      <View
+        style={[
+          stripStyles.iconSquare,
+          accent && stripStyles.iconSquareAccent,
+        ]}>
+        <TraitHexImage code={code} size={42} />
+      </View>
+      <Text style={stripStyles.stripLabel} numberOfLines={2}>
+        {label.toUpperCase()}
+      </Text>
     </View>
   );
 }
@@ -116,5 +140,39 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     textAlign: 'center',
     alignSelf: 'stretch',
+  },
+});
+
+const stripStyles = StyleSheet.create({
+  /** Full width of parent (grid column or strip). */
+  cell: {
+    width: '100%',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  iconSquare: {
+    width: 76,
+    height: 76,
+    borderRadius: 14,
+    backgroundColor: '#1a2332',
+    borderWidth: 1,
+    borderColor: '#2d3f54',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconSquareAccent: {
+    backgroundColor: '#152a3d',
+    borderColor: '#38bdf8',
+  },
+  stripLabel: {
+    marginTop: 8,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#e2e8f0',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    lineHeight: 13,
+    alignSelf: 'stretch',
+    width: '100%',
   },
 });
