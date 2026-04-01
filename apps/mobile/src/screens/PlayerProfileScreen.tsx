@@ -37,6 +37,7 @@ import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
 import {PlayerTraitStripItem} from '../components/player_traits';
 
 type TabId = 'profile' | 'stats' | 'career';
+type WorkRate = 'LOW' | 'MEDIUM' | 'HIGH';
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 const HERO_HEIGHT = Math.max(340, SCREEN_HEIGHT * 0.42) * 0.75;
@@ -62,20 +63,24 @@ function coreAttrsForPosition(pos: PlayerProfileType['position'] | null): {
   speed: number;
   shooting: number;
   passing: number;
+  physical: number;
+  stamina: number;
 } {
   switch (pos) {
     case 'GK':
-      return {speed: 78, shooting: 62, passing: 88};
+      return {speed: 78, shooting: 62, passing: 88, physical: 86, stamina: 84};
     case 'DEF':
-      return {speed: 82, shooting: 72, passing: 84};
+      return {speed: 82, shooting: 72, passing: 84, physical: 90, stamina: 86};
     case 'MID':
-      return {speed: 88, shooting: 82, passing: 92};
+      return {speed: 88, shooting: 82, passing: 92, physical: 80, stamina: 94};
     case 'FWD':
-      return {speed: 96, shooting: 92, passing: 88};
+      return {speed: 96, shooting: 92, passing: 88, physical: 84, stamina: 90};
     default:
-      return {speed: 72, shooting: 72, passing: 72};
+      return {speed: 72, shooting: 72, passing: 72, physical: 72, stamina: 72};
   }
 }
+
+const WORK_RATE_OPTIONS: WorkRate[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 function displayLevel(traitsLen: number, completionPct: number): number {
   return Math.min(99, 38 + traitsLen * 9 + Math.round(completionPct * 0.2));
@@ -103,6 +108,15 @@ export default function PlayerProfileScreen() {
   const [editPosition, setEditPosition] = useState<
     PlayerProfileType['position'] | null
   >(null);
+  const [editSpeed, setEditSpeed] = useState(72);
+  const [editShooting, setEditShooting] = useState(72);
+  const [editPassing, setEditPassing] = useState(72);
+  const [editPhysical, setEditPhysical] = useState(72);
+  const [editStamina, setEditStamina] = useState(72);
+  const [editAttackingWorkRate, setEditAttackingWorkRate] =
+    useState<WorkRate>('MEDIUM');
+  const [editDefensiveWorkRate, setEditDefensiveWorkRate] =
+    useState<WorkRate>('LOW');
   const [editMode, setEditMode] = useState(false);
   const [showPositionPicker, setShowPositionPicker] = useState(false);
 
@@ -112,6 +126,24 @@ export default function PlayerProfileScreen() {
     {value: 'MID', label: 'Midfielder'},
     {value: 'FWD', label: 'Forward'},
   ];
+
+  const cycleWorkRate = (
+    value: WorkRate,
+    setter: (next: WorkRate) => void,
+  ) => {
+    const idx = WORK_RATE_OPTIONS.indexOf(value);
+    const next = WORK_RATE_OPTIONS[(idx + 1) % WORK_RATE_OPTIONS.length];
+    setter(next);
+  };
+
+  const bumpAttr = (
+    current: number,
+    delta: number,
+    setter: (next: number) => void,
+  ) => {
+    const next = Math.max(40, Math.min(99, current + delta));
+    setter(next);
+  };
 
   const loadProfile = useCallback(async () => {
     if (!token) {
@@ -134,6 +166,14 @@ export default function PlayerProfileScreen() {
         setEditClub(p.club ?? '');
         setEditIsFreeAgent(p.is_free_agent ?? false);
         setEditPosition(p.position ?? null);
+        const defaults = coreAttrsForPosition(p.position ?? null);
+        setEditSpeed(defaults.speed);
+        setEditShooting(defaults.shooting);
+        setEditPassing(defaults.passing);
+        setEditPhysical(defaults.physical);
+        setEditStamina(defaults.stamina);
+        setEditAttackingWorkRate('MEDIUM');
+        setEditDefensiveWorkRate('LOW');
       } else {
         const draft: PlayerProfileDraft = {
           id: 0,
@@ -154,6 +194,14 @@ export default function PlayerProfileScreen() {
         setEditClub('');
         setEditIsFreeAgent(false);
         setEditPosition(null);
+        const defaults = coreAttrsForPosition(null);
+        setEditSpeed(defaults.speed);
+        setEditShooting(defaults.shooting);
+        setEditPassing(defaults.passing);
+        setEditPhysical(defaults.physical);
+        setEditStamina(defaults.stamina);
+        setEditAttackingWorkRate('MEDIUM');
+        setEditDefensiveWorkRate('LOW');
         setEditMode(false);
       }
     } catch {
@@ -242,6 +290,14 @@ export default function PlayerProfileScreen() {
               setEditClub('');
               setEditIsFreeAgent(false);
               setEditPosition(null);
+              const defaults = coreAttrsForPosition(null);
+              setEditSpeed(defaults.speed);
+              setEditShooting(defaults.shooting);
+              setEditPassing(defaults.passing);
+              setEditPhysical(defaults.physical);
+              setEditStamina(defaults.stamina);
+              setEditAttackingWorkRate('MEDIUM');
+              setEditDefensiveWorkRate('LOW');
               setEditMode(true);
             } catch (err) {
               setError(userFacingApiMessage(err));
@@ -572,7 +628,7 @@ export default function PlayerProfileScreen() {
                     <Text style={styles.attrLabel}>Passing</Text>
                     <Text style={styles.attrNum}>{coreAttrs.passing}</Text>
                   </View>
-                  <View style={[styles.attrBarTrack, styles.attrBarTrackLast]}>
+                  <View style={styles.attrBarTrack}>
                     <View
                       style={[
                         styles.attrBarFill,
@@ -580,17 +636,30 @@ export default function PlayerProfileScreen() {
                       ]}
                     />
                   </View>
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => setEditMode(true)}>
-                    <LinearGradient
-                      colors={['#ecfccb', '#a3e635', '#84cc16', '#ca8a04']}
-                      start={{x: 0, y: 0}}
-                      end={{x: 1, y: 1}}
-                      style={styles.upgradeBtn}>
-                      <Text style={styles.upgradeBtnText}>Upgrade player</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                  <View style={styles.attrRow}>
+                    <Text style={styles.attrLabel}>Physical</Text>
+                    <Text style={styles.attrNum}>{coreAttrs.physical}</Text>
+                  </View>
+                  <View style={styles.attrBarTrack}>
+                    <View
+                      style={[
+                        styles.attrBarFill,
+                        {width: `${coreAttrs.physical}%`},
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.attrRow}>
+                    <Text style={styles.attrLabel}>Stamina</Text>
+                    <Text style={styles.attrNum}>{coreAttrs.stamina}</Text>
+                  </View>
+                  <View style={[styles.attrBarTrack, styles.attrBarTrackLast]}>
+                    <View
+                      style={[
+                        styles.attrBarFill,
+                        {width: `${coreAttrs.stamina}%`},
+                      ]}
+                    />
+                  </View>
                 </View>
 
                 <View style={styles.careerSection}>
@@ -725,6 +794,197 @@ export default function PlayerProfileScreen() {
                     />
                   </View>
                 </TouchableOpacity>
+                <View style={styles.editCoreCard}>
+                  <Text style={styles.editCoreTitle}>Core attributes</Text>
+
+                  <View style={styles.editAttrRow}>
+                    <Text style={styles.editAttrLabel}>Speed</Text>
+                    <View style={styles.editAttrValueWrap}>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editSpeed, -2, setEditSpeed)}
+                        disabled={saving}>
+                        <Ionicons name="remove" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                      <Text style={styles.editAttrValueText}>{editSpeed}</Text>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editSpeed, 2, setEditSpeed)}
+                        disabled={saving}>
+                        <Ionicons name="add" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.editAttrBarTrack}>
+                    <View
+                      style={[styles.editAttrBarFill, {width: `${editSpeed}%`}]}
+                    />
+                  </View>
+
+                  <View style={styles.editAttrRow}>
+                    <Text style={styles.editAttrLabel}>Shooting</Text>
+                    <View style={styles.editAttrValueWrap}>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() =>
+                          bumpAttr(editShooting, -2, setEditShooting)
+                        }
+                        disabled={saving}>
+                        <Ionicons name="remove" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                      <Text style={styles.editAttrValueText}>
+                        {editShooting}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editShooting, 2, setEditShooting)}
+                        disabled={saving}>
+                        <Ionicons name="add" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.editAttrBarTrack}>
+                    <View
+                      style={[
+                        styles.editAttrBarFill,
+                        {width: `${editShooting}%`},
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.editAttrRow}>
+                    <Text style={styles.editAttrLabel}>Passing</Text>
+                    <View style={styles.editAttrValueWrap}>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editPassing, -2, setEditPassing)}
+                        disabled={saving}>
+                        <Ionicons name="remove" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                      <Text style={styles.editAttrValueText}>{editPassing}</Text>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editPassing, 2, setEditPassing)}
+                        disabled={saving}>
+                        <Ionicons name="add" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.editAttrBarTrack}>
+                    <View
+                      style={[
+                        styles.editAttrBarFill,
+                        {width: `${editPassing}%`},
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.editAttrRow}>
+                    <Text style={styles.editAttrLabel}>Physical</Text>
+                    <View style={styles.editAttrValueWrap}>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() =>
+                          bumpAttr(editPhysical, -2, setEditPhysical)
+                        }
+                        disabled={saving}>
+                        <Ionicons name="remove" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                      <Text style={styles.editAttrValueText}>{editPhysical}</Text>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editPhysical, 2, setEditPhysical)}
+                        disabled={saving}>
+                        <Ionicons name="add" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={[styles.editAttrBarTrack, styles.editAttrBarLast]}>
+                    <View
+                      style={[
+                        styles.editAttrBarFill,
+                        {width: `${editPhysical}%`},
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.editAttrRow}>
+                    <Text style={styles.editAttrLabel}>Stamina</Text>
+                    <View style={styles.editAttrValueWrap}>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editStamina, -2, setEditStamina)}
+                        disabled={saving}>
+                        <Ionicons name="remove" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                      <Text style={styles.editAttrValueText}>{editStamina}</Text>
+                      <TouchableOpacity
+                        style={styles.editAttrBtn}
+                        onPress={() => bumpAttr(editStamina, 2, setEditStamina)}
+                        disabled={saving}>
+                        <Ionicons name="add" size={14} color="#e2e8f0" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={[styles.editAttrBarTrack, styles.editAttrBarLast]}>
+                    <View
+                      style={[
+                        styles.editAttrBarFill,
+                        {width: `${editStamina}%`},
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.editWorkRateRow}>
+                    <TouchableOpacity
+                      style={styles.editWorkRateCard}
+                      onPress={() =>
+                        cycleWorkRate(
+                          editAttackingWorkRate,
+                          setEditAttackingWorkRate,
+                        )
+                      }
+                      disabled={saving}>
+                      <Text style={styles.editWorkRateLabel}>
+                        Attacking Workrate
+                      </Text>
+                      <View style={styles.editWorkRateValueRow}>
+                        <Text style={styles.editWorkRateValue}>
+                          {editAttackingWorkRate}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={14}
+                          color="#94a3b8"
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.editWorkRateCard}
+                      onPress={() =>
+                        cycleWorkRate(
+                          editDefensiveWorkRate,
+                          setEditDefensiveWorkRate,
+                        )
+                      }
+                      disabled={saving}>
+                      <Text style={styles.editWorkRateLabel}>
+                        Defensive Workrate
+                      </Text>
+                      <View style={styles.editWorkRateValueRow}>
+                        <Text style={styles.editWorkRateValue}>
+                          {editDefensiveWorkRate}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={14}
+                          color="#94a3b8"
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             ) : null}
 
@@ -811,6 +1071,12 @@ export default function PlayerProfileScreen() {
                 style={styles.positionOption}
                 onPress={() => {
                   setEditPosition(p.value);
+                  const defaults = coreAttrsForPosition(p.value);
+                  setEditSpeed(defaults.speed);
+                  setEditShooting(defaults.shooting);
+                  setEditPassing(defaults.passing);
+                  setEditPhysical(defaults.physical);
+                  setEditStamina(defaults.stamina);
                   setShowPositionPicker(false);
                 }}>
                 <Text style={styles.positionOptionText}>{p.label}</Text>
@@ -1243,6 +1509,106 @@ const styles = StyleSheet.create({
     borderColor: '#1f2937',
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  editCoreCard: {
+    marginTop: 4,
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    padding: 12,
+  },
+  editCoreTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#f8fafc',
+    textTransform: 'uppercase',
+    fontStyle: 'italic',
+    letterSpacing: 0.9,
+    marginBottom: 14,
+  },
+  editAttrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  editAttrLabel: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  editAttrValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editAttrBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+  },
+  editAttrValueText: {
+    minWidth: 28,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#e2e8f0',
+  },
+  editAttrBarTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#1e293b',
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  editAttrBarLast: {
+    marginBottom: 14,
+  },
+  editAttrBarFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#d9f99d',
+  },
+  editWorkRateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  editWorkRateCard: {
+    flex: 1,
+    backgroundColor: '#020617',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  editWorkRateLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+  },
+  editWorkRateValueRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editWorkRateValue: {
+    fontSize: 12,
+    color: '#e2e8f0',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   field: {marginBottom: 16},
   label: {
