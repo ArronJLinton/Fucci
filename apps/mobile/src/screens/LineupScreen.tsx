@@ -3,13 +3,24 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   useWindowDimensions,
   Image,
   ActivityIndicator,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import type {Match} from '../types/match';
 import {fetchLineup} from '../services/api';
+import {
+  useMatchDetailsScroll,
+  type MatchDetailsScrollHandler,
+} from '../context/MatchDetailsScrollContext';
+import {
+  MATCH_CENTER_BG,
+  MATCH_CENTER_CARD,
+  MATCH_CENTER_LIME,
+  MATCH_CENTER_MUTED,
+  MATCH_CENTER_TEXT,
+} from '../constants/matchCenterUi';
 
 interface PlayerCardProps {
   player: {
@@ -26,6 +37,7 @@ interface PlayerCardProps {
 
 interface LineupScreenProps {
   match: Match;
+  matchScrollHandler?: MatchDetailsScrollHandler;
 }
 
 interface Player {
@@ -126,8 +138,13 @@ const SubstituteCard: React.FC<{player: Player}> = ({player}) => {
   );
 };
 
-const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
+const LineupScreen: React.FC<LineupScreenProps> = ({
+  match,
+  matchScrollHandler,
+}) => {
   const {width} = useWindowDimensions();
+  const matchScroll = useMatchDetailsScroll();
+  const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
   const [lineupData, setLineupData] = useState<LineupData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +184,7 @@ const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={MATCH_CENTER_LIME} />
         <Text style={styles.loadingText}>Loading lineup...</Text>
       </View>
     );
@@ -190,7 +207,11 @@ const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <Animated.ScrollView
+      style={styles.container}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      nestedScrollEnabled>
       <View style={[styles.field, {width: width, height: width * 2.0}]}>
         {/* Field markings */}
         <View style={styles.halfwayLine} />
@@ -376,34 +397,35 @@ const LineupScreen: React.FC<LineupScreenProps> = ({match}) => {
           </View>
         </View>
       </View>
-    </ScrollView>
+    </Animated.ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: MATCH_CENTER_BG,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: MATCH_CENTER_BG,
+    paddingHorizontal: 24,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: MATCH_CENTER_MUTED,
   },
   errorText: {
-    fontSize: 16,
-    color: '#ff3b30',
+    fontSize: 15,
+    color: '#ff6b6b',
     textAlign: 'center',
   },
   noDataText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: MATCH_CENTER_MUTED,
     textAlign: 'center',
   },
   teamsHeader: {
@@ -430,7 +452,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   field: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2E7D32',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -540,21 +562,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   substitutesContainer: {
-    marginTop: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginTop: 12,
+    marginHorizontal: 12,
+    marginBottom: 24,
   },
   substitutesSection: {
-    backgroundColor: '#fff',
+    backgroundColor: MATCH_CENTER_CARD,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   substitutesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: MATCH_CENTER_TEXT,
     marginBottom: 12,
+    textTransform: 'uppercase',
   },
   substitutesGrid: {
     flexDirection: 'row',
@@ -562,11 +588,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   substituteCard: {
-    backgroundColor: '#f8f8f8',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 8,
     padding: 8,
     width: '31%',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   substitutePhoto: {
     width: 40,
@@ -575,16 +603,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   substituteName: {
-    fontSize: 12,
-    color: '#333',
+    fontSize: 11,
+    color: MATCH_CENTER_TEXT,
     textAlign: 'center',
     marginTop: 4,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   substitutePosition: {
     fontSize: 10,
-    color: '#666',
+    color: MATCH_CENTER_MUTED,
     marginTop: 2,
+    fontWeight: '600',
   },
   placeholderPhoto: {
     backgroundColor: '#e0e0e0',
