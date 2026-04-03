@@ -256,12 +256,20 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 func TestPostMyPlayerProfile_UpdateExisting(t *testing.T) {
 	uid := int32(3)
 	existing := sampleProfile(uid, 99)
+	// Non-default cores so we assert POST preserves them when body omits core fields.
+	existing.Speed, existing.Shooting = 72, 65
+	existing.Passing, existing.Dribbling = 58, 61
+	existing.Defending, existing.Physical, existing.Stamina = 80, 77, 88
 	updated := existing
 	updated.CountryCode = "DE"
 	updated.Position = "FWD"
 	var upsertArg database.UpsertPlayerProfileParams
 
 	stub := &stubPlayerProfileStore{
+		GetPlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.PlayerProfile, error) {
+			assert.Equal(t, uid, userID)
+			return existing, nil
+		},
 		UpsertPlayerProfileFn: func(ctx context.Context, arg database.UpsertPlayerProfileParams) (database.PlayerProfile, error) {
 			upsertArg = arg
 			return updated, nil
@@ -283,9 +291,14 @@ func TestPostMyPlayerProfile_UpdateExisting(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "DE", upsertArg.CountryCode)
 	assert.Equal(t, "FWD", upsertArg.Position)
-	// Defaults when core omitted (neutral 50)
-	assert.Equal(t, int32(50), upsertArg.Speed)
-	assert.Equal(t, int32(50), upsertArg.Shooting)
+	// Omitted cores keep existing row (same as PUT), not position defaults.
+	assert.Equal(t, int32(72), upsertArg.Speed)
+	assert.Equal(t, int32(65), upsertArg.Shooting)
+	assert.Equal(t, int32(58), upsertArg.Passing)
+	assert.Equal(t, int32(61), upsertArg.Dribbling)
+	assert.Equal(t, int32(80), upsertArg.Defending)
+	assert.Equal(t, int32(77), upsertArg.Physical)
+	assert.Equal(t, int32(88), upsertArg.Stamina)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "DE", resp.Country)

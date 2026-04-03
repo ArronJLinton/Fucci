@@ -46,7 +46,8 @@ type PlayerProfileCareerTeamDTO struct {
 }
 
 // PlayerProfileInput is the body for POST/PUT /api/player-profile.
-// Core attributes are optional on create (defaults by position) and on update (unchanged if omitted).
+// Core attributes are optional: on first create they default to neutral 50 per stat; when a profile
+// already exists, omitted core fields keep the stored values (same for POST upsert and PUT).
 type PlayerProfileInput struct {
 	Age         *int32  `json:"age"`
 	Country     string  `json:"country"`
@@ -247,9 +248,20 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		isFreeAgent = *req.IsFreeAgent
 	}
 
-	core := mergeCoreForCreate(&req)
+	var core coreAttrsBlock
+	existing, getErr := c.playerProfileDB().GetPlayerProfileByUserID(ctx, userID)
+	if getErr != nil && getErr != sql.ErrNoRows {
+		log.Printf("[player_profile] GetPlayerProfileByUserID (post) error: %v", getErr)
+		respondWithError(w, http.StatusInternalServerError, "Failed to save profile")
+		return
+	}
+	if getErr == sql.ErrNoRows {
+		core = mergeCoreForCreate(&req)
+	} else {
+		core = mergeCoreForPut(&req, existing)
+	}
 
-	// Single-statement upsert on user_id avoids read-then-insert races (unique violation under concurrency).
+	// Upsert applies insert-or-update atomically on user_id; we read above only to merge omitted cores.
 	profile, err := c.playerProfileDB().UpsertPlayerProfile(ctx, database.UpsertPlayerProfileParams{
 		UserID:      userID,
 		Age:         age,
