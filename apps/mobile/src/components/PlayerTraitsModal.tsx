@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {PLAYER_TRAIT_CODES} from '../types/playerProfile';
 import {PLAYER_TRAIT_LABELS, TraitHexImage} from './player_traits';
-
-const MAX_TRAITS = 5;
 
 export interface PlayerTraitsModalProps {
   visible: boolean;
@@ -41,7 +41,7 @@ export function PlayerTraitsModal({
       const next = new Set(prev);
       if (next.has(code)) {
         next.delete(code);
-      } else if (next.size < MAX_TRAITS) {
+      } else {
         next.add(code);
       }
       return next;
@@ -61,37 +61,43 @@ export function PlayerTraitsModal({
     <Modal
       visible={visible}
       animationType="slide"
-      onRequestClose={onDismiss}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={onDismiss}
-            style={styles.headerBtn}
-            accessibilityLabel="Back">
-            <Ionicons name="arrow-back" size={24} color="#f8fafc" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Select traits</Text>
-          <TouchableOpacity
-            onPress={onDismiss}
-            style={styles.headerBtn}
-            accessibilityLabel="Close">
-            <Ionicons name="close" size={24} color="#f8fafc" />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.hint}>Choose up to {MAX_TRAITS} traits.</Text>
+      onRequestClose={onDismiss}
+      presentationStyle="fullScreen">
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.title} numberOfLines={1}>
+              Select traits
+            </Text>
+            <View style={styles.headerSide}>
+              <Pressable
+                onPress={onDismiss}
+                style={({pressed}) => [
+                  styles.headerBtn,
+                  pressed && styles.headerBtnPressed,
+                ]}
+                hitSlop={12}
+                accessibilityLabel="Close"
+                accessibilityRole="button">
+                <Ionicons name="close" size={24} color="#f8fafc" />
+              </Pressable>
+            </View>
+          </View>
+          <Text style={styles.hint}>
+            Tap traits to select or deselect them. Save when you are done.
+          </Text>
         <ScrollView
           style={styles.list}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled">
           {PLAYER_TRAIT_CODES.map(code => {
             const isSelected = selected.has(code);
-            const atMax = selected.size >= MAX_TRAITS && !isSelected;
             return (
               <TouchableOpacity
                 key={code}
-                style={[styles.row, atMax && styles.rowDisabled]}
-                onPress={() => !atMax && toggle(code)}
-                disabled={atMax}
+                style={styles.row}
+                onPress={() => toggle(code)}
                 activeOpacity={0.7}
                 accessibilityLabel={`${PLAYER_TRAIT_LABELS[code] || code}, ${isSelected ? 'selected' : 'not selected'}`}
                 accessibilityRole="checkbox"
@@ -124,12 +130,17 @@ export function PlayerTraitsModal({
             )}
           </TouchableOpacity>
         </View>
-      </View>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: '#2c2c2c',
+  },
   container: {
     flex: 1,
     backgroundColor: '#2c2c2c',
@@ -137,22 +148,37 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#404040',
+  },
+  headerSpacer: {
+    width: 48,
+  },
+  headerSide: {
+    width: 48,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   headerBtn: {
     padding: 8,
     minWidth: 40,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBtnPressed: {
+    opacity: 0.7,
   },
   title: {
+    flex: 1,
     fontSize: 17,
     fontWeight: '800',
     color: '#f8fafc',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   hint: {
     paddingHorizontal: 20,
@@ -175,9 +201,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#404040',
-  },
-  rowDisabled: {
-    opacity: 0.6,
   },
   rowLeading: {
     flex: 1,

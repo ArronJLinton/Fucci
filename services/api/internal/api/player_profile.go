@@ -331,10 +331,6 @@ func (c *Config) putPlayerProfileTraits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	req.Traits = dedupeTraitCodesPreserveOrder(req.Traits)
-	if len(req.Traits) > 5 {
-		respondWithError(w, http.StatusBadRequest, "Maximum 5 traits allowed")
-		return
-	}
 	for _, t := range req.Traits {
 		if !allowedTraitCodes[t] {
 			respondWithError(w, http.StatusBadRequest, "Invalid trait code: "+t)

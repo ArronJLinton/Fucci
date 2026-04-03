@@ -36,7 +36,7 @@ export interface PlayerProfileInput {
   position: PlayerPosition;
 }
 
-/** Allowed trait codes for PUT /player-profile/traits (max 5) */
+/** Allowed trait codes for PUT /player-profile/traits */
 export const PLAYER_TRAIT_CODES = [
   'LEADERSHIP',
   'FINESSE_SHOT',

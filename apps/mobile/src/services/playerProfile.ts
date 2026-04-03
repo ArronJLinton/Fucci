@@ -49,7 +49,7 @@ export async function deletePlayerProfile(token: string): Promise<void> {
   await makeAuthRequest(token, BASE, 'DELETE');
 }
 
-/** PUT /player-profile/traits — replace traits (max 5). Returns updated traits. */
+/** PUT /player-profile/traits — replace traits. Returns updated traits. */
 export async function setPlayerProfileTraits(
   token: string,
   traits: string[],

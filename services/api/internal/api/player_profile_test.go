@@ -386,23 +386,45 @@ func TestPutMyPlayerProfileTraits_Replacement(t *testing.T) {
 	assert.Equal(t, []string{"FLAIR", "PLAYMAKER", "SPEED_DRIBBLER"}, out["traits"])
 }
 
-func TestPutMyPlayerProfileTraits_MaxFive(t *testing.T) {
+func TestPutMyPlayerProfileTraits_AllAllowedCodes_OK(t *testing.T) {
+	uid := int32(1)
+	p := sampleProfile(uid, 30)
+	var insertOrder []string
+	traitsState := []string(nil)
+
 	stub := &stubPlayerProfileStore{
 		GetPlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.PlayerProfile, error) {
-			return sampleProfile(1, 1), nil
+			return p, nil
+		},
+		DeletePlayerProfileTraitsByProfileIDFn: func(ctx context.Context, playerProfileID int32) error {
+			traitsState = nil
+			return nil
+		},
+		InsertPlayerProfileTraitFn: func(ctx context.Context, arg database.InsertPlayerProfileTraitParams) (database.PlayerProfileTrait, error) {
+			insertOrder = append(insertOrder, arg.TraitCode)
+			traitsState = append(traitsState, arg.TraitCode)
+			return database.PlayerProfileTrait{ID: int32(len(insertOrder)), PlayerProfileID: arg.PlayerProfileID, TraitCode: arg.TraitCode}, nil
+		},
+		ListPlayerProfileTraitsFn: func(ctx context.Context, playerProfileID int32) ([]string, error) {
+			out := make([]string, len(traitsState))
+			copy(out, traitsState)
+			return out, nil
 		},
 	}
-	cfg := &Config{PlayerProfileDB: stub}
-	body := map[string]interface{}{
-		"traits": []string{"LEADERSHIP", "FINESSE_SHOT", "PLAYMAKER", "SPEED_DRIBBLER", "LONG_SHOT_TAKER", "FLAIR"},
+	allNine := []string{
+		"LEADERSHIP", "FINESSE_SHOT", "PLAYMAKER", "SPEED_DRIBBLER", "LONG_SHOT_TAKER",
+		"OUTSIDE_FOOT_SHOT", "POWER_HEADER", "FLAIR", "POWER_FREE_KICK",
 	}
+	cfg := &Config{PlayerProfileDB: stub}
+	body := map[string]interface{}{"traits": allNine}
 	rec := httptest.NewRecorder()
-	cfg.putPlayerProfileTraits(rec, playerProfileTestRequest(http.MethodPut, "/player-profile/traits", body, 1))
+	cfg.putPlayerProfileTraits(rec, playerProfileTestRequest(http.MethodPut, "/player-profile/traits", body, uid))
 
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	var errResp map[string]string
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
-	assert.Contains(t, errResp["error"], "5 traits")
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, allNine, insertOrder)
+	var out map[string][]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	assert.Equal(t, allNine, out["traits"])
 }
 
 func TestDedupeTraitCodesPreserveOrder(t *testing.T) {
