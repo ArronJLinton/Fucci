@@ -1,6 +1,7 @@
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {Match} from './match';
 import type {DebateResponse} from './debate';
+import type {ComparePlayerSnapshot} from './comparePlayer';
 
 export type MediaType = 'photo' | 'video';
 
@@ -66,6 +67,9 @@ export type RootStackParamList = {
   };
   CreatePlayerProfile: undefined;
   PlayerProfile: undefined;
+  PlayerCompare: {
+    left: ComparePlayerSnapshot;
+  };
 };
 
 export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;

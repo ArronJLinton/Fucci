@@ -35,6 +35,8 @@ import type {
 import {CountryPicker} from '../components/CountryPicker';
 import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
 import {PlayerTraitStripItem} from '../components/player_traits';
+import {coreAttrsForPosition} from '../utils/playerCoreAttrs';
+import {buildCompareSnapshotFromProfile} from '../utils/comparePlayerSnapshot';
 
 type TabId = 'profile' | 'stats' | 'career';
 type WorkRate = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -56,27 +58,6 @@ function roleArchetype(pos: PlayerProfileType['position'] | null): string {
       return 'LEGENDARY STRIKER';
     default:
       return 'PROSPECT';
-  }
-}
-
-function coreAttrsForPosition(pos: PlayerProfileType['position'] | null): {
-  speed: number;
-  shooting: number;
-  passing: number;
-  physical: number;
-  stamina: number;
-} {
-  switch (pos) {
-    case 'GK':
-      return {speed: 78, shooting: 62, passing: 88, physical: 86, stamina: 84};
-    case 'DEF':
-      return {speed: 82, shooting: 72, passing: 84, physical: 90, stamina: 86};
-    case 'MID':
-      return {speed: 88, shooting: 82, passing: 92, physical: 80, stamina: 94};
-    case 'FWD':
-      return {speed: 96, shooting: 92, passing: 88, physical: 84, stamina: 90};
-    default:
-      return {speed: 72, shooting: 72, passing: 72, physical: 72, stamina: 72};
   }
 }
 
@@ -429,6 +410,35 @@ export default function PlayerProfileScreen() {
               style={styles.topBarBack}
               accessibilityLabel="Go back">
               <Ionicons name="chevron-back" size={22} color="#94a3b8" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <View style={styles.topBarRight}>
+          {!isDraftProfile && profile.position ? (
+            <TouchableOpacity
+              style={styles.topBarCompare}
+              onPress={() => {
+                const snap = buildCompareSnapshotFromProfile(profile, user, {
+                  isDraftProfile,
+                  traitsLen: profile.traits?.length ?? 0,
+                  completionPercent,
+                });
+                if (!snap) {
+                  Alert.alert(
+                    'Complete your profile',
+                    'Add a position and save your profile before comparing.',
+                  );
+                  return;
+                }
+                navigation.navigate('PlayerCompare', {left: snap});
+              }}
+              accessibilityLabel="Compare players">
+              <Ionicons
+                name="git-compare-outline"
+                size={18}
+                color="#c7f349"
+              />
+              <Text style={styles.topBarCompareText}>Compare</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1140,6 +1150,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#0a0e17',
@@ -1149,9 +1160,31 @@ const styles = StyleSheet.create({
   topBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 88,
+    minWidth: 88,
     flexShrink: 0,
     gap: 4,
+  },
+  topBarRight: {
+    flexShrink: 0,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  topBarCompare: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(199,243,73,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(199,243,73,0.35)',
+  },
+  topBarCompareText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#c7f349',
+    letterSpacing: 0.4,
   },
   topBarBack: {padding: 4, marginRight: 0},
   topBarAvatar: {
