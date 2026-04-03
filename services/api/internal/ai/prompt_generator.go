@@ -292,7 +292,7 @@ func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
 
 IMPORTANT: PRE-MATCH — the match has NOT happened yet. No final scores or post-match outcomes.
 
-The headline must read as a clear statement or question fans can answer YES or NO to (agree vs disagree). Frame it so "agree" and "disagree" are natural opposites.
+The headline must read as a clear and plain language statement or question fans can answer YES or NO to (agree vs disagree). Frame it so "agree" and "disagree" are natural opposites.
 
 Respond with ONLY one JSON object (no markdown, no code fences, no extra text). Exact shape:
 {
