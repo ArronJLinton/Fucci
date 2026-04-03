@@ -37,9 +37,11 @@ import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
 import {PlayerTraitStripItem} from '../components/player_traits';
 import {
   coreAttrsForPosition,
+  DEFAULT_CORE_RATING,
   dribblingDefendingForPosition,
 } from '../utils/playerCoreAttrs';
 import {buildCompareSnapshotFromProfile} from '../utils/comparePlayerSnapshot';
+import {useHoldCoreStep} from '../hooks/useHoldCoreStep';
 
 type TabId = 'profile' | 'stats' | 'career';
 type WorkRate = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -92,17 +94,28 @@ export default function PlayerProfileScreen() {
   const [editPosition, setEditPosition] = useState<
     PlayerProfileType['position'] | null
   >(null);
-  const [editSpeed, setEditSpeed] = useState(72);
-  const [editShooting, setEditShooting] = useState(72);
-  const [editPassing, setEditPassing] = useState(72);
-  const [editPhysical, setEditPhysical] = useState(72);
-  const [editStamina, setEditStamina] = useState(72);
+  const [editSpeed, setEditSpeed] = useState(DEFAULT_CORE_RATING);
+  const [editShooting, setEditShooting] = useState(DEFAULT_CORE_RATING);
+  const [editPassing, setEditPassing] = useState(DEFAULT_CORE_RATING);
+  const [editPhysical, setEditPhysical] = useState(DEFAULT_CORE_RATING);
+  const [editStamina, setEditStamina] = useState(DEFAULT_CORE_RATING);
   const [editAttackingWorkRate, setEditAttackingWorkRate] =
     useState<WorkRate>('MEDIUM');
   const [editDefensiveWorkRate, setEditDefensiveWorkRate] =
     useState<WorkRate>('LOW');
   const [editMode, setEditMode] = useState(false);
   const [showPositionPicker, setShowPositionPicker] = useState(false);
+
+  const holdSpeedMinus = useHoldCoreStep(-1, setEditSpeed, saving);
+  const holdSpeedPlus = useHoldCoreStep(1, setEditSpeed, saving);
+  const holdShootingMinus = useHoldCoreStep(-1, setEditShooting, saving);
+  const holdShootingPlus = useHoldCoreStep(1, setEditShooting, saving);
+  const holdPassingMinus = useHoldCoreStep(-1, setEditPassing, saving);
+  const holdPassingPlus = useHoldCoreStep(1, setEditPassing, saving);
+  const holdPhysicalMinus = useHoldCoreStep(-1, setEditPhysical, saving);
+  const holdPhysicalPlus = useHoldCoreStep(1, setEditPhysical, saving);
+  const holdStaminaMinus = useHoldCoreStep(-1, setEditStamina, saving);
+  const holdStaminaPlus = useHoldCoreStep(1, setEditStamina, saving);
 
   const POSITIONS: {value: PlayerProfileType['position']; label: string}[] = [
     {value: 'GK', label: 'Goalkeeper'},
@@ -117,15 +130,6 @@ export default function PlayerProfileScreen() {
   ) => {
     const idx = WORK_RATE_OPTIONS.indexOf(value);
     const next = WORK_RATE_OPTIONS[(idx + 1) % WORK_RATE_OPTIONS.length];
-    setter(next);
-  };
-
-  const bumpAttr = (
-    current: number,
-    delta: number,
-    setter: (next: number) => void,
-  ) => {
-    const next = Math.max(40, Math.min(99, current + delta));
     setter(next);
   };
 
@@ -166,13 +170,13 @@ export default function PlayerProfileScreen() {
           is_free_agent: false,
           position: null,
           photo_url: null,
-          speed: 72,
-          shooting: 72,
-          passing: 72,
-          dribbling: 72,
-          defending: 72,
-          physical: 72,
-          stamina: 72,
+          speed: DEFAULT_CORE_RATING,
+          shooting: DEFAULT_CORE_RATING,
+          passing: DEFAULT_CORE_RATING,
+          dribbling: DEFAULT_CORE_RATING,
+          defending: DEFAULT_CORE_RATING,
+          physical: DEFAULT_CORE_RATING,
+          stamina: DEFAULT_CORE_RATING,
           traits: [],
           career_teams: [],
         };
@@ -277,13 +281,13 @@ export default function PlayerProfileScreen() {
                 is_free_agent: false,
                 position: null,
                 photo_url: null,
-                speed: 72,
-                shooting: 72,
-                passing: 72,
-                dribbling: 72,
-                defending: 72,
-                physical: 72,
-                stamina: 72,
+                speed: DEFAULT_CORE_RATING,
+                shooting: DEFAULT_CORE_RATING,
+                passing: DEFAULT_CORE_RATING,
+                dribbling: DEFAULT_CORE_RATING,
+                defending: DEFAULT_CORE_RATING,
+                physical: DEFAULT_CORE_RATING,
+                stamina: DEFAULT_CORE_RATING,
                 traits: [],
                 career_teams: [],
               };
@@ -842,15 +846,19 @@ export default function PlayerProfileScreen() {
                     <View style={styles.editAttrValueWrap}>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editSpeed, -2, setEditSpeed)}
-                        disabled={saving}>
+                        onPressIn={holdSpeedMinus.onPressIn}
+                        onPressOut={holdSpeedMinus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="remove" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                       <Text style={styles.editAttrValueText}>{editSpeed}</Text>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editSpeed, 2, setEditSpeed)}
-                        disabled={saving}>
+                        onPressIn={holdSpeedPlus.onPressIn}
+                        onPressOut={holdSpeedPlus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="add" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                     </View>
@@ -866,10 +874,10 @@ export default function PlayerProfileScreen() {
                     <View style={styles.editAttrValueWrap}>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() =>
-                          bumpAttr(editShooting, -2, setEditShooting)
-                        }
-                        disabled={saving}>
+                        onPressIn={holdShootingMinus.onPressIn}
+                        onPressOut={holdShootingMinus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="remove" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                       <Text style={styles.editAttrValueText}>
@@ -877,8 +885,10 @@ export default function PlayerProfileScreen() {
                       </Text>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editShooting, 2, setEditShooting)}
-                        disabled={saving}>
+                        onPressIn={holdShootingPlus.onPressIn}
+                        onPressOut={holdShootingPlus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="add" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                     </View>
@@ -897,15 +907,19 @@ export default function PlayerProfileScreen() {
                     <View style={styles.editAttrValueWrap}>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editPassing, -2, setEditPassing)}
-                        disabled={saving}>
+                        onPressIn={holdPassingMinus.onPressIn}
+                        onPressOut={holdPassingMinus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="remove" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                       <Text style={styles.editAttrValueText}>{editPassing}</Text>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editPassing, 2, setEditPassing)}
-                        disabled={saving}>
+                        onPressIn={holdPassingPlus.onPressIn}
+                        onPressOut={holdPassingPlus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="add" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                     </View>
@@ -924,17 +938,19 @@ export default function PlayerProfileScreen() {
                     <View style={styles.editAttrValueWrap}>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() =>
-                          bumpAttr(editPhysical, -2, setEditPhysical)
-                        }
-                        disabled={saving}>
+                        onPressIn={holdPhysicalMinus.onPressIn}
+                        onPressOut={holdPhysicalMinus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="remove" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                       <Text style={styles.editAttrValueText}>{editPhysical}</Text>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editPhysical, 2, setEditPhysical)}
-                        disabled={saving}>
+                        onPressIn={holdPhysicalPlus.onPressIn}
+                        onPressOut={holdPhysicalPlus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="add" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                     </View>
@@ -953,15 +969,19 @@ export default function PlayerProfileScreen() {
                     <View style={styles.editAttrValueWrap}>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editStamina, -2, setEditStamina)}
-                        disabled={saving}>
+                        onPressIn={holdStaminaMinus.onPressIn}
+                        onPressOut={holdStaminaMinus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="remove" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                       <Text style={styles.editAttrValueText}>{editStamina}</Text>
                       <TouchableOpacity
                         style={styles.editAttrBtn}
-                        onPress={() => bumpAttr(editStamina, 2, setEditStamina)}
-                        disabled={saving}>
+                        onPressIn={holdStaminaPlus.onPressIn}
+                        onPressOut={holdStaminaPlus.onPressOut}
+                        disabled={saving}
+                        delayPressIn={0}>
                         <Ionicons name="add" size={14} color="#e2e8f0" />
                       </TouchableOpacity>
                     </View>

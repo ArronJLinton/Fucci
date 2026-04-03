@@ -73,20 +73,10 @@ type coreAttrsBlock struct {
 	Stamina   int32
 }
 
-// defaultCoreAttrsForPosition matches mobile defaults (position-based template until user edits).
-func defaultCoreAttrsForPosition(position string) coreAttrsBlock {
-	switch position {
-	case "GK":
-		return coreAttrsBlock{78, 62, 88, 45, 89, 86, 84}
-	case "DEF":
-		return coreAttrsBlock{82, 72, 84, 72, 89, 90, 86}
-	case "MID":
-		return coreAttrsBlock{88, 82, 92, 90, 72, 80, 94}
-	case "FWD":
-		return coreAttrsBlock{96, 92, 88, 92, 45, 84, 90}
-	default:
-		return coreAttrsBlock{72, 72, 72, 72, 72, 72, 72}
-	}
+// defaultCoreAttrsForPosition matches mobile defaults — neutral 50 until user edits.
+func defaultCoreAttrsForPosition(_ string) coreAttrsBlock {
+	const d int32 = 50
+	return coreAttrsBlock{d, d, d, d, d, d, d}
 }
 
 func validateCoreAttrsOptional(req *PlayerProfileInput) string {

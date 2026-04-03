@@ -1,0 +1,22 @@
+-- +goose Up
+-- Align DB defaults with API/mobile neutral core rating (50).
+
+ALTER TABLE player_profile
+  ALTER COLUMN speed SET DEFAULT 50,
+  ALTER COLUMN shooting SET DEFAULT 50,
+  ALTER COLUMN passing SET DEFAULT 50,
+  ALTER COLUMN dribbling SET DEFAULT 50,
+  ALTER COLUMN defending SET DEFAULT 50,
+  ALTER COLUMN physical SET DEFAULT 50,
+  ALTER COLUMN stamina SET DEFAULT 50;
+
+-- +goose Down
+
+ALTER TABLE player_profile
+  ALTER COLUMN speed SET DEFAULT 50,
+  ALTER COLUMN shooting SET DEFAULT 50,
+  ALTER COLUMN passing SET DEFAULT 50,
+  ALTER COLUMN dribbling SET DEFAULT 50,
+  ALTER COLUMN defending SET DEFAULT 50,
+  ALTER COLUMN physical SET DEFAULT 50,
+  ALTER COLUMN stamina SET DEFAULT 50;

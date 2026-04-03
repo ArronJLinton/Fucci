@@ -125,10 +125,13 @@ export default function SettingsScreen({
       } else {
         rootNavigate('CreatePlayerProfile');
       }
-    } catch {
+    } catch (err) {
+      if (__DEV__) {
+        console.warn('[Settings] getPlayerProfile failed', err);
+      }
       Alert.alert(
         'Something went wrong',
-        'We could not check your player profile. Check your connection and try again.',
+        userFacingApiMessage(err),
       );
     } finally {
       setPlayerModeLoading(false);
