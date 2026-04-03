@@ -97,6 +97,7 @@ func playerProfileTestRequest(method, path string, body interface{}, userID int3
 }
 
 func sampleProfile(userID int32, id int32) database.PlayerProfile {
+	// MID default core block (matches API defaultCoreAttrsForPosition).
 	return database.PlayerProfile{
 		ID:          id,
 		UserID:      userID,
@@ -105,6 +106,13 @@ func sampleProfile(userID int32, id int32) database.PlayerProfile {
 		ClubName:    sql.NullString{String: "Test FC", Valid: true},
 		IsFreeAgent: false,
 		Position:    "MID",
+		Speed:       88,
+		Shooting:    82,
+		Passing:     92,
+		Dribbling:   90,
+		Defending:   72,
+		Physical:    80,
+		Stamina:     94,
 		CreatedAt:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		UpdatedAt:   time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
 	}
@@ -156,6 +164,8 @@ func TestGetMyPlayerProfile_OK(t *testing.T) {
 	assert.Equal(t, "US", resp.Country)
 	assert.Equal(t, "MID", resp.Position)
 	assert.Equal(t, []string{"FLAIR", "PLAYMAKER"}, resp.Traits)
+	assert.Equal(t, int32(88), resp.Speed)
+	assert.Equal(t, int32(94), resp.Stamina)
 	require.Len(t, resp.CareerTeams, 1)
 	assert.Equal(t, "Old Club", resp.CareerTeams[0].TeamName)
 }
@@ -197,6 +207,14 @@ func TestGetMyPlayerProfile_ListCareerTeamsError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
+func TestPostMyPlayerProfile_InvalidCoreAttr(t *testing.T) {
+	cfg := &Config{PlayerProfileDB: &stubPlayerProfileStore{}}
+	body := map[string]interface{}{"country": "GB", "position": "DEF", "speed": 39}
+	rec := httptest.NewRecorder()
+	cfg.postPlayerProfile(rec, playerProfileTestRequest(http.MethodPost, "/player-profile", body, 1))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestPostMyPlayerProfile_Create(t *testing.T) {
 	uid := int32(5)
 	var upsertArg database.UpsertPlayerProfileParams
@@ -206,6 +224,8 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 			return database.PlayerProfile{
 				ID: 1, UserID: arg.UserID, CountryCode: arg.CountryCode, Position: arg.Position,
 				IsFreeAgent: arg.IsFreeAgent, Age: arg.Age, ClubName: arg.ClubName,
+				Speed: arg.Speed, Shooting: arg.Shooting, Passing: arg.Passing,
+				Dribbling: arg.Dribbling, Defending: arg.Defending, Physical: arg.Physical, Stamina: arg.Stamina,
 				CreatedAt: time.Now(), UpdatedAt: time.Now(),
 			}, nil
 		},
@@ -219,6 +239,14 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "GB", upsertArg.CountryCode)
 	assert.Equal(t, "DEF", upsertArg.Position)
+	// DEF position defaults from defaultCoreAttrsForPosition
+	assert.Equal(t, int32(82), upsertArg.Speed)
+	assert.Equal(t, int32(72), upsertArg.Shooting)
+	assert.Equal(t, int32(84), upsertArg.Passing)
+	assert.Equal(t, int32(72), upsertArg.Dribbling)
+	assert.Equal(t, int32(89), upsertArg.Defending)
+	assert.Equal(t, int32(90), upsertArg.Physical)
+	assert.Equal(t, int32(86), upsertArg.Stamina)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "GB", resp.Country)
@@ -255,6 +283,9 @@ func TestPostMyPlayerProfile_UpdateExisting(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "DE", upsertArg.CountryCode)
 	assert.Equal(t, "FWD", upsertArg.Position)
+	// FWD defaults when core omitted
+	assert.Equal(t, int32(96), upsertArg.Speed)
+	assert.Equal(t, int32(92), upsertArg.Shooting)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "DE", resp.Country)
@@ -291,6 +322,9 @@ func TestPutMyPlayerProfile_OK(t *testing.T) {
 			assert.Equal(t, p.ID, arg.ID)
 			assert.Equal(t, "CA", arg.CountryCode)
 			assert.Equal(t, "GK", arg.Position)
+			// No core fields in body: preserve existing from sampleProfile (MID block)
+			assert.Equal(t, p.Speed, arg.Speed)
+			assert.Equal(t, p.Stamina, arg.Stamina)
 			return updated, nil
 		},
 		ListPlayerProfileTraitsFn: func(ctx context.Context, pid int32) ([]string, error) {

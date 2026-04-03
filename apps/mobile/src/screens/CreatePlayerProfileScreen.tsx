@@ -11,6 +11,7 @@ import {
   Platform,
   Switch,
   Alert,
+  Image,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NavigationProp} from '../types/navigation';
@@ -44,7 +45,7 @@ const WHITE = '#e5e7eb';
 
 export default function CreatePlayerProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const {token} = useAuth();
+  const {token, user} = useAuth();
   const [age, setAge] = useState('');
   const [countryCode, setCountryCode] = useState<string | null>(null);
   const [countryName, setCountryName] = useState<string>('');
@@ -101,10 +102,14 @@ export default function CreatePlayerProfileScreen() {
     }
   };
 
-  const handleAddPhoto = () => {
+  const defaultAvatarUri = user?.avatar_url?.trim() || null;
+
+  const handleEditPhoto = () => {
     Alert.alert(
-      'Add photo',
-      'Profile photos will be available in a future update.',
+      'Profile photo',
+      defaultAvatarUri
+        ? 'Your account photo is shown by default. Player-specific photo upload will be available in a future update.'
+        : 'Profile photo upload will be available in a future update. You can set an avatar in Settings to show it here.',
     );
   };
 
@@ -141,18 +146,28 @@ export default function CreatePlayerProfileScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
             <View style={styles.photoBlock}>
-              <View style={styles.photoDashed}>
-                <Ionicons name="camera-outline" size={40} color={MUTED} />
-                <View style={styles.photoPlus}>
-                  <Ionicons name="add" size={14} color={BG} />
-                </View>
-              </View>
               <TouchableOpacity
-                style={styles.addPhotoBtn}
-                onPress={handleAddPhoto}
-                activeOpacity={0.85}
-                accessibilityLabel="Add photo">
-                <Text style={styles.addPhotoBtnText}>ADD PHOTO</Text>
+                style={[
+                  styles.photoDashed,
+                  defaultAvatarUri && styles.photoDashedFilled,
+                ]}
+                onPress={handleEditPhoto}
+                activeOpacity={0.88}
+                accessibilityLabel="Edit profile photo"
+                accessibilityRole="button">
+                {defaultAvatarUri ? (
+                  <Image
+                    source={{uri: defaultAvatarUri}}
+                    style={styles.photoAvatar}
+                    resizeMode="cover"
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <Ionicons name="camera-outline" size={40} color={MUTED} />
+                )}
+                <View style={styles.photoEditBadge}>
+                  <Ionicons name="pencil" size={12} color={BG} />
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -404,30 +419,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: CARD,
+    overflow: 'hidden',
   },
-  photoPlus: {
+  photoDashedFilled: {
+    borderStyle: 'solid',
+    borderColor: '#6b7280',
+  },
+  photoAvatar: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  photoEditBadge: {
     position: 'absolute',
     bottom: 10,
     right: 10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: LIME,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  addPhotoBtn: {
-    marginTop: -14,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: LIME,
-  },
-  addPhotoBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: BG,
-    letterSpacing: 0.5,
+    zIndex: 1,
   },
   stepLabel: {
     textAlign: 'center',

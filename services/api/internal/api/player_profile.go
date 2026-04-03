@@ -26,6 +26,13 @@ type PlayerProfileResponse struct {
 	IsFreeAgent bool                         `json:"is_free_agent"`
 	Position    string                       `json:"position"`
 	PhotoURL    *string                      `json:"photo_url"`
+	Speed       int32                        `json:"speed"`
+	Shooting    int32                        `json:"shooting"`
+	Passing     int32                        `json:"passing"`
+	Dribbling   int32                        `json:"dribbling"`
+	Defending   int32                        `json:"defending"`
+	Physical    int32                        `json:"physical"`
+	Stamina     int32                        `json:"stamina"`
 	Traits      []string                     `json:"traits"`
 	CareerTeams []PlayerProfileCareerTeamDTO `json:"career_teams"`
 }
@@ -39,12 +46,100 @@ type PlayerProfileCareerTeamDTO struct {
 }
 
 // PlayerProfileInput is the body for POST/PUT /api/player-profile.
+// Core attributes are optional on create (defaults by position) and on update (unchanged if omitted).
 type PlayerProfileInput struct {
 	Age         *int32  `json:"age"`
 	Country     string  `json:"country"`
 	Club        *string `json:"club"`
 	IsFreeAgent *bool   `json:"is_free_agent"`
 	Position    string  `json:"position"`
+	Speed       *int32  `json:"speed"`
+	Shooting    *int32  `json:"shooting"`
+	Passing     *int32  `json:"passing"`
+	Dribbling   *int32  `json:"dribbling"`
+	Defending   *int32  `json:"defending"`
+	Physical    *int32  `json:"physical"`
+	Stamina     *int32  `json:"stamina"`
+}
+
+// coreAttrsBlock holds the seven persisted core stats (40–99).
+type coreAttrsBlock struct {
+	Speed     int32
+	Shooting  int32
+	Passing   int32
+	Dribbling int32
+	Defending int32
+	Physical  int32
+	Stamina   int32
+}
+
+// defaultCoreAttrsForPosition matches mobile defaults (position-based template until user edits).
+func defaultCoreAttrsForPosition(position string) coreAttrsBlock {
+	switch position {
+	case "GK":
+		return coreAttrsBlock{78, 62, 88, 45, 89, 86, 84}
+	case "DEF":
+		return coreAttrsBlock{82, 72, 84, 72, 89, 90, 86}
+	case "MID":
+		return coreAttrsBlock{88, 82, 92, 90, 72, 80, 94}
+	case "FWD":
+		return coreAttrsBlock{96, 92, 88, 92, 45, 84, 90}
+	default:
+		return coreAttrsBlock{72, 72, 72, 72, 72, 72, 72}
+	}
+}
+
+func validateCoreAttrsOptional(req *PlayerProfileInput) string {
+	checks := []struct {
+		name string
+		v    *int32
+	}{
+		{"speed", req.Speed},
+		{"shooting", req.Shooting},
+		{"passing", req.Passing},
+		{"dribbling", req.Dribbling},
+		{"defending", req.Defending},
+		{"physical", req.Physical},
+		{"stamina", req.Stamina},
+	}
+	for _, c := range checks {
+		if c.v != nil && (*c.v < 40 || *c.v > 99) {
+			return c.name + " must be between 40 and 99"
+		}
+	}
+	return ""
+}
+
+func mergeCoreForCreate(req *PlayerProfileInput) coreAttrsBlock {
+	d := defaultCoreAttrsForPosition(req.Position)
+	return coreAttrsBlock{
+		Speed:     pickInt32(req.Speed, d.Speed),
+		Shooting:  pickInt32(req.Shooting, d.Shooting),
+		Passing:   pickInt32(req.Passing, d.Passing),
+		Dribbling: pickInt32(req.Dribbling, d.Dribbling),
+		Defending: pickInt32(req.Defending, d.Defending),
+		Physical:  pickInt32(req.Physical, d.Physical),
+		Stamina:   pickInt32(req.Stamina, d.Stamina),
+	}
+}
+
+func mergeCoreForPut(req *PlayerProfileInput, existing database.PlayerProfile) coreAttrsBlock {
+	return coreAttrsBlock{
+		Speed:     pickInt32(req.Speed, existing.Speed),
+		Shooting:  pickInt32(req.Shooting, existing.Shooting),
+		Passing:   pickInt32(req.Passing, existing.Passing),
+		Dribbling: pickInt32(req.Dribbling, existing.Dribbling),
+		Defending: pickInt32(req.Defending, existing.Defending),
+		Physical:  pickInt32(req.Physical, existing.Physical),
+		Stamina:   pickInt32(req.Stamina, existing.Stamina),
+	}
+}
+
+func pickInt32(req *int32, fallback int32) int32 {
+	if req != nil {
+		return *req
+	}
+	return fallback
 }
 
 // normalizeCountryCode validates ISO 3166-1 alpha-2 for VARCHAR(2): exactly two ASCII A–Z letters (case-insensitive input is uppercased).
@@ -142,6 +237,10 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "age must be between 13 and 60")
 		return
 	}
+	if msg := validateCoreAttrsOptional(&req); msg != "" {
+		respondWithError(w, http.StatusBadRequest, msg)
+		return
+	}
 
 	age := sql.NullInt32{}
 	if req.Age != nil {
@@ -158,6 +257,8 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		isFreeAgent = *req.IsFreeAgent
 	}
 
+	core := mergeCoreForCreate(&req)
+
 	// Single-statement upsert on user_id avoids read-then-insert races (unique violation under concurrency).
 	profile, err := c.playerProfileDB().UpsertPlayerProfile(ctx, database.UpsertPlayerProfileParams{
 		UserID:      userID,
@@ -166,6 +267,13 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		ClubName:    club,
 		IsFreeAgent: isFreeAgent,
 		Position:    req.Position,
+		Speed:       core.Speed,
+		Shooting:    core.Shooting,
+		Passing:     core.Passing,
+		Dribbling:   core.Dribbling,
+		Defending:   core.Defending,
+		Physical:    core.Physical,
+		Stamina:     core.Stamina,
 	})
 	if err != nil {
 		log.Printf("[player_profile] UpsertPlayerProfile error: %v", err)
@@ -238,6 +346,10 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "age must be between 13 and 60")
 		return
 	}
+	if msg := validateCoreAttrsOptional(&req); msg != "" {
+		respondWithError(w, http.StatusBadRequest, msg)
+		return
+	}
 
 	age := sql.NullInt32{}
 	if req.Age != nil {
@@ -253,6 +365,7 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 	if req.IsFreeAgent != nil {
 		isFreeAgent = *req.IsFreeAgent
 	}
+	core := mergeCoreForPut(&req, profile)
 	updated, err := c.playerProfileDB().UpdatePlayerProfileRow(ctx, database.UpdatePlayerProfileRowParams{
 		ID:          profile.ID,
 		Age:         age,
@@ -261,6 +374,13 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		IsFreeAgent: isFreeAgent,
 		Position:    req.Position,
 		PhotoUrl:    profile.PhotoUrl,
+		Speed:       core.Speed,
+		Shooting:    core.Shooting,
+		Passing:     core.Passing,
+		Dribbling:   core.Dribbling,
+		Defending:   core.Defending,
+		Physical:    core.Physical,
+		Stamina:     core.Stamina,
 	})
 	if err != nil {
 		log.Printf("[player_profile] UpdatePlayerProfileRow error: %v", err)
@@ -477,6 +597,13 @@ func profileToResponse(p database.PlayerProfile, traits []string, careerTeams []
 		IsFreeAgent: p.IsFreeAgent,
 		Position:    p.Position,
 		PhotoURL:    photoURL,
+		Speed:       p.Speed,
+		Shooting:    p.Shooting,
+		Passing:     p.Passing,
+		Dribbling:   p.Dribbling,
+		Defending:   p.Defending,
+		Physical:    p.Physical,
+		Stamina:     p.Stamina,
 		Traits:      traits,
 		CareerTeams: careerTeams,
 	}

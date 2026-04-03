@@ -1,13 +1,6 @@
 import {COUNTRIES} from '../data/countries';
 import type {ComparePlayerSnapshot} from '../types/comparePlayer';
-import type {
-  PlayerProfile,
-  PlayerProfileOrDraft,
-} from '../types/playerProfile';
-import {
-  coreAttrsForPosition,
-  dribblingDefendingForPosition,
-} from './playerCoreAttrs';
+import type {PlayerProfile, PlayerProfileOrDraft} from '../types/playerProfile';
 
 type AuthUser = {
   display_name?: string | null;
@@ -53,8 +46,7 @@ export function buildCompareSnapshotFromProfile(
   if (options.isDraftProfile || profile.position == null) {
     return null;
   }
-  const base = coreAttrsForPosition(profile.position);
-  const dd = dribblingDefendingForPosition(profile.position);
+  const saved = profile as PlayerProfile;
   const displayNameRaw =
     user?.display_name?.trim() ||
     [user?.firstname, user?.lastname].filter(Boolean).join(' ').trim() ||
@@ -82,13 +74,13 @@ export function buildCompareSnapshotFromProfile(
     positionAbbrev: posAbbrev(profile.position),
     photoUrl: profile.photo_url,
     rating,
-    speed: base.speed,
-    shooting: base.shooting,
-    passing: base.passing,
-    dribbling: dd.dribbling,
-    defending: dd.defending,
-    physical: base.physical,
-    stamina: base.stamina,
+    speed: saved.speed,
+    shooting: saved.shooting,
+    passing: saved.passing,
+    dribbling: saved.dribbling,
+    defending: saved.defending,
+    physical: saved.physical,
+    stamina: saved.stamina,
     valueLabel: '—',
     seasonGoals: 0,
     seasonLabel: '23/24',

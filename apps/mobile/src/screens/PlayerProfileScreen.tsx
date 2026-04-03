@@ -35,7 +35,10 @@ import type {
 import {CountryPicker} from '../components/CountryPicker';
 import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
 import {PlayerTraitStripItem} from '../components/player_traits';
-import {coreAttrsForPosition} from '../utils/playerCoreAttrs';
+import {
+  coreAttrsForPosition,
+  dribblingDefendingForPosition,
+} from '../utils/playerCoreAttrs';
 import {buildCompareSnapshotFromProfile} from '../utils/comparePlayerSnapshot';
 
 type TabId = 'profile' | 'stats' | 'career';
@@ -147,12 +150,11 @@ export default function PlayerProfileScreen() {
         setEditClub(p.club ?? '');
         setEditIsFreeAgent(p.is_free_agent ?? false);
         setEditPosition(p.position ?? null);
-        const defaults = coreAttrsForPosition(p.position ?? null);
-        setEditSpeed(defaults.speed);
-        setEditShooting(defaults.shooting);
-        setEditPassing(defaults.passing);
-        setEditPhysical(defaults.physical);
-        setEditStamina(defaults.stamina);
+        setEditSpeed(p.speed);
+        setEditShooting(p.shooting);
+        setEditPassing(p.passing);
+        setEditPhysical(p.physical);
+        setEditStamina(p.stamina);
         setEditAttackingWorkRate('MEDIUM');
         setEditDefensiveWorkRate('LOW');
       } else {
@@ -164,6 +166,13 @@ export default function PlayerProfileScreen() {
           is_free_agent: false,
           position: null,
           photo_url: null,
+          speed: 72,
+          shooting: 72,
+          passing: 72,
+          dribbling: 72,
+          defending: 72,
+          physical: 72,
+          stamina: 72,
           traits: [],
           career_teams: [],
         };
@@ -219,12 +228,20 @@ export default function PlayerProfileScreen() {
     setSaveError(null);
     setSaving(true);
     try {
+      const dd = dribblingDefendingForPosition(editPosition);
       const payload = {
         country: editCountryCode,
         position: editPosition,
         age: ageNum,
         club: editIsFreeAgent ? null : editClub.trim() || null,
         is_free_agent: editIsFreeAgent,
+        speed: editSpeed,
+        shooting: editShooting,
+        passing: editPassing,
+        physical: editPhysical,
+        stamina: editStamina,
+        dribbling: dd.dribbling,
+        defending: dd.defending,
       };
       const updated = isDraftProfile
         ? await createPlayerProfile(token, payload)
@@ -260,6 +277,13 @@ export default function PlayerProfileScreen() {
                 is_free_agent: false,
                 position: null,
                 photo_url: null,
+                speed: 72,
+                shooting: 72,
+                passing: 72,
+                dribbling: 72,
+                defending: 72,
+                physical: 72,
+                stamina: 72,
                 traits: [],
                 career_teams: [],
               };
@@ -386,9 +410,15 @@ export default function PlayerProfileScreen() {
 
   const canGoBack = navigation.canGoBack();
   const avatarUri = profile.photo_url || user?.avatar_url || null;
-  const coreAttrs = coreAttrsForPosition(
-    isDraftProfile ? null : profile.position,
-  );
+  const coreAttrs = isDraftProfile
+    ? coreAttrsForPosition(profile.position ?? null)
+    : {
+        speed: profile.speed,
+        shooting: profile.shooting,
+        passing: profile.passing,
+        physical: profile.physical,
+        stamina: profile.stamina,
+      };
   const displayNameRaw =
     user?.display_name?.trim() ||
     [user?.firstname, user?.lastname].filter(Boolean).join(' ').trim() ||

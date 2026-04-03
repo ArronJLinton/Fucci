@@ -125,6 +125,13 @@ type PlayerProfile struct {
 	PhotoUrl    sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
 }
 
 type PlayerProfileCareerTeam struct {

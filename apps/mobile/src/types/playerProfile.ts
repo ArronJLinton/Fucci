@@ -17,6 +17,14 @@ export interface PlayerProfile {
   is_free_agent: boolean;
   position: PlayerPosition;
   photo_url: string | null;
+  /** Core attributes (40–99); persisted by API */
+  speed: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  stamina: number;
   traits: string[];
   career_teams: PlayerProfileCareerTeam[];
 }
@@ -34,6 +42,13 @@ export interface PlayerProfileInput {
   club?: string | null;
   is_free_agent?: boolean;
   position: PlayerPosition;
+  speed?: number;
+  shooting?: number;
+  passing?: number;
+  dribbling?: number;
+  defending?: number;
+  physical?: number;
+  stamina?: number;
 }
 
 /** Allowed trait codes for PUT /player-profile/traits */

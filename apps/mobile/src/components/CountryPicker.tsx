@@ -104,16 +104,21 @@ export function CountryPicker({
             autoCorrect={false}
             accessibilityLabel="Search country"
           />
-          <FlatList
-            data={filtered}
-            keyExtractor={item => item.code}
-            renderItem={renderItem}
-            style={styles.list}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              <Text style={styles.empty}>No countries match your search.</Text>
-            }
-          />
+          <View style={styles.listWrap}>
+            <FlatList
+              data={filtered}
+              keyExtractor={item => item.code}
+              renderItem={renderItem}
+              style={styles.list}
+              contentContainerStyle={
+                filtered.length === 0 ? styles.listContentEmpty : undefined
+              }
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={styles.empty}>No countries match your search.</Text>
+              }
+            />
+          </View>
         </View>
       </View>
     </Modal>
@@ -130,8 +135,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: '80%',
+    height: '80%',
     paddingBottom: 24,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -161,8 +167,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
   },
+  /** Fills remaining sheet height so filtering does not shrink the modal. */
+  listWrap: {
+    flex: 1,
+    minHeight: 0,
+  },
   list: {
-    maxHeight: 400,
+    flex: 1,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   row: {
     flexDirection: 'row',

@@ -46,7 +46,7 @@ func (q *Queries) CreatePlayerProfileCareerTeam(ctx context.Context, arg CreateP
 const createPlayerProfileRow = `-- name: CreatePlayerProfileRow :one
 INSERT INTO player_profile (user_id, age, country_code, club_name, is_free_agent, position)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type CreatePlayerProfileRowParams struct {
@@ -79,6 +79,13 @@ func (q *Queries) CreatePlayerProfileRow(ctx context.Context, arg CreatePlayerPr
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
@@ -112,7 +119,7 @@ func (q *Queries) DeletePlayerProfileTraitsByProfileID(ctx context.Context, play
 
 const getPlayerProfileByUserID = `-- name: GetPlayerProfileByUserID :one
 
-SELECT id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at FROM player_profile WHERE user_id = $1
+SELECT id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina FROM player_profile WHERE user_id = $1
 `
 
 // 007: signed-in user player profile (player_profile), traits, career teams.
@@ -130,6 +137,13 @@ func (q *Queries) GetPlayerProfileByUserID(ctx context.Context, userID int32) (P
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
@@ -267,7 +281,7 @@ func (q *Queries) UpdatePlayerProfileCareerTeam(ctx context.Context, arg UpdateP
 }
 
 const updatePlayerProfilePhotoRow = `-- name: UpdatePlayerProfilePhotoRow :one
-UPDATE player_profile SET photo_url = $2, updated_at = NOW() WHERE id = $1 RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+UPDATE player_profile SET photo_url = $2, updated_at = NOW() WHERE id = $1 RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type UpdatePlayerProfilePhotoRowParams struct {
@@ -289,15 +303,35 @@ func (q *Queries) UpdatePlayerProfilePhotoRow(ctx context.Context, arg UpdatePla
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
 
 const updatePlayerProfileRow = `-- name: UpdatePlayerProfileRow :one
 UPDATE player_profile
-SET age = $2, country_code = $3, club_name = $4, is_free_agent = $5, position = $6, photo_url = $7, updated_at = NOW()
+SET age = $2,
+    country_code = $3,
+    club_name = $4,
+    is_free_agent = $5,
+    position = $6,
+    photo_url = $7,
+    speed = $8,
+    shooting = $9,
+    passing = $10,
+    dribbling = $11,
+    defending = $12,
+    physical = $13,
+    stamina = $14,
+    updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type UpdatePlayerProfileRowParams struct {
@@ -308,6 +342,13 @@ type UpdatePlayerProfileRowParams struct {
 	IsFreeAgent bool
 	Position    string
 	PhotoUrl    sql.NullString
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
 }
 
 func (q *Queries) UpdatePlayerProfileRow(ctx context.Context, arg UpdatePlayerProfileRowParams) (PlayerProfile, error) {
@@ -319,6 +360,13 @@ func (q *Queries) UpdatePlayerProfileRow(ctx context.Context, arg UpdatePlayerPr
 		arg.IsFreeAgent,
 		arg.Position,
 		arg.PhotoUrl,
+		arg.Speed,
+		arg.Shooting,
+		arg.Passing,
+		arg.Dribbling,
+		arg.Defending,
+		arg.Physical,
+		arg.Stamina,
 	)
 	var i PlayerProfile
 	err := row.Scan(
@@ -332,21 +380,38 @@ func (q *Queries) UpdatePlayerProfileRow(ctx context.Context, arg UpdatePlayerPr
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
 
 const upsertPlayerProfile = `-- name: UpsertPlayerProfile :one
-INSERT INTO player_profile (user_id, age, country_code, club_name, is_free_agent, position)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO player_profile (
+  user_id, age, country_code, club_name, is_free_agent, position,
+  speed, shooting, passing, dribbling, defending, physical, stamina
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,
   country_code = EXCLUDED.country_code,
   club_name = EXCLUDED.club_name,
   is_free_agent = EXCLUDED.is_free_agent,
   position = EXCLUDED.position,
+  speed = EXCLUDED.speed,
+  shooting = EXCLUDED.shooting,
+  passing = EXCLUDED.passing,
+  dribbling = EXCLUDED.dribbling,
+  defending = EXCLUDED.defending,
+  physical = EXCLUDED.physical,
+  stamina = EXCLUDED.stamina,
   updated_at = NOW()
-RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type UpsertPlayerProfileParams struct {
@@ -356,6 +421,13 @@ type UpsertPlayerProfileParams struct {
 	ClubName    sql.NullString
 	IsFreeAgent bool
 	Position    string
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
 }
 
 // Atomic create-or-update on user_id (POST /player-profile); preserves photo_url on conflict.
@@ -367,6 +439,13 @@ func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfi
 		arg.ClubName,
 		arg.IsFreeAgent,
 		arg.Position,
+		arg.Speed,
+		arg.Shooting,
+		arg.Passing,
+		arg.Dribbling,
+		arg.Defending,
+		arg.Physical,
+		arg.Stamina,
 	)
 	var i PlayerProfile
 	err := row.Scan(
@@ -380,6 +459,13 @@ func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfi
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
