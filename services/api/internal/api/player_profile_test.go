@@ -16,7 +16,8 @@ import (
 )
 
 // upsertArgCoreInt32 interprets nullable core args from UpsertPlayerProfile (nil = omitted).
-func upsertArgCoreInt32(v interface{}, ifNull int32) int32 {
+func upsertArgCoreInt32(tb testing.TB, v interface{}, ifNull int32) int32 {
+	tb.Helper()
 	if v == nil {
 		return ifNull
 	}
@@ -28,7 +29,8 @@ func upsertArgCoreInt32(v interface{}, ifNull int32) int32 {
 	case int:
 		return int32(x)
 	default:
-		return ifNull
+		tb.Fatalf("upsertArgCoreInt32: unexpected type %T for UpsertPlayerProfile core arg: %#v", v, v)
+		return 0
 	}
 }
 
@@ -242,10 +244,10 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 			return database.PlayerProfile{
 				ID: 1, UserID: arg.UserID, CountryCode: arg.CountryCode, Position: arg.Position,
 				IsFreeAgent: arg.IsFreeAgent, Age: arg.Age, ClubName: arg.ClubName,
-				Speed: upsertArgCoreInt32(arg.Speed, d), Shooting: upsertArgCoreInt32(arg.Shooting, d),
-				Passing: upsertArgCoreInt32(arg.Passing, d), Dribbling: upsertArgCoreInt32(arg.Dribbling, d),
-				Defending: upsertArgCoreInt32(arg.Defending, d), Physical: upsertArgCoreInt32(arg.Physical, d),
-				Stamina: upsertArgCoreInt32(arg.Stamina, d),
+				Speed: upsertArgCoreInt32(t, arg.Speed, d), Shooting: upsertArgCoreInt32(t, arg.Shooting, d),
+				Passing: upsertArgCoreInt32(t, arg.Passing, d), Dribbling: upsertArgCoreInt32(t, arg.Dribbling, d),
+				Defending: upsertArgCoreInt32(t, arg.Defending, d), Physical: upsertArgCoreInt32(t, arg.Physical, d),
+				Stamina: upsertArgCoreInt32(t, arg.Stamina, d),
 				CreatedAt: time.Now(), UpdatedAt: time.Now(),
 			}, nil
 		},
