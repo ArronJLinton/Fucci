@@ -395,6 +395,63 @@ func TestPutMyPlayerProfile_OK(t *testing.T) {
 	assert.Equal(t, []string{"LEADERSHIP"}, resp.Traits)
 }
 
+func TestPutMyPlayerProfile_PartialCoreStats_OK(t *testing.T) {
+	uid := int32(11)
+	p := sampleProfile(uid, 77)
+	p.Speed, p.Shooting = 55, 56
+	p.Passing, p.Dribbling = 61, 62
+	p.Defending, p.Physical, p.Stamina = 63, 64, 65
+
+	updated := p
+	updated.Speed = 88
+	updated.Shooting = 77
+
+	var sawUpdate bool
+	stub := &stubPlayerProfileStore{
+		GetPlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.PlayerProfile, error) {
+			assert.Equal(t, uid, userID)
+			return p, nil
+		},
+		UpdatePlayerProfileRowFn: func(ctx context.Context, arg database.UpdatePlayerProfileRowParams) (database.PlayerProfile, error) {
+			sawUpdate = true
+			assert.Equal(t, p.ID, arg.ID)
+			assert.Equal(t, int32(88), arg.Speed)
+			assert.Equal(t, int32(77), arg.Shooting)
+			assert.Equal(t, p.Passing, arg.Passing)
+			assert.Equal(t, p.Dribbling, arg.Dribbling)
+			assert.Equal(t, p.Defending, arg.Defending)
+			assert.Equal(t, p.Physical, arg.Physical)
+			assert.Equal(t, p.Stamina, arg.Stamina)
+			return updated, nil
+		},
+		ListPlayerProfileTraitsFn: func(ctx context.Context, pid int32) ([]string, error) {
+			return []string{}, nil
+		},
+		ListPlayerProfileCareerTeamsFn: func(ctx context.Context, pid int32) ([]database.PlayerProfileCareerTeam, error) {
+			return nil, nil
+		},
+	}
+	cfg := &Config{PlayerProfileDB: stub}
+	body := map[string]interface{}{
+		"country": "US", "position": "MID",
+		"speed": 88, "shooting": 77,
+	}
+	rec := httptest.NewRecorder()
+	cfg.putPlayerProfile(rec, playerProfileTestRequest(http.MethodPut, "/player-profile", body, uid))
+
+	assert.True(t, sawUpdate)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var resp PlayerProfileResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Equal(t, int32(88), resp.Speed)
+	assert.Equal(t, int32(77), resp.Shooting)
+	assert.Equal(t, p.Passing, resp.Passing)
+	assert.Equal(t, p.Dribbling, resp.Dribbling)
+	assert.Equal(t, p.Defending, resp.Defending)
+	assert.Equal(t, p.Physical, resp.Physical)
+	assert.Equal(t, p.Stamina, resp.Stamina)
+}
+
 func TestDeletePlayerProfileRow_OK(t *testing.T) {
 	uid := int32(8)
 	p := sampleProfile(uid, 200)
