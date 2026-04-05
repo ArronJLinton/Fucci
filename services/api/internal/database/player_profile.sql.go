@@ -220,9 +220,10 @@ func (q *Queries) ListPlayerProfileCareerTeams(ctx context.Context, playerProfil
 }
 
 const listPlayerProfileTraits = `-- name: ListPlayerProfileTraits :many
-SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY trait_code
+SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY id
 `
 
+// id reflects insert order (matches client PUT order after delete-then-insert).
 func (q *Queries) ListPlayerProfileTraits(ctx context.Context, playerProfileID int32) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listPlayerProfileTraits, playerProfileID)
 	if err != nil {

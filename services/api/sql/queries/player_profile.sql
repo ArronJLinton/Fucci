@@ -57,7 +57,8 @@ UPDATE player_profile SET photo_url = $2, updated_at = NOW() WHERE id = $1 RETUR
 DELETE FROM player_profile WHERE id = $1;
 
 -- name: ListPlayerProfileTraits :many
-SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY trait_code;
+-- id reflects insert order (matches client PUT order after delete-then-insert).
+SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY id;
 
 -- name: DeletePlayerProfileTraitsByProfileID :exec
 DELETE FROM player_profile_trait WHERE player_profile_id = $1;

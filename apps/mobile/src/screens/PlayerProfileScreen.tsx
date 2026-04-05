@@ -41,6 +41,7 @@ import {
   dribblingDefendingForPosition,
 } from '../utils/playerCoreAttrs';
 import {buildCompareSnapshotFromProfile} from '../utils/comparePlayerSnapshot';
+import {displayLevel} from '../utils/playerRating';
 import {useHoldCoreStep} from '../hooks/useHoldCoreStep';
 
 type TabId = 'profile' | 'stats' | 'career';
@@ -67,10 +68,6 @@ function roleArchetype(pos: PlayerProfileType['position'] | null): string {
 }
 
 const WORK_RATE_OPTIONS: WorkRate[] = ['LOW', 'MEDIUM', 'HIGH'];
-
-function displayLevel(traitsLen: number, completionPct: number): number {
-  return Math.min(99, 38 + traitsLen * 9 + Math.round(completionPct * 0.2));
-}
 
 export default function PlayerProfileScreen() {
   const navigation = useNavigation<NavigationProp>();

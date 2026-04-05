@@ -1,6 +1,7 @@
 import {COUNTRIES} from '../data/countries';
 import type {ComparePlayerSnapshot} from '../types/comparePlayer';
 import type {PlayerProfile, PlayerProfileOrDraft} from '../types/playerProfile';
+import {displayLevel} from './playerRating';
 
 type AuthUser = {
   display_name?: string | null;
@@ -24,10 +25,6 @@ function posAbbrev(
     default:
       return '';
   }
-}
-
-function displayLevel(traitsLen: number, completionPct: number): number {
-  return Math.min(99, 38 + traitsLen * 9 + Math.round(completionPct * 0.2));
 }
 
 /**
