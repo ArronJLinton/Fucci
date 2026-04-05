@@ -335,6 +335,23 @@ func TestPutMyPlayerProfile_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestPutMyPlayerProfile_InvalidCoreAttr(t *testing.T) {
+	uid := int32(1)
+	p := sampleProfile(uid, 40)
+	stub := &stubPlayerProfileStore{
+		GetPlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.PlayerProfile, error) {
+			assert.Equal(t, uid, userID)
+			return p, nil
+		},
+	}
+	cfg := &Config{PlayerProfileDB: stub}
+	body := map[string]interface{}{"country": "GB", "position": "DEF", "speed": 39}
+	rec := httptest.NewRecorder()
+	cfg.putPlayerProfile(rec, playerProfileTestRequest(http.MethodPut, "/player-profile", body, uid))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestPutMyPlayerProfile_OK(t *testing.T) {
 	uid := int32(2)
 	p := sampleProfile(uid, 55)
