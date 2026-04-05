@@ -15,6 +15,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// upsertArgCoreInt32 interprets nullable core args from UpsertPlayerProfile (nil = omitted).
+func upsertArgCoreInt32(v interface{}, ifNull int32) int32 {
+	if v == nil {
+		return ifNull
+	}
+	switch x := v.(type) {
+	case int32:
+		return x
+	case int64:
+		return int32(x)
+	case int:
+		return int32(x)
+	default:
+		return ifNull
+	}
+}
+
 // stubPlayerProfileStore implements PlayerProfileStore with per-method func hooks (nil => safe default).
 type stubPlayerProfileStore struct {
 	GetPlayerProfileByUserIDFn             func(ctx context.Context, userID int32) (database.PlayerProfile, error)
@@ -97,7 +114,7 @@ func playerProfileTestRequest(method, path string, body interface{}, userID int3
 }
 
 func sampleProfile(userID int32, id int32) database.PlayerProfile {
-	// Neutral core block (matches API defaultCoreAttrsForPosition at 50).
+	// Neutral core block (matches POST/PUT default 50 for omitted cores).
 	return database.PlayerProfile{
 		ID:          id,
 		UserID:      userID,
@@ -221,11 +238,14 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 	stub := &stubPlayerProfileStore{
 		UpsertPlayerProfileFn: func(ctx context.Context, arg database.UpsertPlayerProfileParams) (database.PlayerProfile, error) {
 			upsertArg = arg
+			const d = int32(50)
 			return database.PlayerProfile{
 				ID: 1, UserID: arg.UserID, CountryCode: arg.CountryCode, Position: arg.Position,
 				IsFreeAgent: arg.IsFreeAgent, Age: arg.Age, ClubName: arg.ClubName,
-				Speed: arg.Speed, Shooting: arg.Shooting, Passing: arg.Passing,
-				Dribbling: arg.Dribbling, Defending: arg.Defending, Physical: arg.Physical, Stamina: arg.Stamina,
+				Speed: upsertArgCoreInt32(arg.Speed, d), Shooting: upsertArgCoreInt32(arg.Shooting, d),
+				Passing: upsertArgCoreInt32(arg.Passing, d), Dribbling: upsertArgCoreInt32(arg.Dribbling, d),
+				Defending: upsertArgCoreInt32(arg.Defending, d), Physical: upsertArgCoreInt32(arg.Physical, d),
+				Stamina: upsertArgCoreInt32(arg.Stamina, d),
 				CreatedAt: time.Now(), UpdatedAt: time.Now(),
 			}, nil
 		},
@@ -239,14 +259,14 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "GB", upsertArg.CountryCode)
 	assert.Equal(t, "DEF", upsertArg.Position)
-	// Position defaults from defaultCoreAttrsForPosition (all 50)
-	assert.Equal(t, int32(50), upsertArg.Speed)
-	assert.Equal(t, int32(50), upsertArg.Shooting)
-	assert.Equal(t, int32(50), upsertArg.Passing)
-	assert.Equal(t, int32(50), upsertArg.Dribbling)
-	assert.Equal(t, int32(50), upsertArg.Defending)
-	assert.Equal(t, int32(50), upsertArg.Physical)
-	assert.Equal(t, int32(50), upsertArg.Stamina)
+	// Omitted cores → NULL; SQL applies COALESCE to 50 on insert.
+	assert.Nil(t, upsertArg.Speed)
+	assert.Nil(t, upsertArg.Shooting)
+	assert.Nil(t, upsertArg.Passing)
+	assert.Nil(t, upsertArg.Dribbling)
+	assert.Nil(t, upsertArg.Defending)
+	assert.Nil(t, upsertArg.Physical)
+	assert.Nil(t, upsertArg.Stamina)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "GB", resp.Country)
@@ -266,10 +286,6 @@ func TestPostMyPlayerProfile_UpdateExisting(t *testing.T) {
 	var upsertArg database.UpsertPlayerProfileParams
 
 	stub := &stubPlayerProfileStore{
-		GetPlayerProfileByUserIDFn: func(ctx context.Context, userID int32) (database.PlayerProfile, error) {
-			assert.Equal(t, uid, userID)
-			return existing, nil
-		},
 		UpsertPlayerProfileFn: func(ctx context.Context, arg database.UpsertPlayerProfileParams) (database.PlayerProfile, error) {
 			upsertArg = arg
 			return updated, nil
@@ -291,14 +307,14 @@ func TestPostMyPlayerProfile_UpdateExisting(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "DE", upsertArg.CountryCode)
 	assert.Equal(t, "FWD", upsertArg.Position)
-	// Omitted cores keep existing row (same as PUT), not position defaults.
-	assert.Equal(t, int32(72), upsertArg.Speed)
-	assert.Equal(t, int32(65), upsertArg.Shooting)
-	assert.Equal(t, int32(58), upsertArg.Passing)
-	assert.Equal(t, int32(61), upsertArg.Dribbling)
-	assert.Equal(t, int32(80), upsertArg.Defending)
-	assert.Equal(t, int32(77), upsertArg.Physical)
-	assert.Equal(t, int32(88), upsertArg.Stamina)
+	// Omitted cores → NULL; DB merges with existing row (no pre-read in handler).
+	assert.Nil(t, upsertArg.Speed)
+	assert.Nil(t, upsertArg.Shooting)
+	assert.Nil(t, upsertArg.Passing)
+	assert.Nil(t, upsertArg.Dribbling)
+	assert.Nil(t, upsertArg.Defending)
+	assert.Nil(t, upsertArg.Physical)
+	assert.Nil(t, upsertArg.Stamina)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "DE", resp.Country)

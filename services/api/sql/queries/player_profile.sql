@@ -9,25 +9,40 @@ VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpsertPlayerProfile :one
--- Atomic create-or-update on user_id (POST /player-profile); preserves photo_url on conflict.
+-- POST /player-profile: single statement. New row: omitted cores -> COALESCE(NULL, 50). Conflict update:
+-- NULL core param keeps player_profile.* (no stale read/merge in app code); non-NULL overwrites. photo_url unchanged.
 INSERT INTO player_profile (
   user_id, age, country_code, club_name, is_free_agent, position,
   speed, shooting, passing, dribbling, defending, physical, stamina
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+VALUES (
+  sqlc.arg('user_id'),
+  sqlc.arg('age'),
+  sqlc.arg('country_code'),
+  sqlc.arg('club_name'),
+  sqlc.arg('is_free_agent'),
+  sqlc.arg('position'),
+  COALESCE(sqlc.narg('speed'), 50),
+  COALESCE(sqlc.narg('shooting'), 50),
+  COALESCE(sqlc.narg('passing'), 50),
+  COALESCE(sqlc.narg('dribbling'), 50),
+  COALESCE(sqlc.narg('defending'), 50),
+  COALESCE(sqlc.narg('physical'), 50),
+  COALESCE(sqlc.narg('stamina'), 50)
+)
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,
   country_code = EXCLUDED.country_code,
   club_name = EXCLUDED.club_name,
   is_free_agent = EXCLUDED.is_free_agent,
   position = EXCLUDED.position,
-  speed = EXCLUDED.speed,
-  shooting = EXCLUDED.shooting,
-  passing = EXCLUDED.passing,
-  dribbling = EXCLUDED.dribbling,
-  defending = EXCLUDED.defending,
-  physical = EXCLUDED.physical,
-  stamina = EXCLUDED.stamina,
+  speed = CASE WHEN sqlc.narg('speed') IS NULL THEN player_profile.speed ELSE sqlc.narg('speed')::integer END,
+  shooting = CASE WHEN sqlc.narg('shooting') IS NULL THEN player_profile.shooting ELSE sqlc.narg('shooting')::integer END,
+  passing = CASE WHEN sqlc.narg('passing') IS NULL THEN player_profile.passing ELSE sqlc.narg('passing')::integer END,
+  dribbling = CASE WHEN sqlc.narg('dribbling') IS NULL THEN player_profile.dribbling ELSE sqlc.narg('dribbling')::integer END,
+  defending = CASE WHEN sqlc.narg('defending') IS NULL THEN player_profile.defending ELSE sqlc.narg('defending')::integer END,
+  physical = CASE WHEN sqlc.narg('physical') IS NULL THEN player_profile.physical ELSE sqlc.narg('physical')::integer END,
+  stamina = CASE WHEN sqlc.narg('stamina') IS NULL THEN player_profile.stamina ELSE sqlc.narg('stamina')::integer END,
   updated_at = NOW()
 RETURNING *;
 

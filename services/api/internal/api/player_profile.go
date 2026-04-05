@@ -74,12 +74,6 @@ type coreAttrsBlock struct {
 	Stamina   int32
 }
 
-// defaultCoreAttrsForPosition matches mobile defaults — neutral 50 until user edits.
-func defaultCoreAttrsForPosition(_ string) coreAttrsBlock {
-	const d int32 = 50
-	return coreAttrsBlock{d, d, d, d, d, d, d}
-}
-
 func validateCoreAttrsOptional(req *PlayerProfileInput) string {
 	checks := []struct {
 		name string
@@ -101,19 +95,6 @@ func validateCoreAttrsOptional(req *PlayerProfileInput) string {
 	return ""
 }
 
-func mergeCoreForCreate(req *PlayerProfileInput) coreAttrsBlock {
-	d := defaultCoreAttrsForPosition(req.Position)
-	return coreAttrsBlock{
-		Speed:     pickInt32(req.Speed, d.Speed),
-		Shooting:  pickInt32(req.Shooting, d.Shooting),
-		Passing:   pickInt32(req.Passing, d.Passing),
-		Dribbling: pickInt32(req.Dribbling, d.Dribbling),
-		Defending: pickInt32(req.Defending, d.Defending),
-		Physical:  pickInt32(req.Physical, d.Physical),
-		Stamina:   pickInt32(req.Stamina, d.Stamina),
-	}
-}
-
 func mergeCoreForPut(req *PlayerProfileInput, existing database.PlayerProfile) coreAttrsBlock {
 	return coreAttrsBlock{
 		Speed:     pickInt32(req.Speed, existing.Speed),
@@ -131,6 +112,14 @@ func pickInt32(req *int32, fallback int32) int32 {
 		return *req
 	}
 	return fallback
+}
+
+// optionalCoreUpsertArg is passed to UpsertPlayerProfile: nil means omitted (SQL applies COALESCE/keep-existing).
+func optionalCoreUpsertArg(p *int32) interface{} {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 // normalizeCountryCode validates ISO 3166-1 alpha-2 for VARCHAR(2): exactly two ASCII A–Z letters (case-insensitive input is uppercased).
@@ -248,20 +237,6 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		isFreeAgent = *req.IsFreeAgent
 	}
 
-	var core coreAttrsBlock
-	existing, getErr := c.playerProfileDB().GetPlayerProfileByUserID(ctx, userID)
-	if getErr != nil && getErr != sql.ErrNoRows {
-		log.Printf("[player_profile] GetPlayerProfileByUserID (post) error: %v", getErr)
-		respondWithError(w, http.StatusInternalServerError, "Failed to save profile")
-		return
-	}
-	if getErr == sql.ErrNoRows {
-		core = mergeCoreForCreate(&req)
-	} else {
-		core = mergeCoreForPut(&req, existing)
-	}
-
-	// Upsert applies insert-or-update atomically on user_id; we read above only to merge omitted cores.
 	profile, err := c.playerProfileDB().UpsertPlayerProfile(ctx, database.UpsertPlayerProfileParams{
 		UserID:      userID,
 		Age:         age,
@@ -269,13 +244,13 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		ClubName:    club,
 		IsFreeAgent: isFreeAgent,
 		Position:    req.Position,
-		Speed:       core.Speed,
-		Shooting:    core.Shooting,
-		Passing:     core.Passing,
-		Dribbling:   core.Dribbling,
-		Defending:   core.Defending,
-		Physical:    core.Physical,
-		Stamina:     core.Stamina,
+		Speed:       optionalCoreUpsertArg(req.Speed),
+		Shooting:    optionalCoreUpsertArg(req.Shooting),
+		Passing:     optionalCoreUpsertArg(req.Passing),
+		Dribbling:   optionalCoreUpsertArg(req.Dribbling),
+		Defending:   optionalCoreUpsertArg(req.Defending),
+		Physical:    optionalCoreUpsertArg(req.Physical),
+		Stamina:     optionalCoreUpsertArg(req.Stamina),
 	})
 	if err != nil {
 		log.Printf("[player_profile] UpsertPlayerProfile error: %v", err)

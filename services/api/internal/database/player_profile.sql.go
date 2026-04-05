@@ -397,20 +397,34 @@ INSERT INTO player_profile (
   user_id, age, country_code, club_name, is_free_agent, position,
   speed, shooting, passing, dribbling, defending, physical, stamina
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  COALESCE($7, 50),
+  COALESCE($8, 50),
+  COALESCE($9, 50),
+  COALESCE($10, 50),
+  COALESCE($11, 50),
+  COALESCE($12, 50),
+  COALESCE($13, 50)
+)
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,
   country_code = EXCLUDED.country_code,
   club_name = EXCLUDED.club_name,
   is_free_agent = EXCLUDED.is_free_agent,
   position = EXCLUDED.position,
-  speed = EXCLUDED.speed,
-  shooting = EXCLUDED.shooting,
-  passing = EXCLUDED.passing,
-  dribbling = EXCLUDED.dribbling,
-  defending = EXCLUDED.defending,
-  physical = EXCLUDED.physical,
-  stamina = EXCLUDED.stamina,
+  speed = CASE WHEN $7 IS NULL THEN player_profile.speed ELSE $7::integer END,
+  shooting = CASE WHEN $8 IS NULL THEN player_profile.shooting ELSE $8::integer END,
+  passing = CASE WHEN $9 IS NULL THEN player_profile.passing ELSE $9::integer END,
+  dribbling = CASE WHEN $10 IS NULL THEN player_profile.dribbling ELSE $10::integer END,
+  defending = CASE WHEN $11 IS NULL THEN player_profile.defending ELSE $11::integer END,
+  physical = CASE WHEN $12 IS NULL THEN player_profile.physical ELSE $12::integer END,
+  stamina = CASE WHEN $13 IS NULL THEN player_profile.stamina ELSE $13::integer END,
   updated_at = NOW()
 RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
@@ -422,16 +436,17 @@ type UpsertPlayerProfileParams struct {
 	ClubName    sql.NullString
 	IsFreeAgent bool
 	Position    string
-	Speed       int32
-	Shooting    int32
-	Passing     int32
-	Dribbling   int32
-	Defending   int32
-	Physical    int32
-	Stamina     int32
+	Speed       interface{}
+	Shooting    interface{}
+	Passing     interface{}
+	Dribbling   interface{}
+	Defending   interface{}
+	Physical    interface{}
+	Stamina     interface{}
 }
 
-// Atomic create-or-update on user_id (POST /player-profile); preserves photo_url on conflict.
+// POST /player-profile: single statement. New row: omitted cores -> COALESCE(NULL, 50). Conflict update:
+// NULL core param keeps player_profile.* (no stale read/merge in app code); non-NULL overwrites. photo_url unchanged.
 func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfileParams) (PlayerProfile, error) {
 	row := q.db.QueryRowContext(ctx, upsertPlayerProfile,
 		arg.UserID,
