@@ -209,9 +209,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  rowTrailing: {
-    paddingTop: 11,
-  },
   rowLabel: {
     fontSize: 13,
     fontWeight: '800',
