@@ -9,6 +9,28 @@ import {COUNTRIES} from '../data/countries';
 
 const BASE = '/player-profile';
 
+type ComparePlayerCatalogApiItem = {
+  id: string;
+  display_name: string;
+  age: number | null;
+  country_code: string;
+  country_label: string;
+  team: string;
+  position_abbrev: string;
+  photo_url: string | null;
+  rating: number;
+  speed: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  stamina: number;
+  value_label: string;
+  season_goals: number;
+  season_label: string;
+};
+
 function isNotFoundError(error: unknown): boolean {
   if (error instanceof ApiRequestError) return error.status === 404;
   if (error instanceof Error && /\b404\b/.test(error.message)) return true;
@@ -78,15 +100,31 @@ export async function listComparePlayerCatalog(
   if (!Array.isArray(players)) {
     throw new ApiRequestError('Invalid compare player catalog response', 500);
   }
-  return (players as ComparePlayerSnapshot[]).map(p => {
-    const countryCode = (p.countryCode || '').toUpperCase();
+  return (players as ComparePlayerCatalogApiItem[]).map(p => {
+    const countryCode = (p.country_code || '').toUpperCase();
     const countryLabel =
       COUNTRIES.find(c => c.code === countryCode)?.name?.toUpperCase() ??
       (countryCode || '—');
     return {
-      ...p,
+      id: p.id,
+      displayName: p.display_name,
+      age: p.age,
       countryCode,
       countryLabel,
+      team: p.team,
+      positionAbbrev: p.position_abbrev,
+      photoUrl: p.photo_url,
+      rating: p.rating,
+      speed: p.speed,
+      shooting: p.shooting,
+      passing: p.passing,
+      dribbling: p.dribbling,
+      defending: p.defending,
+      physical: p.physical,
+      stamina: p.stamina,
+      valueLabel: p.value_label,
+      seasonGoals: p.season_goals,
+      seasonLabel: p.season_label,
     };
   });
 }

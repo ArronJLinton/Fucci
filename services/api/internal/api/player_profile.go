@@ -49,13 +49,13 @@ type PlayerProfileCareerTeamDTO struct {
 // ComparePlayerCatalogItem is one selectable player for compare search.
 type ComparePlayerCatalogItem struct {
 	ID             string  `json:"id"`
-	DisplayName    string  `json:"displayName"`
+	DisplayName    string  `json:"display_name"`
 	Age            *int32  `json:"age"`
-	CountryCode    string  `json:"countryCode"`
-	CountryLabel   string  `json:"countryLabel"`
+	CountryCode    string  `json:"country_code"`
+	CountryLabel   string  `json:"country_label"`
 	Team           string  `json:"team"`
-	PositionAbbrev string  `json:"positionAbbrev"`
-	PhotoURL       *string `json:"photoUrl"`
+	PositionAbbrev string  `json:"position_abbrev"`
+	PhotoURL       *string `json:"photo_url"`
 	Rating         int32   `json:"rating"`
 	Speed          int32   `json:"speed"`
 	Shooting       int32   `json:"shooting"`
@@ -64,9 +64,9 @@ type ComparePlayerCatalogItem struct {
 	Defending      int32   `json:"defending"`
 	Physical       int32   `json:"physical"`
 	Stamina        int32   `json:"stamina"`
-	ValueLabel     string  `json:"valueLabel"`
-	SeasonGoals    int32   `json:"seasonGoals"`
-	SeasonLabel    string  `json:"seasonLabel"`
+	ValueLabel     string  `json:"value_label"`
+	SeasonGoals    int32   `json:"season_goals"`
+	SeasonLabel    string  `json:"season_label"`
 }
 
 // PlayerProfileInput is the body for POST/PUT /api/player-profile.

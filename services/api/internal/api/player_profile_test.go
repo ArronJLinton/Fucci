@@ -730,13 +730,13 @@ func TestGetPlayerProfileCatalog_FiltersRequesterAndHandlesQuery(t *testing.T) {
 	require.Len(t, out["players"], 1)
 	row := out["players"][0]
 	assert.Equal(t, "profile-202", row["id"])
-	assert.Equal(t, "JANE PRO", row["displayName"])
-	assert.Equal(t, "GB", row["countryCode"])
-	assert.Equal(t, "GB", row["countryLabel"])
+	assert.Equal(t, "JANE PRO", row["display_name"])
+	assert.Equal(t, "GB", row["country_code"])
+	assert.Equal(t, "GB", row["country_label"])
 	assert.Equal(t, "Real Club", row["team"])
-	assert.Equal(t, "CM", row["positionAbbrev"])
+	assert.Equal(t, "CM", row["position_abbrev"])
 	assert.Equal(t, float64(75), row["speed"])
 	assert.Equal(t, float64(81), row["stamina"])
-	_, hasPhoto := row["photoUrl"]
+	_, hasPhoto := row["photo_url"]
 	assert.True(t, hasPhoto)
 }

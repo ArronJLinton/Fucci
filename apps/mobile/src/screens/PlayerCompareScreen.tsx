@@ -69,11 +69,7 @@ function BasicInfoRow({
       </Text>
       <Text style={styles.basicInfoCenter}>{label}</Text>
       <Text
-        style={[
-          styles.basicInfoSide,
-          styles.basicInfoSideRight,
-          {color: CYAN},
-        ]}
+        style={[styles.basicInfoSide, styles.basicInfoSideRight, {color: CYAN}]}
         numberOfLines={2}>
         {rightText}
       </Text>
@@ -223,9 +219,6 @@ export default function PlayerCompareScreen() {
   const [catalog, setCatalog] = useState<ComparePlayerSnapshot[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [league] = useState("Ligue 1 McDonald's");
-  const [season] = useState('2023 / 2024');
-
   const excludeIds = useMemo(() => new Set([left.id]), [left.id]);
 
   const openSearch = async () => {
@@ -282,11 +275,7 @@ export default function PlayerCompareScreen() {
         {!right ? (
           <View style={styles.cardsRow}>
             <PlayerCard side="left" player={left} />
-            <PlayerCard
-              side="right"
-              empty
-              onPressEmpty={openSearch}
-            />
+            <PlayerCard side="right" empty onPressEmpty={openSearch} />
           </View>
         ) : null}
 
@@ -397,9 +386,7 @@ export default function PlayerCompareScreen() {
               </View>
             ))}
 
-            <TouchableOpacity
-              style={styles.changeOpp}
-              onPress={openSearch}>
+            <TouchableOpacity style={styles.changeOpp} onPress={openSearch}>
               <Text style={styles.changeOppText}>Change opponent</Text>
             </TouchableOpacity>
           </>
