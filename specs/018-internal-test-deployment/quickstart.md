@@ -2,10 +2,66 @@
 
 This runbook is the execution-ready task list for shipping Fucci to internal testing on both platforms.
 
+## Deployment Execution Notes
+
+- Primary working directory for mobile release commands: `apps/mobile/`.
+- Run all release commands using organization-owned Expo and store accounts.
+- Keep build profile names fixed: `development`, `preview`, `production`.
+- Keep OTA channels fixed: `dev`, `staging`, `production`.
+- Always execute `yarn preflight:release` before any EAS build or submit command.
+
 ## Dependency Legend
 
 - **[BLOCKER]** must be completed before dependent tasks.
 - **Depends on:** task IDs that must be done first.
+
+## CI Secret Inventory (GitHub + Expo)
+
+| Secret | Scope | Required For | Source of Truth |
+|---|---|---|---|
+| `EXPO_TOKEN` | GitHub Actions | `eas build`, `eas submit`, `eas update` | Expo account token (org-owned) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | GitHub Actions | Android submit to Play internal track | Google Cloud service account |
+| `ASC_API_KEY_ID` | GitHub Actions | iOS submit/TestFlight automation | App Store Connect API key |
+| `ASC_API_ISSUER_ID` | GitHub Actions | iOS submit/TestFlight automation | App Store Connect API key |
+| `ASC_API_KEY_P8` | GitHub Actions | iOS submit/TestFlight automation | App Store Connect API key |
+| `FCM_SERVER_KEY` / delegated push credential | Backend/Secrets Manager | Android push delivery path | Firebase project secrets |
+| `APNS_KEY_P8` | Expo/EAS Secrets | iOS push delivery path | Apple Developer APNs key |
+| `SUPABASE_URL` | GitHub/Runtime | Runtime backend config | Supabase project settings |
+| `SUPABASE_ANON_KEY` | GitHub/Runtime | Runtime backend config | Supabase project settings |
+
+## Environment Variable Reference (Mobile Deploy Jobs)
+
+| Variable | Environment | Example Use |
+|---|---|---|
+| `APP_ENV=development` | Development builds | Local/dev-client testing |
+| `APP_ENV=staging` | Preview builds | Internal QA/test tracks |
+| `APP_ENV=production` | Production builds | Store-ready builds |
+| `EAS_BUILD_PROFILE` | CI build jobs | Select `development`/`preview`/`production` |
+| `EAS_UPDATE_CHANNEL` | OTA publish jobs | Select `dev`/`staging`/`production` |
+
+## Command Baseline (Normalized)
+
+From `apps/mobile/`:
+
+```bash
+# Preflight
+yarn preflight:release
+
+# Local environment switching
+yarn env:dev
+yarn env:staging
+yarn env:prod
+
+# Build (internal and production)
+npx eas-cli build --platform android --profile preview --non-interactive
+npx eas-cli build --platform ios --profile preview --non-interactive
+npx eas-cli build --platform android --profile production --non-interactive
+npx eas-cli build --platform ios --profile production --non-interactive
+
+# Submit (manual-gated in CI, but executable locally if needed)
+npx eas-cli submit --platform android --profile preview --non-interactive
+npx eas-cli submit --platform ios --profile preview --non-interactive
+```
 
 ## Phase A — Organization, Ownership, and Access
 
@@ -72,6 +128,11 @@ This runbook is the execution-ready task list for shipping Fucci to internal tes
   - OTA channel mapping: `development -> dev`, `preview -> staging`, `production -> production`.
   - Depends on: D1, D2
   - Dependency note: CI and OTA channel mapping depend on stable profiles.
+- [ ] **D3.1** Validate local preflight commands in `apps/mobile/package.json`:
+  - `yarn preflight:typecheck`
+  - `yarn preflight:doctor`
+  - `yarn preflight:eas`
+  - `yarn preflight:release`
 - [ ] **D4** Define `submit` config for Android internal track and iOS TestFlight.
   - Depends on: B6, C4, D3
   - Dependency note: Automated submission blocked without valid submit config.
@@ -99,6 +160,7 @@ This runbook is the execution-ready task list for shipping Fucci to internal tes
 - [ ] **F1 [BLOCKER]** Define runtimeVersion policy (appVersion or nativeVersion) and document it.
   - Depends on: D3
   - Dependency note: Incorrect runtimeVersion can break OTA compatibility.
+  - Policy baseline: use app version as runtime boundary and update binary whenever native modules change.
 - [ ] **F2 [BLOCKER]** Map update channels:
   - `development` -> `dev`
   - `preview` -> `staging`
@@ -165,3 +227,15 @@ This runbook is the execution-ready task list for shipping Fucci to internal tes
 - OTA staging channel verified on installed internal builds.
 - Signing credentials are backed up and documented.
 - Release runbook and dependency notes are up to date.
+
+## Credential Backup & Custody Procedure
+
+1. Store Android keystore, alias, and passwords in team-managed vault (dual-admin access).
+2. Store APNs key (`.p8`), Key ID, Team ID in team-managed vault and Expo secrets.
+3. Record custody metadata:
+   - creator
+   - backup owner
+   - created date
+   - last restore drill date
+4. Run a restore drill at least once per quarter and log outcome in this runbook.
+5. Never keep release credentials only on a personal machine.

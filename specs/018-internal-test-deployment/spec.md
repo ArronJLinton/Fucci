@@ -40,6 +40,19 @@ Define a complete, dependency-aware deployment task list and design artifacts to
 - QA/Internal testers
 - Product/Operations
 
+## Account Ownership & Access Matrix
+
+| Platform/Service | Ownership Model | Primary Role | Backup Role |
+|---|---|---|---|
+| Apple Developer Program | Organization-owned | Org Admin | Platform Lead |
+| App Store Connect | Organization-owned | Release Manager | Mobile Lead |
+| Google Play Console | Organization-owned | Release Manager | Platform Lead |
+| Firebase (FCM) | Organization-owned | Backend/Platform | Mobile Lead |
+| Expo/EAS | Organization-owned | Mobile Lead | Platform Lead |
+| GitHub Actions/Environments | Organization-owned | DevOps | Engineering Manager |
+
+All release-critical permissions must be granted via role-based access and never tied to personal ownership.
+
 ## Functional Requirements
 
 1. Provide a full task inventory for Android internal testing setup in Google Play Console.

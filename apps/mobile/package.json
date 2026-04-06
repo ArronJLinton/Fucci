@@ -17,6 +17,10 @@
     "prod": "yarn env:prod && expo start",
     "build:android": "yarn env:prod && eas build -p android --profile production",
     "build:ios": "yarn env:prod && eas build -p ios --profile production",
+    "preflight:typecheck": "yarn type-check",
+    "preflight:doctor": "npx expo-doctor",
+    "preflight:eas": "npx eas-cli whoami",
+    "preflight:release": "yarn preflight:typecheck && yarn preflight:doctor && yarn preflight:eas",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf node_modules && yarn install",
     "reset": "yarn clean && yarn env:dev"
