@@ -19,7 +19,7 @@ This runbook is the execution-ready task list for shipping Fucci to internal tes
 | `preview` | `staging` | Internal QA (Play internal + TestFlight internal) |
 | `production` | `production` | Store-ready binaries |
 
-Submit defaults for internal test tracks are configured under `submit.preview` in `apps/mobile/eas.json` (Android internal track, iOS TestFlight via ASC identifiers). Use `--profile preview` with `eas submit` for gated internal releases.
+Submit defaults for internal test tracks: `submit.preview` in `apps/mobile/eas.json` sets the Android internal track. **iOS submit is not hardcoded in-repo** — use [App Store Connect API key](https://docs.expo.dev/submit/ios/#submitting-your-app-using-cicd-services) auth (GitHub secrets for CI, or `eas credentials` / interactive submit locally). Do not commit Apple ID emails, team IDs, or ASC app IDs; CI injects `ascAppId` and API key fields at submit time. Use `--profile preview` with `eas submit` for gated internal releases.
 
 ## Dependency Legend
 
@@ -32,9 +32,10 @@ Submit defaults for internal test tracks are configured under `submit.preview` i
 |---|---|---|---|
 | `EXPO_TOKEN` | GitHub Actions | `eas build`, `eas submit`, `eas update` | Expo account token (org-owned) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | GitHub Actions | Android submit to Play internal track | Google Cloud service account |
-| `ASC_API_KEY_ID` | GitHub Actions | iOS submit/TestFlight automation | App Store Connect API key |
-| `ASC_API_ISSUER_ID` | GitHub Actions | iOS submit/TestFlight automation | App Store Connect API key |
-| `ASC_API_KEY_P8` | GitHub Actions | iOS submit/TestFlight automation | App Store Connect API key |
+| `ASC_APP_ID` | GitHub Actions (`mobile-internal-submit`) | iOS `eas submit` non-interactive (App Information → Apple ID in ASC) | App Store Connect |
+| `ASC_API_KEY_ID` | GitHub Actions (`mobile-internal-submit`) | iOS submit/TestFlight automation | App Store Connect API key |
+| `ASC_API_ISSUER_ID` | GitHub Actions (`mobile-internal-submit`) | iOS submit/TestFlight automation | App Store Connect API key |
+| `ASC_API_KEY_P8` | GitHub Actions (`mobile-internal-submit`) | iOS submit/TestFlight automation | App Store Connect API key (`.p8` body) |
 | `FCM_SERVER_KEY` / delegated push credential | Backend/Secrets Manager | Android push delivery path | Firebase project secrets |
 | `APNS_KEY_P8` | Expo/EAS Secrets | iOS push delivery path | Apple Developer APNs key |
 | `SUPABASE_URL` | GitHub/Runtime | Runtime backend config | Supabase project settings |
@@ -71,6 +72,8 @@ npx eas-cli build --platform ios --profile production --non-interactive
 
 # Submit (manual-gated in CI, but executable locally if needed)
 npx eas-cli submit --platform android --profile preview --non-interactive
+# iOS: non-interactive requires ascAppId + App Store Connect API key (see eas.json submit.preview.ios or eas credentials).
+# Prefer interactive submit locally, or configure API key via `eas credentials` and add a local-only ios submit block if needed.
 npx eas-cli submit --platform ios --profile preview --non-interactive
 ```
 
@@ -144,9 +147,9 @@ npx eas-cli submit --platform ios --profile preview --non-interactive
   - `yarn preflight:doctor`
   - `yarn preflight:eas`
   - `yarn preflight:release`
-- [ ] **D4** Define `submit` config for Android internal track and iOS TestFlight.
+- [ ] **D4** Define `submit` config for Android internal track; plan iOS TestFlight submit via App Store Connect API key (secrets / `eas credentials`), not Apple ID + app-specific password in-repo.
   - Depends on: B6, C4, D3
-  - Dependency note: Automated submission blocked without valid submit config.
+  - Dependency note: Automated submission blocked without valid submit config and ASC secrets where CI injects iOS fields.
 
 ## Phase E — Credential Management and Backup
 
@@ -334,7 +337,7 @@ Rollback (republish previous known-good bundle or use Expo dashboard to roll bac
 
 ## US2 — Validation checklist (T026)
 
-- [ ] `apps/mobile/eas.json` defines `submit.preview` with Android `track: internal` and iOS ASC fields (placeholders replaced for real submits).
+- [ ] `apps/mobile/eas.json` defines `submit.preview` with Android `track: internal`; iOS submit credentials come from org secrets (CI) or Expo/EAS credential store, not committed identifiers.
 - [ ] Build profiles `development` / `preview` / `production` each set `channel` to `dev` / `staging` / `production`.
 - [ ] `eas build --profile preview` succeeds for Android and iOS without credential prompts in CI context.
 - [ ] `eas submit --profile preview` targets internal track / TestFlight per org policy (manual gate in CI).
@@ -349,8 +352,9 @@ Workflow file: `.github/workflows/mobile-internal-deploy.yml`
 | Secret | Where | Purpose |
 |--------|--------|---------|
 | `EXPO_TOKEN` | Repository or Environment secrets | `eas build`, `eas submit`, `eas update` from CI |
+| `ASC_APP_ID`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `ASC_API_KEY_P8` | Environment `mobile-internal-submit` | iOS gated submit job (API key auth; injected into `eas.json` only on the runner) |
 
-Optional (store automation beyond EAS-managed credentials): mirror entries from **CI Secret Inventory** (`GOOGLE_SERVICE_ACCOUNT_JSON`, App Store Connect API key fields) if you wire them into `eas submit` or separate steps.
+Optional: `GOOGLE_SERVICE_ACCOUNT_JSON` for Android submit if not using EAS-managed Play credentials.
 
 **One-time setup**
 
@@ -379,7 +383,7 @@ submit-ios-preview          (needs: build-ios-preview)
 - [ ] `build-android-preview` completes and produces an EAS Android preview build.
 - [ ] `build-ios-preview` completes and produces an EAS iOS preview build.
 - [ ] With **Run gated submit** checked, Environment protection prompts reviewers before `submit-*` jobs run.
-- [ ] After approval, `eas submit --latest --profile preview` succeeds for Android and iOS (store accounts and EAS credentials already configured).
+- [ ] After approval, `eas submit --latest --profile preview` succeeds for Android and iOS (Play + ASC API secrets configured on the environment; iOS does not rely on committed Apple ID strings).
 
 ## Credential Backup & Custody Procedure
 

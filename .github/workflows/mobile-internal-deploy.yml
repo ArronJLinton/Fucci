@@ -1,5 +1,6 @@
 # EAS preview builds for internal testing; submit jobs are manual + environment-gated.
 # Configure GitHub Environment `mobile-internal-submit` with required reviewers before enabling submit.
+# iOS submit: ASC_APP_ID + ASC_API_KEY_* secrets (App Store Connect API key); no Apple ID in eas.json.
 
 name: Mobile EAS (preview)
 
@@ -195,6 +196,47 @@ jobs:
             echo "::error::EXPO_TOKEN is required for submit"
             exit 1
           fi
+
+      # iOS submit uses App Store Connect API key auth (no Apple ID / app-specific password in repo).
+      # Do not set EXPO_APPLE_APP_SPECIFIC_PASSWORD here — that would force the brittle password flow.
+      - name: Validate App Store Connect API secrets for iOS submit
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          missing=""
+          [ -z "$ASC_APP_ID" ] && missing="$missing ASC_APP_ID"
+          [ -z "$ASC_API_KEY_ID" ] && missing="$missing ASC_API_KEY_ID"
+          [ -z "$ASC_API_ISSUER_ID" ] && missing="$missing ASC_API_ISSUER_ID"
+          [ -z "$ASC_API_KEY_P8" ] && missing="$missing ASC_API_KEY_P8"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets for iOS submit (set on Environment mobile-internal-submit):$missing"
+            exit 1
+          fi
+
+      - name: Inject iOS submit profile (ASC API key from secrets)
+        working-directory: apps/mobile
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/AscApiKey.p8"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          jq --arg id "$ASC_APP_ID" \
+            --arg kid "$ASC_API_KEY_ID" \
+            --arg iss "$ASC_API_ISSUER_ID" \
+            --arg path "$KEY_PATH" \
+            '.submit.preview.ios = {
+              ascAppId: $id,
+              ascApiKeyId: $kid,
+              ascApiKeyIssuerId: $iss,
+              ascApiKeyPath: $path
+            }' eas.json > eas.json.tmp && mv eas.json.tmp eas.json
 
       - name: EAS submit iOS (latest preview build)
         working-directory: apps/mobile
