@@ -125,6 +125,13 @@ type PlayerProfile struct {
 	PhotoUrl    sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
 }
 
 type PlayerProfileCareerTeam struct {
@@ -141,26 +148,6 @@ type PlayerProfileTrait struct {
 	ID              int32
 	PlayerProfileID int32
 	TraitCode       string
-}
-
-type PlayerProfiles struct {
-	ID         uuid.UUID
-	UserID     int32
-	TeamID     uuid.NullUUID
-	Position   string
-	Age        int32
-	Country    string
-	HeightCm   int32
-	Pace       int32
-	Shooting   int32
-	Passing    int32
-	Stamina    int32
-	Dribbling  int32
-	Defending  int32
-	Physical   int32
-	IsVerified bool
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
 }
 
 type TeamManagers struct {
@@ -210,13 +197,6 @@ type Users struct {
 	IsAdmin     bool
 	DisplayName sql.NullString
 	AvatarUrl   sql.NullString
-}
-
-type Verifications struct {
-	ID              uuid.UUID
-	PlayerProfileID uuid.UUID
-	VerifierUserID  int32
-	CreatedAt       time.Time
 }
 
 type Votes struct {

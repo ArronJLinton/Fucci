@@ -9,21 +9,59 @@ VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpsertPlayerProfile :one
--- Atomic create-or-update on user_id (POST /player-profile); preserves photo_url on conflict.
-INSERT INTO player_profile (user_id, age, country_code, club_name, is_free_agent, position)
-VALUES ($1, $2, $3, $4, $5, $6)
+-- POST /player-profile: single statement. New row: omitted cores -> COALESCE(NULL, 50). Conflict update:
+-- NULL core param keeps player_profile.* (no stale read/merge in app code); non-NULL overwrites. photo_url unchanged.
+INSERT INTO player_profile (
+  user_id, age, country_code, club_name, is_free_agent, position,
+  speed, shooting, passing, dribbling, defending, physical, stamina
+)
+VALUES (
+  sqlc.arg('user_id'),
+  sqlc.arg('age'),
+  sqlc.arg('country_code'),
+  sqlc.arg('club_name'),
+  sqlc.arg('is_free_agent'),
+  sqlc.arg('position'),
+  COALESCE(sqlc.narg('speed')::integer, 50),
+  COALESCE(sqlc.narg('shooting')::integer, 50),
+  COALESCE(sqlc.narg('passing')::integer, 50),
+  COALESCE(sqlc.narg('dribbling')::integer, 50),
+  COALESCE(sqlc.narg('defending')::integer, 50),
+  COALESCE(sqlc.narg('physical')::integer, 50),
+  COALESCE(sqlc.narg('stamina')::integer, 50)
+)
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,
   country_code = EXCLUDED.country_code,
   club_name = EXCLUDED.club_name,
   is_free_agent = EXCLUDED.is_free_agent,
   position = EXCLUDED.position,
+  speed = CASE WHEN sqlc.narg('speed') IS NULL THEN player_profile.speed ELSE sqlc.narg('speed')::integer END,
+  shooting = CASE WHEN sqlc.narg('shooting') IS NULL THEN player_profile.shooting ELSE sqlc.narg('shooting')::integer END,
+  passing = CASE WHEN sqlc.narg('passing') IS NULL THEN player_profile.passing ELSE sqlc.narg('passing')::integer END,
+  dribbling = CASE WHEN sqlc.narg('dribbling') IS NULL THEN player_profile.dribbling ELSE sqlc.narg('dribbling')::integer END,
+  defending = CASE WHEN sqlc.narg('defending') IS NULL THEN player_profile.defending ELSE sqlc.narg('defending')::integer END,
+  physical = CASE WHEN sqlc.narg('physical') IS NULL THEN player_profile.physical ELSE sqlc.narg('physical')::integer END,
+  stamina = CASE WHEN sqlc.narg('stamina') IS NULL THEN player_profile.stamina ELSE sqlc.narg('stamina')::integer END,
   updated_at = NOW()
 RETURNING *;
 
 -- name: UpdatePlayerProfileRow :one
 UPDATE player_profile
-SET age = $2, country_code = $3, club_name = $4, is_free_agent = $5, position = $6, photo_url = $7, updated_at = NOW()
+SET age = $2,
+    country_code = $3,
+    club_name = $4,
+    is_free_agent = $5,
+    position = $6,
+    photo_url = $7,
+    speed = $8,
+    shooting = $9,
+    passing = $10,
+    dribbling = $11,
+    defending = $12,
+    physical = $13,
+    stamina = $14,
+    updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
@@ -34,7 +72,8 @@ UPDATE player_profile SET photo_url = $2, updated_at = NOW() WHERE id = $1 RETUR
 DELETE FROM player_profile WHERE id = $1;
 
 -- name: ListPlayerProfileTraits :many
-SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY trait_code;
+-- id reflects insert order (matches client PUT order after delete-then-insert).
+SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY id;
 
 -- name: DeletePlayerProfileTraitsByProfileID :exec
 DELETE FROM player_profile_trait WHERE player_profile_id = $1;
@@ -62,3 +101,41 @@ DELETE FROM player_profile_career_team WHERE id = $1;
 
 -- name: GetPlayerProfileCareerTeam :one
 SELECT * FROM player_profile_career_team WHERE id = $1;
+
+-- name: ListComparePlayerCatalog :many
+SELECT
+  pp.id,
+  pp.user_id,
+  pp.age,
+  pp.country_code,
+  pp.club_name,
+  pp.is_free_agent,
+  pp.position,
+  pp.photo_url,
+  pp.speed,
+  pp.shooting,
+  pp.passing,
+  pp.dribbling,
+  pp.defending,
+  pp.physical,
+  pp.stamina,
+  u.display_name,
+  u.firstname,
+  u.lastname,
+  u.avatar_url,
+  COUNT(t.id)::int AS traits_count
+FROM player_profile pp
+JOIN users u ON u.id = pp.user_id
+LEFT JOIN player_profile_trait t ON t.player_profile_id = pp.id
+WHERE (
+  sqlc.arg('search')::text = '' OR
+  COALESCE(NULLIF(TRIM(u.display_name), ''), TRIM(u.firstname || ' ' || u.lastname), 'Player') ILIKE '%' || sqlc.arg('search') || '%' OR
+  COALESCE(pp.club_name, '') ILIKE '%' || sqlc.arg('search') || '%' OR
+  pp.country_code ILIKE '%' || sqlc.arg('search') || '%'
+)
+GROUP BY
+  pp.id, pp.user_id, pp.age, pp.country_code, pp.club_name, pp.is_free_agent, pp.position, pp.photo_url,
+  pp.speed, pp.shooting, pp.passing, pp.dribbling, pp.defending, pp.physical, pp.stamina,
+  u.display_name, u.firstname, u.lastname, u.avatar_url
+ORDER BY pp.updated_at DESC
+LIMIT sqlc.arg('limit');

@@ -417,23 +417,17 @@ func (s *TeamsService) GetTeamStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get team players
-	players, err := s.db.GetPlayersByTeam(r.Context(), uuid.NullUUID{UUID: teamID, Valid: true})
-	if err != nil {
-		http.Error(w, "Failed to get team players", http.StatusInternalServerError)
-		return
-	}
+	// Legacy player_profiles-backed team player stats were retired with table cleanup.
+	// TODO: re-introduce team-scoped player stats from canonical player_profile model.
+	players := []interface{}{}
 
 	// Calculate stats
 	var totalRating float64
 	var totalVerifications int32
 	playerCount := int32(len(players))
 
-	for _, player := range players {
-		// Calculate average rating from individual stats
-		playerRating := float64(player.Pace+player.Shooting+player.Passing+player.Stamina+player.Dribbling+player.Defending+player.Physical) / 7.0
-		totalRating += playerRating
-		// Note: GetPlayersByTeamRow doesn't have verification count, so skip for now
+	for range players {
+		// No-op until canonical team-linked player stats are implemented.
 	}
 
 	var avgRating float64

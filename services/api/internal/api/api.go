@@ -44,6 +44,7 @@ type PlayerProfileStore interface {
 	UpsertPlayerProfile(ctx context.Context, arg database.UpsertPlayerProfileParams) (database.PlayerProfile, error)
 	UpdatePlayerProfileRow(ctx context.Context, arg database.UpdatePlayerProfileRowParams) (database.PlayerProfile, error)
 	DeletePlayerProfileRow(ctx context.Context, id int32) error
+	ListComparePlayerCatalog(ctx context.Context, arg database.ListComparePlayerCatalogParams) ([]database.ListComparePlayerCatalogRow, error)
 	ListPlayerProfileTraits(ctx context.Context, playerProfileID int32) ([]string, error)
 	ListPlayerProfileCareerTeams(ctx context.Context, playerProfileID int32) ([]database.PlayerProfileCareerTeam, error)
 	DeletePlayerProfileTraitsByProfileID(ctx context.Context, playerProfileID int32) error
@@ -94,8 +95,6 @@ func New(c Config) http.Handler {
 	teamsService := NewTeamsService(c.DB)
 	teamManagersService := NewTeamManagersService(c.DB)
 	leaguesService := NewLeaguesService(c.DB)
-	playerProfilesService := &PlayerProfileService{DB: c.DB}
-	verificationsService := &VerificationService{DB: c.DB, PlayerProfileSvc: &PlayerProfileService{DB: c.DB}}
 
 	// Health check routes
 	router.Get("/health", HandleReadiness)
@@ -121,6 +120,7 @@ func New(c Config) http.Handler {
 	playerProfileRouter := chi.NewRouter()
 	playerProfileRouter.Use(auth.RequireAuth)
 	playerProfileRouter.Get("/", c.getPlayerProfile)
+	playerProfileRouter.Get("/catalog", c.getPlayerProfileCatalog)
 	playerProfileRouter.Post("/", c.postPlayerProfile)
 	playerProfileRouter.Put("/", c.putPlayerProfile)
 	playerProfileRouter.Put("/traits", c.putPlayerProfileTraits)
@@ -192,19 +192,6 @@ func New(c Config) http.Handler {
 	leaguesRouter.Delete("/{id}", leaguesService.DeleteLeague)
 	leaguesRouter.Get("/{id}/stats", leaguesService.GetLeagueStats)
 
-	// Player Profiles routes
-	playerProfilesRouter := chi.NewRouter()
-	playerProfilesRouter.Post("/", playerProfilesService.CreatePlayerProfile)
-	playerProfilesRouter.Get("/{id}", playerProfilesService.GetPlayerProfile)
-	playerProfilesRouter.Put("/{id}", playerProfilesService.UpdatePlayerProfile)
-	playerProfilesRouter.Delete("/{id}", playerProfilesService.DeletePlayerProfile)
-
-	// Verifications routes
-	verificationsRouter := chi.NewRouter()
-	verificationsRouter.Post("/", verificationsService.AddVerification)
-	verificationsRouter.Delete("/{id}", verificationsService.RemoveVerification)
-	verificationsRouter.Get("/player/{playerId}", verificationsService.ListVerifications)
-
 	commentsRouter := chi.NewRouter()
 	commentsRouter.With(auth.RequireAuth).Put("/{commentId}/vote", c.SetCommentVote)
 	commentsRouter.With(auth.RequireAuth).Post("/{commentId}/reactions", c.AddCommentReaction)
@@ -222,8 +209,8 @@ func New(c Config) http.Handler {
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)
 	router.Mount("/leagues", leaguesRouter)
-	router.Mount("/player-profiles", playerProfilesRouter)
-	router.Mount("/verifications", verificationsRouter)
+	// Legacy /player-profiles and /verifications routes intentionally not mounted.
+	// Canonical profile surface is /player-profile (singular) + /player-profile/traits.
 
 	return router
 }

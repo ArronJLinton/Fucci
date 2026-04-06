@@ -46,7 +46,7 @@ func (q *Queries) CreatePlayerProfileCareerTeam(ctx context.Context, arg CreateP
 const createPlayerProfileRow = `-- name: CreatePlayerProfileRow :one
 INSERT INTO player_profile (user_id, age, country_code, club_name, is_free_agent, position)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type CreatePlayerProfileRowParams struct {
@@ -79,6 +79,13 @@ func (q *Queries) CreatePlayerProfileRow(ctx context.Context, arg CreatePlayerPr
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
@@ -112,7 +119,7 @@ func (q *Queries) DeletePlayerProfileTraitsByProfileID(ctx context.Context, play
 
 const getPlayerProfileByUserID = `-- name: GetPlayerProfileByUserID :one
 
-SELECT id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at FROM player_profile WHERE user_id = $1
+SELECT id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina FROM player_profile WHERE user_id = $1
 `
 
 // 007: signed-in user player profile (player_profile), traits, career teams.
@@ -130,6 +137,13 @@ func (q *Queries) GetPlayerProfileByUserID(ctx context.Context, userID int32) (P
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
@@ -170,6 +184,117 @@ func (q *Queries) InsertPlayerProfileTrait(ctx context.Context, arg InsertPlayer
 	return i, err
 }
 
+const listComparePlayerCatalog = `-- name: ListComparePlayerCatalog :many
+SELECT
+  pp.id,
+  pp.user_id,
+  pp.age,
+  pp.country_code,
+  pp.club_name,
+  pp.is_free_agent,
+  pp.position,
+  pp.photo_url,
+  pp.speed,
+  pp.shooting,
+  pp.passing,
+  pp.dribbling,
+  pp.defending,
+  pp.physical,
+  pp.stamina,
+  u.display_name,
+  u.firstname,
+  u.lastname,
+  u.avatar_url,
+  COUNT(t.id)::int AS traits_count
+FROM player_profile pp
+JOIN users u ON u.id = pp.user_id
+LEFT JOIN player_profile_trait t ON t.player_profile_id = pp.id
+WHERE (
+  $1::text = '' OR
+  COALESCE(NULLIF(TRIM(u.display_name), ''), TRIM(u.firstname || ' ' || u.lastname), 'Player') ILIKE '%' || $1 || '%' OR
+  COALESCE(pp.club_name, '') ILIKE '%' || $1 || '%' OR
+  pp.country_code ILIKE '%' || $1 || '%'
+)
+GROUP BY
+  pp.id, pp.user_id, pp.age, pp.country_code, pp.club_name, pp.is_free_agent, pp.position, pp.photo_url,
+  pp.speed, pp.shooting, pp.passing, pp.dribbling, pp.defending, pp.physical, pp.stamina,
+  u.display_name, u.firstname, u.lastname, u.avatar_url
+ORDER BY pp.updated_at DESC
+LIMIT $2
+`
+
+type ListComparePlayerCatalogParams struct {
+	Search string
+	Limit  int32
+}
+
+type ListComparePlayerCatalogRow struct {
+	ID          int32
+	UserID      int32
+	Age         sql.NullInt32
+	CountryCode string
+	ClubName    sql.NullString
+	IsFreeAgent bool
+	Position    string
+	PhotoUrl    sql.NullString
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
+	DisplayName sql.NullString
+	Firstname   string
+	Lastname    string
+	AvatarUrl   sql.NullString
+	TraitsCount int32
+}
+
+func (q *Queries) ListComparePlayerCatalog(ctx context.Context, arg ListComparePlayerCatalogParams) ([]ListComparePlayerCatalogRow, error) {
+	rows, err := q.db.QueryContext(ctx, listComparePlayerCatalog, arg.Search, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListComparePlayerCatalogRow
+	for rows.Next() {
+		var i ListComparePlayerCatalogRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Age,
+			&i.CountryCode,
+			&i.ClubName,
+			&i.IsFreeAgent,
+			&i.Position,
+			&i.PhotoUrl,
+			&i.Speed,
+			&i.Shooting,
+			&i.Passing,
+			&i.Dribbling,
+			&i.Defending,
+			&i.Physical,
+			&i.Stamina,
+			&i.DisplayName,
+			&i.Firstname,
+			&i.Lastname,
+			&i.AvatarUrl,
+			&i.TraitsCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlayerProfileCareerTeams = `-- name: ListPlayerProfileCareerTeams :many
 SELECT id, player_profile_id, team_name, start_year, end_year, created_at, updated_at FROM player_profile_career_team WHERE player_profile_id = $1 ORDER BY start_year DESC
 `
@@ -206,9 +331,10 @@ func (q *Queries) ListPlayerProfileCareerTeams(ctx context.Context, playerProfil
 }
 
 const listPlayerProfileTraits = `-- name: ListPlayerProfileTraits :many
-SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY trait_code
+SELECT trait_code FROM player_profile_trait WHERE player_profile_id = $1 ORDER BY id
 `
 
+// id reflects insert order (matches client PUT order after delete-then-insert).
 func (q *Queries) ListPlayerProfileTraits(ctx context.Context, playerProfileID int32) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listPlayerProfileTraits, playerProfileID)
 	if err != nil {
@@ -267,7 +393,7 @@ func (q *Queries) UpdatePlayerProfileCareerTeam(ctx context.Context, arg UpdateP
 }
 
 const updatePlayerProfilePhotoRow = `-- name: UpdatePlayerProfilePhotoRow :one
-UPDATE player_profile SET photo_url = $2, updated_at = NOW() WHERE id = $1 RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+UPDATE player_profile SET photo_url = $2, updated_at = NOW() WHERE id = $1 RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type UpdatePlayerProfilePhotoRowParams struct {
@@ -289,15 +415,35 @@ func (q *Queries) UpdatePlayerProfilePhotoRow(ctx context.Context, arg UpdatePla
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
 
 const updatePlayerProfileRow = `-- name: UpdatePlayerProfileRow :one
 UPDATE player_profile
-SET age = $2, country_code = $3, club_name = $4, is_free_agent = $5, position = $6, photo_url = $7, updated_at = NOW()
+SET age = $2,
+    country_code = $3,
+    club_name = $4,
+    is_free_agent = $5,
+    position = $6,
+    photo_url = $7,
+    speed = $8,
+    shooting = $9,
+    passing = $10,
+    dribbling = $11,
+    defending = $12,
+    physical = $13,
+    stamina = $14,
+    updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type UpdatePlayerProfileRowParams struct {
@@ -308,6 +454,13 @@ type UpdatePlayerProfileRowParams struct {
 	IsFreeAgent bool
 	Position    string
 	PhotoUrl    sql.NullString
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
 }
 
 func (q *Queries) UpdatePlayerProfileRow(ctx context.Context, arg UpdatePlayerProfileRowParams) (PlayerProfile, error) {
@@ -319,6 +472,13 @@ func (q *Queries) UpdatePlayerProfileRow(ctx context.Context, arg UpdatePlayerPr
 		arg.IsFreeAgent,
 		arg.Position,
 		arg.PhotoUrl,
+		arg.Speed,
+		arg.Shooting,
+		arg.Passing,
+		arg.Dribbling,
+		arg.Defending,
+		arg.Physical,
+		arg.Stamina,
 	)
 	var i PlayerProfile
 	err := row.Scan(
@@ -332,21 +492,52 @@ func (q *Queries) UpdatePlayerProfileRow(ctx context.Context, arg UpdatePlayerPr
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }
 
 const upsertPlayerProfile = `-- name: UpsertPlayerProfile :one
-INSERT INTO player_profile (user_id, age, country_code, club_name, is_free_agent, position)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO player_profile (
+  user_id, age, country_code, club_name, is_free_agent, position,
+  speed, shooting, passing, dribbling, defending, physical, stamina
+)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  COALESCE($7::integer, 50),
+  COALESCE($8::integer, 50),
+  COALESCE($9::integer, 50),
+  COALESCE($10::integer, 50),
+  COALESCE($11::integer, 50),
+  COALESCE($12::integer, 50),
+  COALESCE($13::integer, 50)
+)
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,
   country_code = EXCLUDED.country_code,
   club_name = EXCLUDED.club_name,
   is_free_agent = EXCLUDED.is_free_agent,
   position = EXCLUDED.position,
+  speed = CASE WHEN $7 IS NULL THEN player_profile.speed ELSE $7::integer END,
+  shooting = CASE WHEN $8 IS NULL THEN player_profile.shooting ELSE $8::integer END,
+  passing = CASE WHEN $9 IS NULL THEN player_profile.passing ELSE $9::integer END,
+  dribbling = CASE WHEN $10 IS NULL THEN player_profile.dribbling ELSE $10::integer END,
+  defending = CASE WHEN $11 IS NULL THEN player_profile.defending ELSE $11::integer END,
+  physical = CASE WHEN $12 IS NULL THEN player_profile.physical ELSE $12::integer END,
+  stamina = CASE WHEN $13 IS NULL THEN player_profile.stamina ELSE $13::integer END,
   updated_at = NOW()
-RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at
+RETURNING id, user_id, age, country_code, club_name, is_free_agent, position, photo_url, created_at, updated_at, speed, shooting, passing, dribbling, defending, physical, stamina
 `
 
 type UpsertPlayerProfileParams struct {
@@ -356,9 +547,17 @@ type UpsertPlayerProfileParams struct {
 	ClubName    sql.NullString
 	IsFreeAgent bool
 	Position    string
+	Speed       sql.NullInt32
+	Shooting    sql.NullInt32
+	Passing     sql.NullInt32
+	Dribbling   sql.NullInt32
+	Defending   sql.NullInt32
+	Physical    sql.NullInt32
+	Stamina     sql.NullInt32
 }
 
-// Atomic create-or-update on user_id (POST /player-profile); preserves photo_url on conflict.
+// POST /player-profile: single statement. New row: omitted cores -> COALESCE(NULL, 50). Conflict update:
+// NULL core param keeps player_profile.* (no stale read/merge in app code); non-NULL overwrites. photo_url unchanged.
 func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfileParams) (PlayerProfile, error) {
 	row := q.db.QueryRowContext(ctx, upsertPlayerProfile,
 		arg.UserID,
@@ -367,6 +566,13 @@ func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfi
 		arg.ClubName,
 		arg.IsFreeAgent,
 		arg.Position,
+		arg.Speed,
+		arg.Shooting,
+		arg.Passing,
+		arg.Dribbling,
+		arg.Defending,
+		arg.Physical,
+		arg.Stamina,
 	)
 	var i PlayerProfile
 	err := row.Scan(
@@ -380,6 +586,13 @@ func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfi
 		&i.PhotoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Speed,
+		&i.Shooting,
+		&i.Passing,
+		&i.Dribbling,
+		&i.Defending,
+		&i.Physical,
+		&i.Stamina,
 	)
 	return i, err
 }

@@ -4,8 +4,32 @@ import type {
   PlayerProfileInput,
   PlayerProfileCareerTeam,
 } from '../types/playerProfile';
+import type {ComparePlayerSnapshot} from '../types/comparePlayer';
+import {COUNTRIES} from '../data/countries';
 
 const BASE = '/player-profile';
+
+type ComparePlayerCatalogApiItem = {
+  id: string;
+  display_name: string;
+  age: number | null;
+  country_code: string;
+  country_label: string;
+  team: string;
+  position_abbrev: string;
+  photo_url: string | null;
+  rating: number;
+  speed: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  stamina: number;
+  value_label: string;
+  season_goals: number;
+  season_label: string;
+};
 
 function isNotFoundError(error: unknown): boolean {
   if (error instanceof ApiRequestError) return error.status === 404;
@@ -49,7 +73,7 @@ export async function deletePlayerProfile(token: string): Promise<void> {
   await makeAuthRequest(token, BASE, 'DELETE');
 }
 
-/** PUT /player-profile/traits — replace traits (max 5). Returns updated traits. */
+/** PUT /player-profile/traits — replace traits. Returns updated traits. */
 export async function setPlayerProfileTraits(
   token: string,
   traits: string[],
@@ -62,6 +86,47 @@ export async function setPlayerProfileTraits(
     throw new ApiRequestError('Invalid traits response', 500);
   }
   return list;
+}
+
+/** GET /player-profile/catalog — compare-opponent candidates from persisted player profiles. */
+export async function listComparePlayerCatalog(
+  token: string,
+  query = '',
+): Promise<ComparePlayerSnapshot[]> {
+  const q = query.trim();
+  const path = q ? `${BASE}/catalog?q=${encodeURIComponent(q)}` : `${BASE}/catalog`;
+  const data = await makeAuthRequest(token, path, 'GET');
+  const players = (data as {players?: unknown})?.players;
+  if (!Array.isArray(players)) {
+    throw new ApiRequestError('Invalid compare player catalog response', 500);
+  }
+  return (players as ComparePlayerCatalogApiItem[]).map(p => {
+    const countryCode = (p.country_code || '').toUpperCase();
+    const countryLabel =
+      COUNTRIES.find(c => c.code === countryCode)?.name?.toUpperCase() ??
+      (countryCode || '—');
+    return {
+      id: p.id,
+      displayName: p.display_name,
+      age: p.age,
+      countryCode,
+      countryLabel,
+      team: p.team,
+      positionAbbrev: p.position_abbrev,
+      photoUrl: p.photo_url,
+      rating: p.rating,
+      speed: p.speed,
+      shooting: p.shooting,
+      passing: p.passing,
+      dribbling: p.dribbling,
+      defending: p.defending,
+      physical: p.physical,
+      stamina: p.stamina,
+      valueLabel: p.value_label,
+      seasonGoals: p.season_goals,
+      seasonLabel: p.season_label,
+    };
+  });
 }
 
 export type {PlayerProfile, PlayerProfileInput, PlayerProfileCareerTeam};

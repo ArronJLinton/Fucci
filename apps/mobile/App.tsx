@@ -44,6 +44,7 @@ import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceho
 import SettingsScreen from './src/screens/SettingsScreen';
 import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
+import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -404,6 +405,11 @@ function App(): React.JSX.Element {
                   name="PlayerProfile"
                   component={PlayerProfileScreen}
                   options={{title: 'Player Profile'}}
+                />
+                <Stack.Screen
+                  name="PlayerCompare"
+                  component={PlayerCompareScreen}
+                  options={{title: 'Compare players'}}
                 />
                 <Stack.Group screenOptions={{presentation: 'fullScreenModal'}}>
                   <Stack.Screen

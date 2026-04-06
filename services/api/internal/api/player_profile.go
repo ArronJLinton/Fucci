@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/database"
@@ -26,6 +27,13 @@ type PlayerProfileResponse struct {
 	IsFreeAgent bool                         `json:"is_free_agent"`
 	Position    string                       `json:"position"`
 	PhotoURL    *string                      `json:"photo_url"`
+	Speed       int32                        `json:"speed"`
+	Shooting    int32                        `json:"shooting"`
+	Passing     int32                        `json:"passing"`
+	Dribbling   int32                        `json:"dribbling"`
+	Defending   int32                        `json:"defending"`
+	Physical    int32                        `json:"physical"`
+	Stamina     int32                        `json:"stamina"`
 	Traits      []string                     `json:"traits"`
 	CareerTeams []PlayerProfileCareerTeamDTO `json:"career_teams"`
 }
@@ -38,13 +46,104 @@ type PlayerProfileCareerTeamDTO struct {
 	EndYear   *int32 `json:"end_year"`
 }
 
+// ComparePlayerCatalogItem is one selectable player for compare search.
+type ComparePlayerCatalogItem struct {
+	ID             string  `json:"id"`
+	DisplayName    string  `json:"display_name"`
+	Age            *int32  `json:"age"`
+	CountryCode    string  `json:"country_code"`
+	CountryLabel   string  `json:"country_label"`
+	Team           string  `json:"team"`
+	PositionAbbrev string  `json:"position_abbrev"`
+	PhotoURL       *string `json:"photo_url"`
+	Rating         int32   `json:"rating"`
+	Speed          int32   `json:"speed"`
+	Shooting       int32   `json:"shooting"`
+	Passing        int32   `json:"passing"`
+	Dribbling      int32   `json:"dribbling"`
+	Defending      int32   `json:"defending"`
+	Physical       int32   `json:"physical"`
+	Stamina        int32   `json:"stamina"`
+	ValueLabel     string  `json:"value_label"`
+	SeasonGoals    int32   `json:"season_goals"`
+	SeasonLabel    string  `json:"season_label"`
+}
+
 // PlayerProfileInput is the body for POST/PUT /api/player-profile.
+// Core attributes are optional: on first create they default to neutral 50 per stat; when a profile
+// already exists, omitted core fields keep the stored values (same for POST upsert and PUT).
 type PlayerProfileInput struct {
 	Age         *int32  `json:"age"`
 	Country     string  `json:"country"`
 	Club        *string `json:"club"`
 	IsFreeAgent *bool   `json:"is_free_agent"`
 	Position    string  `json:"position"`
+	Speed       *int32  `json:"speed"`
+	Shooting    *int32  `json:"shooting"`
+	Passing     *int32  `json:"passing"`
+	Dribbling   *int32  `json:"dribbling"`
+	Defending   *int32  `json:"defending"`
+	Physical    *int32  `json:"physical"`
+	Stamina     *int32  `json:"stamina"`
+}
+
+// coreAttrsBlock holds the seven persisted core stats (40–99).
+type coreAttrsBlock struct {
+	Speed     int32
+	Shooting  int32
+	Passing   int32
+	Dribbling int32
+	Defending int32
+	Physical  int32
+	Stamina   int32
+}
+
+func validateCoreAttrsOptional(req *PlayerProfileInput) string {
+	checks := []struct {
+		name string
+		v    *int32
+	}{
+		{"speed", req.Speed},
+		{"shooting", req.Shooting},
+		{"passing", req.Passing},
+		{"dribbling", req.Dribbling},
+		{"defending", req.Defending},
+		{"physical", req.Physical},
+		{"stamina", req.Stamina},
+	}
+	for _, c := range checks {
+		if c.v != nil && (*c.v < 40 || *c.v > 99) {
+			return c.name + " must be between 40 and 99"
+		}
+	}
+	return ""
+}
+
+func mergeCoreForPut(req *PlayerProfileInput, existing database.PlayerProfile) coreAttrsBlock {
+	return coreAttrsBlock{
+		Speed:     pickInt32(req.Speed, existing.Speed),
+		Shooting:  pickInt32(req.Shooting, existing.Shooting),
+		Passing:   pickInt32(req.Passing, existing.Passing),
+		Dribbling: pickInt32(req.Dribbling, existing.Dribbling),
+		Defending: pickInt32(req.Defending, existing.Defending),
+		Physical:  pickInt32(req.Physical, existing.Physical),
+		Stamina:   pickInt32(req.Stamina, existing.Stamina),
+	}
+}
+
+func pickInt32(req *int32, fallback int32) int32 {
+	if req != nil {
+		return *req
+	}
+	return fallback
+}
+
+// optionalCoreUpsertArg is passed to UpsertPlayerProfile: Valid=false means omitted.
+func optionalCoreUpsertArg(p *int32) sql.NullInt32 {
+	if p == nil {
+		return sql.NullInt32{}
+	}
+	return sql.NullInt32{Int32: *p, Valid: true}
 }
 
 // normalizeCountryCode validates ISO 3166-1 alpha-2 for VARCHAR(2): exactly two ASCII A–Z letters (case-insensitive input is uppercased).
@@ -60,6 +159,129 @@ func normalizeCountryCode(country string) (string, bool) {
 		}
 	}
 	return s, true
+}
+
+func completionPercentForCompare(row database.ListComparePlayerCatalogRow) int32 {
+	count := int32(0)
+	if row.Age.Valid {
+		count++
+	}
+	if strings.TrimSpace(row.CountryCode) != "" {
+		count++
+	}
+	if strings.TrimSpace(row.Position) != "" {
+		count++
+	}
+	if row.TraitsCount > 0 {
+		count++
+	}
+	return (count * 100) / 4
+}
+
+func compareDisplayLevel(traitsCount, completionPercent int32) int32 {
+	level := 38 + traitsCount*9 + int32((float64(completionPercent)*0.2)+0.5)
+	if level > 99 {
+		return 99
+	}
+	return level
+}
+
+func positionAbbrev(position string) string {
+	switch position {
+	case "GK":
+		return "GK"
+	case "DEF":
+		return "CB"
+	case "MID":
+		return "CM"
+	case "FWD":
+		return "ST"
+	default:
+		return ""
+	}
+}
+
+func compareCatalogDisplayName(row database.ListComparePlayerCatalogRow) string {
+	if row.DisplayName.Valid && strings.TrimSpace(row.DisplayName.String) != "" {
+		return strings.ToUpper(strings.TrimSpace(row.DisplayName.String))
+	}
+	full := strings.TrimSpace(row.Firstname + " " + row.Lastname)
+	if full == "" {
+		return "PLAYER"
+	}
+	return strings.ToUpper(full)
+}
+
+func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerCatalogItem {
+	var age *int32
+	if row.Age.Valid {
+		age = &row.Age.Int32
+	}
+	var photoURL *string
+	if row.PhotoUrl.Valid {
+		photoURL = &row.PhotoUrl.String
+	} else if row.AvatarUrl.Valid {
+		photoURL = &row.AvatarUrl.String
+	}
+	team := "—"
+	if row.IsFreeAgent {
+		team = "Free Agent"
+	} else if row.ClubName.Valid && strings.TrimSpace(row.ClubName.String) != "" {
+		team = strings.TrimSpace(row.ClubName.String)
+	}
+	countryCode := strings.ToUpper(strings.TrimSpace(row.CountryCode))
+	completion := completionPercentForCompare(row)
+	return ComparePlayerCatalogItem{
+		ID:             "profile-" + strconv.Itoa(int(row.ID)),
+		DisplayName:    compareCatalogDisplayName(row),
+		Age:            age,
+		CountryCode:    countryCode,
+		// Placeholder until API ships authoritative country labels.
+		CountryLabel:   "—",
+		Team:           team,
+		PositionAbbrev: positionAbbrev(row.Position),
+		PhotoURL:       photoURL,
+		Rating:         compareDisplayLevel(row.TraitsCount, completion),
+		Speed:          row.Speed,
+		Shooting:       row.Shooting,
+		Passing:        row.Passing,
+		Dribbling:      row.Dribbling,
+		Defending:      row.Defending,
+		Physical:       row.Physical,
+		Stamina:        row.Stamina,
+		ValueLabel:     "—",
+		SeasonGoals:    0,
+		// Placeholder until season data is available in profile domain.
+		SeasonLabel:    "—",
+	}
+}
+
+func (c *Config) getPlayerProfileCatalog(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	const defaultLimit int32 = 80
+	rows, err := c.playerProfileDB().ListComparePlayerCatalog(ctx, database.ListComparePlayerCatalogParams{
+		Search: query,
+		Limit:  defaultLimit,
+	})
+	if err != nil {
+		log.Printf("[player_profile] ListComparePlayerCatalog error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get compare players")
+		return
+	}
+	out := make([]ComparePlayerCatalogItem, 0, len(rows))
+	for _, row := range rows {
+		if row.UserID == userID {
+			continue
+		}
+		out = append(out, compareCatalogItem(row))
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"players": out})
 }
 
 func (c *Config) getPlayerProfile(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +364,10 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "age must be between 13 and 60")
 		return
 	}
+	if msg := validateCoreAttrsOptional(&req); msg != "" {
+		respondWithError(w, http.StatusBadRequest, msg)
+		return
+	}
 
 	age := sql.NullInt32{}
 	if req.Age != nil {
@@ -158,7 +384,6 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		isFreeAgent = *req.IsFreeAgent
 	}
 
-	// Single-statement upsert on user_id avoids read-then-insert races (unique violation under concurrency).
 	profile, err := c.playerProfileDB().UpsertPlayerProfile(ctx, database.UpsertPlayerProfileParams{
 		UserID:      userID,
 		Age:         age,
@@ -166,6 +391,13 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		ClubName:    club,
 		IsFreeAgent: isFreeAgent,
 		Position:    req.Position,
+		Speed:       optionalCoreUpsertArg(req.Speed),
+		Shooting:    optionalCoreUpsertArg(req.Shooting),
+		Passing:     optionalCoreUpsertArg(req.Passing),
+		Dribbling:   optionalCoreUpsertArg(req.Dribbling),
+		Defending:   optionalCoreUpsertArg(req.Defending),
+		Physical:    optionalCoreUpsertArg(req.Physical),
+		Stamina:     optionalCoreUpsertArg(req.Stamina),
 	})
 	if err != nil {
 		log.Printf("[player_profile] UpsertPlayerProfile error: %v", err)
@@ -238,6 +470,10 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "age must be between 13 and 60")
 		return
 	}
+	if msg := validateCoreAttrsOptional(&req); msg != "" {
+		respondWithError(w, http.StatusBadRequest, msg)
+		return
+	}
 
 	age := sql.NullInt32{}
 	if req.Age != nil {
@@ -253,6 +489,7 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 	if req.IsFreeAgent != nil {
 		isFreeAgent = *req.IsFreeAgent
 	}
+	core := mergeCoreForPut(&req, profile)
 	updated, err := c.playerProfileDB().UpdatePlayerProfileRow(ctx, database.UpdatePlayerProfileRowParams{
 		ID:          profile.ID,
 		Age:         age,
@@ -261,6 +498,13 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		IsFreeAgent: isFreeAgent,
 		Position:    req.Position,
 		PhotoUrl:    profile.PhotoUrl,
+		Speed:       core.Speed,
+		Shooting:    core.Shooting,
+		Passing:     core.Passing,
+		Dribbling:   core.Dribbling,
+		Defending:   core.Defending,
+		Physical:    core.Physical,
+		Stamina:     core.Stamina,
 	})
 	if err != nil {
 		log.Printf("[player_profile] UpdatePlayerProfileRow error: %v", err)
@@ -331,10 +575,6 @@ func (c *Config) putPlayerProfileTraits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	req.Traits = dedupeTraitCodesPreserveOrder(req.Traits)
-	if len(req.Traits) > 5 {
-		respondWithError(w, http.StatusBadRequest, "Maximum 5 traits allowed")
-		return
-	}
 	for _, t := range req.Traits {
 		if !allowedTraitCodes[t] {
 			respondWithError(w, http.StatusBadRequest, "Invalid trait code: "+t)
@@ -481,6 +721,13 @@ func profileToResponse(p database.PlayerProfile, traits []string, careerTeams []
 		IsFreeAgent: p.IsFreeAgent,
 		Position:    p.Position,
 		PhotoURL:    photoURL,
+		Speed:       p.Speed,
+		Shooting:    p.Shooting,
+		Passing:     p.Passing,
+		Dribbling:   p.Dribbling,
+		Defending:   p.Defending,
+		Physical:    p.Physical,
+		Stamina:     p.Stamina,
 		Traits:      traits,
 		CareerTeams: careerTeams,
 	}
