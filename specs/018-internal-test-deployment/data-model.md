@@ -37,6 +37,19 @@
   - `backup_location` cannot be local personal disk.
   - `active` credential must have `last_verified_at` within defined rotation window.
 
+### Credential Asset Execution Checklist
+
+- For each `CredentialAsset`, capture:
+  - custody owner (`created_by`) and backup owner (secondary operator)
+  - secret storage locations (GitHub Environments, Expo Secrets, vault path)
+  - restoration drill timestamp and result (`last_verified_at`)
+  - rotation interval (`rotation_policy_days`) and next due date
+- Critical credential types that must exist before release:
+  - `android_keystore`
+  - `apns_key`
+  - `eas_token`
+  - `fcm_service_account` (or equivalent delegated credential model)
+
 ## Entity: BuildProfile
 
 - **Purpose**: Defines EAS build profile behavior.

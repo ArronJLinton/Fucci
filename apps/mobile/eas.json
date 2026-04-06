@@ -6,6 +6,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "dev",
       "android": {
         "gradleCommand": ":app:assembleDebug"
       },
@@ -15,11 +16,13 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "staging",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
       }

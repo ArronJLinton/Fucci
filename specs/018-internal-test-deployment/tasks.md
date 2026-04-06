@@ -9,10 +9,10 @@
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- [ ] T001 Create deployment execution notes scaffold in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T002 Capture account ownership and access matrix in `specs/018-internal-test-deployment/spec.md`
-- [ ] T003 [P] Add CI secret inventory section to `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T004 [P] Add credential asset checklist details to `specs/018-internal-test-deployment/data-model.md`
+- [X] T001 Create deployment execution notes scaffold in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T002 Capture account ownership and access matrix in `specs/018-internal-test-deployment/spec.md`
+- [X] T003 [P] Add CI secret inventory section to `specs/018-internal-test-deployment/quickstart.md`
+- [X] T004 [P] Add credential asset checklist details to `specs/018-internal-test-deployment/data-model.md`
 
 ---
 
@@ -20,9 +20,9 @@
 
 **Purpose**: Establish deployment documentation and execution scaffolding.
 
-- [ ] T005 Normalize EAS/Expo command examples and prerequisites in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T006 [P] Add operator run commands for local preflight checks in `apps/mobile/package.json`
-- [ ] T007 [P] Add environment variable reference table for mobile deploy jobs in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T005 Normalize EAS/Expo command examples and prerequisites in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T006 [P] Add operator run commands for local preflight checks in `apps/mobile/package.json`
+- [X] T007 [P] Add environment variable reference table for mobile deploy jobs in `specs/018-internal-test-deployment/quickstart.md`
 
 ---
 
@@ -32,11 +32,11 @@
 
 **⚠️ CRITICAL**: No user story work should be marked complete until this phase is complete.
 
-- [ ] T008 Verify and document Android/iOS identifiers and ownership constraints in `apps/mobile/app.json`
-- [ ] T009 Create and document `development`, `preview`, `production` profile baseline in `apps/mobile/eas.json`
-- [ ] T010 [P] Add OTA channel mapping (`dev`, `staging`, `production`) to `apps/mobile/eas.json`
-- [ ] T011 [P] Add runtimeVersion policy and release-channel notes in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T012 Add credential backup and custody procedure in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T008 Verify and document Android/iOS identifiers and ownership constraints in `apps/mobile/app.json`
+- [X] T009 Create and document `development`, `preview`, `production` profile baseline in `apps/mobile/eas.json`
+- [X] T010 [P] Add OTA channel mapping (`dev`, `staging`, `production`) to `apps/mobile/eas.json`
+- [X] T011 [P] Add runtimeVersion policy and release-channel notes in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T012 Add credential backup and custody procedure in `specs/018-internal-test-deployment/quickstart.md`
 
 **Checkpoint**: Foundation ready for independent user-story execution.
 
