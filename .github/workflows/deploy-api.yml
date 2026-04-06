@@ -19,22 +19,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: services/api/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./services/api
-        run: npm ci
+          go-version-file: services/api/go.mod
+          cache: true
+          cache-dependency-path: services/api/go.sum
 
       - name: Run tests
         working-directory: ./services/api
-        env:
-          NODE_ENV: test
-        run: npm test --if-present
+        run: go test ./...
 
       - name: Validate required secrets
         env:
