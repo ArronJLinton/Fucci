@@ -238,11 +238,17 @@ jobs:
               ascApiKeyPath: $path
             }' eas.json > eas.json.tmp && mv eas.json.tmp eas.json
 
-      - name: EAS submit iOS (latest preview build)
+      - name: EAS submit iOS (current workflow build)
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli submit --platform ios --profile preview --latest --non-interactive
+          EAS_BUILD_ID: ${{ needs.build-ios-preview.outputs.build_id }}
+        run: |
+          if [ -z "$EAS_BUILD_ID" ]; then
+            echo "::error::Missing build ID from build-ios-preview job output"
+            exit 1
+          fi
+          npx eas-cli submit --platform ios --profile preview --id "$EAS_BUILD_ID" --non-interactive
 
       - name: Job summary
         if: always()
