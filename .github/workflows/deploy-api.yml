@@ -58,14 +58,25 @@ jobs:
       - name: Sync secrets to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          flyctl secrets set \
-            SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
-            SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
-            SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
-            ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
-            --app fucci-api --stage
+          secrets_args=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_KEY=$SUPABASE_SERVICE_KEY"
+          )
 
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            secrets_args+=("SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY")
+          fi
+
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            secrets_args+=("ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
+          fi
+
+          flyctl secrets set "${secrets_args[@]}" --app fucci-api --stage
       - name: Deploy to Fly.io
         working-directory: ./services/api
         env:
