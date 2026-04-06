@@ -236,7 +236,8 @@ func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerC
 		DisplayName:    compareCatalogDisplayName(row),
 		Age:            age,
 		CountryCode:    countryCode,
-		CountryLabel:   countryCode,
+		// Placeholder until API ships authoritative country labels.
+		CountryLabel:   "—",
 		Team:           team,
 		PositionAbbrev: positionAbbrev(row.Position),
 		PhotoURL:       photoURL,
@@ -250,7 +251,8 @@ func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerC
 		Stamina:        row.Stamina,
 		ValueLabel:     "—",
 		SeasonGoals:    0,
-		SeasonLabel:    "23/24",
+		// Placeholder until season data is available in profile domain.
+		SeasonLabel:    "—",
 	}
 }
 

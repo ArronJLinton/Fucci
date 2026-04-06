@@ -732,7 +732,7 @@ func TestGetPlayerProfileCatalog_FiltersRequesterAndHandlesQuery(t *testing.T) {
 	assert.Equal(t, "profile-202", row["id"])
 	assert.Equal(t, "JANE PRO", row["display_name"])
 	assert.Equal(t, "GB", row["country_code"])
-	assert.Equal(t, "GB", row["country_label"])
+	assert.Equal(t, "—", row["country_label"])
 	assert.Equal(t, "Real Club", row["team"])
 	assert.Equal(t, "CM", row["position_abbrev"])
 	assert.Equal(t, float64(75), row["speed"])
