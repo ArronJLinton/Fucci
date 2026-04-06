@@ -38,9 +38,9 @@ import {
 } from '../types/playerProfile';
 import {PLAYER_TRAIT_LABELS, TraitHexImage} from '../components/player_traits';
 import {
-  coreAttrsForPosition,
   DEFAULT_CORE_RATING,
-  dribblingDefendingForPosition,
+  defaultCoreAttrs,
+  defaultDribblingDefending,
 } from '../utils/playerCoreAttrs';
 import {useHoldCoreStep} from '../hooks/useHoldCoreStep';
 
@@ -142,7 +142,7 @@ export default function CreatePlayerProfileScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedTraits, setSelectedTraits] = useState<string[]>([]);
-  const baseCore = coreAttrsForPosition(null);
+  const baseCore = defaultCoreAttrs();
   const [editSpeed, setEditSpeed] = useState(baseCore.speed);
   const [editShooting, setEditShooting] = useState(baseCore.shooting);
   const [editPassing, setEditPassing] = useState(baseCore.passing);
@@ -161,7 +161,7 @@ export default function CreatePlayerProfileScreen() {
   const holdStaminaPlus = useHoldCoreStep(1, setEditStamina, submitting);
 
   const applyCoreFromProfile = (p: PlayerProfile) => {
-    const d = coreAttrsForPosition(p.position ?? null);
+    const d = defaultCoreAttrs();
     setEditSpeed(clampCoreStat(p.speed, d.speed));
     setEditShooting(clampCoreStat(p.shooting, d.shooting));
     setEditPassing(clampCoreStat(p.passing, d.passing));
@@ -174,7 +174,7 @@ export default function CreatePlayerProfileScreen() {
     if (wizardStep !== 3 || !position) {
       return;
     }
-    const d = coreAttrsForPosition(position);
+    const d = defaultCoreAttrs();
     setEditSpeed(s => clampCoreStat(s, d.speed));
     setEditShooting(s => clampCoreStat(s, d.shooting));
     setEditPassing(s => clampCoreStat(s, d.passing));
@@ -274,7 +274,7 @@ export default function CreatePlayerProfileScreen() {
       return;
     }
     const ageNum = ageForApi();
-    const dd = dribblingDefendingForPosition(position);
+    const dd = defaultDribblingDefending();
 
     setError(null);
     setSubmitting(true);

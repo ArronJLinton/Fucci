@@ -36,9 +36,9 @@ import {CountryPicker} from '../components/CountryPicker';
 import {PlayerTraitsModal} from '../components/PlayerTraitsModal';
 import {PlayerTraitStripItem} from '../components/player_traits';
 import {
-  coreAttrsForPosition,
   DEFAULT_CORE_RATING,
-  dribblingDefendingForPosition,
+  defaultCoreAttrs,
+  defaultDribblingDefending,
 } from '../utils/playerCoreAttrs';
 import {buildCompareSnapshotFromProfile} from '../utils/comparePlayerSnapshot';
 import {displayLevel} from '../utils/playerRating';
@@ -185,7 +185,7 @@ export default function PlayerProfileScreen() {
         setEditClub('');
         setEditIsFreeAgent(false);
         setEditPosition(null);
-        const defaults = coreAttrsForPosition(null);
+        const defaults = defaultCoreAttrs();
         setEditSpeed(defaults.speed);
         setEditShooting(defaults.shooting);
         setEditPassing(defaults.passing);
@@ -229,7 +229,7 @@ export default function PlayerProfileScreen() {
     setSaveError(null);
     setSaving(true);
     try {
-      const dd = dribblingDefendingForPosition(editPosition);
+      const dd = defaultDribblingDefending();
       const payload = {
         country: editCountryCode,
         position: editPosition,
@@ -296,7 +296,7 @@ export default function PlayerProfileScreen() {
               setEditClub('');
               setEditIsFreeAgent(false);
               setEditPosition(null);
-              const defaults = coreAttrsForPosition(null);
+              const defaults = defaultCoreAttrs();
               setEditSpeed(defaults.speed);
               setEditShooting(defaults.shooting);
               setEditPassing(defaults.passing);
@@ -412,7 +412,7 @@ export default function PlayerProfileScreen() {
   const canGoBack = navigation.canGoBack();
   const avatarUri = profile.photo_url || user?.avatar_url || null;
   const coreAttrs = isDraftProfile
-    ? coreAttrsForPosition(profile.position ?? null)
+    ? defaultCoreAttrs()
     : {
         speed: profile.speed,
         shooting: profile.shooting,
@@ -1128,7 +1128,7 @@ export default function PlayerProfileScreen() {
                 style={styles.positionOption}
                 onPress={() => {
                   setEditPosition(p.value);
-                  const defaults = coreAttrsForPosition(p.value);
+                  const defaults = defaultCoreAttrs();
                   setEditSpeed(defaults.speed);
                   setEditShooting(defaults.shooting);
                   setEditPassing(defaults.passing);

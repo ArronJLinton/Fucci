@@ -43,6 +43,8 @@ export function useHoldCoreStep(
   }, [delta, setValue]);
 
   const onPressIn = useCallback(() => {
+    // Guard against duplicated press-in events so only one hold loop runs.
+    clear();
     if (disabled) {
       return;
     }
@@ -50,7 +52,7 @@ export function useHoldCoreStep(
     timeoutRef.current = setTimeout(() => {
       intervalRef.current = setInterval(tick, REPEAT_MS);
     }, HOLD_DELAY_MS);
-  }, [disabled, tick]);
+  }, [clear, disabled, tick]);
 
   const onPressOut = useCallback(() => {
     clear();
