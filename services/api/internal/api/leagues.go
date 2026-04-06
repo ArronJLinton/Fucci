@@ -312,12 +312,9 @@ func (s *LeaguesService) GetLeagueStats(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get league players
-	players, err := s.db.GetPlayersByLeague(r.Context(), uuid.NullUUID{UUID: leagueID, Valid: true})
-	if err != nil {
-		http.Error(w, "Failed to get league players", http.StatusInternalServerError)
-		return
-	}
+	// Legacy player_profiles-backed league player stats were retired with table cleanup.
+	// TODO: re-introduce league player stats from canonical player_profile model.
+	players := []interface{}{}
 
 	// Calculate stats
 	var totalRating float64
@@ -326,13 +323,8 @@ func (s *LeaguesService) GetLeagueStats(w http.ResponseWriter, r *http.Request) 
 	teamCount := int32(len(teams))
 	managerCount := int32(len(managers))
 
-	for _, player := range players {
-		// Calculate average rating from individual stats
-		playerRating := float64(player.Pace+player.Shooting+player.Passing+player.Stamina+player.Dribbling+player.Defending+player.Physical) / 7.0
-		totalRating += playerRating
-		if player.IsVerified {
-			totalVerifications++
-		}
+	for range players {
+		// No-op until canonical league-linked player stats are implemented.
 	}
 
 	var avgRating float64

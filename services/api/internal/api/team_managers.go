@@ -393,26 +393,17 @@ func (s *TeamManagersService) GetManagerStats(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// Get manager's players (if has team)
-	var players []database.GetPlayersByTeamRow
-	if team != nil {
-		players, err = s.db.GetPlayersByTeam(r.Context(), uuid.NullUUID{UUID: team.ID, Valid: true})
-		if err != nil {
-			http.Error(w, "Failed to get team players", http.StatusInternalServerError)
-			return
-		}
-	}
+	// Legacy player_profiles-backed team player stats were retired with table cleanup.
+	// TODO: re-introduce manager/team player stats from canonical player_profile model.
+	players := []interface{}{}
 
 	// Calculate stats
 	var totalRating float64
 	var totalVerifications int32
 	playerCount := int32(len(players))
 
-	for _, player := range players {
-		// Calculate average rating from individual stats
-		playerRating := float64(player.Pace+player.Shooting+player.Passing+player.Stamina+player.Dribbling+player.Defending+player.Physical) / 7.0
-		totalRating += playerRating
-		// Note: PlayerProfiles (legacy table) stats here omit per-player IsVerified aggregation for now
+	for range players {
+		// No-op until canonical team-linked player stats are implemented.
 	}
 
 	var avgRating float64

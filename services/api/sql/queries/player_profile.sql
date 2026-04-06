@@ -101,3 +101,41 @@ DELETE FROM player_profile_career_team WHERE id = $1;
 
 -- name: GetPlayerProfileCareerTeam :one
 SELECT * FROM player_profile_career_team WHERE id = $1;
+
+-- name: ListComparePlayerCatalog :many
+SELECT
+  pp.id,
+  pp.user_id,
+  pp.age,
+  pp.country_code,
+  pp.club_name,
+  pp.is_free_agent,
+  pp.position,
+  pp.photo_url,
+  pp.speed,
+  pp.shooting,
+  pp.passing,
+  pp.dribbling,
+  pp.defending,
+  pp.physical,
+  pp.stamina,
+  u.display_name,
+  u.firstname,
+  u.lastname,
+  u.avatar_url,
+  COUNT(t.id)::int AS traits_count
+FROM player_profile pp
+JOIN users u ON u.id = pp.user_id
+LEFT JOIN player_profile_trait t ON t.player_profile_id = pp.id
+WHERE (
+  sqlc.arg('search')::text = '' OR
+  COALESCE(NULLIF(TRIM(u.display_name), ''), TRIM(u.firstname || ' ' || u.lastname), 'Player') ILIKE '%' || sqlc.arg('search') || '%' OR
+  COALESCE(pp.club_name, '') ILIKE '%' || sqlc.arg('search') || '%' OR
+  pp.country_code ILIKE '%' || sqlc.arg('search') || '%'
+)
+GROUP BY
+  pp.id, pp.user_id, pp.age, pp.country_code, pp.club_name, pp.is_free_agent, pp.position, pp.photo_url,
+  pp.speed, pp.shooting, pp.passing, pp.dribbling, pp.defending, pp.physical, pp.stamina,
+  u.display_name, u.firstname, u.lastname, u.avatar_url
+ORDER BY pp.updated_at DESC
+LIMIT sqlc.arg('limit');

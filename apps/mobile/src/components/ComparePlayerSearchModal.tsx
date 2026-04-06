@@ -12,11 +12,13 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
-import {COMPARE_PLAYERS_CATALOG} from '../data/comparePlayersCatalog';
 import type {ComparePlayerSnapshot} from '../types/comparePlayer';
 
 type Props = {
   visible: boolean;
+  players: ComparePlayerSnapshot[];
+  loading?: boolean;
+  loadError?: string | null;
   onClose: () => void;
   onSelect: (player: ComparePlayerSnapshot) => void;
   /** Hide the player already shown on the left column */
@@ -25,6 +27,9 @@ type Props = {
 
 export function ComparePlayerSearchModal({
   visible,
+  players,
+  loading,
+  loadError,
   onClose,
   onSelect,
   excludeIds,
@@ -33,7 +38,7 @@ export function ComparePlayerSearchModal({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return COMPARE_PLAYERS_CATALOG.filter(p => {
+    return players.filter(p => {
       if (excludeIds?.has(p.id)) return false;
       if (!q) return true;
       return (
@@ -42,7 +47,7 @@ export function ComparePlayerSearchModal({
         p.countryLabel.toLowerCase().includes(q)
       );
     });
-  }, [query, excludeIds]);
+  }, [players, query, excludeIds]);
 
   return (
     <Modal
@@ -85,7 +90,13 @@ export function ComparePlayerSearchModal({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
-              <Text style={styles.empty}>No players match your search.</Text>
+              <Text style={styles.empty}>
+                {loading
+                  ? 'Loading players...'
+                  : loadError
+                    ? loadError
+                    : 'No players match your search.'}
+              </Text>
             }
             renderItem={({item}) => (
               <TouchableOpacity

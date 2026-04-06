@@ -17,6 +17,9 @@ import {Ionicons} from '@expo/vector-icons';
 import {countryCodeToFlag} from '../data/countries';
 import type {ComparePlayerSnapshot} from '../types/comparePlayer';
 import {ComparePlayerSearchModal} from '../components/ComparePlayerSearchModal';
+import {useAuth} from '../context/AuthContext';
+import {listComparePlayerCatalog} from '../services/playerProfile';
+import {userFacingApiMessage} from '../services/api';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 const CARD_GAP = 10;
@@ -212,14 +215,34 @@ function HeadToHeadCards({
 export default function PlayerCompareScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'PlayerCompare'>>();
+  const {token} = useAuth();
   const {left} = route.params;
 
   const [right, setRight] = useState<ComparePlayerSnapshot | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [catalog, setCatalog] = useState<ComparePlayerSnapshot[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [league] = useState("Ligue 1 McDonald's");
   const [season] = useState('2023 / 2024');
 
   const excludeIds = useMemo(() => new Set([left.id]), [left.id]);
+
+  const openSearch = async () => {
+    setSearchOpen(true);
+    if (!token || catalogLoading) return;
+    if (catalog.length > 0 && !catalogError) return;
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const players = await listComparePlayerCatalog(token);
+      setCatalog(players);
+    } catch (err) {
+      setCatalogError(userFacingApiMessage(err));
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
 
   const topStatRows = [
     {key: 'speed', label: 'SPEED', l: left.speed, r: right?.speed},
@@ -262,7 +285,7 @@ export default function PlayerCompareScreen() {
             <PlayerCard
               side="right"
               empty
-              onPressEmpty={() => setSearchOpen(true)}
+              onPressEmpty={openSearch}
             />
           </View>
         ) : null}
@@ -376,7 +399,7 @@ export default function PlayerCompareScreen() {
 
             <TouchableOpacity
               style={styles.changeOpp}
-              onPress={() => setSearchOpen(true)}>
+              onPress={openSearch}>
               <Text style={styles.changeOppText}>Change opponent</Text>
             </TouchableOpacity>
           </>
@@ -385,6 +408,9 @@ export default function PlayerCompareScreen() {
 
       <ComparePlayerSearchModal
         visible={searchOpen}
+        players={catalog}
+        loading={catalogLoading}
+        loadError={catalogError}
         onClose={() => setSearchOpen(false)}
         excludeIds={excludeIds}
         onSelect={p => setRight(p)}

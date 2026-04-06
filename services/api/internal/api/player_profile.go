@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/database"
@@ -43,6 +44,29 @@ type PlayerProfileCareerTeamDTO struct {
 	TeamName  string `json:"team_name"`
 	StartYear int32  `json:"start_year"`
 	EndYear   *int32 `json:"end_year"`
+}
+
+// ComparePlayerCatalogItem is one selectable player for compare search.
+type ComparePlayerCatalogItem struct {
+	ID             string  `json:"id"`
+	DisplayName    string  `json:"displayName"`
+	Age            *int32  `json:"age"`
+	CountryCode    string  `json:"countryCode"`
+	CountryLabel   string  `json:"countryLabel"`
+	Team           string  `json:"team"`
+	PositionAbbrev string  `json:"positionAbbrev"`
+	PhotoURL       *string `json:"photoUrl"`
+	Rating         int32   `json:"rating"`
+	Speed          int32   `json:"speed"`
+	Shooting       int32   `json:"shooting"`
+	Passing        int32   `json:"passing"`
+	Dribbling      int32   `json:"dribbling"`
+	Defending      int32   `json:"defending"`
+	Physical       int32   `json:"physical"`
+	Stamina        int32   `json:"stamina"`
+	ValueLabel     string  `json:"valueLabel"`
+	SeasonGoals    int32   `json:"seasonGoals"`
+	SeasonLabel    string  `json:"seasonLabel"`
 }
 
 // PlayerProfileInput is the body for POST/PUT /api/player-profile.
@@ -135,6 +159,127 @@ func normalizeCountryCode(country string) (string, bool) {
 		}
 	}
 	return s, true
+}
+
+func completionPercentForCompare(row database.ListComparePlayerCatalogRow) int32 {
+	count := int32(0)
+	if row.Age.Valid {
+		count++
+	}
+	if strings.TrimSpace(row.CountryCode) != "" {
+		count++
+	}
+	if strings.TrimSpace(row.Position) != "" {
+		count++
+	}
+	if row.TraitsCount > 0 {
+		count++
+	}
+	return (count * 100) / 4
+}
+
+func compareDisplayLevel(traitsCount, completionPercent int32) int32 {
+	level := 38 + traitsCount*9 + int32((float64(completionPercent)*0.2)+0.5)
+	if level > 99 {
+		return 99
+	}
+	return level
+}
+
+func positionAbbrev(position string) string {
+	switch position {
+	case "GK":
+		return "GK"
+	case "DEF":
+		return "CB"
+	case "MID":
+		return "CM"
+	case "FWD":
+		return "ST"
+	default:
+		return ""
+	}
+}
+
+func compareCatalogDisplayName(row database.ListComparePlayerCatalogRow) string {
+	if row.DisplayName.Valid && strings.TrimSpace(row.DisplayName.String) != "" {
+		return strings.ToUpper(strings.TrimSpace(row.DisplayName.String))
+	}
+	full := strings.TrimSpace(row.Firstname + " " + row.Lastname)
+	if full == "" {
+		return "PLAYER"
+	}
+	return strings.ToUpper(full)
+}
+
+func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerCatalogItem {
+	var age *int32
+	if row.Age.Valid {
+		age = &row.Age.Int32
+	}
+	var photoURL *string
+	if row.PhotoUrl.Valid {
+		photoURL = &row.PhotoUrl.String
+	} else if row.AvatarUrl.Valid {
+		photoURL = &row.AvatarUrl.String
+	}
+	team := "—"
+	if row.IsFreeAgent {
+		team = "Free Agent"
+	} else if row.ClubName.Valid && strings.TrimSpace(row.ClubName.String) != "" {
+		team = strings.TrimSpace(row.ClubName.String)
+	}
+	countryCode := strings.ToUpper(strings.TrimSpace(row.CountryCode))
+	completion := completionPercentForCompare(row)
+	return ComparePlayerCatalogItem{
+		ID:             "profile-" + strconv.Itoa(int(row.ID)),
+		DisplayName:    compareCatalogDisplayName(row),
+		Age:            age,
+		CountryCode:    countryCode,
+		CountryLabel:   countryCode,
+		Team:           team,
+		PositionAbbrev: positionAbbrev(row.Position),
+		PhotoURL:       photoURL,
+		Rating:         compareDisplayLevel(row.TraitsCount, completion),
+		Speed:          row.Speed,
+		Shooting:       row.Shooting,
+		Passing:        row.Passing,
+		Dribbling:      row.Dribbling,
+		Defending:      row.Defending,
+		Physical:       row.Physical,
+		Stamina:        row.Stamina,
+		ValueLabel:     "—",
+		SeasonGoals:    0,
+		SeasonLabel:    "23/24",
+	}
+}
+
+func (c *Config) getPlayerProfileCatalog(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(int32)
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	ctx := r.Context()
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	const defaultLimit int32 = 80
+	rows, err := c.playerProfileDB().ListComparePlayerCatalog(ctx, database.ListComparePlayerCatalogParams{
+		Search: query,
+		Limit:  defaultLimit,
+	})
+	if err != nil {
+		log.Printf("[player_profile] ListComparePlayerCatalog error: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to get compare players")
+		return
+	}
+	out := make([]ComparePlayerCatalogItem, 0, len(rows))
+	for _, row := range rows {
+		if row.UserID == userID {
+			continue
+		}
+		out = append(out, compareCatalogItem(row))
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{"players": out})
 }
 
 func (c *Config) getPlayerProfile(w http.ResponseWriter, r *http.Request) {

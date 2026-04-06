@@ -184,6 +184,117 @@ func (q *Queries) InsertPlayerProfileTrait(ctx context.Context, arg InsertPlayer
 	return i, err
 }
 
+const listComparePlayerCatalog = `-- name: ListComparePlayerCatalog :many
+SELECT
+  pp.id,
+  pp.user_id,
+  pp.age,
+  pp.country_code,
+  pp.club_name,
+  pp.is_free_agent,
+  pp.position,
+  pp.photo_url,
+  pp.speed,
+  pp.shooting,
+  pp.passing,
+  pp.dribbling,
+  pp.defending,
+  pp.physical,
+  pp.stamina,
+  u.display_name,
+  u.firstname,
+  u.lastname,
+  u.avatar_url,
+  COUNT(t.id)::int AS traits_count
+FROM player_profile pp
+JOIN users u ON u.id = pp.user_id
+LEFT JOIN player_profile_trait t ON t.player_profile_id = pp.id
+WHERE (
+  $1::text = '' OR
+  COALESCE(NULLIF(TRIM(u.display_name), ''), TRIM(u.firstname || ' ' || u.lastname), 'Player') ILIKE '%' || $1 || '%' OR
+  COALESCE(pp.club_name, '') ILIKE '%' || $1 || '%' OR
+  pp.country_code ILIKE '%' || $1 || '%'
+)
+GROUP BY
+  pp.id, pp.user_id, pp.age, pp.country_code, pp.club_name, pp.is_free_agent, pp.position, pp.photo_url,
+  pp.speed, pp.shooting, pp.passing, pp.dribbling, pp.defending, pp.physical, pp.stamina,
+  u.display_name, u.firstname, u.lastname, u.avatar_url
+ORDER BY pp.updated_at DESC
+LIMIT $2
+`
+
+type ListComparePlayerCatalogParams struct {
+	Search string
+	Limit  int32
+}
+
+type ListComparePlayerCatalogRow struct {
+	ID          int32
+	UserID      int32
+	Age         sql.NullInt32
+	CountryCode string
+	ClubName    sql.NullString
+	IsFreeAgent bool
+	Position    string
+	PhotoUrl    sql.NullString
+	Speed       int32
+	Shooting    int32
+	Passing     int32
+	Dribbling   int32
+	Defending   int32
+	Physical    int32
+	Stamina     int32
+	DisplayName sql.NullString
+	Firstname   string
+	Lastname    string
+	AvatarUrl   sql.NullString
+	TraitsCount int32
+}
+
+func (q *Queries) ListComparePlayerCatalog(ctx context.Context, arg ListComparePlayerCatalogParams) ([]ListComparePlayerCatalogRow, error) {
+	rows, err := q.db.QueryContext(ctx, listComparePlayerCatalog, arg.Search, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListComparePlayerCatalogRow
+	for rows.Next() {
+		var i ListComparePlayerCatalogRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Age,
+			&i.CountryCode,
+			&i.ClubName,
+			&i.IsFreeAgent,
+			&i.Position,
+			&i.PhotoUrl,
+			&i.Speed,
+			&i.Shooting,
+			&i.Passing,
+			&i.Dribbling,
+			&i.Defending,
+			&i.Physical,
+			&i.Stamina,
+			&i.DisplayName,
+			&i.Firstname,
+			&i.Lastname,
+			&i.AvatarUrl,
+			&i.TraitsCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlayerProfileCareerTeams = `-- name: ListPlayerProfileCareerTeams :many
 SELECT id, player_profile_id, team_name, start_year, end_year, created_at, updated_at FROM player_profile_career_team WHERE player_profile_id = $1 ORDER BY start_year DESC
 `

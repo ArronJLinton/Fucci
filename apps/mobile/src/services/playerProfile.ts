@@ -4,6 +4,8 @@ import type {
   PlayerProfileInput,
   PlayerProfileCareerTeam,
 } from '../types/playerProfile';
+import type {ComparePlayerSnapshot} from '../types/comparePlayer';
+import {COUNTRIES} from '../data/countries';
 
 const BASE = '/player-profile';
 
@@ -62,6 +64,31 @@ export async function setPlayerProfileTraits(
     throw new ApiRequestError('Invalid traits response', 500);
   }
   return list;
+}
+
+/** GET /player-profile/catalog — compare-opponent candidates from persisted player profiles. */
+export async function listComparePlayerCatalog(
+  token: string,
+  query = '',
+): Promise<ComparePlayerSnapshot[]> {
+  const q = query.trim();
+  const path = q ? `${BASE}/catalog?q=${encodeURIComponent(q)}` : `${BASE}/catalog`;
+  const data = await makeAuthRequest(token, path, 'GET');
+  const players = (data as {players?: unknown})?.players;
+  if (!Array.isArray(players)) {
+    throw new ApiRequestError('Invalid compare player catalog response', 500);
+  }
+  return (players as ComparePlayerSnapshot[]).map(p => {
+    const countryCode = (p.countryCode || '').toUpperCase();
+    const countryLabel =
+      COUNTRIES.find(c => c.code === countryCode)?.name?.toUpperCase() ??
+      (countryCode || '—');
+    return {
+      ...p,
+      countryCode,
+      countryLabel,
+    };
+  });
 }
 
 export type {PlayerProfile, PlayerProfileInput, PlayerProfileCareerTeam};

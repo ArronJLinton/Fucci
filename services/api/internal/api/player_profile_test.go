@@ -30,6 +30,7 @@ type stubPlayerProfileStore struct {
 	UpsertPlayerProfileFn                  func(ctx context.Context, arg database.UpsertPlayerProfileParams) (database.PlayerProfile, error)
 	UpdatePlayerProfileRowFn               func(ctx context.Context, arg database.UpdatePlayerProfileRowParams) (database.PlayerProfile, error)
 	DeletePlayerProfileRowFn               func(ctx context.Context, id int32) error
+	ListComparePlayerCatalogFn             func(ctx context.Context, arg database.ListComparePlayerCatalogParams) ([]database.ListComparePlayerCatalogRow, error)
 	ListPlayerProfileTraitsFn              func(ctx context.Context, playerProfileID int32) ([]string, error)
 	ListPlayerProfileCareerTeamsFn         func(ctx context.Context, playerProfileID int32) ([]database.PlayerProfileCareerTeam, error)
 	DeletePlayerProfileTraitsByProfileIDFn func(ctx context.Context, playerProfileID int32) error
@@ -62,6 +63,13 @@ func (s *stubPlayerProfileStore) DeletePlayerProfileRow(ctx context.Context, id 
 		return s.DeletePlayerProfileRowFn(ctx, id)
 	}
 	return assert.AnError
+}
+
+func (s *stubPlayerProfileStore) ListComparePlayerCatalog(ctx context.Context, arg database.ListComparePlayerCatalogParams) ([]database.ListComparePlayerCatalogRow, error) {
+	if s.ListComparePlayerCatalogFn != nil {
+		return s.ListComparePlayerCatalogFn(ctx, arg)
+	}
+	return []database.ListComparePlayerCatalogRow{}, nil
 }
 
 func (s *stubPlayerProfileStore) ListPlayerProfileTraits(ctx context.Context, playerProfileID int32) ([]string, error) {
