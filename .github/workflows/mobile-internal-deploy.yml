@@ -131,7 +131,7 @@ jobs:
   submit-android-preview:
     name: EAS submit Android (preview) — gated
     needs: build-android-preview
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_submit == true }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_submit == 'true' }}
     runs-on: ubuntu-latest
     environment: mobile-internal-submit
     steps:
