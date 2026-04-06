@@ -104,6 +104,7 @@ function PlayerCard({
   onPressEmpty?: () => void;
 }) {
   const accent = side === 'left' ? LIME : CYAN;
+  const showHeroMeta = side !== 'left';
   const borderSide =
     side === 'left' ? styles.cardBorderLeft : styles.cardBorderRight;
 
@@ -130,15 +131,23 @@ function PlayerCard({
 
   const flag = countryCodeToFlag(player.countryCode);
   return (
-    <View style={[styles.card, styles.cardFilled, borderSide]}>
-      <View style={styles.cardTopRow}>
-        <View style={styles.agePill}>
-          <Text style={styles.agePillText}>AGE {player.age ?? '—'}</Text>
+    <View
+      style={[
+        styles.card,
+        styles.cardFilled,
+        !showHeroMeta && styles.cardNoMeta,
+        borderSide,
+      ]}>
+      {showHeroMeta ? (
+        <View style={styles.cardTopRow}>
+          <View style={styles.agePill}>
+            <Text style={styles.agePillText}>AGE {player.age ?? '—'}</Text>
+          </View>
+          <View style={styles.crestCircle}>
+            <Ionicons name="shield" size={18} color={mutedHex(accent)} />
+          </View>
         </View>
-        <View style={styles.crestCircle}>
-          <Ionicons name="shield" size={18} color={mutedHex(accent)} />
-        </View>
-      </View>
+      ) : null}
       <View style={styles.cardPhotoWrap}>
         {player.photoUrl ? (
           <Image source={{uri: player.photoUrl}} style={styles.cardPhoto} />
@@ -151,11 +160,15 @@ function PlayerCard({
       <Text style={[styles.cardName, {color: accent}]} numberOfLines={2}>
         {player.displayName}
       </Text>
-      <View style={styles.cardMetaRow}>
-        {flag ? <Text style={styles.cardFlag}>{flag}</Text> : null}
-        <Text style={styles.cardPos}>{player.positionAbbrev}</Text>
-      </View>
-      <Text style={styles.cardCountry}>{player.countryLabel}</Text>
+      {showHeroMeta ? (
+        <>
+          <View style={styles.cardMetaRow}>
+            {flag ? <Text style={styles.cardFlag}>{flag}</Text> : null}
+            <Text style={styles.cardPos}>{player.positionAbbrev}</Text>
+          </View>
+          <Text style={styles.cardCountry}>{player.countryLabel}</Text>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -281,17 +294,6 @@ export default function PlayerCompareScreen() {
 
         {!right ? (
           <>
-            <SectionTitle title="TOP STATS" />
-            {topStatRows.map(row => (
-              <View key={row.key} style={styles.statRow3}>
-                <Text style={[styles.statLeft, {color: LIME}]}>{row.l}</Text>
-                <Text style={styles.statCenter}>{row.label}</Text>
-                <Text style={[styles.statRight, {color: CYAN}]}>
-                  {row.r != null ? row.r : '—'}
-                </Text>
-              </View>
-            ))}
-
             <SectionTitle title="BASIC INFO" />
             <BasicInfoRow
               label="AGE"
@@ -313,6 +315,17 @@ export default function PlayerCompareScreen() {
               leftText={fmtPosition(left)}
               rightText="—"
             />
+
+            <SectionTitle title="TOP STATS" />
+            {topStatRows.map(row => (
+              <View key={row.key} style={styles.statRow3}>
+                <Text style={[styles.statLeft, {color: LIME}]}>{row.l}</Text>
+                <Text style={styles.statCenter}>{row.label}</Text>
+                <Text style={[styles.statRight, {color: CYAN}]}>
+                  {row.r != null ? row.r : '—'}
+                </Text>
+              </View>
+            ))}
           </>
         ) : (
           <>
@@ -458,7 +471,8 @@ const styles = StyleSheet.create({
     borderColor: '#1e293b',
     padding: 10,
   },
-  cardFilled: {},
+  cardFilled: {alignItems: 'center'},
+  cardNoMeta: {justifyContent: 'center'},
   cardEmpty: {
     borderStyle: 'dashed',
     justifyContent: 'center',
@@ -504,6 +518,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
     marginBottom: 4,
+    textAlign: 'center',
   },
   cardMetaRow: {flexDirection: 'row', alignItems: 'center', gap: 6},
   cardFlag: {fontSize: 14},
