@@ -11,7 +11,11 @@ import {
   TextInput,
   Switch,
   Dimensions,
+  Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import type {NavigationProp} from '../types/navigation';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -68,6 +72,62 @@ function roleArchetype(pos: PlayerProfileType['position'] | null): string {
 }
 
 const WORK_RATE_OPTIONS: WorkRate[] = ['LOW', 'MEDIUM', 'HIGH'];
+const MIN_AGE = 13;
+const MAX_AGE = 60;
+
+function ageFromDateOfBirth(birth: Date): number {
+  const today = new Date();
+  let years = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    years--;
+  }
+  return years;
+}
+
+function minBirthDate(): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MAX_AGE);
+  d.setHours(12, 0, 0, 0);
+  return d;
+}
+
+function maxBirthDate(): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  d.setHours(12, 0, 0, 0);
+  return d;
+}
+
+function clampBirthDate(d: Date): Date {
+  const t = d.getTime();
+  const lo = minBirthDate().getTime();
+  const hi = maxBirthDate().getTime();
+  if (t < lo) {
+    return new Date(lo);
+  }
+  if (t > hi) {
+    return new Date(hi);
+  }
+  return d;
+}
+
+function defaultBirthDateForPicker(): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 25);
+  d.setHours(12, 0, 0, 0);
+  return clampBirthDate(d);
+}
+
+function birthDateFromAge(age: number | null): Date | null {
+  if (age == null || age < MIN_AGE || age > MAX_AGE) {
+    return null;
+  }
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - age);
+  d.setHours(12, 0, 0, 0);
+  return clampBirthDate(d);
+}
 
 export default function PlayerProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -83,7 +143,11 @@ export default function PlayerProfileScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Edit form state (T014)
-  const [editAge, setEditAge] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
+  const [showDobPicker, setShowDobPicker] = useState(false);
+  const [iosDobDraft, setIosDobDraft] = useState<Date>(() =>
+    defaultBirthDateForPicker(),
+  );
   const [editCountryCode, setEditCountryCode] = useState<string | null>(null);
   const [editCountryName, setEditCountryName] = useState('');
   const [editClub, setEditClub] = useState('');
@@ -142,7 +206,7 @@ export default function PlayerProfileScreen() {
       if (p) {
         setProfile(p);
         setIsDraftProfile(false);
-        setEditAge(p.age != null ? String(p.age) : '');
+        setDateOfBirth(birthDateFromAge(p.age));
         setEditCountryCode(p.country || null);
         const countryName = p.country
           ? (COUNTRIES.find(c => c.code === p.country)?.name ?? p.country)
@@ -179,7 +243,7 @@ export default function PlayerProfileScreen() {
         };
         setProfile(draft);
         setIsDraftProfile(true);
-        setEditAge('');
+        setDateOfBirth(null);
         setEditCountryCode(null);
         setEditCountryName('');
         setEditClub('');
@@ -221,11 +285,7 @@ export default function PlayerProfileScreen() {
       setSaveError('Country and position are required.');
       return;
     }
-    const ageNum = editAge.trim() ? parseInt(editAge.trim(), 10) : null;
-    if (ageNum !== null && (ageNum < 13 || ageNum > 60)) {
-      setSaveError('Age must be between 13 and 60.');
-      return;
-    }
+    const ageNum = dateOfBirth ? ageFromDateOfBirth(dateOfBirth) : null;
     setSaveError(null);
     setSaving(true);
     try {
@@ -290,7 +350,7 @@ export default function PlayerProfileScreen() {
               };
               setProfile(draft);
               setIsDraftProfile(true);
-              setEditAge('');
+              setDateOfBirth(null);
               setEditCountryCode(null);
               setEditCountryName('');
               setEditClub('');
@@ -378,6 +438,23 @@ export default function PlayerProfileScreen() {
     editCountryCode || profile.country
       ? countryCodeToFlag(editCountryCode || profile.country)
       : '';
+  const dobDisplayText = dateOfBirth
+    ? dateOfBirth.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : '';
+  const openDobPicker = () => {
+    setIosDobDraft(
+      dateOfBirth ? clampBirthDate(dateOfBirth) : defaultBirthDateForPicker(),
+    );
+    setShowDobPicker(true);
+  };
+  const confirmIosDob = () => {
+    setDateOfBirth(clampBirthDate(iosDobDraft));
+    setShowDobPicker(false);
+  };
   const countryName =
     COUNTRIES.find(c => c.code === profile.country)?.name ?? profile.country;
 
@@ -765,17 +842,49 @@ export default function PlayerProfileScreen() {
             {editMode ? (
               <View style={styles.editFormCard}>
                 <View style={styles.editForm}>
-                  <Text style={styles.label}>Age</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editAge}
-                    onChangeText={setEditAge}
-                    placeholder="13–60"
-                    placeholderTextColor="#64748b"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    editable={!saving}
-                  />
+                  <Text style={styles.label}>Date of birth</Text>
+                  <TouchableOpacity
+                    style={styles.editFormRow}
+                    onPress={openDobPicker}
+                    disabled={saving}
+                    activeOpacity={0.85}
+                    accessibilityLabel="Date of birth"
+                    accessibilityRole="button">
+                    <View style={styles.rowValue}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={18}
+                        color="#94a3b8"
+                        style={styles.calendarIcon}
+                      />
+                      <Text
+                        style={[
+                          styles.value,
+                          !dateOfBirth && styles.valuePlaceholder,
+                        ]}>
+                        {dobDisplayText || 'Select date'}
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color="#94a3b8"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                  <View style={styles.dobHintRow}>
+                    <Text style={styles.dobHintText}>
+                      Optional. Used to set your age ({MIN_AGE}–{MAX_AGE}).
+                    </Text>
+                    {dateOfBirth ? (
+                      <TouchableOpacity
+                        onPress={() => setDateOfBirth(null)}
+                        disabled={saving}
+                        hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+                        accessibilityLabel="Clear date of birth">
+                        <Text style={styles.dobClear}>Clear</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 </View>
                 <TouchableOpacity
                   style={styles.editFormRow}
@@ -1147,6 +1256,72 @@ export default function PlayerProfileScreen() {
           </View>
         </View>
       ) : null}
+
+      {Platform.OS === 'android' && showDobPicker ? (
+        <DateTimePicker
+          value={dateOfBirth ?? defaultBirthDateForPicker()}
+          mode="date"
+          display="default"
+          minimumDate={minBirthDate()}
+          maximumDate={maxBirthDate()}
+          onChange={(event, date) => {
+            setShowDobPicker(false);
+            if (event.type === 'dismissed') {
+              return;
+            }
+            if (date) {
+              setDateOfBirth(clampBirthDate(date));
+            }
+          }}
+        />
+      ) : null}
+
+      <Modal
+        visible={Platform.OS === 'ios' && showDobPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDobPicker(false)}>
+        <View style={styles.dobModalRoot}>
+          <Pressable
+            style={styles.dobModalBackdropFill}
+            onPress={() => setShowDobPicker(false)}
+          />
+          <View style={styles.dobModalSheet}>
+            <View style={styles.dobModalToolbar}>
+              <TouchableOpacity
+                onPress={() => setShowDobPicker(false)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel">
+                <Text style={styles.dobModalBtn}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmIosDob}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Done">
+                <Text style={[styles.dobModalBtn, styles.dobModalBtnPrimary]}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={iosDobDraft}
+              mode="date"
+              display="spinner"
+              themeVariant="dark"
+              textColor="#ffffff"
+              minimumDate={minBirthDate()}
+              maximumDate={maxBirthDate()}
+              onChange={(_, d) => {
+                if (d) {
+                  setIosDobDraft(clampBirthDate(d));
+                }
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1700,9 +1875,28 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   value: {fontSize: 18, color: '#f8fafc', fontWeight: '600'},
+  valuePlaceholder: {color: '#64748b'},
   hint: {fontSize: 12, color: '#9ca3af', marginTop: 2},
   row: {marginBottom: 16},
   rowValue: {flexDirection: 'row', alignItems: 'center'},
+  calendarIcon: {marginRight: 8},
+  dobHintRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  dobHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#64748b',
+  },
+  dobClear: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#22d3ee',
+  },
   flag: {fontSize: 20, marginRight: 8},
   traitsSection: {
     marginHorizontal: 14,
@@ -1903,5 +2097,40 @@ const styles = StyleSheet.create({
   positionCancelText: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  dobModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(2,6,23,0.55)',
+  },
+  dobModalBackdropFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dobModalSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    backgroundColor: '#020617',
+    borderTopWidth: 1,
+    borderTopColor: '#1e293b',
+    paddingBottom: 20,
+    overflow: 'hidden',
+  },
+  dobModalToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#1e293b',
+  },
+  dobModalBtn: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  dobModalBtnPrimary: {
+    color: '#22d3ee',
+    fontWeight: '800',
   },
 });
