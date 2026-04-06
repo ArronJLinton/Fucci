@@ -671,3 +671,72 @@ func TestGetMyPlayerProfile_Unauthorized(t *testing.T) {
 	(&Config{PlayerProfileDB: &stubPlayerProfileStore{}}).getPlayerProfile(rec, r)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+func TestGetPlayerProfileCatalog_Unauthorized(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/player-profile/catalog", nil)
+	rec := httptest.NewRecorder()
+	(&Config{PlayerProfileDB: &stubPlayerProfileStore{}}).getPlayerProfileCatalog(rec, r)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestGetPlayerProfileCatalog_FiltersRequesterAndHandlesQuery(t *testing.T) {
+	uid := int32(7)
+	var gotArg database.ListComparePlayerCatalogParams
+	stub := &stubPlayerProfileStore{
+		ListComparePlayerCatalogFn: func(ctx context.Context, arg database.ListComparePlayerCatalogParams) ([]database.ListComparePlayerCatalogRow, error) {
+			gotArg = arg
+			return []database.ListComparePlayerCatalogRow{
+				{
+					ID:          101,
+					UserID:      uid, // should be filtered out
+					Age:         sql.NullInt32{Int32: 22, Valid: true},
+					CountryCode: "US",
+					IsFreeAgent: true,
+					Position:    "FWD",
+					Speed:       80, Shooting: 81, Passing: 82, Dribbling: 83, Defending: 60, Physical: 70, Stamina: 88,
+					DisplayName: sql.NullString{String: "Requester", Valid: true},
+					Firstname:   "Req", Lastname: "User",
+					TraitsCount: 3,
+				},
+				{
+					ID:          202,
+					UserID:      42,
+					Age:         sql.NullInt32{Int32: 27, Valid: true},
+					CountryCode: "GB",
+					ClubName:    sql.NullString{String: "Real Club", Valid: true},
+					IsFreeAgent: false,
+					Position:    "MID",
+					PhotoUrl:    sql.NullString{String: "https://img/p.png", Valid: true},
+					Speed:       75, Shooting: 76, Passing: 77, Dribbling: 78, Defending: 79, Physical: 80, Stamina: 81,
+					DisplayName: sql.NullString{String: "Jane Pro", Valid: true},
+					Firstname:   "Jane", Lastname: "Pro",
+					TraitsCount: 2,
+				},
+			}, nil
+		},
+	}
+	cfg := &Config{PlayerProfileDB: stub}
+	rec := httptest.NewRecorder()
+	req := playerProfileTestRequest(http.MethodGet, "/player-profile/catalog?q=%20%20jane%20%20", nil, uid)
+
+	cfg.getPlayerProfileCatalog(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "jane", gotArg.Search)
+	assert.Equal(t, int32(80), gotArg.Limit)
+
+	var out map[string][]map[string]interface{}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Len(t, out["players"], 1)
+	row := out["players"][0]
+	assert.Equal(t, "profile-202", row["id"])
+	assert.Equal(t, "JANE PRO", row["displayName"])
+	assert.Equal(t, "GB", row["countryCode"])
+	assert.Equal(t, "GB", row["countryLabel"])
+	assert.Equal(t, "Real Club", row["team"])
+	assert.Equal(t, "CM", row["positionAbbrev"])
+	assert.Equal(t, float64(75), row["speed"])
+	assert.Equal(t, float64(81), row["stamina"])
+	_, hasPhoto := row["photoUrl"]
+	assert.True(t, hasPhoto)
+}
