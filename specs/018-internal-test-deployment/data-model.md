@@ -92,10 +92,30 @@
   - `native_provider` (enum: `fcm` | `apns`, required)
   - `native_config_ready` (boolean, required)
   - `eas_credentials_ready` (boolean, required)
+  - `credential_source` (string, required) - where push credential is stored/referenced
+  - `blockers` (string[], default `[]`) - unresolved setup items preventing push readiness
   - `smoke_test_passed` (boolean, required)
   - `last_tested_at` (datetime, optional)
 - **Validation Rules**:
   - `smoke_test_passed=true` requires both readiness flags true.
+  - `smoke_test_passed=true` requires `blockers=[]`.
+  - `credential_source` must reference an approved non-local storage system.
+
+### Push Environment Acceptance Criteria (US1 / T018)
+
+- Android push readiness:
+  - `native_provider=fcm`
+  - `native_config_ready=true`
+  - `eas_credentials_ready=true`
+  - `blockers=[]`
+- iOS push readiness:
+  - `native_provider=apns`
+  - `native_config_ready=true`
+  - `eas_credentials_ready=true`
+  - `blockers=[]`
+- Both platforms:
+  - `credential_source` points to approved vault/secret manager
+  - test notification for kickoff or debate reply is receivable before marking US1 done
 
 ## Relationships
 
