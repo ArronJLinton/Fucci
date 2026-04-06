@@ -22,13 +22,13 @@ VALUES (
   sqlc.arg('club_name'),
   sqlc.arg('is_free_agent'),
   sqlc.arg('position'),
-  COALESCE(sqlc.narg('speed'), 50),
-  COALESCE(sqlc.narg('shooting'), 50),
-  COALESCE(sqlc.narg('passing'), 50),
-  COALESCE(sqlc.narg('dribbling'), 50),
-  COALESCE(sqlc.narg('defending'), 50),
-  COALESCE(sqlc.narg('physical'), 50),
-  COALESCE(sqlc.narg('stamina'), 50)
+  COALESCE(sqlc.narg('speed')::integer, 50),
+  COALESCE(sqlc.narg('shooting')::integer, 50),
+  COALESCE(sqlc.narg('passing')::integer, 50),
+  COALESCE(sqlc.narg('dribbling')::integer, 50),
+  COALESCE(sqlc.narg('defending')::integer, 50),
+  COALESCE(sqlc.narg('physical')::integer, 50),
+  COALESCE(sqlc.narg('stamina')::integer, 50)
 )
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,

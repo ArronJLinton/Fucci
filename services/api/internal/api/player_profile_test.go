@@ -15,23 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// upsertArgCoreInt32 interprets nullable core args from UpsertPlayerProfile (nil = omitted).
-func upsertArgCoreInt32(tb testing.TB, v interface{}, ifNull int32) int32 {
+// upsertArgCoreInt32 interprets nullable core args from UpsertPlayerProfile (Valid=false = omitted).
+func upsertArgCoreInt32(tb testing.TB, v sql.NullInt32, ifNull int32) int32 {
 	tb.Helper()
-	if v == nil {
+	if !v.Valid {
 		return ifNull
 	}
-	switch x := v.(type) {
-	case int32:
-		return x
-	case int64:
-		return int32(x)
-	case int:
-		return int32(x)
-	default:
-		tb.Fatalf("upsertArgCoreInt32: unexpected type %T for UpsertPlayerProfile core arg: %#v", v, v)
-		return 0
-	}
+	return v.Int32
 }
 
 // stubPlayerProfileStore implements PlayerProfileStore with per-method func hooks (nil => safe default).
@@ -261,14 +251,14 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "GB", upsertArg.CountryCode)
 	assert.Equal(t, "DEF", upsertArg.Position)
-	// Omitted cores → NULL; SQL applies COALESCE to 50 on insert.
-	assert.Nil(t, upsertArg.Speed)
-	assert.Nil(t, upsertArg.Shooting)
-	assert.Nil(t, upsertArg.Passing)
-	assert.Nil(t, upsertArg.Dribbling)
-	assert.Nil(t, upsertArg.Defending)
-	assert.Nil(t, upsertArg.Physical)
-	assert.Nil(t, upsertArg.Stamina)
+	// Omitted cores -> sql.NullInt32{Valid:false}; SQL applies COALESCE to 50 on insert.
+	assert.False(t, upsertArg.Speed.Valid)
+	assert.False(t, upsertArg.Shooting.Valid)
+	assert.False(t, upsertArg.Passing.Valid)
+	assert.False(t, upsertArg.Dribbling.Valid)
+	assert.False(t, upsertArg.Defending.Valid)
+	assert.False(t, upsertArg.Physical.Valid)
+	assert.False(t, upsertArg.Stamina.Valid)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "GB", resp.Country)
@@ -309,14 +299,14 @@ func TestPostMyPlayerProfile_UpdateExisting(t *testing.T) {
 	assert.Equal(t, uid, upsertArg.UserID)
 	assert.Equal(t, "DE", upsertArg.CountryCode)
 	assert.Equal(t, "FWD", upsertArg.Position)
-	// Omitted cores → NULL; DB merges with existing row (no pre-read in handler).
-	assert.Nil(t, upsertArg.Speed)
-	assert.Nil(t, upsertArg.Shooting)
-	assert.Nil(t, upsertArg.Passing)
-	assert.Nil(t, upsertArg.Dribbling)
-	assert.Nil(t, upsertArg.Defending)
-	assert.Nil(t, upsertArg.Physical)
-	assert.Nil(t, upsertArg.Stamina)
+	// Omitted cores -> sql.NullInt32{Valid:false}; DB merges with existing row.
+	assert.False(t, upsertArg.Speed.Valid)
+	assert.False(t, upsertArg.Shooting.Valid)
+	assert.False(t, upsertArg.Passing.Valid)
+	assert.False(t, upsertArg.Dribbling.Valid)
+	assert.False(t, upsertArg.Defending.Valid)
+	assert.False(t, upsertArg.Physical.Valid)
+	assert.False(t, upsertArg.Stamina.Valid)
 	var resp PlayerProfileResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "DE", resp.Country)

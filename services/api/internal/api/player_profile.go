@@ -114,12 +114,12 @@ func pickInt32(req *int32, fallback int32) int32 {
 	return fallback
 }
 
-// optionalCoreUpsertArg is passed to UpsertPlayerProfile: nil means omitted (SQL applies COALESCE/keep-existing).
-func optionalCoreUpsertArg(p *int32) interface{} {
+// optionalCoreUpsertArg is passed to UpsertPlayerProfile: Valid=false means omitted.
+func optionalCoreUpsertArg(p *int32) sql.NullInt32 {
 	if p == nil {
-		return nil
+		return sql.NullInt32{}
 	}
-	return *p
+	return sql.NullInt32{Int32: *p, Valid: true}
 }
 
 // normalizeCountryCode validates ISO 3166-1 alpha-2 for VARCHAR(2): exactly two ASCII A–Z letters (case-insensitive input is uppercased).

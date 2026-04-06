@@ -404,13 +404,13 @@ VALUES (
   $4,
   $5,
   $6,
-  COALESCE($7, 50),
-  COALESCE($8, 50),
-  COALESCE($9, 50),
-  COALESCE($10, 50),
-  COALESCE($11, 50),
-  COALESCE($12, 50),
-  COALESCE($13, 50)
+  COALESCE($7::integer, 50),
+  COALESCE($8::integer, 50),
+  COALESCE($9::integer, 50),
+  COALESCE($10::integer, 50),
+  COALESCE($11::integer, 50),
+  COALESCE($12::integer, 50),
+  COALESCE($13::integer, 50)
 )
 ON CONFLICT (user_id) DO UPDATE SET
   age = EXCLUDED.age,
@@ -436,13 +436,13 @@ type UpsertPlayerProfileParams struct {
 	ClubName    sql.NullString
 	IsFreeAgent bool
 	Position    string
-	Speed       interface{}
-	Shooting    interface{}
-	Passing     interface{}
-	Dribbling   interface{}
-	Defending   interface{}
-	Physical    interface{}
-	Stamina     interface{}
+	Speed       sql.NullInt32
+	Shooting    sql.NullInt32
+	Passing     sql.NullInt32
+	Dribbling   sql.NullInt32
+	Defending   sql.NullInt32
+	Physical    sql.NullInt32
+	Stamina     sql.NullInt32
 }
 
 // POST /player-profile: single statement. New row: omitted cores -> COALESCE(NULL, 50). Conflict update:
