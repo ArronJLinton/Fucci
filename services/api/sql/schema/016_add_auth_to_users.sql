@@ -4,32 +4,56 @@
 DO $$
 BEGIN
     -- Add password_hash if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash'
+    ) THEN
         ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
     END IF;
     
     -- Add display_name if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'display_name') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'display_name'
+    ) THEN
         ALTER TABLE users ADD COLUMN display_name VARCHAR(100);
     END IF;
     
     -- Add avatar_url if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'avatar_url') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'avatar_url'
+    ) THEN
         ALTER TABLE users ADD COLUMN avatar_url TEXT;
     END IF;
     
     -- Add is_verified if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_verified') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_verified'
+    ) THEN
         ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
     END IF;
     
     -- Add is_active if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_active') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_active'
+    ) THEN
         ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
     END IF;
     
     -- Add last_login_at if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_login_at') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'last_login_at'
+    ) THEN
         ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP;
     END IF;
     
@@ -39,15 +63,40 @@ BEGIN
     END IF;
     
     -- Add role column if not exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'role') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role'
+    ) THEN
         ALTER TABLE users ADD COLUMN role user_role DEFAULT 'fan';
     END IF;
 END
 $$;
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_active'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+    END IF;
+END
+$$;
 
 -- +goose Down
 
