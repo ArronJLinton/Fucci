@@ -68,6 +68,7 @@ type Config struct {
 	CloudinaryUploadPreset string
 	Cache                  cache.CacheInterface
 	APIFootballBaseURL     string
+	FutbolProvider         futbol.FutbolProvider
 	FutbolService          *futbol.Service
 	NewsBaseURL            string // optional; when set, news client uses this (e.g. for tests)
 	OpenAIKey              string
@@ -76,10 +77,10 @@ type Config struct {
 	SystemUserEmail        string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
-	CardVoteReader   CardVoteReader
-	CommentReader    CommentReader
-	DebatesFeedDB    DebatesFeedStore // nil => use DB for debate feed GETs
-	PlayerProfileDB  PlayerProfileStore // nil => use DB for /api/player-profile routes
+	CardVoteReader  CardVoteReader
+	CommentReader   CommentReader
+	DebatesFeedDB   DebatesFeedStore   // nil => use DB for debate feed GETs
+	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
@@ -93,8 +94,12 @@ func New(c Config) http.Handler {
 		c.AIPromptGenerator = ai.NewPromptGenerator(c.OpenAIKey, c.OpenAIBaseURL, c.Cache)
 	}
 	if c.FutbolService == nil {
+		provider := c.FutbolProvider
+		if provider == nil {
+			provider = futbol.NewAPIFootballClient(c.APIFootballBaseURL, c.FootballAPIKey)
+		}
 		c.FutbolService = futbol.NewService(
-			futbol.NewAPIFootballClient(c.APIFootballBaseURL, c.FootballAPIKey),
+			provider,
 			c.Cache,
 		)
 	}

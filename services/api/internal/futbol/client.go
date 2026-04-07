@@ -17,6 +17,8 @@ type APIFootballClient struct {
 	httpClient *http.Client
 }
 
+var _ FutbolProvider = (*APIFootballClient)(nil)
+
 func NewAPIFootballClient(baseURL, apiKey string) *APIFootballClient {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {

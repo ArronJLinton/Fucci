@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -36,7 +37,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, _, err := c.futbolService().GetMatches(ctx, date, leagueID)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
+		respondWithError(w, futbolHTTPStatus(err), fmt.Sprintf("Error creating http request: %s", err))
 		return
 	}
 	var data GetMatchesAPIResponse
@@ -105,7 +106,7 @@ func (c *Config) getMatchLineup(w http.ResponseWriter, r *http.Request) {
 
 	rawLineup, _, err := c.futbolService().GetLineup(ctx, matchID)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, err.Error())
+		respondWithError(w, futbolHTTPStatus(err), err.Error())
 		return
 	}
 	var lineUpData GetLineUpResponse
@@ -316,7 +317,7 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 	season := fmt.Sprintf("%d", time.Now().Year())
 	raw, _, err := c.futbolService().GetLeagues(ctx, season)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
+		respondWithError(w, futbolHTTPStatus(err), fmt.Sprintf("Error creating http request: %s", err))
 		return
 	}
 	var data GetLeaguesResponse
@@ -355,7 +356,7 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 	currentYear := time.Now().Year()
 	raw, _, err := c.futbolService().GetTeamStandings(ctx, teamId, currentYear)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
+		respondWithError(w, futbolHTTPStatus(err), fmt.Sprintf("Error creating http request: %s", err))
 		return
 	}
 	var data GetLeagueStandingsByTeamIdResponse
@@ -512,7 +513,7 @@ func (c *Config) getLeagueStandingsByLeagueId(w http.ResponseWriter, r *http.Req
 
 	data, _, err := c.futbolService().GetLeagueStandings(ctx, leagueID, season)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, err.Error())
+		respondWithError(w, futbolHTTPStatus(err), err.Error())
 		return
 	}
 
@@ -586,8 +587,12 @@ type GetLeagueStandingsResponse struct {
 
 func (c *Config) futbolService() *futbol.Service {
 	if c.FutbolService == nil {
+		provider := c.FutbolProvider
+		if provider == nil {
+			provider = futbol.NewAPIFootballClient(c.APIFootballBaseURL, c.FootballAPIKey)
+		}
 		c.FutbolService = futbol.NewService(
-			futbol.NewAPIFootballClient(c.APIFootballBaseURL, c.FootballAPIKey),
+			provider,
 			c.Cache,
 		)
 	}
@@ -600,4 +605,15 @@ func decodeRawMap(raw map[string]any, out interface{}) error {
 		return err
 	}
 	return json.Unmarshal(b, out)
+}
+
+func futbolHTTPStatus(err error) int {
+	switch {
+	case errors.Is(err, futbol.ErrInvalidInput):
+		return http.StatusBadRequest
+	case errors.Is(err, futbol.ErrUpstream), errors.Is(err, futbol.ErrParse):
+		return http.StatusBadGateway
+	default:
+		return http.StatusBadRequest
+	}
 }

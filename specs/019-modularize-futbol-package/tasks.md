@@ -98,14 +98,14 @@
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] Add mock-provider integration test for service behavior in `services/api/internal/futbol/service_provider_test.go`
-- [ ] T029 [P] [US3] Add handler wiring test with injected fake provider in `services/api/internal/api/futbol_provider_integration_test.go`
+- [X] T028 [P] [US3] Add mock-provider integration test for service behavior in `services/api/internal/futbol/service_provider_test.go`
+- [X] T029 [P] [US3] Add handler wiring test with injected fake provider in `services/api/internal/api/futbol_provider_integration_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Finalize `FutbolProvider` interface method set and API-Football implementation in `services/api/internal/futbol/{types.go,client.go}`
-- [ ] T031 [US3] Add provider injection/wiring path in API config constructors in `services/api/internal/api/api.go`
-- [ ] T032 [US3] Add provider-agnostic error mapping path in service/handler boundaries in `services/api/internal/futbol/service.go` and `services/api/internal/api/futbol.go`
+- [X] T030 [US3] Finalize `FutbolProvider` interface method set and API-Football implementation in `services/api/internal/futbol/{types.go,client.go}`
+- [X] T031 [US3] Add provider injection/wiring path in API config constructors in `services/api/internal/api/api.go`
+- [X] T032 [US3] Add provider-agnostic error mapping path in service/handler boundaries in `services/api/internal/futbol/service.go` and `services/api/internal/api/futbol.go`
 
 **Checkpoint**: Provider can be swapped via wiring without endpoint contract rewrites.
 
