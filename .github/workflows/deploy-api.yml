@@ -32,12 +32,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # API is Go-only under services/api (no package-lock there). Node is for corepack/yarn (root package.json migrate script).
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: services/api/package-lock.json
+          cache: yarn
+          cache-dependency-path: yarn.lock
 
       # setup-go only accepts go-version / go-version-file, cache (boolean), cache-dependency-path.
       # Do not pass node-version or npm-style cache here — that breaks the step.
@@ -47,10 +48,6 @@ jobs:
           go-version-file: services/api/go.mod
           cache: true
           cache-dependency-path: services/api/go.sum
-
-      - name: Install dependencies
-        working-directory: ./services/api
-        run: npm ci
 
       - name: Run tests
         working-directory: ./services/api
