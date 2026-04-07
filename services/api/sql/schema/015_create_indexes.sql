@@ -28,27 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_player_profiles_is_verified ON player_profiles(is
 CREATE INDEX IF NOT EXISTS idx_verifications_player_profile_id ON verifications(player_profile_id);
 CREATE INDEX IF NOT EXISTS idx_verifications_verifier_user_id ON verifications(verifier_user_id);
 
--- Debates table indexes (these might already exist, but we add them for completeness)
-CREATE INDEX IF NOT EXISTS idx_debates_match_id ON debates(match_id);
-CREATE INDEX IF NOT EXISTS idx_debates_deleted_at ON debates(deleted_at);
-
--- Vote table indexes
-CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
-
--- Comment table indexes
-CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id);
-
--- Media table indexes
-CREATE INDEX IF NOT EXISTS idx_media_match_id ON media(match_id);
+-- debates / votes / comments / media indexes live in migrations that create those tables
+-- (numeric-prefix 015 runs before timestamped 20250225* files in this runner's sort order).
 
 -- +goose Down
 
 -- Drop all indexes
-DROP INDEX IF EXISTS idx_media_match_id;
-DROP INDEX IF EXISTS idx_comments_user_id;
-DROP INDEX IF EXISTS idx_votes_user_id;
-DROP INDEX IF EXISTS idx_debates_deleted_at;
-DROP INDEX IF EXISTS idx_debates_match_id;
 DROP INDEX IF EXISTS idx_verifications_verifier_user_id;
 DROP INDEX IF EXISTS idx_verifications_player_profile_id;
 DROP INDEX IF EXISTS idx_player_profiles_is_verified;

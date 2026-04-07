@@ -59,22 +59,26 @@ CREATE TABLE IF NOT EXISTS debate_analytics (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_debates_match_id ON debates(match_id);
+CREATE INDEX IF NOT EXISTS idx_debates_deleted_at ON debates(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_debates_type ON debates(debate_type);
 CREATE INDEX IF NOT EXISTS idx_debate_cards_debate_id ON debate_cards(debate_id);
 CREATE INDEX IF NOT EXISTS idx_votes_debate_card_id ON votes(debate_card_id);
 CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
 CREATE INDEX IF NOT EXISTS idx_comments_debate_id ON comments(debate_id);
+CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id);
 CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_comment_id);
 CREATE INDEX IF NOT EXISTS idx_debate_analytics_debate_id ON debate_analytics(debate_id);
 
 -- +goose Down
 DROP INDEX IF EXISTS idx_debate_analytics_debate_id;
 DROP INDEX IF EXISTS idx_comments_parent_id;
+DROP INDEX IF EXISTS idx_comments_user_id;
 DROP INDEX IF EXISTS idx_comments_debate_id;
 DROP INDEX IF EXISTS idx_votes_user_id;
 DROP INDEX IF EXISTS idx_votes_debate_card_id;
 DROP INDEX IF EXISTS idx_debate_cards_debate_id;
 DROP INDEX IF EXISTS idx_debates_type;
+DROP INDEX IF EXISTS idx_debates_deleted_at;
 DROP INDEX IF EXISTS idx_debates_match_id;
 DROP TABLE IF EXISTS debate_analytics;
 DROP TABLE IF EXISTS comments;
