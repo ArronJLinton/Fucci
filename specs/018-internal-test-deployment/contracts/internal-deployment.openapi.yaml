@@ -79,6 +79,22 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/CredentialAsset"
+  /deployment/build-profiles:
+    get:
+      summary: List EAS build profile metadata (profile name, OTA channel, submit intent)
+      responses:
+        "200":
+          description: Build profile and channel mapping for internal deployment planning
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuildProfileMetadata"
 components:
   schemas:
     DeploymentTask:
@@ -157,3 +173,35 @@ components:
           enum: [development, staging, production, shared]
         active:
           type: boolean
+    BuildProfileMetadata:
+      type: object
+      required:
+        - eas_profile
+        - ota_channel
+        - distribution
+        - submit_profile_key
+      description: >
+        Mirrors apps/mobile/eas.json intent: EAS build profile name, matching EAS Update channel,
+        distribution target, and which submit.* key applies for store upload.
+      properties:
+        eas_profile:
+          type: string
+          enum: [development, preview, production]
+        ota_channel:
+          type: string
+          enum: [dev, staging, production]
+        distribution:
+          type: string
+          enum: [internal, store]
+        submit_profile_key:
+          type: string
+          description: Key under submit in eas.json; preview used for internal test submits.
+          enum: [none, preview, production]
+        android_submit_track:
+          type: string
+          description: Google Play track when submit profile is used.
+          enum: [internal, production]
+        ios_submit_target:
+          type: string
+          description: iOS delivery target for the submit profile.
+          enum: [testflight, app_store]

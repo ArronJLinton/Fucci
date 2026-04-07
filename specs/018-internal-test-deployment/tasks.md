@@ -50,13 +50,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Document Google Play Console setup tasks and dependency blockers in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T014 [US1] Document Firebase project + FCM credential setup steps in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T015 [US1] Document Apple Developer enrollment and App ID creation steps in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T016 [US1] Document APNs key creation and secure storage process in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T017 [US1] Document App Store Connect app record and TestFlight internal group setup in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T018 [P] [US1] Add push environment readiness fields and acceptance criteria in `specs/018-internal-test-deployment/data-model.md`
-- [ ] T019 [US1] Add US1 verification checklist (records, testers, push keys present) in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T013 [US1] Document Google Play Console setup tasks and dependency blockers in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T014 [US1] Document Firebase project + FCM credential setup steps in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T015 [US1] Document Apple Developer enrollment and App ID creation steps in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T016 [US1] Document APNs key creation and secure storage process in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T017 [US1] Document App Store Connect app record and TestFlight internal group setup in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T018 [P] [US1] Add push environment readiness fields and acceptance criteria in `specs/018-internal-test-deployment/data-model.md`
+- [X] T019 [US1] Add US1 verification checklist (records, testers, push keys present) in `specs/018-internal-test-deployment/quickstart.md`
 
 **Checkpoint**: Platform accounts, app records, and push prerequisites are fully defined and testable.
 
@@ -70,13 +70,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] Configure EAS submit profile defaults for Android internal and iOS TestFlight in `apps/mobile/eas.json`
-- [ ] T021 [US2] Add profile-to-channel mapping notes (`preview -> staging`) in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T022 [US2] Add EAS credential lifecycle tasks (keystore, provisioning, APNs upload) in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T023 [P] [US2] Add release-channel runtime compatibility checks in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T024 [P] [US2] Add OTA publish/rollback command runbook for `staging` in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T025 [US2] Update deployment API contract examples for profile/channel metadata in `specs/018-internal-test-deployment/contracts/internal-deployment.openapi.yaml`
-- [ ] T026 [US2] Add US2 validation checklist for EAS build/submit/update readiness in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T020 [US2] Configure EAS submit profile defaults for Android internal and iOS TestFlight in `apps/mobile/eas.json`
+- [X] T021 [US2] Add profile-to-channel mapping notes (`preview -> staging`) in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T022 [US2] Add EAS credential lifecycle tasks (keystore, provisioning, APNs upload) in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T023 [P] [US2] Add release-channel runtime compatibility checks in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T024 [P] [US2] Add OTA publish/rollback command runbook for `staging` in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T025 [US2] Update deployment API contract examples for profile/channel metadata in `specs/018-internal-test-deployment/contracts/internal-deployment.openapi.yaml`
+- [X] T026 [US2] Add US2 validation checklist for EAS build/submit/update readiness in `specs/018-internal-test-deployment/quickstart.md`
 
 **Checkpoint**: EAS and OTA configuration is complete and independently verifiable.
 
@@ -90,13 +90,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Create mobile deployment workflow with Android/iOS preview build jobs in `.github/workflows/mobile-internal-deploy.yml`
-- [ ] T028 [US3] Add gated submit jobs using protected environment/manual dispatch in `.github/workflows/mobile-internal-deploy.yml`
-- [ ] T029 [P] [US3] Add workflow secret validation and fail-fast checks in `.github/workflows/mobile-internal-deploy.yml`
-- [ ] T030 [P] [US3] Add artifact/log retention and notification steps in `.github/workflows/mobile-internal-deploy.yml`
-- [ ] T031 [US3] Document required GitHub secrets and setup commands in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T032 [US3] Add CI job graph and dependency notes aligned with workflow jobs in `specs/018-internal-test-deployment/quickstart.md`
-- [ ] T033 [US3] Add US3 run validation checklist (build complete, approval gate, submit success) in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T027 [US3] Create mobile deployment workflow with Android/iOS preview build jobs in `.github/workflows/mobile-internal-deploy.yml`
+- [X] T028 [US3] Add gated submit jobs using protected environment/manual dispatch in `.github/workflows/mobile-internal-deploy.yml`
+- [X] T029 [P] [US3] Add workflow secret validation and fail-fast checks in `.github/workflows/mobile-internal-deploy.yml`
+- [X] T030 [P] [US3] Add artifact/log retention and notification steps in `.github/workflows/mobile-internal-deploy.yml`
+- [X] T031 [US3] Document required GitHub secrets and setup commands in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T032 [US3] Add CI job graph and dependency notes aligned with workflow jobs in `specs/018-internal-test-deployment/quickstart.md`
+- [X] T033 [US3] Add US3 run validation checklist (build complete, approval gate, submit success) in `specs/018-internal-test-deployment/quickstart.md`
 
 **Checkpoint**: CI pipeline is operational and submissions are safely gated.
 

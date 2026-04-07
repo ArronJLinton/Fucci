@@ -5,10 +5,21 @@ This runbook is the execution-ready task list for shipping Fucci to internal tes
 ## Deployment Execution Notes
 
 - Primary working directory for mobile release commands: `apps/mobile/`.
+- **iOS bundle ID (canonical):** `com.magistridev.fucci` — set only in `apps/mobile/app.json` → `expo.ios.bundleIdentifier` (EAS `eas.json` build profiles do not support `ios.bundleIdentifier`).
 - Run all release commands using organization-owned Expo and store accounts.
 - Keep build profile names fixed: `development`, `preview`, `production`.
 - Keep OTA channels fixed: `dev`, `staging`, `production`.
 - Always execute `yarn preflight:release` before any EAS build or submit command.
+
+## EAS profile ↔ OTA channel mapping (US2)
+
+| EAS build profile | OTA channel (`eas update`) | Typical use |
+|---|---|---|
+| `development` | `dev` | Dev client / local iteration |
+| `preview` | `staging` | Internal QA (Play internal + TestFlight internal) |
+| `production` | `production` | Store-ready binaries |
+
+Submit defaults for internal test tracks are configured under `submit.preview` in `apps/mobile/eas.json` (Android internal track, iOS TestFlight via ASC identifiers). Use `--profile preview` with `eas submit` for gated internal releases.
 
 ## Dependency Legend
 
@@ -216,9 +227,12 @@ npx eas-cli submit --platform ios --profile preview --non-interactive
 
 ## Suggested GitHub Actions Job Graph
 
-- `lint_test` -> `android_preview_build` and `ios_preview_build`
-- `android_preview_build` + `ios_preview_build` -> `submit_preview` (manual approval)
-- `submit_preview` -> `notify_internal_testers`
+Implemented in `.github/workflows/mobile-internal-deploy.yml`:
+
+- `validate-secrets` → `build-android-preview` and `build-ios-preview` (parallel)
+- On `workflow_dispatch` with **Run gated submit** enabled → `submit-android-preview` and `submit-ios-preview` (each requires Environment approval: `mobile-internal-submit`)
+
+Push to `main` (paths under `apps/mobile/` or this workflow) runs validate + both preview builds only; submit does not run on push.
 
 ## Definition of Done
 
@@ -227,6 +241,145 @@ npx eas-cli submit --platform ios --profile preview --non-interactive
 - OTA staging channel verified on installed internal builds.
 - Signing credentials are backed up and documented.
 - Release runbook and dependency notes are up to date.
+
+## US1 Platform and Push Setup Runbook
+
+### Google Play Console Setup (T013)
+
+1. Create or verify organization-owned Play Console account.
+2. Create app record with package name `com.magistridev.fucci`.
+3. Complete policy, app access, and content rating placeholders required for internal testing.
+4. Configure internal testing track and create tester group.
+5. Capture blocker dependencies:
+   - blocks Android submit until internal track exists
+   - package name must match `apps/mobile/app.json`
+
+### Firebase + FCM Setup (T014)
+
+1. Create/select organization-owned Firebase project for Fucci mobile.
+2. Register Android app using package `com.magistridev.fucci`.
+3. Enable Cloud Messaging and create server/delegated credential used by backend push path.
+4. Store credential material in approved secret store (not source control).
+5. Capture blocker dependencies:
+   - blocks Android push validation until credential exists
+   - blocks CI submit if service account JSON is missing
+
+### Apple Developer Enrollment + App ID (T015)
+
+1. Confirm Apple Developer Program enrollment under organization account.
+2. Create App ID for `com.magistridev.fucci`.
+3. Ensure Team role assignments include backup release operator.
+4. Capture blocker dependencies:
+   - blocks provisioning and signing asset creation
+   - blocks App Store Connect app creation when bundle ID mismatches
+
+### APNs Key Creation and Storage (T016)
+
+1. Create APNs Auth Key (`.p8`) in Apple Developer account.
+2. Record Key ID and Team ID alongside bundle identifier.
+3. Upload APNs key to Expo/EAS credential store.
+4. Back up `.p8` and metadata in vault with dual-admin access.
+5. Capture blocker dependencies:
+   - blocks iOS push testing and debate/kick-off notification validation
+
+### App Store Connect + TestFlight Internal Groups (T017)
+
+1. Create App Store Connect app with bundle ID `com.magistridev.fucci`.
+2. Configure internal TestFlight groups and assign tester emails.
+3. Verify at least one internal tester can access the assigned group.
+4. Capture blocker dependencies:
+   - blocks iOS internal distribution and submit verification
+
+### US1 Verification Checklist (T019)
+
+- [ ] Play Console app record exists and package matches `com.magistridev.fucci`.
+- [ ] Internal testing track configured with active tester group.
+- [ ] Firebase Android app exists and FCM credential is stored securely.
+- [ ] Apple App ID exists for `com.magistridev.fucci`.
+- [ ] APNs `.p8` key uploaded to Expo/EAS and backed up in vault.
+- [ ] App Store Connect app record exists with internal TestFlight group.
+- [ ] Blocker dependencies documented and linked to setup owner.
+
+## US2 — EAS credential lifecycle (T022)
+
+Execute in order; each step blocks the next until credentials are valid in Expo.
+
+1. **Android keystore**: `eas credentials` → Android → set up or import upload keystore; record keystore backup per Phase E.
+2. **iOS distribution**: `eas credentials` → iOS → distribution certificate + provisioning profile for App Store (or let EAS manage).
+3. **APNs for push**: upload APNs key to EAS (notifications) and confirm bundle ID mapping matches `apps/mobile/app.json`.
+4. **Verification**: run `yarn preflight:eas` and confirm project resolves credentials without interactive prompts in CI.
+
+## US2 — Release channel and runtime compatibility (T023)
+
+Before publishing an OTA update:
+
+- Confirm the target binary was built with the **same** `runtimeVersion` policy as the update (see Phase F).
+- Confirm `EAS_UPDATE_CHANNEL` matches the build profile (`preview` builds consume `staging` only).
+- After native dependency or Expo SDK upgrades, ship a **new store binary** before relying on OTA for that branch.
+- Smoke-test: install preview build, then confirm `eas update --channel staging` applies only to that runtime.
+
+## US2 — OTA publish and rollback — `staging` channel (T024)
+
+From `apps/mobile/` (after a successful `preview` build with matching runtime):
+
+```bash
+# Publish JS/asset update to internal testers (staging channel)
+npx eas-cli update --channel staging --message "describe change" --non-interactive
+
+# List recent updates (inspect IDs/branches)
+npx eas-cli update:list --channel staging --non-interactive
+```
+
+Rollback (republish previous known-good bundle or use Expo dashboard to roll back the channel; document the rollback ticket ID in release notes).
+
+## US2 — Validation checklist (T026)
+
+- [ ] `apps/mobile/eas.json` defines `submit.preview` with Android `track: internal` and iOS ASC fields (placeholders replaced for real submits).
+- [ ] Build profiles `development` / `preview` / `production` each set `channel` to `dev` / `staging` / `production`.
+- [ ] `eas build --profile preview` succeeds for Android and iOS without credential prompts in CI context.
+- [ ] `eas submit --profile preview` targets internal track / TestFlight per org policy (manual gate in CI).
+- [ ] `eas update --channel staging` applies to preview-built binaries only; runtime mismatch test performed once per native change.
+
+## US3 — GitHub Actions workflow (T027–T033)
+
+Workflow file: `.github/workflows/mobile-internal-deploy.yml`
+
+### Required repository secrets and setup (T031)
+
+| Secret | Where | Purpose |
+|--------|--------|---------|
+| `EXPO_TOKEN` | Repository or Environment secrets | `eas build`, `eas submit`, `eas update` from CI |
+
+Optional (store automation beyond EAS-managed credentials): mirror entries from **CI Secret Inventory** (`GOOGLE_SERVICE_ACCOUNT_JSON`, App Store Connect API key fields) if you wire them into `eas submit` or separate steps.
+
+**One-time setup**
+
+1. In Expo: create an organization access token suitable for CI; add as `EXPO_TOKEN` in GitHub (**Settings → Secrets and variables → Actions**).
+2. Create GitHub Environment **`mobile-internal-submit`** with **required reviewers** so submit jobs cannot run without approval.
+3. Run workflow manually: **Actions → Mobile EAS (preview) → Run workflow**; enable **Run gated submit** only after both preview builds succeed and you intend to upload to Play internal / TestFlight.
+
+### CI job graph and dependencies (T032)
+
+```text
+validate-secrets
+├── build-android-preview   (needs: validate-secrets)
+├── build-ios-preview       (needs: validate-secrets)
+
+# workflow_dispatch only, input run_submit == true, Environment: mobile-internal-submit
+submit-android-preview      (needs: build-android-preview)
+submit-ios-preview          (needs: build-ios-preview)
+```
+
+- **Fail-fast**: `validate-secrets` exits with an error if `EXPO_TOKEN` is empty.
+- **Artifacts**: each build job uploads a small `ci-artifacts/metadata.json` with **retention-days: 30** and writes a short summary to the job log / `GITHUB_STEP_SUMMARY`.
+
+### US3 run validation checklist (T033)
+
+- [ ] `validate-secrets` passes on a branch where `EXPO_TOKEN` is configured.
+- [ ] `build-android-preview` completes and produces an EAS Android preview build.
+- [ ] `build-ios-preview` completes and produces an EAS iOS preview build.
+- [ ] With **Run gated submit** checked, Environment protection prompts reviewers before `submit-*` jobs run.
+- [ ] After approval, `eas submit --latest --profile preview` succeeds for Android and iOS (store accounts and EAS credentials already configured).
 
 ## Credential Backup & Custody Procedure
 

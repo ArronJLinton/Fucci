@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - 'services/api/**'
       - '.github/workflows/deploy-api.yml'
@@ -14,25 +13,90 @@ jobs:
   deploy:
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
-    environment: production
+    environment: staging
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: services/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./services/api
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./services/api
+        env:
+          NODE_ENV: test
+        run: npm test --if-present
+
+      - name: Validate required secrets
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          missing=""
+          [ -z "$FLY_API_TOKEN" ]       && missing="$missing FLY_API_TOKEN"
+          [ -z "$SUPABASE_URL" ]        && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_KEY" ] && missing="$missing SUPABASE_SERVICE_KEY"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Missing required secrets:$missing"
+            exit 1
+          fi
+          echo "All required secrets are present."
+
       - name: Setup Fly.io
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@v1
+
+      - name: Sync secrets to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl secrets set \
+            SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            SUPABASE_SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+            --app fucci-api --stage
 
       - name: Deploy to Fly.io
         working-directory: ./services/api
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          flyctl deploy --remote-only
-        continue-on-error: false
+        run: flyctl deploy --remote-only --wait-timeout 120
 
-      - name: Verify deployment
+      - name: Run database migrations
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl status --app fucci-api || true
+          flyctl ssh console \
+            --app fucci-api \
+            --command "npm run migrate --if-present" || echo "No migrate script found — skipping."
+
+      - name: Health check
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "Waiting for deployment to stabilise..."
+          sleep 15
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            --max-time 10 https://fucci-api.fly.dev/health)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Health check failed — HTTP $STATUS"
+            flyctl logs --app fucci-api --no-tail
+            exit 1
+          fi
+          echo "Health check passed — HTTP $STATUS"
+
+      - name: Verify deployment status
+        if: always()
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl status --app fucci-api

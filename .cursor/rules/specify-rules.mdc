@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2025-10-23
 
 ## Active Technologies
+
 - TypeScript (React Native/Expo), Go 1.22+ (backend) + React Navigation, existing auth API (JWT), 001 user/follow APIs (005-user-registration-settings)
 - PostgreSQL (users, user_follows); existing schema in 001; may add first_name, last_name, avatar_url if not present (005-user-registration-settings)
 - TypeScript (React Native/Expo), Go 1.22+ (backend) + React Navigation, existing debate API (004), auth API (005), JWT (006-user-engagement-debates)
@@ -19,6 +20,10 @@ Auto-generated from all feature plans. Last updated: 2025-10-23
 - N/A for this refactor (no schema/data model change required) (019-modularize-futbol-package)
 - Go 1.24 toolchain (`services/api/go.mod`) + Go stdlib, existing internal cache interface (`services/api/internal/cache`), existing API HTTP helpers in `services/api/internal/api` (019-modularize-futbol-package)
 - N/A (no schema/storage changes in this feature) (019-modularize-futbol-package)
+- TypeScript (Expo React Native), Go (API), GitHub Actions YAML + Expo CLI, EAS Build/Submit/Update, Firebase (FCM), Apple Developer + App Store Connect, Google Play Console, GitHub Actions (018-internal-test-deployment)
+- Supabase Postgres + Realtime + Storage (existing backend) (018-internal-test-deployment)
+- TypeScript (Expo React Native), Go (backend integration touchpoints), GitHub Actions YAML + Expo CLI, EAS Build, EAS Submit, EAS Update, Google Play Console, Firebase FCM, Apple Developer, App Store Connect, GitHub Actions (018-internal-test-deployment)
+- Supabase (Postgres + Realtime + Storage), GitHub/Expo secret stores for deployment credentials (018-internal-test-deployment)
 
 - TypeScript (React Native), Go 1.22+, SQL + React Native with Expo, Gin framework, PostgreSQL, Redis, OpenAI API, Socket.io (001-football-community)
 
@@ -38,10 +43,12 @@ npm test && npm run lint
 TypeScript (React Native), Go 1.22+, SQL: Follow standard conventions
 
 ## Recent Changes
+
 - 019-modularize-futbol-package: Added Go 1.24 toolchain (`services/api/go.mod`) + Go stdlib, existing internal cache interface (`services/api/internal/cache`), existing API HTTP helpers in `services/api/internal/api`
 - 019-modularize-futbol-package: Added Go 1.24 toolchain (`services/api/go.mod`) + Go stdlib (`net/http`, `encoding/json`), internal cache interface (`services/api/internal/cache`), existing HTTP utility (`services/api/internal/api/utils.go`)
+- 018-internal-test-deployment: Added TypeScript (Expo React Native), Go (backend integration touchpoints), GitHub Actions YAML + Expo CLI, EAS Build, EAS Submit, EAS Update, Google Play Console, Firebase FCM, Apple Developer, App Store Connect, GitHub Actions
+- 018-internal-test-deployment: Added TypeScript (Expo React Native), Go (API), GitHub Actions YAML + Expo CLI, EAS Build/Submit/Update, Firebase (FCM), Apple Developer + App Store Connect, Google Play Console, GitHub Actions
 - 009-debate-tab-navigator: Added Go 1.22+ (API), TypeScript strict (Expo / React Native 0.81+) + chi router, sqlc-generated queries, React Navigation 7, TanStack React Query (existing)
-
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
