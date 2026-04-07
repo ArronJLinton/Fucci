@@ -34,8 +34,8 @@
 - [ ] T006 Implement API-Football provider transport scaffolding (baseURL, headers, request helper wrappers) in `services/api/internal/futbol/client.go`
 - [ ] T007 Implement redesigned cache key namespace and TTL policy helpers (including stale-on-error semantics) in `services/api/internal/futbol/cache.go`
 - [ ] T008 Add mapper boundary helpers (provider payload -> canonical DTOs) in `services/api/internal/futbol/transformer.go`
-- [ ] T009 Wire new service instance into API config/wiring points in `services/api/internal/api/api.go`
-- [ ] T010 Create shared test fakes for provider/cache in `services/api/internal/futbol/test_helpers_test.go`
+- [X] T009 Wire new service instance into API config/wiring points in `services/api/internal/api/api.go`
+- [X] T010 Create shared test fakes for provider/cache in `services/api/internal/futbol/test_helpers_test.go`
 
 **Checkpoint**: `internal/futbol` foundational API exists and is injectable from handlers.
 
@@ -49,8 +49,8 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Add contract regression tests for endpoint status/shape parity in `services/api/internal/api/futbol_contract_regression_test.go`
-- [ ] T012 [P] [US1] Add integration tests for route/query-name stability across `/futbol/*` endpoints in `services/api/internal/api/futbol_routes_integration_test.go`
+- [X] T011 [P] [US1] Add contract regression tests for endpoint status/shape parity in `services/api/internal/api/futbol_contract_regression_test.go`
+- [X] T012 [P] [US1] Add integration tests for route/query-name stability across `/futbol/*` endpoints in `services/api/internal/api/futbol_routes_integration_test.go`
 
 ### Implementation for User Story 1
 

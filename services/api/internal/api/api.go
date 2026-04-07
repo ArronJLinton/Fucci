@@ -10,6 +10,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/ArronJLinton/fucci-api/internal/futbol"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 )
@@ -67,6 +68,7 @@ type Config struct {
 	CloudinaryUploadPreset string
 	Cache                  cache.CacheInterface
 	APIFootballBaseURL     string
+	FutbolService          *futbol.Service
 	NewsBaseURL            string // optional; when set, news client uses this (e.g. for tests)
 	OpenAIKey              string
 	OpenAIBaseURL          string
@@ -89,6 +91,12 @@ func New(c Config) http.Handler {
 	// Initialize AI prompt generator if OpenAI key is provided
 	if c.OpenAIKey != "" {
 		c.AIPromptGenerator = ai.NewPromptGenerator(c.OpenAIKey, c.OpenAIBaseURL, c.Cache)
+	}
+	if c.FutbolService == nil {
+		c.FutbolService = futbol.NewService(
+			futbol.NewAPIFootballClient(c.APIFootballBaseURL, c.FootballAPIKey),
+			c.Cache,
+		)
 	}
 
 	// Initialize services
