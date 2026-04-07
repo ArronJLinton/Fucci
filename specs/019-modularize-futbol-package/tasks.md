@@ -17,9 +17,9 @@
 
 **Purpose**: Establish package skeleton and shared refactor scaffolding.
 
-- [ ] T001 Create new backend package directory and placeholder docs in `services/api/internal/futbol/README.md`
-- [ ] T002 Create package files `services/api/internal/futbol/{types.go,service.go,client.go,cache.go,transformer.go,summary.go}`
-- [ ] T003 [P] Add backend-only scope note to feature docs in `specs/019-modularize-futbol-package/quickstart.md`
+- [X] T001 Create new backend package directory and placeholder docs in `services/api/internal/futbol/README.md`
+- [X] T002 Create package files `services/api/internal/futbol/{types.go,service.go,client.go,cache.go,transformer.go,summary.go}`
+- [X] T003 [P] Add backend-only scope note to feature docs in `specs/019-modularize-futbol-package/quickstart.md`
 
 ---
 
@@ -29,11 +29,11 @@
 
 **⚠️ CRITICAL**: No user story work starts before this phase is complete.
 
-- [ ] T004 Define canonical futbol domain DTOs and typed errors in `services/api/internal/futbol/types.go`
-- [ ] T005 Define `FutbolProvider` interface and `FutbolService` constructor/dependencies in `services/api/internal/futbol/service.go`
-- [ ] T006 Implement API-Football provider transport scaffolding (baseURL, headers, request helper wrappers) in `services/api/internal/futbol/client.go`
-- [ ] T007 Implement redesigned cache key namespace and TTL policy helpers (including stale-on-error semantics) in `services/api/internal/futbol/cache.go`
-- [ ] T008 Add mapper boundary helpers (provider payload -> canonical DTOs) in `services/api/internal/futbol/transformer.go`
+- [X] T004 Define canonical futbol domain DTOs and typed errors in `services/api/internal/futbol/types.go`
+- [X] T005 Define `FutbolProvider` interface and `FutbolService` constructor/dependencies in `services/api/internal/futbol/service.go`
+- [X] T006 Implement API-Football provider transport scaffolding (baseURL, headers, request helper wrappers) in `services/api/internal/futbol/client.go`
+- [X] T007 Implement redesigned cache key namespace and TTL policy helpers (including stale-on-error semantics) in `services/api/internal/futbol/cache.go`
+- [X] T008 Add mapper boundary helpers (provider payload -> canonical DTOs) in `services/api/internal/futbol/transformer.go`
 - [X] T009 Wire new service instance into API config/wiring points in `services/api/internal/api/api.go`
 - [X] T010 Create shared test fakes for provider/cache in `services/api/internal/futbol/test_helpers_test.go`
 
@@ -54,13 +54,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Refactor `getMatches` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
-- [ ] T014 [US1] Refactor `getMatchLineup` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
-- [ ] T015 [US1] Refactor `getLeagues` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
-- [ ] T016 [US1] Refactor standings handlers (`getLeagueStandingsByTeamId`, `getLeagueStandingsByLeagueId`) to delegate to service in `services/api/internal/api/futbol.go`
-- [ ] T017 [US1] Implement service methods for matches/lineup/leagues/standings with unchanged HTTP-facing semantics in `services/api/internal/futbol/service.go`
-- [ ] T018 [US1] Keep endpoint parameter validation and error mapping at handler boundary in `services/api/internal/api/futbol.go`
-- [ ] T019 [US1] Update OpenAPI contract notes if needed for preserved compatibility in `specs/019-modularize-futbol-package/contracts/futbol-modularization.openapi.yaml`
+- [X] T013 [US1] Refactor `getMatches` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
+- [X] T014 [US1] Refactor `getMatchLineup` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
+- [X] T015 [US1] Refactor `getLeagues` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
+- [X] T016 [US1] Refactor standings handlers (`getLeagueStandingsByTeamId`, `getLeagueStandingsByLeagueId`) to delegate to service in `services/api/internal/api/futbol.go`
+- [X] T017 [US1] Implement service methods for matches/lineup/leagues/standings with unchanged HTTP-facing semantics in `services/api/internal/futbol/service.go`
+- [X] T018 [US1] Keep endpoint parameter validation and error mapping at handler boundary in `services/api/internal/api/futbol.go`
+- [X] T019 [US1] Update OpenAPI contract notes if needed for preserved compatibility in `specs/019-modularize-futbol-package/contracts/futbol-modularization.openapi.yaml`
 
 **Checkpoint**: P1 routes behave compatibly with thin handlers and service-backed internals.
 

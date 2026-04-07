@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/ArronJLinton/fucci-api/internal/cache"
+	"github.com/ArronJLinton/fucci-api/internal/futbol"
 )
 
 type GetMatchesParams struct {
@@ -21,132 +22,29 @@ type GetMatchesParams struct {
 func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Step 1: Get date and optional league_id from query parameters
 	queryParams := r.URL.Query()
 	date := queryParams.Get("date")
 	leagueID := queryParams.Get("league_id")
-	log.Printf("League ID: %s\n", leagueID)
 	if date == "" {
-		log.Printf("ERROR: date parameter is missing")
 		respondWithError(w, http.StatusBadRequest, "date parameter is required")
 		return
 	}
 
-	// Generate cache key (include league_id if provided)
-	var cacheKey string
-	if leagueID != "" {
-		cacheKey = fmt.Sprintf("matches:league:%s:date:%s", leagueID, date)
-	} else {
-		cacheKey = fmt.Sprintf("matches:date:%s", date)
-	}
-	log.Printf("Cache key: %s\n", cacheKey)
-
-	// Try to get from cache first
-	var data GetMatchesAPIResponse
-	exists, err := c.Cache.Exists(ctx, cacheKey)
-	if err != nil {
-		log.Printf("Cache check error: %v\n", err)
-	} else if exists {
-		err = c.Cache.Get(ctx, cacheKey, &data)
-		if err == nil {
-			log.Printf("Cache HIT: Returning cached data\n")
-			respondWithJSON(w, http.StatusOK, data)
-			return
-		}
-		log.Printf("Cache get error: %v\n", err)
-	} else {
-		log.Printf("Cache MISS: Fetching from API\n")
-	}
-
 	footballAPIKey := c.FootballAPIKey
 	if footballAPIKey == "" {
-		log.Printf("ERROR: Football API key is missing")
 		respondWithError(w, http.StatusBadRequest, "Football API key is required")
 		return
 	}
-	// If not in cache or error occurred, fetch from API
-	// Build URL with optional league filter
-	baseURL := c.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
-	if leagueID != "" {
-		// When filtering by league, RapidAPI requires a season parameter
-		// Extract year from date to determine season
-		// dateTime, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			log.Printf("ERROR: Invalid date format: %s\n", date)
-			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
-			return
-		}
-		// FIXME: Need to dynamically set the season year
-		// season := dateTime.Year()
-		season := 2025
-		url = fmt.Sprintf("%s&league=%s&season=%d", url, leagueID, season)
-		log.Printf("URL: %s\n", url)
-		log.Printf("Filtering matches by league_id: %s, season: %d\n", leagueID, season)
-	}
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
-	}
-
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	raw, _, err := c.futbolService().GetMatches(ctx, date, leagueID)
 	if err != nil {
-		log.Printf("ERROR: HTTPRequest failed: %v\n", err)
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
 		return
 	}
-	defer resp.Body.Close()
-
-	// Read the raw response body for debugging
-	rawBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("ERROR: Failed to read response body: %v\n", err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to read response body: %s", err))
-		return
-	}
-
-	// Create a new reader from the raw body for JSON decoding
-	err = json.Unmarshal(rawBody, &data)
-	if err != nil {
-		log.Printf("ERROR: JSON unmarshal failed: %v\n", err)
-		log.Printf("Full raw response: %s\n", string(rawBody))
+	var data GetMatchesAPIResponse
+	if err := decodeRawMap(raw, &data); err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse response from football api service: %s", err))
 		return
 	}
-
-	// Check if response is empty or invalid before caching
-	if data.Results == 0 || len(data.Response) == 0 {
-		log.Printf("WARNING: API returned empty response (results=%d, response items=%d), skipping cache\n", data.Results, len(data.Response))
-		log.Printf("Response data: get=%s, errors=%v\n", data.Get, data.Errors)
-		respondWithJSON(w, http.StatusOK, data)
-		return
-	}
-
-	// Determine cache TTL based on match statuses
-	ttl := cache.DefaultTTL
-	if len(data.Response) > 0 {
-		// Check if any matches are live
-		for _, match := range data.Response {
-			status := match.Fixture.Status.Short
-			matchTTL := cache.GetMatchTTL(status)
-			// Use the shortest TTL found (most conservative)
-			if matchTTL < ttl {
-				ttl = matchTTL
-			}
-		}
-	}
-
-	// Store in cache with determined TTL (only if we have valid data)
-	err = c.Cache.Set(ctx, cacheKey, data, ttl)
-	if err != nil {
-		log.Printf("Cache set error: %v\n", err)
-	} else {
-		log.Printf("Cached data with TTL: %v (results=%d)\n", ttl, data.Results)
-	}
-
 	respondWithJSON(w, http.StatusOK, data)
 }
 
@@ -286,11 +184,17 @@ func (c *Config) getMatchLineup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	getLineUpData, err := c.FetchLineupData(ctx, matchID)
+	rawLineup, _, err := c.futbolService().GetLineup(ctx, matchID)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	var lineUpData GetLineUpResponse
+	if err := decodeRawMap(rawLineup, &lineUpData); err != nil {
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse lineup response: %s", err))
+		return
+	}
+	getLineUpData := &lineUpData
 
 	fmt.Printf("Number of lineup responses: %d\n", len(getLineUpData.Response))
 
@@ -505,67 +409,15 @@ func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse,
 
 func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	// Derive current year dynamically
-	currentYear := time.Now().Year()
-	cacheKey := fmt.Sprintf("leagues:%d", currentYear)
-
-	// Try to get from cache first
-	var data GetLeaguesResponse
-	exists, err := c.Cache.Exists(ctx, cacheKey)
-	if err != nil {
-		log.Printf("Cache check error: %v\n", err)
-	} else if exists {
-		err = c.Cache.Get(ctx, cacheKey, &data)
-		if err == nil {
-			// Process the cached data
-			type LeagueInfo struct {
-				Name    string `json:"name"`
-				Country string `json:"country"`
-				Logo    string `json:"logo"`
-			}
-			leagueNames := []LeagueInfo{}
-			for _, l := range data.Response {
-				obj := LeagueInfo{
-					Name:    l.League.Name,
-					Country: l.Country.Name,
-					Logo:    l.League.Logo,
-				}
-				leagueNames = append(leagueNames, obj)
-			}
-			respondWithJSON(w, http.StatusOK, leagueNames)
-			return
-		}
-		log.Printf("Cache get error: %v\n", err)
-	}
-
-	baseURL := c.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-	url := baseURL + "/leagues?season=2025"
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
-	}
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	raw, _, err := c.futbolService().GetLeagues(ctx, "2025")
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
 		return
 	}
-	defer resp.Body.Close()
-
-	responseBody := json.NewDecoder(resp.Body)
-	err = responseBody.Decode(&data)
-	if err != nil {
+	var data GetLeaguesResponse
+	if err := decodeRawMap(raw, &data); err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to read response from football api service: %s", err))
 		return
-	}
-
-	// Store in cache for 24 hours (league data rarely changes)
-	err = c.Cache.Set(ctx, cacheKey, data, cache.TeamInfoTTL)
-	if err != nil {
-		log.Printf("Cache set error: %v\n", err)
 	}
 
 	type LeagueInfo struct {
@@ -595,53 +447,16 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// TODO: Dynamically set the season year
 	currentYear := time.Now().Year()
-
-	// Generate cache key
-	cacheKey := fmt.Sprintf("team_standings:%s:%d", teamId, currentYear)
-
-	// Try to get from cache first
-	var data GetLeagueStandingsByTeamIdResponse
-	exists, err := c.Cache.Exists(ctx, cacheKey)
-	if err != nil {
-		log.Printf("Cache check error: %v\n", err)
-	} else if exists {
-		err = c.Cache.Get(ctx, cacheKey, &data)
-		if err == nil {
-			respondWithJSON(w, http.StatusOK, data)
-			return
-		}
-		log.Printf("Cache get error: %v\n", err)
-	}
-
-	baseURL := c.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-	url := fmt.Sprintf("%s/standings?season=%d&team=%s", baseURL, currentYear, teamId)
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
-	}
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	raw, _, err := c.futbolService().GetTeamStandings(ctx, teamId, currentYear)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
 		return
 	}
-	defer resp.Body.Close()
-
-	responseBody := json.NewDecoder(resp.Body)
-	err = responseBody.Decode(&data)
-	if err != nil {
+	var data GetLeagueStandingsByTeamIdResponse
+	if err := decodeRawMap(raw, &data); err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error parsing response body: %s", err))
 		return
-	}
-
-	// Store in cache for 6 hours (standings update periodically)
-	err = c.Cache.Set(ctx, cacheKey, data, cache.StandingsTTL)
-	if err != nil {
-		log.Printf("Cache set error: %v\n", err)
 	}
 
 	respondWithJSON(w, http.StatusOK, data)
@@ -831,13 +646,13 @@ func (c *Config) getLeagueStandingsByLeagueId(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	data, err := c.GetLeagueStandingsData(ctx, leagueID, season)
+	data, _, err := c.futbolService().GetLeagueStandings(ctx, leagueID, season)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, data)
+	respondWithJSON(w, http.StatusOK, data.Raw)
 }
 
 type GetLeagueStandingsResponse struct {
@@ -903,4 +718,22 @@ type GetLeagueStandingsResponse struct {
 		Current int `json:"current"`
 		Total   int `json:"total"`
 	} `json:"paging"`
+}
+
+func (c *Config) futbolService() *futbol.Service {
+	if c.FutbolService == nil {
+		c.FutbolService = futbol.NewService(
+			futbol.NewAPIFootballClient(c.APIFootballBaseURL, c.FootballAPIKey),
+			c.Cache,
+		)
+	}
+	return c.FutbolService
+}
+
+func decodeRawMap(raw map[string]any, out interface{}) error {
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
 }

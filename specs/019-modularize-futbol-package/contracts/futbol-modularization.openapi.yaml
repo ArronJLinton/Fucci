@@ -6,6 +6,8 @@ info:
     Contract-focused OpenAPI for refactor safety. This feature preserves existing
     public endpoint behavior while moving implementation into internal/futbol.
     Scope constraint: backend-only refactor, no client API-surface renames.
+    Implementation note: handlers delegate to FutbolService while preserving
+    route/query names, status codes, and response schema compatibility.
 servers:
   - url: /v1/api
 paths:
