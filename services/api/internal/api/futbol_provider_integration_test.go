@@ -99,8 +99,8 @@ func TestFutbolHandler_MapsProviderErrors(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/futbol/matches?date=2026-04-06", nil)
 	rec := httptest.NewRecorder()
 	cfg.getMatches(rec, req)
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("expected 502 for provider failure, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for provider failure, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

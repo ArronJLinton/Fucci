@@ -612,7 +612,8 @@ func futbolHTTPStatus(err error) int {
 	case errors.Is(err, futbol.ErrInvalidInput):
 		return http.StatusBadRequest
 	case errors.Is(err, futbol.ErrUpstream), errors.Is(err, futbol.ErrParse):
-		return http.StatusBadGateway
+		// Preserve existing endpoint contract: futbol handlers return 400 on upstream/provider failures.
+		return http.StatusBadRequest
 	default:
 		return http.StatusBadRequest
 	}
