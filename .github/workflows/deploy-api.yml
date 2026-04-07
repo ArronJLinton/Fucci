@@ -32,14 +32,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # API is Go-only under services/api (no package-lock there). Node is for corepack/yarn (root package.json migrate script).
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
       # setup-go only accepts go-version / go-version-file, cache (boolean), cache-dependency-path.
       # Do not pass node-version or npm-style cache here — that breaks the step.
       - name: Setup Go
@@ -74,31 +66,26 @@ jobs:
       - name: Setup Fly.io
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
+      # Include DB_URL so [deploy].release_command = ./migrate can reach Postgres from Fly (not from GitHub).
       - name: Sync secrets to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DB_URL: ${{ secrets.DB_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           flyctl secrets set \
+            DB_URL="$DB_URL" \
             SUPABASE_URL="$SUPABASE_URL" \
             SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
             SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
             --app fucci-api --stage
 
-      # Same as root package.json "migrate": cd services/api && go run -tags migrate ./cmd/migrate
-      # Exits non-zero on failure (no masking). Fly also runs ./migrate via release_command after deploy.
-      - name: Run database migrations
-        env:
-          DB_URL: ${{ secrets.DB_URL }}
-        run: |
-          corepack enable
-          # Strip CRs often pasted into GitHub Secrets; libpq rejects malformed DSNs (missing "=" errors).
-          export DB_URL="${DB_URL//$'\r'/}"
-          yarn migrate
+      # Migrations run on Fly only: fly.toml [deploy] release_command = ./migrate (GitHub runners often
+      # cannot reach IPv6 Postgres hosts — "network is unreachable"). Use yarn migrate locally when needed.
 
       - name: Deploy to Fly.io
         working-directory: ./services/api

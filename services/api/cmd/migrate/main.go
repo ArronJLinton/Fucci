@@ -53,9 +53,14 @@ func main() {
 
 	// Test connection
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v\n"+
-			"Hint: use a single-line postgres URL; URL-encode special characters in the password; "+
-			"remove accidental quotes or line breaks from GitHub/Fly secrets.", err)
+		errStr := err.Error()
+		hint := "Hint: use a single-line postgres URL; URL-encode special characters in the password; " +
+			"remove accidental quotes or line breaks from secrets."
+		if strings.Contains(errStr, "network is unreachable") || strings.Contains(errStr, "no route to host") {
+			hint = "Hint: IPv6 or routing issue — GitHub Actions runners often cannot reach IPv6-only DB endpoints. " +
+				"Run migrations on Fly (release_command) or use a Supabase pooler / connection string that resolves to IPv4."
+		}
+		log.Fatalf("Failed to ping database: %v\n%s", err, hint)
 	}
 
 	fmt.Println("Connected to database successfully")
