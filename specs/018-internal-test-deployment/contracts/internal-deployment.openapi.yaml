@@ -1,0 +1,207 @@
+openapi: 3.0.3
+info:
+  title: Fucci Internal Deployment Planning API
+  version: 0.1.0
+  description: >
+    Contract for representing deployment checklist data used to drive Android/iOS
+    internal test readiness and execution order.
+servers:
+  - url: https://internal.fucci.example
+paths:
+  /deployment/tasks:
+    get:
+      summary: List deployment tasks
+      parameters:
+        - in: query
+          name: platform
+          schema:
+            type: string
+            enum: [android, ios, shared]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [todo, in_progress, blocked, done]
+      responses:
+        "200":
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DeploymentTask"
+  /deployment/tasks/{taskId}:
+    patch:
+      summary: Update task status/notes
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [todo, in_progress, blocked, done]
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentTask"
+  /deployment/credentials:
+    get:
+      summary: List credential assets
+      responses:
+        "200":
+          description: Credential inventory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CredentialAsset"
+  /deployment/build-profiles:
+    get:
+      summary: List EAS build profile metadata (profile name, OTA channel, submit intent)
+      responses:
+        "200":
+          description: Build profile and channel mapping for internal deployment planning
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuildProfileMetadata"
+components:
+  schemas:
+    DeploymentTask:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - platform
+        - category
+        - status
+        - owner_role
+        - blocking
+        - dependency_ids
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        platform:
+          type: string
+          enum: [android, ios, shared]
+        category:
+          type: string
+          enum: [account, credentials, eas-config, ci, ota, validation]
+        status:
+          type: string
+          enum: [todo, in_progress, blocked, done]
+        owner_role:
+          type: string
+        blocking:
+          type: boolean
+        dependency_ids:
+          type: array
+          items:
+            type: string
+        artifacts:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+    CredentialAsset:
+      type: object
+      required:
+        - id
+        - type
+        - provider
+        - created_by
+        - backup_location
+        - scope
+        - active
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [android_keystore, fcm_service_account, apns_key, apple_profile, eas_token]
+        provider:
+          type: string
+          enum: [google, apple, expo, github]
+        created_by:
+          type: string
+        rotation_policy_days:
+          type: integer
+          minimum: 1
+        backup_location:
+          type: string
+        last_verified_at:
+          type: string
+          format: date-time
+        scope:
+          type: string
+          enum: [development, staging, production, shared]
+        active:
+          type: boolean
+    BuildProfileMetadata:
+      type: object
+      required:
+        - eas_profile
+        - ota_channel
+        - distribution
+        - submit_profile_key
+      description: >
+        Mirrors apps/mobile/eas.json intent: EAS build profile name, matching EAS Update channel,
+        distribution target, and which submit.* key applies for store upload.
+      properties:
+        eas_profile:
+          type: string
+          enum: [development, preview, production]
+        ota_channel:
+          type: string
+          enum: [dev, staging, production]
+        distribution:
+          type: string
+          enum: [internal, store]
+        submit_profile_key:
+          type: string
+          description: Key under submit in eas.json; preview used for internal test submits.
+          enum: [none, preview, production]
+        android_submit_track:
+          type: string
+          description: Google Play track when submit profile is used.
+          enum: [internal, production]
+        ios_submit_target:
+          type: string
+          description: iOS delivery target for the submit profile.
+          enum: [testflight, app_store]

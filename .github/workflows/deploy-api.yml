@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - 'services/api/**'
       - '.github/workflows/deploy-api.yml'
@@ -14,25 +13,99 @@ jobs:
   deploy:
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
-    environment: production
+    environment: staging
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: services/api/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+          cache-dependency-path: services/api/go.sum
+
+      - name: Install dependencies
+        working-directory: ./services/api
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./services/api
+        run: go test ./...
+
+      - name: Validate required secrets
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DB_URL: ${{ secrets.DB_URL }}
+        run: |
+          missing=""
+          [ -z "$FLY_API_TOKEN" ]       && missing="$missing FLY_API_TOKEN"
+          [ -z "$SUPABASE_URL" ]        && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_KEY" ] && missing="$missing SUPABASE_SERVICE_KEY"
+          [ -z "$DB_URL" ]              && missing="$missing DB_URL"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Missing required secrets:$missing"
+            exit 1
+          fi
+          echo "All required secrets are present."
+
       - name: Setup Fly.io
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@v1
+
+      - name: Sync secrets to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          secrets_args=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_KEY=$SUPABASE_SERVICE_KEY"
+          )
+
+      # Same as root package.json "migrate": cd services/api && go run -tags migrate ./cmd/migrate
+      # Exits non-zero on failure (no masking). Fly also runs ./migrate via release_command after deploy.
+      - name: Run database migrations
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+        run: |
+          corepack enable
+          yarn migrate
 
       - name: Deploy to Fly.io
         working-directory: ./services/api
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          flyctl deploy --remote-only
-        continue-on-error: false
+        run: flyctl deploy --remote-only --wait-timeout 120
 
-      - name: Verify deployment
+      - name: Health check
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl status --app fucci-api || true
+          echo "Waiting for deployment to stabilise..."
+          sleep 15
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            --max-time 10 https://fucci-api.fly.dev/v1/api/health)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Health check failed — HTTP $STATUS"
+            flyctl logs --app fucci-api --no-tail
+            exit 1
+          fi
+          echo "Health check passed — HTTP $STATUS"
+
+      - name: Verify deployment status
+        if: always()
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl status --app fucci-api

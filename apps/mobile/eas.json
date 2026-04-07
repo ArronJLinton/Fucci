@@ -6,6 +6,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "dev",
       "android": {
         "gradleCommand": ":app:assembleDebug"
       },
@@ -15,26 +16,29 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "staging",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
       }
     }
   },
   "submit": {
+    "preview": {
+      "android": {
+        "track": "internal",
+        "changesNotSentForReview": true
+      }
+    },
     "production": {
       "android": {
         "track": "internal",
         "changesNotSentForReview": false
-      },
-      "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "your-apple-team-id"
       }
     }
   }

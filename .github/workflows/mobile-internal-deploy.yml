@@ -1,0 +1,255 @@
+# EAS preview builds for internal testing; submit jobs are manual + environment-gated.
+# Configure GitHub Environment `mobile-internal-submit` with required reviewers before enabling submit.
+# iOS submit: ASC_APP_ID + ASC_API_KEY_* secrets (App Store Connect API key); no Apple ID in eas.json.
+
+name: Mobile EAS (preview)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/mobile-internal-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      run_submit:
+        description: Run gated submit to Play internal / TestFlight after builds complete
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: mobile-internal-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-secrets:
+    name: Validate required secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if EXPO_TOKEN is missing
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          missing=""
+          [ -z "$EXPO_TOKEN" ] && missing="$missing EXPO_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+          echo "EXPO_TOKEN is set."
+
+  build-android-preview:
+    name: EAS build Android (preview)
+    needs: validate-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies (monorepo)
+        run: yarn install --frozen-lockfile
+
+      - name: EAS build Android preview
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform android --profile preview --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## build-android-preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run: ${{ github.run_id }} | SHA: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CI metadata (retention)
+        if: always()
+        run: |
+          mkdir -p ci-artifacts
+          echo "{\"job\":\"build-android-preview\",\"run_id\":\"${{ github.run_id }}\",\"sha\":\"${{ github.sha }}\",\"conclusion\":\"${{ job.status }}\"}" > ci-artifacts/metadata.json
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-build-android-preview-${{ github.run_id }}
+          path: ci-artifacts/
+          retention-days: 30
+
+  build-ios-preview:
+    name: EAS build iOS (preview)
+    needs: validate-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies (monorepo)
+        run: yarn install --frozen-lockfile
+
+      - name: EAS build iOS preview
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform ios --profile preview --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## build-ios-preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run: ${{ github.run_id }} | SHA: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CI metadata (retention)
+        if: always()
+        run: |
+          mkdir -p ci-artifacts
+          echo "{\"job\":\"build-ios-preview\",\"run_id\":\"${{ github.run_id }}\",\"sha\":\"${{ github.sha }}\",\"conclusion\":\"${{ job.status }}\"}" > ci-artifacts/metadata.json
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-build-ios-preview-${{ github.run_id }}
+          path: ci-artifacts/
+          retention-days: 30
+
+  submit-android-preview:
+    name: EAS submit Android (preview) — gated
+    needs: build-android-preview
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_submit == 'true' }}
+    runs-on: ubuntu-latest
+    environment: mobile-internal-submit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies (monorepo)
+        run: yarn install --frozen-lockfile
+
+      - name: Validate EXPO_TOKEN before submit
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is required for submit"
+            exit 1
+          fi
+
+      - name: EAS submit Android (latest preview build)
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli submit --platform android --profile preview --latest --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: echo "## submit-android-preview (gated)" >> "$GITHUB_STEP_SUMMARY"
+
+  submit-ios-preview:
+    name: EAS submit iOS (preview) — gated
+    needs: build-ios-preview
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_submit == true }}
+    runs-on: ubuntu-latest
+    environment: mobile-internal-submit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies (monorepo)
+        run: yarn install --frozen-lockfile
+
+      - name: Validate EXPO_TOKEN before submit
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is required for submit"
+            exit 1
+          fi
+
+      # iOS submit uses App Store Connect API key auth (no Apple ID / app-specific password in repo).
+      # Do not set EXPO_APPLE_APP_SPECIFIC_PASSWORD here — that would force the brittle password flow.
+      - name: Validate App Store Connect API secrets for iOS submit
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          missing=""
+          [ -z "$ASC_APP_ID" ] && missing="$missing ASC_APP_ID"
+          [ -z "$ASC_API_KEY_ID" ] && missing="$missing ASC_API_KEY_ID"
+          [ -z "$ASC_API_ISSUER_ID" ] && missing="$missing ASC_API_ISSUER_ID"
+          [ -z "$ASC_API_KEY_P8" ] && missing="$missing ASC_API_KEY_P8"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets for iOS submit (set on Environment mobile-internal-submit):$missing"
+            exit 1
+          fi
+
+      - name: Inject iOS submit profile (ASC API key from secrets)
+        working-directory: apps/mobile
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/AscApiKey.p8"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          jq --arg id "$ASC_APP_ID" \
+            --arg kid "$ASC_API_KEY_ID" \
+            --arg iss "$ASC_API_ISSUER_ID" \
+            --arg path "$KEY_PATH" \
+            '.submit.preview.ios = {
+              ascAppId: $id,
+              ascApiKeyId: $kid,
+              ascApiKeyIssuerId: $iss,
+              ascApiKeyPath: $path
+            }' eas.json > eas.json.tmp && mv eas.json.tmp eas.json
+
+      - name: EAS submit iOS (current workflow build)
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_BUILD_ID: ${{ needs.build-ios-preview.outputs.build_id }}
+        run: |
+          if [ -z "$EAS_BUILD_ID" ]; then
+            echo "::error::Missing build ID from build-ios-preview job output"
+            exit 1
+          fi
+          npx eas-cli submit --platform ios --profile preview --id "$EAS_BUILD_ID" --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: echo "## submit-ios-preview (gated)" >> "$GITHUB_STEP_SUMMARY"
