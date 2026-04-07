@@ -76,14 +76,20 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          flyctl secrets set \
+          set -- \
             DB_URL="$DB_URL" \
             SUPABASE_URL="$SUPABASE_URL" \
-            SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
-            SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-            --app fucci-api --stage
+            SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY"
 
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            set -- "$@" SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          fi
+
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            set -- "$@" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+          fi
+
+          flyctl secrets set "$@" --app fucci-api --stage
       # Migrations run on Fly only: fly.toml [deploy] release_command = ./migrate (GitHub runners often
       # cannot reach IPv6 Postgres hosts — "network is unreachable"). Use yarn migrate locally when needed.
 
