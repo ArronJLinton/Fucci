@@ -112,3 +112,15 @@ apps/mobile/**                       # unchanged (out of scope)
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
 | N/A | N/A | N/A |
+
+## Contract Parity Summary (Post-Implementation)
+
+- Route and query parameter names preserved for:
+  - `/futbol/matches?date=...&league_id=...`
+  - `/futbol/lineup?match_id=...`
+  - `/futbol/leagues`
+  - `/futbol/team_standings?team_id=...`
+  - `/futbol/league_standings?league_id=...&season=...`
+- Error-shape and route stability regression tests are in place and passing in `internal/api`.
+- Provider abstraction is injectable (`Config.FutbolProvider`) with service-level typed error normalization.
+- Backend-only scope confirmed: `git diff --name-only main...HEAD -- apps/mobile apps/admin` returned no files.

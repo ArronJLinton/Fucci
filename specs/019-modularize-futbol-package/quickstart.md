@@ -62,3 +62,16 @@ curl "http://localhost:8080/v1/api/futbol/league_standings?league_id=39&season=2
 - Reusable futbol logic is importable from `internal/futbol`.
 - Debate aggregator usage remains functional through service-level APIs.
 - No client/mobile/web files are changed as part of this feature.
+
+## Validation Results
+
+Validated on 2026-04-07:
+
+- `go test ./internal/api -run Futbol -count=1` -> pass
+- `go test ./internal/futbol/... -count=1` -> pass
+- `go test ./... -count=1` -> pass
+
+## Scope Verification
+
+- Command: `git diff --name-only main...HEAD -- apps/mobile apps/admin`
+- Result: no changed files under `apps/mobile` or `apps/admin`

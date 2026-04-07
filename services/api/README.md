@@ -31,3 +31,8 @@ Or, if you don't want/need a background service you can just run:
     - Step 1) Create New Schema
     - Step 2) Create Query
     - Step 3) Run `sqlc generate`
+
+#### Futbol Modularization Validation (2026-04-07)
+- `go test ./internal/api -run Futbol -count=1` passed
+- `go test ./internal/futbol/... -count=1` passed
+- `go test ./... -count=1` passed

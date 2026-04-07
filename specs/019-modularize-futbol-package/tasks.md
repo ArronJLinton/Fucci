@@ -115,10 +115,10 @@
 
 **Purpose**: Finalize documentation, run full validation, and enforce backend-only scope.
 
-- [ ] T033 [P] Update refactor notes and validation results in `specs/019-modularize-futbol-package/quickstart.md`
-- [ ] T034 Run full backend test suite and capture results in `services/api/README.md`
-- [ ] T035 Confirm diff scope excludes client changes (`apps/mobile/**`, `apps/admin/**`) using `git diff --name-only`
-- [ ] T036 Run quickstart smoke checks and ensure contract parity summary in `specs/019-modularize-futbol-package/plan.md`
+- [X] T033 [P] Update refactor notes and validation results in `specs/019-modularize-futbol-package/quickstart.md`
+- [X] T034 Run full backend test suite and capture results in `services/api/README.md`
+- [X] T035 Confirm diff scope excludes client changes (`apps/mobile/**`, `apps/admin/**`) using `git diff --name-only`
+- [X] T036 Run quickstart smoke checks and ensure contract parity summary in `specs/019-modularize-futbol-package/plan.md`
 
 ---
 
