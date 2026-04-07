@@ -17,9 +17,15 @@
 
 **Purpose**: Establish package skeleton and shared refactor scaffolding.
 
+<<<<<<< HEAD
 - [X] T001 Create new backend package directory and placeholder docs in `services/api/internal/futbol/README.md`
 - [X] T002 Create package files `services/api/internal/futbol/{types.go,service.go,client.go,cache.go,transformer.go,summary.go}`
 - [X] T003 [P] Add backend-only scope note to feature docs in `specs/019-modularize-futbol-package/quickstart.md`
+=======
+- [ ] T001 Create new backend package directory and placeholder docs in `services/api/internal/futbol/README.md`
+- [ ] T002 Create package files `services/api/internal/futbol/{types.go,service.go,client.go,cache.go,transformer.go,summary.go}`
+- [ ] T003 [P] Add backend-only scope note to feature docs in `specs/019-modularize-futbol-package/quickstart.md`
+>>>>>>> 0769677f (fixed conflict)
 
 ---
 
@@ -29,6 +35,7 @@
 
 **⚠️ CRITICAL**: No user story work starts before this phase is complete.
 
+<<<<<<< HEAD
 - [X] T004 Define canonical futbol domain DTOs and typed errors in `services/api/internal/futbol/types.go`
 - [X] T005 Define `FutbolProvider` interface and `FutbolService` constructor/dependencies in `services/api/internal/futbol/service.go`
 - [X] T006 Implement API-Football provider transport scaffolding (baseURL, headers, request helper wrappers) in `services/api/internal/futbol/client.go`
@@ -36,6 +43,15 @@
 - [X] T008 Add mapper boundary helpers (provider payload -> canonical DTOs) in `services/api/internal/futbol/transformer.go`
 - [X] T009 Wire new service instance into API config/wiring points in `services/api/internal/api/api.go`
 - [X] T010 Create shared test fakes for provider/cache in `services/api/internal/futbol/test_helpers_test.go`
+=======
+- [ ] T004 Define canonical futbol domain DTOs and typed errors in `services/api/internal/futbol/types.go`
+- [ ] T005 Define `FutbolProvider` interface and `FutbolService` constructor/dependencies in `services/api/internal/futbol/service.go`
+- [ ] T006 Implement API-Football provider transport scaffolding (baseURL, headers, request helper wrappers) in `services/api/internal/futbol/client.go`
+- [ ] T007 Implement redesigned cache key namespace and TTL policy helpers (including stale-on-error semantics) in `services/api/internal/futbol/cache.go`
+- [ ] T008 Add mapper boundary helpers (provider payload -> canonical DTOs) in `services/api/internal/futbol/transformer.go`
+- [ ] T009 Wire new service instance into API config/wiring points in `services/api/internal/api/api.go`
+- [ ] T010 Create shared test fakes for provider/cache in `services/api/internal/futbol/test_helpers_test.go`
+>>>>>>> 0769677f (fixed conflict)
 
 **Checkpoint**: `internal/futbol` foundational API exists and is injectable from handlers.
 
@@ -49,6 +65,7 @@
 
 ### Tests for User Story 1
 
+<<<<<<< HEAD
 - [X] T011 [P] [US1] Add contract regression tests for endpoint status/shape parity in `services/api/internal/api/futbol_contract_regression_test.go`
 - [X] T012 [P] [US1] Add integration tests for route/query-name stability across `/futbol/*` endpoints in `services/api/internal/api/futbol_routes_integration_test.go`
 
@@ -61,6 +78,20 @@
 - [X] T017 [US1] Implement service methods for matches/lineup/leagues/standings with unchanged HTTP-facing semantics in `services/api/internal/futbol/service.go`
 - [X] T018 [US1] Keep endpoint parameter validation and error mapping at handler boundary in `services/api/internal/api/futbol.go`
 - [X] T019 [US1] Update OpenAPI contract notes if needed for preserved compatibility in `specs/019-modularize-futbol-package/contracts/futbol-modularization.openapi.yaml`
+=======
+- [ ] T011 [P] [US1] Add contract regression tests for endpoint status/shape parity in `services/api/internal/api/futbol_contract_regression_test.go`
+- [ ] T012 [P] [US1] Add integration tests for route/query-name stability across `/futbol/*` endpoints in `services/api/internal/api/futbol_routes_integration_test.go`
+
+### Implementation for User Story 1
+
+- [ ] T013 [US1] Refactor `getMatches` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
+- [ ] T014 [US1] Refactor `getMatchLineup` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
+- [ ] T015 [US1] Refactor `getLeagues` handler to delegate to `futbol.Service` in `services/api/internal/api/futbol.go`
+- [ ] T016 [US1] Refactor standings handlers (`getLeagueStandingsByTeamId`, `getLeagueStandingsByLeagueId`) to delegate to service in `services/api/internal/api/futbol.go`
+- [ ] T017 [US1] Implement service methods for matches/lineup/leagues/standings with unchanged HTTP-facing semantics in `services/api/internal/futbol/service.go`
+- [ ] T018 [US1] Keep endpoint parameter validation and error mapping at handler boundary in `services/api/internal/api/futbol.go`
+- [ ] T019 [US1] Update OpenAPI contract notes if needed for preserved compatibility in `specs/019-modularize-futbol-package/contracts/futbol-modularization.openapi.yaml`
+>>>>>>> 0769677f (fixed conflict)
 
 **Checkpoint**: P1 routes behave compatibly with thin handlers and service-backed internals.
 
@@ -74,6 +105,7 @@
 
 ### Tests for User Story 2
 
+<<<<<<< HEAD
 - [X] T020 [P] [US2] Add unit tests for cache hit/miss + stale-on-error orchestration in `services/api/internal/futbol/service_cache_test.go`
 - [X] T021 [P] [US2] Add unit tests for provider parse/error handling in `services/api/internal/futbol/client_test.go`
 - [X] T022 [P] [US2] Add unit tests for transformer output invariants in `services/api/internal/futbol/transformer_test.go`
@@ -85,6 +117,19 @@
 - [X] T025 [US2] Move player/substitute normalization/filter helpers into `services/api/internal/futbol/transformer.go`
 - [X] T026 [US2] Replace direct cache key string usage in handlers with package cache helpers from `services/api/internal/futbol/cache.go`
 - [X] T027 [US2] Ensure debate aggregator consumes reusable service methods (not handler internals) in `services/api/internal/api/debate_data_aggregator.go`
+=======
+- [ ] T020 [P] [US2] Add unit tests for cache hit/miss + stale-on-error orchestration in `services/api/internal/futbol/service_cache_test.go`
+- [ ] T021 [P] [US2] Add unit tests for provider parse/error handling in `services/api/internal/futbol/client_test.go`
+- [ ] T022 [P] [US2] Add unit tests for transformer output invariants in `services/api/internal/futbol/transformer_test.go`
+
+### Implementation for User Story 2
+
+- [ ] T023 [US2] Move reusable fetch operations (`FetchLineupData`, `FetchMatchStatsData`, standings/head-to-head helpers) into `services/api/internal/futbol/service.go`
+- [ ] T024 [US2] Move text/summary helper logic into `services/api/internal/futbol/summary.go`
+- [ ] T025 [US2] Move player/substitute normalization/filter helpers into `services/api/internal/futbol/transformer.go`
+- [ ] T026 [US2] Replace direct cache key string usage in handlers with package cache helpers from `services/api/internal/futbol/cache.go`
+- [ ] T027 [US2] Ensure debate aggregator consumes reusable service methods (not handler internals) in `services/api/internal/api/debate_data_aggregator.go`
+>>>>>>> 0769677f (fixed conflict)
 
 **Checkpoint**: Core futbol logic is reusable from `internal/futbol` and independently unit-tested.
 
@@ -98,6 +143,7 @@
 
 ### Tests for User Story 3
 
+<<<<<<< HEAD
 - [X] T028 [P] [US3] Add mock-provider integration test for service behavior in `services/api/internal/futbol/service_provider_test.go`
 - [X] T029 [P] [US3] Add handler wiring test with injected fake provider in `services/api/internal/api/futbol_provider_integration_test.go`
 
@@ -106,6 +152,16 @@
 - [X] T030 [US3] Finalize `FutbolProvider` interface method set and API-Football implementation in `services/api/internal/futbol/{types.go,client.go}`
 - [X] T031 [US3] Add provider injection/wiring path in API config constructors in `services/api/internal/api/api.go`
 - [X] T032 [US3] Add provider-agnostic error mapping path in service/handler boundaries in `services/api/internal/futbol/service.go` and `services/api/internal/api/futbol.go`
+=======
+- [ ] T028 [P] [US3] Add mock-provider integration test for service behavior in `services/api/internal/futbol/service_provider_test.go`
+- [ ] T029 [P] [US3] Add handler wiring test with injected fake provider in `services/api/internal/api/futbol_provider_integration_test.go`
+
+### Implementation for User Story 3
+
+- [ ] T030 [US3] Finalize `FutbolProvider` interface method set and API-Football implementation in `services/api/internal/futbol/{types.go,client.go}`
+- [ ] T031 [US3] Add provider injection/wiring path in API config constructors in `services/api/internal/api/api.go`
+- [ ] T032 [US3] Add provider-agnostic error mapping path in service/handler boundaries in `services/api/internal/futbol/service.go` and `services/api/internal/api/futbol.go`
+>>>>>>> 0769677f (fixed conflict)
 
 **Checkpoint**: Provider can be swapped via wiring without endpoint contract rewrites.
 
@@ -115,10 +171,17 @@
 
 **Purpose**: Finalize documentation, run full validation, and enforce backend-only scope.
 
+<<<<<<< HEAD
 - [X] T033 [P] Update refactor notes and validation results in `specs/019-modularize-futbol-package/quickstart.md`
 - [X] T034 Run full backend test suite and capture results in `services/api/README.md`
 - [X] T035 Confirm diff scope excludes client changes (`apps/mobile/**`, `apps/admin/**`) using `git diff --name-only`
 - [X] T036 Run quickstart smoke checks and ensure contract parity summary in `specs/019-modularize-futbol-package/plan.md`
+=======
+- [ ] T033 [P] Update refactor notes and validation results in `specs/019-modularize-futbol-package/quickstart.md`
+- [ ] T034 Run full backend test suite and capture results in `services/api/README.md`
+- [ ] T035 Confirm diff scope excludes client changes (`apps/mobile/**`, `apps/admin/**`) using `git diff --name-only`
+- [ ] T036 Run quickstart smoke checks and ensure contract parity summary in `specs/019-modularize-futbol-package/plan.md`
+>>>>>>> 0769677f (fixed conflict)
 
 ---
 
