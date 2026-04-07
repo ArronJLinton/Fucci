@@ -1,0 +1,119 @@
+openapi: 3.0.3
+info:
+  title: Fucci Futbol Endpoint Compatibility Contract
+  version: 0.1.0
+  description: |
+    Contract-focused OpenAPI for refactor safety. This feature preserves existing
+    public endpoint behavior while moving implementation into internal/futbol.
+    Scope constraint: backend-only refactor, no client API-surface renames.
+servers:
+  - url: /v1/api
+paths:
+  /futbol/matches:
+    get:
+      summary: Get fixtures by date with optional league filter
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: league_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fixture list returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchesResponse'
+        '400':
+          description: Invalid request or upstream parsing issue
+  /futbol/lineup:
+    get:
+      summary: Get lineup data for fixture
+      parameters:
+        - name: match_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lineup data returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineupResponse'
+        '400':
+          description: Invalid request
+  /futbol/leagues:
+    get:
+      summary: Get leagues for configured season
+      responses:
+        '200':
+          description: League list returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaguesResponse'
+  /futbol/team_standings:
+    get:
+      summary: Get standings by team id
+      parameters:
+        - name: team_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Team standings returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandingsResponse'
+        '400':
+          description: Invalid request
+  /futbol/league_standings:
+    get:
+      summary: Get standings by league and season
+      parameters:
+        - name: league_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: season
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: League standings returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandingsResponse'
+        '400':
+          description: Invalid request
+components:
+  schemas:
+    MatchesResponse:
+      type: object
+      additionalProperties: true
+      description: Existing response contract is preserved; concrete fields remain backward-compatible.
+    LineupResponse:
+      type: object
+      additionalProperties: true
+    LeaguesResponse:
+      type: object
+      additionalProperties: true
+    StandingsResponse:
+      type: object
+      additionalProperties: true
