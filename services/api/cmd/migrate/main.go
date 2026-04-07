@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -35,10 +36,12 @@ func main() {
 
 	// Initialize config
 	cfg := config.InitConfig(logger)
-	log.Println(" DB_URL:", cfg.DB_URL)
-	dbURL := cfg.DB_URL
+	dbURL := normalizePostgresURL(os.Getenv("DB_URL"), cfg.DB_URL)
 	if dbURL == "" {
-		log.Fatal("DB_URL environment variable is required")
+		log.Fatal("DB_URL is required (set DB_URL env or db_url in .env)")
+	}
+	if !strings.HasPrefix(dbURL, "postgres://") && !strings.HasPrefix(dbURL, "postgresql://") {
+		log.Fatal("DB_URL must start with postgres:// or postgresql:// (direct Postgres connection string, not an HTTP API URL)")
 	}
 
 	// Connect to database
@@ -50,7 +53,9 @@ func main() {
 
 	// Test connection
 	if err := db.Ping(); err != nil {
-		log.Fatal("Failed to ping database:", err)
+		log.Fatalf("Failed to ping database: %v\n"+
+			"Hint: use a single-line postgres URL; URL-encode special characters in the password; "+
+			"remove accidental quotes or line breaks from GitHub/Fly secrets.", err)
 	}
 
 	fmt.Println("Connected to database successfully")
@@ -120,6 +125,22 @@ func main() {
 	}
 
 	fmt.Println("All pending migrations completed successfully!")
+}
+
+// normalizePostgresURL trims whitespace and stray quotes often introduced by secret managers and CI.
+// Prefer OS env (explicit in GitHub Actions) over viper/config file.
+func normalizePostgresURL(fromEnv, fromCfg string) string {
+	s := strings.TrimSpace(fromEnv)
+	if s == "" {
+		s = strings.TrimSpace(fromCfg)
+	}
+	s = strings.Trim(s, "\r\n\t ")
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			s = strings.TrimSpace(s[1 : len(s)-1])
+		}
+	}
+	return strings.TrimSpace(s)
 }
 
 func createMigrationsTable(db *sql.DB) {

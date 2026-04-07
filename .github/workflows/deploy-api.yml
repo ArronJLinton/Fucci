@@ -96,6 +96,8 @@ jobs:
           DB_URL: ${{ secrets.DB_URL }}
         run: |
           corepack enable
+          # Strip CRs often pasted into GitHub Secrets; libpq rejects malformed DSNs (missing "=" errors).
+          export DB_URL="${DB_URL//$'\r'/}"
           yarn migrate
 
       - name: Deploy to Fly.io
