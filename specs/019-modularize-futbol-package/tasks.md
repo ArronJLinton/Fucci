@@ -74,17 +74,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Add unit tests for cache hit/miss + stale-on-error orchestration in `services/api/internal/futbol/service_cache_test.go`
-- [ ] T021 [P] [US2] Add unit tests for provider parse/error handling in `services/api/internal/futbol/client_test.go`
-- [ ] T022 [P] [US2] Add unit tests for transformer output invariants in `services/api/internal/futbol/transformer_test.go`
+- [X] T020 [P] [US2] Add unit tests for cache hit/miss + stale-on-error orchestration in `services/api/internal/futbol/service_cache_test.go`
+- [X] T021 [P] [US2] Add unit tests for provider parse/error handling in `services/api/internal/futbol/client_test.go`
+- [X] T022 [P] [US2] Add unit tests for transformer output invariants in `services/api/internal/futbol/transformer_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Move reusable fetch operations (`FetchLineupData`, `FetchMatchStatsData`, standings/head-to-head helpers) into `services/api/internal/futbol/service.go`
-- [ ] T024 [US2] Move text/summary helper logic into `services/api/internal/futbol/summary.go`
-- [ ] T025 [US2] Move player/substitute normalization/filter helpers into `services/api/internal/futbol/transformer.go`
-- [ ] T026 [US2] Replace direct cache key string usage in handlers with package cache helpers from `services/api/internal/futbol/cache.go`
-- [ ] T027 [US2] Ensure debate aggregator consumes reusable service methods (not handler internals) in `services/api/internal/api/debate_data_aggregator.go`
+- [X] T023 [US2] Move reusable fetch operations (`FetchLineupData`, `FetchMatchStatsData`, standings/head-to-head helpers) into `services/api/internal/futbol/service.go`
+- [X] T024 [US2] Move text/summary helper logic into `services/api/internal/futbol/summary.go`
+- [X] T025 [US2] Move player/substitute normalization/filter helpers into `services/api/internal/futbol/transformer.go`
+- [X] T026 [US2] Replace direct cache key string usage in handlers with package cache helpers from `services/api/internal/futbol/cache.go`
+- [X] T027 [US2] Ensure debate aggregator consumes reusable service methods (not handler internals) in `services/api/internal/api/debate_data_aggregator.go`
 
 **Checkpoint**: Core futbol logic is reusable from `internal/futbol` and independently unit-tested.
 

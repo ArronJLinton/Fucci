@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/futbol"
@@ -54,108 +53,28 @@ func (c *Config) getMatch(w http.ResponseWriter, r *http.Request) {
 // FetchLineupData fetches raw lineup data from API-Football (with cache key lineup_raw:{matchID}).
 // Reused by getMatchLineup and by the debate context aggregator.
 func (c *Config) FetchLineupData(ctx context.Context, matchID string) (*GetLineUpResponse, error) {
-	rawCacheKey := fmt.Sprintf("lineup_raw:%s", matchID)
-	if c.Cache != nil {
-		exists, err := c.Cache.Exists(ctx, rawCacheKey)
-		if err == nil && exists {
-			var data GetLineUpResponse
-			if err := c.Cache.Get(ctx, rawCacheKey, &data); err == nil {
-				return &data, nil
-			}
-		}
-	}
-
-	baseURL := c.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-	url := fmt.Sprintf("%s/fixtures/lineups?fixture=%s", baseURL, matchID)
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
-	}
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	raw, _, err := c.futbolService().GetLineup(ctx, matchID)
 	if err != nil {
-		return nil, fmt.Errorf("lineup request: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	rawBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("lineup read body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		bodyPreview := string(rawBody)
-		if len(bodyPreview) > 500 {
-			bodyPreview = bodyPreview[:500] + "..."
-		}
-		return nil, fmt.Errorf("lineup request: status %d: %s", resp.StatusCode, bodyPreview)
-	}
-
 	var data GetLineUpResponse
-	if err := json.Unmarshal(rawBody, &data); err != nil {
+	if err := decodeRawMap(raw, &data); err != nil {
 		return nil, fmt.Errorf("lineup parse: %w", err)
 	}
-
-	if c.Cache != nil && data.Get != "" {
-		_ = c.Cache.Set(ctx, rawCacheKey, data, cache.LineupTTL)
-	}
-
 	return &data, nil
 }
 
 // FetchMatchStatsData fetches fixture statistics from API-Football (with cache key match_stats:{matchID}).
 // Reused by the debate context aggregator.
 func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetFixtureStatisticsResponse, error) {
-	cacheKey := fmt.Sprintf("match_stats:%s", matchID)
-	if c.Cache != nil {
-		exists, err := c.Cache.Exists(ctx, cacheKey)
-		if err == nil && exists {
-			var data GetFixtureStatisticsResponse
-			if err := c.Cache.Get(ctx, cacheKey, &data); err == nil {
-				return &data, nil
-			}
-		}
-	}
-
-	baseURL := c.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-	url := fmt.Sprintf("%s/fixtures/statistics?fixture=%s", baseURL, matchID)
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
-	}
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	raw, err := c.futbolService().FetchMatchStatsData(ctx, matchID)
 	if err != nil {
-		return nil, fmt.Errorf("match stats request: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	rawBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("match stats read body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		bodyPreview := string(rawBody)
-		if len(bodyPreview) > 500 {
-			bodyPreview = bodyPreview[:500] + "..."
-		}
-		return nil, fmt.Errorf("match stats request: status %d: %s", resp.StatusCode, bodyPreview)
-	}
-
 	var data GetFixtureStatisticsResponse
-	if err := json.Unmarshal(rawBody, &data); err != nil {
+	if err := decodeRawMap(raw, &data); err != nil {
 		return nil, fmt.Errorf("match stats parse: %w", err)
 	}
-
-	if c.Cache != nil {
-		_ = c.Cache.Set(ctx, cacheKey, data, cache.MatchStatsTTL)
-	}
-
 	return &data, nil
 }
 
@@ -169,7 +88,7 @@ func (c *Config) getMatchLineup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Try enriched cache first (handler response shape)
-	cacheKey := fmt.Sprintf("lineup:%s", matchID)
+	cacheKey := futbol.LineupCacheKey(matchID)
 	var response struct {
 		Home Lineup `json:"home"`
 		Away Lineup `json:"away"`
@@ -341,27 +260,12 @@ func filterByName(items []Player, player Player) Player {
 }
 
 func normalizeName(name string) string {
-	// Convert to lowercase
-	name = strings.ToLower(name)
-
-	// Remove dots and extra spaces
-	name = strings.ReplaceAll(name, ".", "")
-	name = strings.Join(strings.Fields(name), " ")
-
-	// Remove special characters
-	name = strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) || unicode.IsSpace(r) {
-			return r
-		}
-		return -1
-	}, name)
-
-	return name
+	return futbol.NormalizeName(name)
 }
 
 func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse, error) {
 	// Generate cache key
-	cacheKey := fmt.Sprintf("team_squad:%d", id)
+	cacheKey := futbol.TeamSquadCacheKey(fmt.Sprintf("%d", id))
 
 	// Try to get from cache first
 	var squad GetSquadResponse
@@ -409,7 +313,8 @@ func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse,
 
 func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	raw, _, err := c.futbolService().GetLeagues(ctx, "2025")
+	season := fmt.Sprintf("%d", time.Now().Year())
+	raw, _, err := c.futbolService().GetLeagues(ctx, season)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
 		return
@@ -465,83 +370,44 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 // GetLeagueStandingsData fetches league standings from API-Football (with cache).
 // Reused by the league_standings HTTP handler and by the debate context aggregator.
 func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season string) (*GetLeagueStandingsResponse, error) {
+	cacheKey := futbol.LeagueStandingsCacheKey(leagueID, season)
 	if c.Cache != nil {
-		cacheKey := fmt.Sprintf("league_standings:%s:%s", leagueID, season)
+		var cached GetLeagueStandingsResponse
 		exists, err := c.Cache.Exists(ctx, cacheKey)
 		if err == nil && exists {
-			var data GetLeagueStandingsResponse
-			if err := c.Cache.Get(ctx, cacheKey, &data); err == nil {
-				return &data, nil
+			if err := c.Cache.Get(ctx, cacheKey, &cached); err == nil {
+				return &cached, nil
 			}
 		}
 	}
 
-	baseURL := c.APIFootballBaseURL
-	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
-	}
-	url := fmt.Sprintf("%s/standings?league=%s&season=%s", baseURL, leagueID, season)
-	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
-	}
-
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	data, _, err := c.futbolService().GetLeagueStandings(ctx, leagueID, season)
 	if err != nil {
-		return nil, fmt.Errorf("standings request: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	rawBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("standings read body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		bodyPreview := string(rawBody)
-		if len(bodyPreview) > 500 {
-			bodyPreview = bodyPreview[:500] + "..."
-		}
-		return nil, fmt.Errorf("standings request: status %d: %s", resp.StatusCode, bodyPreview)
-	}
-
-	var data GetLeagueStandingsResponse
-	if err := json.Unmarshal(rawBody, &data); err != nil {
+	var out GetLeagueStandingsResponse
+	if err := decodeRawMap(data.Raw, &out); err != nil {
 		return nil, fmt.Errorf("standings parse: %w", err)
 	}
-
-	cacheKey := fmt.Sprintf("league_standings:%s:%s", leagueID, season)
-	if c.Cache != nil && len(data.Response) > 0 {
-		_ = c.Cache.Set(ctx, cacheKey, data, cache.StandingsTTL)
+	if c.Cache != nil && len(out.Response) > 0 {
+		_ = c.Cache.Set(ctx, cacheKey, out, cache.StandingsTTL)
 	}
-
-	return &data, nil
+	return &out, nil
 }
-
-// FormatLeagueStandingsSummary returns a text summary (rank, team, points) for debate prompts.
-// To avoid excessively large prompt context, only the first maxStandingsSummaryLines rows are included.
-const maxStandingsSummaryLines = 10
 
 func FormatLeagueStandingsSummary(data *GetLeagueStandingsResponse) string {
 	if data == nil {
 		return ""
 	}
-
-	var lines []string
-
-outer:
-	for _, r := range data.Response {
-		if len(r.League.Standings) == 0 {
-			continue
-		}
-		for _, row := range r.League.Standings[0] {
-			if len(lines) >= maxStandingsSummaryLines {
-				break outer
-			}
-			lines = append(lines, fmt.Sprintf("%d. %s %d pts", row.Rank, row.Team.Name, row.Points))
-		}
+	raw := map[string]any{}
+	b, err := json.Marshal(data)
+	if err != nil {
+		return ""
 	}
-	return strings.Join(lines, "\n")
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return ""
+	}
+	return futbol.FormatLeagueStandingsSummary(raw)
 }
 
 // FetchHeadToHead returns a text summary of the last head-to-head fixtures between two teams.
@@ -622,11 +488,9 @@ func (c *Config) FetchHeadToHead(ctx context.Context, homeTeamID, awayTeamID int
 			date, m.Teams.Home.Name, m.Goals.Home, m.Goals.Away, m.Teams.Away.Name))
 	}
 	summary := strings.Join(lines, "\n")
-
 	if c.Cache != nil && summary != "" {
 		_ = c.Cache.Set(ctx, cacheKey, summary, cache.H2HTTL)
 	}
-
 	return summary, nil
 }
 

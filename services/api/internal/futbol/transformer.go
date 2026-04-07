@@ -3,6 +3,7 @@ package futbol
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 func MatchesFromRaw(raw map[string]any) MatchesDTO {
@@ -57,4 +58,17 @@ func NormalizeMatchStatus(status string) MatchStatus {
 	default:
 		return MatchStatusScheduled
 	}
+}
+
+func NormalizeName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, ".", "")
+	name = strings.Join(strings.Fields(name), " ")
+	name = strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsSpace(r) {
+			return r
+		}
+		return -1
+	}, name)
+	return name
 }

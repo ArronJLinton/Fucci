@@ -8,39 +8,41 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 )
 
-const cachePrefix = "futbol:v2"
-
 func MatchesCacheKey(date, leagueID string) string {
 	date = strings.TrimSpace(date)
 	leagueID = strings.TrimSpace(leagueID)
 	if leagueID == "" {
-		return fmt.Sprintf("%s:matches:date:%s", cachePrefix, date)
+		return fmt.Sprintf("matches:date:%s", date)
 	}
-	return fmt.Sprintf("%s:matches:date:%s:league:%s", cachePrefix, date, leagueID)
+	return fmt.Sprintf("matches:date:%s:league:%s", date, leagueID)
 }
 
 func LineupCacheKey(matchID string) string {
-	return fmt.Sprintf("%s:lineup:%s", cachePrefix, strings.TrimSpace(matchID))
+	return fmt.Sprintf("lineup:%s", strings.TrimSpace(matchID))
 }
 
 func LeaguesCacheKey(season string) string {
-	return fmt.Sprintf("%s:leagues:%s", cachePrefix, strings.TrimSpace(season))
+	return fmt.Sprintf("leagues:%s", strings.TrimSpace(season))
 }
 
 func TeamStandingsCacheKey(teamID string, season int) string {
-	return fmt.Sprintf("%s:team-standings:%s:%d", cachePrefix, strings.TrimSpace(teamID), season)
+	return fmt.Sprintf("team_standings:%s:%d", strings.TrimSpace(teamID), season)
 }
 
 func LeagueStandingsCacheKey(leagueID, season string) string {
-	return fmt.Sprintf("%s:league-standings:%s:%s", cachePrefix, strings.TrimSpace(leagueID), strings.TrimSpace(season))
+	return fmt.Sprintf("league_standings:%s:%s", strings.TrimSpace(leagueID), strings.TrimSpace(season))
 }
 
 func MatchStatsCacheKey(matchID string) string {
-	return fmt.Sprintf("%s:stats:%s", cachePrefix, strings.TrimSpace(matchID))
+	return fmt.Sprintf("match_stats:%s", strings.TrimSpace(matchID))
 }
 
 func H2HCacheKey(homeTeamID, awayTeamID string) string {
-	return fmt.Sprintf("%s:h2h:%s:%s", cachePrefix, strings.TrimSpace(homeTeamID), strings.TrimSpace(awayTeamID))
+	return fmt.Sprintf("h2h:%s-%s", strings.TrimSpace(homeTeamID), strings.TrimSpace(awayTeamID))
+}
+
+func TeamSquadCacheKey(teamID string) string {
+	return fmt.Sprintf("team_squad:%s", strings.TrimSpace(teamID))
 }
 
 func TTLForOperation(op Operation, status MatchStatus) time.Duration {
