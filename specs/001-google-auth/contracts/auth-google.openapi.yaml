@@ -1,0 +1,143 @@
+openapi: 3.0.3
+info:
+  title: Fucci Google Auth API
+  version: 1.0.0
+  description: Contract for Google OAuth registration/sign-in endpoint.
+paths:
+  /auth/google:
+    post:
+      summary: Exchange Google auth code and authenticate user
+      operationId: postAuthGoogle
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthRequest'
+      responses:
+        '200':
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthSuccess'
+        '400':
+          description: Invalid request or unverified email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCode:
+                  value:
+                    code: INVALID_CODE
+                    message: Malformed or expired auth code
+                emailNotVerified:
+                  value:
+                    code: EMAIL_NOT_VERIFIED
+                    message: Google email is not verified
+        '401':
+          description: Token signature/verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                verifyFailed:
+                  value:
+                    code: TOKEN_VERIFY_FAILED
+                    message: Unable to verify Google ID token
+        '409':
+          description: Existing email account created via password auth
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                accountExists:
+                  value:
+                    code: ACCOUNT_EXISTS_EMAIL
+                    message: Email already registered via password
+        '500':
+          description: Google API exchange failure or unexpected backend error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                googleApiError:
+                  value:
+                    code: GOOGLE_API_ERROR
+                    message: Google token exchange failed
+components:
+  schemas:
+    GoogleAuthRequest:
+      type: object
+      required:
+        - code
+        - redirect_uri
+      properties:
+        code:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+    GoogleAuthSuccess:
+      type: object
+      required:
+        - token
+        - user
+        - is_new
+      properties:
+        token:
+          type: string
+        is_new:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/UserSummary'
+    UserSummary:
+      type: object
+      required:
+        - id
+        - email
+        - auth_provider
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          nullable: true
+        locale:
+          type: string
+          nullable: true
+        auth_provider:
+          type: string
+          enum: [email, google, apple]
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_CODE
+            - EMAIL_NOT_VERIFIED
+            - TOKEN_VERIFY_FAILED
+            - ACCOUNT_EXISTS_EMAIL
+            - GOOGLE_API_ERROR
+        message:
+          type: string
