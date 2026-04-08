@@ -45,6 +45,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("environment", "development")
 	viper.SetDefault("system_user_email", "contact@magistri.dev")
+	viper.SetDefault("google_oauth_redirect_uris", "")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -57,20 +58,23 @@ func InitConfig(logger *otelzap.Logger) Config {
 	}
 
 	cfg := Config{
-		DB_URL:                   viper.GetString("db_url"),
-		FOOTBALL_API_KEY:         viper.GetString("football_api_key"),
-		RAPID_API_KEY:            viper.GetString("rapid_api_key"),
-		CLOUDINARY_CLOUD_NAME:    viper.GetString("cloudinary_cloud_name"),
-		CLOUDINARY_API_KEY:       viper.GetString("cloudinary_api_key"),
-		CLOUDINARY_API_SECRET:    viper.GetString("cloudinary_api_secret"),
-		CLOUDINARY_UPLOAD_PRESET: viper.GetString("cloudinary_upload_preset"),
-		REDIS_URL:                viper.GetString("redis_url"),
-		OPENAI_API_KEY:           viper.GetString("openai_api_key"),
-		OPENAI_BASE_URL:          viper.GetString("openai_base_url"),
-		PORT:                     viper.GetString("port"),
-		ENVIRONMENT:              viper.GetString("environment"),
-		JWT_SECRET:               viper.GetString("jwt_secret"),
-		SYSTEM_USER_EMAIL:        viper.GetString("system_user_email"),
+		DB_URL:                     viper.GetString("db_url"),
+		FOOTBALL_API_KEY:           viper.GetString("football_api_key"),
+		RAPID_API_KEY:              viper.GetString("rapid_api_key"),
+		GOOGLE_OAUTH_CLIENT_ID:     viper.GetString("google_oauth_client_id"),
+		GOOGLE_OAUTH_CLIENT_SECRET: viper.GetString("google_oauth_client_secret"),
+		GOOGLE_OAUTH_REDIRECT_URIS: viper.GetString("google_oauth_redirect_uris"),
+		CLOUDINARY_CLOUD_NAME:      viper.GetString("cloudinary_cloud_name"),
+		CLOUDINARY_API_KEY:         viper.GetString("cloudinary_api_key"),
+		CLOUDINARY_API_SECRET:      viper.GetString("cloudinary_api_secret"),
+		CLOUDINARY_UPLOAD_PRESET:   viper.GetString("cloudinary_upload_preset"),
+		REDIS_URL:                  viper.GetString("redis_url"),
+		OPENAI_API_KEY:             viper.GetString("openai_api_key"),
+		OPENAI_BASE_URL:            viper.GetString("openai_base_url"),
+		PORT:                       viper.GetString("port"),
+		ENVIRONMENT:                viper.GetString("environment"),
+		JWT_SECRET:                 viper.GetString("jwt_secret"),
+		SYSTEM_USER_EMAIL:          viper.GetString("system_user_email"),
 	}
 
 	return cfg

@@ -188,15 +188,19 @@ type UserFollows struct {
 }
 
 type Users struct {
-	ID          int32
-	Firstname   string
-	Lastname    string
-	Email       string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	IsAdmin     bool
-	DisplayName sql.NullString
-	AvatarUrl   sql.NullString
+	ID           int32
+	Firstname    string
+	Lastname     string
+	Email        string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	IsAdmin      bool
+	DisplayName  sql.NullString
+	AvatarUrl    sql.NullString
+	GoogleID     sql.NullString
+	AuthProvider interface{}
+	Locale       sql.NullString
+	LastLoginAt  sql.NullTime
 }
 
 type Votes struct {

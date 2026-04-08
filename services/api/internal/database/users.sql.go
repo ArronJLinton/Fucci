@@ -7,12 +7,56 @@ package database
 
 import (
 	"context"
+	"database/sql"
 )
+
+const createGoogleUser = `-- name: CreateGoogleUser :one
+INSERT INTO users (firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin)
+VALUES ($1, $2, $3, $4, 'google', $5, $6, false)
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
+`
+
+type CreateGoogleUserParams struct {
+	Firstname string
+	Lastname  string
+	Email     string
+	GoogleID  sql.NullString
+	AvatarUrl sql.NullString
+	Locale    sql.NullString
+}
+
+func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserParams) (Users, error) {
+	row := q.db.QueryRowContext(ctx, createGoogleUser,
+		arg.Firstname,
+		arg.Lastname,
+		arg.Email,
+		arg.GoogleID,
+		arg.AvatarUrl,
+		arg.Locale,
+	)
+	var i Users
+	err := row.Scan(
+		&i.ID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (firstname, lastname, email, is_admin)
 VALUES ($1, $2, $3, $4)
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
 `
 
 type CreateUserParams struct {
@@ -40,6 +84,10 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (Users, 
 		&i.IsAdmin,
 		&i.DisplayName,
 		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
@@ -54,7 +102,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users WHERE id = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int32) (Users, error) {
@@ -70,12 +118,16 @@ func (q *Queries) GetUser(ctx context.Context, id int32) (Users, error) {
 		&i.IsAdmin,
 		&i.DisplayName,
 		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users WHERE email = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, error) {
@@ -91,12 +143,41 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, erro
 		&i.IsAdmin,
 		&i.DisplayName,
 		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const getUserByGoogleID = `-- name: GetUserByGoogleID :one
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE google_id = $1
+`
+
+func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID sql.NullString) (Users, error) {
+	row := q.db.QueryRowContext(ctx, getUserByGoogleID, googleID)
+	var i Users
+	err := row.Scan(
+		&i.ID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url FROM users ORDER BY created_at DESC
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users ORDER BY created_at DESC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
@@ -118,6 +199,10 @@ func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
 			&i.IsAdmin,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.GoogleID,
+			&i.AuthProvider,
+			&i.Locale,
+			&i.LastLoginAt,
 		); err != nil {
 			return nil, err
 		}
@@ -132,11 +217,46 @@ func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
 	return items, nil
 }
 
+const updateGoogleLoginFields = `-- name: UpdateGoogleLoginFields :one
+UPDATE users
+SET last_login_at = CURRENT_TIMESTAMP,
+    avatar_url = CASE WHEN $2::text <> '' THEN $2 ELSE avatar_url END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
+`
+
+type UpdateGoogleLoginFieldsParams struct {
+	ID      int32
+	Column2 string
+}
+
+func (q *Queries) UpdateGoogleLoginFields(ctx context.Context, arg UpdateGoogleLoginFieldsParams) (Users, error) {
+	row := q.db.QueryRowContext(ctx, updateGoogleLoginFields, arg.ID, arg.Column2)
+	var i Users
+	err := row.Scan(
+		&i.ID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users 
 SET firstname = $2, lastname = $3, email = $4, is_admin = $5, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
 `
 
 type UpdateUserParams struct {
@@ -166,6 +286,10 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (Users, 
 		&i.IsAdmin,
 		&i.DisplayName,
 		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
 	)
 	return i, err
 }

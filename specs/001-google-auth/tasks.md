@@ -16,10 +16,10 @@
 
 **Purpose**: Prepare auth feature scaffolding and config surfaces used by all stories.
 
-- [ ] T001 Add Google OAuth env config entries and validation hooks in `services/api/internal/api/api.go`
-- [ ] T002 [P] Add mobile Google OAuth config constants (redirect URIs, scopes) in `apps/mobile/src/config/googleAuth.ts`
-- [ ] T003 [P] Add shared backend error-code constants for Google auth responses in `services/api/internal/api/auth_google_errors.go`
-- [ ] T004 Document required env vars and local setup steps in `services/api/README.md`
+- [X] T001 Add Google OAuth env config entries and validation hooks in `services/api/internal/api/api.go`
+- [X] T002 [P] Add mobile Google OAuth config constants (redirect URIs, scopes) in `apps/mobile/src/config/googleAuth.ts`
+- [X] T003 [P] Add shared backend error-code constants for Google auth responses in `services/api/internal/api/auth_google_errors.go`
+- [X] T004 Document required env vars and local setup steps in `services/api/README.md`
 
 ---
 
@@ -29,15 +29,15 @@
 
 **⚠️ CRITICAL**: No user story implementation should begin until this phase is complete.
 
-- [ ] T005 Create users migration for `google_id`, `auth_provider`, `avatar_url`, `locale`, `last_login_at` in `services/api/sql/schema/20260408170000_add_google_auth_fields_to_users.sql`
-- [ ] T006 Add partial unique index migration for non-null `google_id` in `services/api/sql/schema/20260408170100_add_users_google_id_partial_unique_index.sql`
-- [ ] T007 [P] Add sqlc query support for Google lookup/update paths in `services/api/sql/queries/users.sql`
-- [ ] T008 [P] Regenerate DB query bindings for new users fields in `services/api/internal/db/` (generated sqlc output)
-- [ ] T009 Implement shared Google code-exchange + ID token verification utility in `services/api/internal/api/google_oauth.go`
-- [ ] T010 [P] Implement redirect URI allowlist validator in `services/api/internal/api/google_oauth.go`
-- [ ] T011 [P] Add backend unit tests for verifier + redirect URI validation in `services/api/internal/api/google_oauth_test.go`
-- [ ] T012 Add typed mobile service method for `POST /auth/google` contract in `apps/mobile/src/services/auth.ts`
-- [ ] T013 Add shared mobile Google auth launcher utility (iOS/Android) in `apps/mobile/src/services/googleAuth.ts`
+- [X] T005 Create users migration for `google_id`, `auth_provider`, `avatar_url`, `locale`, `last_login_at` in `services/api/sql/schema/20260408170000_add_google_auth_fields_to_users.sql`
+- [X] T006 Add partial unique index migration for non-null `google_id` in `services/api/sql/schema/20260408170100_add_users_google_id_partial_unique_index.sql`
+- [X] T007 [P] Add sqlc query support for Google lookup/update paths in `services/api/sql/queries/users.sql`
+- [X] T008 [P] Regenerate DB query bindings for new users fields in `services/api/internal/db/` (generated sqlc output)
+- [X] T009 Implement shared Google code-exchange + ID token verification utility in `services/api/internal/api/google_oauth.go`
+- [X] T010 [P] Implement redirect URI allowlist validator in `services/api/internal/api/google_oauth.go`
+- [X] T011 [P] Add backend unit tests for verifier + redirect URI validation in `services/api/internal/api/google_oauth_test.go`
+- [X] T012 Add typed mobile service method for `POST /auth/google` contract in `apps/mobile/src/services/auth.ts`
+- [X] T013 Add shared mobile Google auth launcher utility (iOS/Android) in `apps/mobile/src/services/googleAuth.ts`
 
 **Checkpoint**: Foundation complete; user stories can proceed.
 

@@ -36,6 +36,17 @@ export interface LoginResponse {
   token: string;
 }
 
+export interface GoogleAuthRequest {
+  code: string;
+  redirect_uri: string;
+}
+
+export interface GoogleAuthResponse {
+  user: AuthUser;
+  token: string;
+  is_new: boolean;
+}
+
 export interface FollowingItem {
   id: string;
   type: string;
@@ -105,6 +116,34 @@ export const login = async (
     const message =
       data.message || data.error || `Request failed (${response.status})`;
     return {ok: false, status: response.status, message};
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error';
+    return {ok: false, status: 0, message};
+  }
+};
+
+// POST /auth/google
+export const googleAuth = async (
+  body: GoogleAuthRequest,
+): Promise<
+  | {ok: true; data: GoogleAuthResponse}
+  | {ok: false; status: number; message: string; code?: string}
+> => {
+  const url = `${apiConfig.baseURL}/auth/google`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {...apiConfig.headers},
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 200 && data.user && data.token) {
+      return {ok: true, data: data as GoogleAuthResponse};
+    }
+    const message =
+      data.message || data.error || `Request failed (${response.status})`;
+    const code = typeof data.code === 'string' ? data.code : undefined;
+    return {ok: false, status: response.status, message, code};
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error';
     return {ok: false, status: 0, message};

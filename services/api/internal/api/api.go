@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
 	"github.com/ArronJLinton/fucci-api/internal/auth"
@@ -57,27 +58,30 @@ func InitJWT(secret string) error {
 }
 
 type Config struct {
-	DB                     *database.Queries
-	DBConn                 *sql.DB
-	FootballAPIKey         string
-	RapidAPIKey            string
-	CloudinaryCloudName    string
-	CloudinaryAPIKey       string
-	CloudinaryAPISecret    string
-	CloudinaryUploadPreset string
-	Cache                  cache.CacheInterface
-	APIFootballBaseURL     string
-	NewsBaseURL            string // optional; when set, news client uses this (e.g. for tests)
-	OpenAIKey              string
-	OpenAIBaseURL          string
-	AIPromptGenerator      *ai.PromptGenerator
-	SystemUserEmail        string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	DB                      *database.Queries
+	DBConn                  *sql.DB
+	FootballAPIKey          string
+	RapidAPIKey             string
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	GoogleOAuthRedirectURIs string // comma-separated list of allowed callback URIs
+	CloudinaryCloudName     string
+	CloudinaryAPIKey        string
+	CloudinaryAPISecret     string
+	CloudinaryUploadPreset  string
+	Cache                   cache.CacheInterface
+	APIFootballBaseURL      string
+	NewsBaseURL             string // optional; when set, news client uses this (e.g. for tests)
+	OpenAIKey               string
+	OpenAIBaseURL           string
+	AIPromptGenerator       *ai.PromptGenerator
+	SystemUserEmail         string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
-	CardVoteReader   CardVoteReader
-	CommentReader    CommentReader
-	DebatesFeedDB    DebatesFeedStore // nil => use DB for debate feed GETs
-	PlayerProfileDB  PlayerProfileStore // nil => use DB for /api/player-profile routes
+	CardVoteReader  CardVoteReader
+	CommentReader   CommentReader
+	DebatesFeedDB   DebatesFeedStore   // nil => use DB for debate feed GETs
+	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
@@ -85,6 +89,11 @@ type Config struct {
 
 func New(c Config) http.Handler {
 	router := chi.NewRouter()
+
+	// Ensure Google OAuth defaults are available for handlers that need them.
+	if strings.TrimSpace(c.GoogleOAuthRedirectURIs) == "" {
+		c.GoogleOAuthRedirectURIs = "fucci://auth,com.fucci.app:/oauth2redirect"
+	}
 
 	// Initialize AI prompt generator if OpenAI key is provided
 	if c.OpenAIKey != "" {
@@ -213,6 +222,18 @@ func New(c Config) http.Handler {
 	// Canonical profile surface is /player-profile (singular) + /player-profile/traits.
 
 	return router
+}
+
+func (c *Config) googleAllowedRedirectURIs() []string {
+	raw := strings.Split(c.GoogleOAuthRedirectURIs, ",")
+	allowed := make([]string, 0, len(raw))
+	for _, v := range raw {
+		uri := strings.TrimSpace(v)
+		if uri != "" {
+			allowed = append(allowed, uri)
+		}
+	}
+	return allowed
 }
 
 // debatesFeedStore returns the querier for debate feed handlers (test mock or DB).
