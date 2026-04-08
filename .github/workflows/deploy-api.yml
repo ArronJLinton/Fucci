@@ -7,34 +7,39 @@ on:
     paths:
       - 'services/api/**'
       - '.github/workflows/deploy-api.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/api/**'
+      - '.github/workflows/deploy-api.yml'
   workflow_dispatch:
+
+# One staging deploy at a time; PR updates cancel older runs on the same branch.
+concurrency:
+  group: deploy-api-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy to Fly.io
+    name: Deploy to Fly.io (staging)
     runs-on: ubuntu-latest
     environment: staging
+    # Secrets are not available to workflows from fork PRs; skip instead of failing obscurely.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: services/api/package-lock.json
-
+      # setup-go only accepts go-version / go-version-file, cache (boolean), cache-dependency-path.
+      # Do not pass node-version or npm-style cache here — that breaks the step.
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version-file: services/api/go.mod
+          cache: true
           cache-dependency-path: services/api/go.sum
-
-      - name: Install dependencies
-        working-directory: ./services/api
-        run: npm ci
 
       - name: Run tests
         working-directory: ./services/api
@@ -61,27 +66,32 @@ jobs:
       - name: Setup Fly.io
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
+      # Include DB_URL so [deploy].release_command = ./migrate can reach Postgres from Fly (not from GitHub).
       - name: Sync secrets to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DB_URL: ${{ secrets.DB_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          secrets_args=(
-            "SUPABASE_URL=$SUPABASE_URL"
-            "SUPABASE_SERVICE_KEY=$SUPABASE_SERVICE_KEY"
-          )
+          set -- \
+            DB_URL="$DB_URL" \
+            SUPABASE_URL="$SUPABASE_URL" \
+            SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY"
 
-      # Same as root package.json "migrate": cd services/api && go run -tags migrate ./cmd/migrate
-      # Exits non-zero on failure (no masking). Fly also runs ./migrate via release_command after deploy.
-      - name: Run database migrations
-        env:
-          DB_URL: ${{ secrets.DB_URL }}
-        run: |
-          corepack enable
-          yarn migrate
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            set -- "$@" SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          fi
+
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            set -- "$@" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+          fi
+
+          flyctl secrets set "$@" --app fucci-api --stage
+      # Migrations run on Fly only: fly.toml [deploy] release_command = ./migrate (GitHub runners often
+      # cannot reach IPv6 Postgres hosts — "network is unreachable"). Use yarn migrate locally when needed.
 
       - name: Deploy to Fly.io
         working-directory: ./services/api
@@ -108,4 +118,9 @@ jobs:
         if: always()
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl status --app fucci-api
+        run: |
+          if ! command -v flyctl >/dev/null 2>&1; then
+            echo "Skipping flyctl status (CLI not on PATH — an earlier step failed before Setup Fly.io)."
+            exit 0
+          fi
+          flyctl status --app fucci-api
