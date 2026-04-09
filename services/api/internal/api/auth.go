@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strings"
 	"sync"
@@ -271,8 +272,23 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthEmailNotVerified, msg: "Google email is not verified"}
 	}
 
-	email := strings.ToLower(strings.TrimSpace(claims.Email))
 	subject := strings.TrimSpace(claims.Subject)
+	emailTrim := strings.TrimSpace(claims.Email)
+	if subject == "" || emailTrim == "" {
+		return GoogleAuthResponse{}, &googleAuthProcError{
+			status: http.StatusUnauthorized,
+			code:   auth.GoogleAuthTokenVerifyFailed,
+			msg:    "Google ID token is missing required subject or email claims",
+		}
+	}
+	if _, err := mail.ParseAddress(emailTrim); err != nil {
+		return GoogleAuthResponse{}, &googleAuthProcError{
+			status: http.StatusUnauthorized,
+			code:   auth.GoogleAuthTokenVerifyFailed,
+			msg:    "Google ID token has an invalid email claim",
+		}
+	}
+	email := strings.ToLower(emailTrim)
 
 	q := c.dbQueries()
 

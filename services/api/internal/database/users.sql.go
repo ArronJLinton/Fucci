@@ -192,7 +192,7 @@ func (q *Queries) GetUserByEmailLower(ctx context.Context, lower string) (Users,
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = $1::text
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = $1::varchar(255)
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (Users, error) {

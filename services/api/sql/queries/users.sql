@@ -13,7 +13,7 @@ SELECT * FROM users WHERE email = $1;
 SELECT * FROM users WHERE lower(email) = lower($1) LIMIT 1;
 
 -- name: GetUserByGoogleID :one
-SELECT * FROM users WHERE google_id = sqlc.arg(google_id)::text;
+SELECT * FROM users WHERE google_id = sqlc.arg(google_id)::varchar(255);
 
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY created_at DESC;

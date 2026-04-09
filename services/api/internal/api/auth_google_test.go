@@ -19,7 +19,7 @@ import (
 
 // Regexes match sqlc-generated queries used by googleAuthFromCode (substring match).
 var (
-	rxSQLGoogleGetByGoogleID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::text`
+	rxSQLGoogleGetByGoogleID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::varchar\(255\)`
 	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE lower\(email\) = lower\(\$1\) LIMIT 1`
 	rxSQLGoogleCreateUser = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
 	rxSQLGoogleGetUserByID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE id = \$1`
@@ -136,6 +136,105 @@ func TestGoogleAuthFromCode_NotConfiguredBeforeExchange(t *testing.T) {
 	}
 	if procErr.code != auth.GoogleAuthNotConfigured {
 		t.Fatalf("code %q want %q", procErr.code, auth.GoogleAuthNotConfigured)
+	}
+}
+
+func TestGoogleAuthFromCode_MissingSubjectOrEmailUnauthorized(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "cid",
+		GoogleOAuthClientSecret: "sec",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "",
+					Email:         "a@b.com",
+					EmailVerified: true,
+				}, nil
+			},
+		},
+	}
+
+	_, procErr := cfg.googleAuthFromCode(context.Background(), "code", "https://cb")
+	if procErr == nil {
+		t.Fatal("expected procErr for empty subject")
+	}
+	if procErr.status != http.StatusUnauthorized || procErr.code != auth.GoogleAuthTokenVerifyFailed {
+		t.Fatalf("got status=%d code=%q", procErr.status, procErr.code)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("db should not be queried: %v", err)
+	}
+
+	cfg2 := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "cid",
+		GoogleOAuthClientSecret: "sec",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub-x",
+					Email:         "   ",
+					EmailVerified: true,
+				}, nil
+			},
+		},
+	}
+	_, procErr = cfg2.googleAuthFromCode(context.Background(), "code", "https://cb")
+	if procErr == nil {
+		t.Fatal("expected procErr for empty email")
+	}
+	if procErr.status != http.StatusUnauthorized || procErr.code != auth.GoogleAuthTokenVerifyFailed {
+		t.Fatalf("got status=%d code=%q", procErr.status, procErr.code)
+	}
+}
+
+func TestGoogleAuthFromCode_InvalidEmailClaimUnauthorized(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "cid",
+		GoogleOAuthClientSecret: "sec",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub-1",
+					Email:         "not-a-valid-email",
+					EmailVerified: true,
+				}, nil
+			},
+		},
+	}
+
+	_, procErr := cfg.googleAuthFromCode(context.Background(), "code", "https://cb")
+	if procErr == nil {
+		t.Fatal("expected procErr for invalid email")
+	}
+	if procErr.status != http.StatusUnauthorized || procErr.code != auth.GoogleAuthTokenVerifyFailed {
+		t.Fatalf("got status=%d code=%q msg=%q", procErr.status, procErr.code, procErr.msg)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("db should not be queried: %v", err)
 	}
 }
 
