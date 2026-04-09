@@ -22,7 +22,6 @@ var (
 	rxSQLGoogleGetByGoogleID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::varchar\(255\)`
 	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE lower\(email\) = lower\(\$1\) LIMIT 1`
 	rxSQLGoogleCreateUser = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
-	rxSQLGoogleGetUserByID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE id = \$1`
 	rxSQLGoogleUpdateLogin = `avatar_url = CASE WHEN \$1::text <> '' THEN \$1 ELSE avatar_url END`
 	rxSQLGoogleLink = `COALESCE\(NULLIF\(google_id::text, ''\), \$1::text\)::varchar\(255\)`
 )
@@ -278,9 +277,6 @@ func TestHandleGoogleAuth_NewUserReturnsIsNewTrue(t *testing.T) {
 	mock.ExpectQuery(rxSQLGoogleCreateUser).
 		WithArgs("New", "User", "newuser@example.com", sql.NullString{String: "sub-123", Valid: true}, sql.NullString{String: "https://cdn.example/avatar.jpg", Valid: true}, sql.NullString{String: "en", Valid: true}).
 		WillReturnRows(sqlMockGoogleUserFullRow(101, "New", "User", "newuser@example.com", "https://cdn.example/avatar.jpg", "sub-123", "google", ts))
-	mock.ExpectQuery(rxSQLGoogleGetUserByID).
-		WithArgs(int32(101)).
-		WillReturnRows(sqlMockGoogleUserFullRow(101, "New", "User", "newuser@example.com", "https://cdn.example/avatar.jpg", "sub-123", "google", ts))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
 	raw, _ := json.Marshal(body)
@@ -386,9 +382,6 @@ func TestHandleGoogleAuth_ExistingGoogleUserReturnsIsNewFalse(t *testing.T) {
 		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/old.jpg", "sub-existing", "google", ts))
 	mock.ExpectQuery(rxSQLGoogleUpdateLogin).
 		WithArgs("https://cdn.example/new-avatar.jpg", int32(42)).
-		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/new-avatar.jpg", "sub-existing", "google", ts2))
-	mock.ExpectQuery(rxSQLGoogleGetUserByID).
-		WithArgs(int32(42)).
 		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/new-avatar.jpg", "sub-existing", "google", ts2))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
@@ -1083,9 +1076,6 @@ func TestHandleGoogleOAuthCallback_SuccessRedirectsWithExchangeCode(t *testing.T
 	mock.ExpectQuery(rxSQLGoogleCreateUser).
 		WithArgs("Cb", "New", "cbnew@example.com", sql.NullString{String: "sub-cb-1", Valid: true}, sql.NullString{String: "https://cdn.example/a.jpg", Valid: true}, sql.NullString{String: "en", Valid: true}).
 		WillReturnRows(sqlMockGoogleUserFullRow(201, "Cb", "New", "cbnew@example.com", "https://cdn.example/a.jpg", "sub-cb-1", "google", ts))
-	mock.ExpectQuery(rxSQLGoogleGetUserByID).
-		WithArgs(int32(201)).
-		WillReturnRows(sqlMockGoogleUserFullRow(201, "Cb", "New", "cbnew@example.com", "https://cdn.example/a.jpg", "sub-cb-1", "google", ts))
 
 	q := url.Values{}
 	q.Set("code", "google-auth-code")
@@ -1174,9 +1164,6 @@ func TestHandleGoogleOAuthCallback_SuccessExistingUser_IsNewZero(t *testing.T) {
 		WillReturnRows(sqlMockGoogleUserFullRow(77, "Ex", "User", "ex@example.com", "", "sub-ex", "google", ts))
 	mock.ExpectQuery(rxSQLGoogleUpdateLogin).
 		WithArgs("", int32(77)).
-		WillReturnRows(sqlMockGoogleUserFullRow(77, "Ex", "User", "ex@example.com", "", "sub-ex", "google", ts2))
-	mock.ExpectQuery(rxSQLGoogleGetUserByID).
-		WithArgs(int32(77)).
 		WillReturnRows(sqlMockGoogleUserFullRow(77, "Ex", "User", "ex@example.com", "", "sub-ex", "google", ts2))
 
 	q := url.Values{}

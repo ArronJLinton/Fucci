@@ -292,8 +292,8 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 
 	q := c.dbQueries()
 
-	var userID int32
 	var isNew bool
+	var u database.Users
 
 	existingByGoogle, err := q.GetUserByGoogleID(ctx, subject)
 	switch {
@@ -305,11 +305,11 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 				msg:    "This account has been deactivated",
 			}
 		}
-		userID = existingByGoogle.ID
-		if _, err := q.UpdateGoogleLoginFields(ctx, database.UpdateGoogleLoginFieldsParams{
+		u, err = q.UpdateGoogleLoginFields(ctx, database.UpdateGoogleLoginFieldsParams{
 			AvatarUrl: strings.TrimSpace(claims.Picture),
-			ID:        userID,
-		}); err != nil {
+			ID:        existingByGoogle.ID,
+		})
+		if err != nil {
 			return GoogleAuthResponse{}, &googleAuthProcError{
 				status: http.StatusInternalServerError,
 				code:   auth.GoogleAuthUpstreamAPIError,
@@ -345,22 +345,22 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 					msg:    "Email already linked to another account provider",
 				}
 			}
-			if _, err := q.LinkGoogleToExistingUser(ctx, database.LinkGoogleToExistingUserParams{
+			u, err = q.LinkGoogleToExistingUser(ctx, database.LinkGoogleToExistingUserParams{
 				ID:          byEmail.ID,
 				NewGoogleID: subject,
 				AvatarUrl:   strings.TrimSpace(claims.Picture),
-			}); err != nil {
+			})
+			if err != nil {
 				return GoogleAuthResponse{}, &googleAuthProcError{
 					status: http.StatusInternalServerError,
 					code:   auth.GoogleAuthUpstreamAPIError,
 					msg:    "failed to update existing account with google login fields",
 				}
 			}
-			userID = byEmail.ID
 		} else if errors.Is(qerr, sql.ErrNoRows) {
 			pic := strings.TrimSpace(claims.Picture)
 			loc := strings.TrimSpace(claims.Locale)
-			created, err := q.CreateGoogleUser(ctx, database.CreateGoogleUserParams{
+			u, err = q.CreateGoogleUser(ctx, database.CreateGoogleUserParams{
 				Firstname: strings.TrimSpace(claims.GivenName),
 				Lastname:  strings.TrimSpace(claims.FamilyName),
 				Email:     email,
@@ -371,7 +371,6 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 			if err != nil {
 				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to persist google user"}
 			}
-			userID = created.ID
 			isNew = true
 		} else {
 			return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to check existing account"}
@@ -380,10 +379,6 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to lookup google user"}
 	}
 
-	u, err := q.GetUser(ctx, userID)
-	if err != nil {
-		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to load authenticated user"}
-	}
 	userResponse := userResponseFromDBUser(u)
 	if !userResponse.IsActive {
 		return GoogleAuthResponse{}, &googleAuthProcError{
