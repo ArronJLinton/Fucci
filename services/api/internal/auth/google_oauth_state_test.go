@@ -17,7 +17,7 @@ func TestAllowedGoogleAppReturnURI(t *testing.T) {
 		{"https://auth.expo.io/@someone/slug", true},
 		{"http://localhost:8081/auth", true},
 		{"http://10.0.2.2:8080/cb", true},
-		{"com.magistridev.fucci:/oauth2redirect", true},
+		{"com.magistridev.fucci:/oauth2redirect", false},
 		{"https://evil.com/phish", false},
 		{"javascript:alert(1)", false},
 		{"", false},

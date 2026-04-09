@@ -86,9 +86,6 @@ func AllowedGoogleAppReturnURI(raw string) bool {
 		return h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" ||
 			strings.HasPrefix(h, "192.168.") || strings.HasPrefix(h, "10.")
 	default:
-		if strings.HasPrefix(u.Scheme, "com.") {
-			return strings.Contains(raw, ":/")
-		}
 		return false
 	}
 }
