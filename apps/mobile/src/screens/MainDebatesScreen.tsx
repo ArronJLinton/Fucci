@@ -25,7 +25,7 @@ import type {DebateSummary, DebateResponse} from '../types/debate';
 import type {Match} from '../types/match';
 import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
-import {rootNavigate} from '../navigation/rootNavigation';
+import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import DebateHeroSwipeCard, {
   type DebateHeroVoteSuccessDetail,
 } from '../components/DebateHeroSwipeCard';
@@ -354,7 +354,7 @@ const MainDebatesScreen = () => {
               </Text>
               <TouchableOpacity
                 style={styles.ctaButton}
-                onPress={() => rootNavigate('Login')}
+                onPress={() => rootNavigateToProfileAuth()}
                 accessibilityRole="button"
                 accessibilityLabel="Sign in">
                 <Text style={styles.ctaButtonText}>Sign in</Text>

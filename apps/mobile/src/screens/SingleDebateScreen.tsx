@@ -27,6 +27,7 @@ import {
   addCommentReaction,
 } from '../services/api';
 import {useAuth} from '../context/AuthContext';
+import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {rootNavigate} from '../navigation/rootNavigation';
 import {AuthGateModal} from '../components/AuthGateModal';
 import environment from '../config/environment';
@@ -868,12 +869,11 @@ const SingleDebateScreen = () => {
           <TouchableOpacity
             style={styles.guestSignInBtn}
             onPress={() =>
-              rootNavigate('Login', {
-                returnToDebate:
-                  match && debate
-                    ? {match, debate, pendingAction: 'reply'}
-                    : undefined,
-              })
+              rootNavigateToProfileAuth(
+                match && debate
+                  ? {match, debate, pendingAction: 'reply'}
+                  : undefined,
+              )
             }
             accessibilityRole="button"
             accessibilityLabel="Sign in to comment">
@@ -888,12 +888,11 @@ const SingleDebateScreen = () => {
         onLogin={() => {
           const pending = authGatePendingAction;
           setAuthGatePendingAction(null);
-          rootNavigate('Login', {
-            returnToDebate:
-              match && debate
-                ? {match, debate, pendingAction: pending ?? undefined}
-                : undefined,
-          });
+          rootNavigateToProfileAuth(
+            match && debate
+              ? {match, debate, pendingAction: pending ?? undefined}
+              : undefined,
+          );
         }}
         onSignUp={() => {
           const pending = authGatePendingAction;

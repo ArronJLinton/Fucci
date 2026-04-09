@@ -20,6 +20,10 @@ import {
   launchGoogleAuthBrowserFlow,
   resolvePostGoogleAuthRoute,
 } from '../services/googleAuth';
+import {
+  dispatchAfterSignInSuccess,
+  dispatchResetToMainProfileTab,
+} from '../navigation/authNavigationActions';
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) {
@@ -80,24 +84,7 @@ export default function SignUpScreen() {
 
       if (result.ok) {
         await setAuth(result.data.token, result.data.user);
-        if (returnToDebate?.match && returnToDebate?.debate) {
-          navigation.reset({
-            index: 0,
-            routes: [{
-              name: 'SingleDebate',
-              params: {
-                match: returnToDebate.match,
-                debate: returnToDebate.debate,
-                pendingAction: returnToDebate.pendingAction,
-              },
-            }],
-          });
-        } else {
-          navigation.reset({
-            index: 0,
-            routes: [{name: 'Main'}],
-          });
-        }
+        dispatchAfterSignInSuccess({returnToDebate});
         return;
       }
 
@@ -118,8 +105,8 @@ export default function SignUpScreen() {
     }
   };
 
-  const goToLogin = () => {
-    navigation.navigate('Login');
+  const goToSignIn = () => {
+    dispatchResetToMainProfileTab();
   };
 
   const handleGoogleSignUp = async () => {
@@ -143,10 +130,11 @@ export default function SignUpScreen() {
 
       await setAuth(authResult.token, user);
       const destination = resolvePostGoogleAuthRoute(authResult.isNew);
-      navigation.reset({
-        index: 0,
-        routes: [{name: destination}],
-      });
+      if (destination === 'CreatePlayerProfile') {
+        dispatchAfterSignInSuccess({replaceWithCreatePlayerProfile: true});
+      } else {
+        dispatchAfterSignInSuccess({returnToDebate});
+      }
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : 'Google sign up failed. Try again.';
@@ -265,9 +253,9 @@ export default function SignUpScreen() {
 
         <TouchableOpacity
           style={styles.linkButton}
-          onPress={goToLogin}
+          onPress={goToSignIn}
           disabled={submitting}>
-          <Text style={styles.linkText}>Already have an account? Login</Text>
+          <Text style={styles.linkText}>Already have an account? Sign in</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
