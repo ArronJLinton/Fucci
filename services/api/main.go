@@ -78,6 +78,7 @@ func main() {
 		GoogleOAuthClientID:     c.GOOGLE_OAUTH_CLIENT_ID,
 		GoogleOAuthClientSecret: c.GOOGLE_OAUTH_CLIENT_SECRET,
 		GoogleOAuthRedirectURIs: c.GOOGLE_OAUTH_REDIRECT_URIS,
+		GoogleOAuthCallbackURL:  c.GOOGLE_OAUTH_CALLBACK_URL,
 		CloudinaryCloudName:     c.CLOUDINARY_CLOUD_NAME,
 		CloudinaryAPIKey:        c.CLOUDINARY_API_KEY,
 		CloudinaryAPISecret:     c.CLOUDINARY_API_SECRET,

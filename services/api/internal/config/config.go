@@ -46,6 +46,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 	viper.SetDefault("environment", "development")
 	viper.SetDefault("system_user_email", "contact@magistri.dev")
 	viper.SetDefault("google_oauth_redirect_uris", "")
+	viper.SetDefault("google_oauth_callback_url", "")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -57,13 +58,20 @@ func InitConfig(logger *otelzap.Logger) Config {
 		logger.Info("Found .env file", zap.String("file", viper.ConfigFileUsed()))
 	}
 
+	googleOAuthClientSecret := viper.GetString("google_oauth_client_secret")
+	if googleOAuthClientSecret == "" {
+		// Backward-compatible fallback for older env naming.
+		googleOAuthClientSecret = viper.GetString("google_client_secret")
+	}
+
 	cfg := Config{
 		DB_URL:                     viper.GetString("db_url"),
 		FOOTBALL_API_KEY:           viper.GetString("football_api_key"),
 		RAPID_API_KEY:              viper.GetString("rapid_api_key"),
 		GOOGLE_OAUTH_CLIENT_ID:     viper.GetString("google_oauth_client_id"),
-		GOOGLE_OAUTH_CLIENT_SECRET: viper.GetString("google_oauth_client_secret"),
+		GOOGLE_OAUTH_CLIENT_SECRET: googleOAuthClientSecret,
 		GOOGLE_OAUTH_REDIRECT_URIS: viper.GetString("google_oauth_redirect_uris"),
+		GOOGLE_OAUTH_CALLBACK_URL:  viper.GetString("google_oauth_callback_url"),
 		CLOUDINARY_CLOUD_NAME:      viper.GetString("cloudinary_cloud_name"),
 		CLOUDINARY_API_KEY:         viper.GetString("cloudinary_api_key"),
 		CLOUDINARY_API_SECRET:      viper.GetString("cloudinary_api_secret"),

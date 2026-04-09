@@ -52,6 +52,11 @@ type PlayerProfileStore interface {
 	InsertPlayerProfileTrait(ctx context.Context, arg database.InsertPlayerProfileTraitParams) (database.PlayerProfileTrait, error)
 }
 
+type GoogleVerifier interface {
+	ExchangeCodeForIDToken(ctx context.Context, code, redirectURI string) (string, error)
+	VerifyIDToken(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error)
+}
+
 // InitJWT initializes JWT authentication with the provided secret
 func InitJWT(secret string) error {
 	return auth.InitJWTAuth(secret)
@@ -65,6 +70,8 @@ type Config struct {
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string
 	GoogleOAuthRedirectURIs string // comma-separated list of allowed callback URIs
+	// GoogleOAuthCallbackURL is the full URL registered with Google for GET /auth/google/callback (server-side code exchange).
+	GoogleOAuthCallbackURL string
 	CloudinaryCloudName     string
 	CloudinaryAPIKey        string
 	CloudinaryAPISecret     string
@@ -76,6 +83,7 @@ type Config struct {
 	OpenAIBaseURL           string
 	AIPromptGenerator       *ai.PromptGenerator
 	SystemUserEmail         string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	GoogleVerifier          GoogleVerifier
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
 	CardVoteReader  CardVoteReader
@@ -114,6 +122,9 @@ func New(c Config) http.Handler {
 	authRouter := chi.NewRouter()
 	authRouter.Post("/register", c.handleCreateUser)
 	authRouter.Post("/login", c.handleLogin)
+	authRouter.Post("/google", c.handleGoogleAuth)
+	authRouter.Get("/google/start", c.handleGoogleOAuthStart)
+	authRouter.Get("/google/callback", c.handleGoogleOAuthCallback)
 
 	// User routes (authentication required)
 	userRouter := chi.NewRouter()
@@ -226,14 +237,35 @@ func New(c Config) http.Handler {
 
 func (c *Config) googleAllowedRedirectURIs() []string {
 	raw := strings.Split(c.GoogleOAuthRedirectURIs, ",")
-	allowed := make([]string, 0, len(raw))
-	for _, v := range raw {
-		uri := strings.TrimSpace(v)
-		if uri != "" {
-			allowed = append(allowed, uri)
+	allowed := make([]string, 0, len(raw)+1)
+	seen := map[string]struct{}{}
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
 		}
+		if _, ok := seen[s]; ok {
+			return
+		}
+		seen[s] = struct{}{}
+		allowed = append(allowed, s)
 	}
+	for _, v := range raw {
+		add(v)
+	}
+	add(c.GoogleOAuthCallbackURL)
 	return allowed
+}
+
+func (c *Config) googleVerifier() GoogleVerifier {
+	if c.GoogleVerifier != nil {
+		return c.GoogleVerifier
+	}
+	return auth.NewGoogleOAuthVerifier(
+		c.GoogleOAuthClientID,
+		c.GoogleOAuthClientSecret,
+		c.googleAllowedRedirectURIs(),
+	)
 }
 
 // debatesFeedStore returns the querier for debate feed handlers (test mock or DB).

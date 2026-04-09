@@ -7,6 +7,8 @@ type Config struct {
 	GOOGLE_OAUTH_CLIENT_ID     string
 	GOOGLE_OAUTH_CLIENT_SECRET string
 	GOOGLE_OAUTH_REDIRECT_URIS string
+	// GOOGLE_OAUTH_CALLBACK_URL is the full backend URL registered with Google (e.g. https://api.example.com/v1/api/auth/google/callback).
+	GOOGLE_OAUTH_CALLBACK_URL string
 	CLOUDINARY_CLOUD_NAME      string
 	CLOUDINARY_API_KEY         string
 	CLOUDINARY_API_SECRET      string

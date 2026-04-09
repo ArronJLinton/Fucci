@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -23,6 +25,22 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token string       `json:"token"`
 	User  UserResponse `json:"user"`
+}
+
+type GoogleAuthRequest struct {
+	Code        string `json:"code"`
+	RedirectURI string `json:"redirect_uri"`
+}
+
+type GoogleAuthResponse struct {
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
+	IsNew bool         `json:"is_new"`
+}
+
+type googleAuthErrorPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // UserResponse represents a user without sensitive data
@@ -141,6 +159,256 @@ func (c *Config) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, response)
+}
+
+type googleAuthProcError struct {
+	status int
+	code   string
+	msg    string
+}
+
+// googleAuthFromCode exchanges an OAuth code and returns a session (used by POST /auth/google and GET /auth/google/callback).
+func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI string) (GoogleAuthResponse, *googleAuthProcError) {
+	verifier := c.googleVerifier()
+	idToken, err := verifier.ExchangeCodeForIDToken(ctx, code, redirectURI)
+	if err != nil {
+		if errors.Is(err, auth.ErrGoogleInvalidRedirectURI) {
+			return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthInvalidRedirectURI, msg: "redirect_uri is not allowed"}
+		}
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthCodeInvalid, msg: "malformed or expired auth code"}
+	}
+
+	claims, err := verifier.VerifyIDToken(ctx, idToken)
+	if err != nil {
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusUnauthorized, code: auth.GoogleAuthTokenVerifyFailed, msg: "unable to verify Google ID token"}
+	}
+	if !claims.EmailVerified {
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthEmailNotVerified, msg: "Google email is not verified"}
+	}
+
+	email := strings.ToLower(strings.TrimSpace(claims.Email))
+	subject := strings.TrimSpace(claims.Subject)
+
+	var userID int32
+	var isNew bool
+	var role string
+	err = c.DBConn.QueryRowContext(
+		ctx,
+		`SELECT id, COALESCE(role, 'fan') FROM users WHERE google_id = $1 LIMIT 1`,
+		subject,
+	).Scan(&userID, &role)
+	switch {
+	case err == nil:
+		_, _ = c.DBConn.ExecContext(
+			ctx,
+			`UPDATE users SET last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE(NULLIF($2, ''), avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+			userID,
+			strings.TrimSpace(claims.Picture),
+		)
+	case err == sql.ErrNoRows:
+		var existingID int32
+		var existingProvider sql.NullString
+		qerr := c.DBConn.QueryRowContext(
+			ctx,
+			`SELECT id, auth_provider FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+			email,
+		).Scan(&existingID, &existingProvider)
+		if qerr == nil {
+			if strings.EqualFold(existingProvider.String, "email") {
+				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusConflict, code: auth.GoogleAuthAccountExistsEmail, msg: "Email already registered via password"}
+			}
+			_, _ = c.DBConn.ExecContext(
+				ctx,
+				`UPDATE users SET google_id = COALESCE(NULLIF(google_id, ''), $2), auth_provider = COALESCE(auth_provider, 'google'), last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE(NULLIF($3, ''), avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+				existingID,
+				subject,
+				strings.TrimSpace(claims.Picture),
+			)
+			userID = existingID
+		} else if qerr == sql.ErrNoRows {
+			err = c.DBConn.QueryRowContext(
+				ctx,
+				`INSERT INTO users (firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at)
+				 VALUES ($1,$2,$3,$4,'google',$5,$6,false,true,true,CURRENT_TIMESTAMP) RETURNING id`,
+				strings.TrimSpace(claims.GivenName),
+				strings.TrimSpace(claims.FamilyName),
+				email,
+				subject,
+				strings.TrimSpace(claims.Picture),
+				strings.TrimSpace(claims.Locale),
+			).Scan(&userID)
+			if err != nil {
+				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to persist google user"}
+			}
+			isNew = true
+		} else {
+			return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to check existing account"}
+		}
+	default:
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to lookup google user"}
+	}
+
+	var userResponse UserResponse
+	if err := c.DBConn.QueryRowContext(
+		ctx,
+		`SELECT id, firstname, lastname, email, COALESCE(display_name, ''), COALESCE(avatar_url, ''), COALESCE(is_verified, false), COALESCE(is_active, true), COALESCE(role, 'fan'), created_at::text, updated_at::text FROM users WHERE id = $1`,
+		userID,
+	).Scan(
+		&userResponse.ID,
+		&userResponse.Firstname,
+		&userResponse.Lastname,
+		&userResponse.Email,
+		&userResponse.DisplayName,
+		&userResponse.AvatarURL,
+		&userResponse.IsVerified,
+		&userResponse.IsActive,
+		&userResponse.Role,
+		&userResponse.CreatedAt,
+		&userResponse.UpdatedAt,
+	); err != nil {
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to load authenticated user"}
+	}
+
+	token, err := auth.GenerateToken(userResponse.ID, userResponse.Email, userResponse.Role, 24*time.Hour)
+	if err != nil {
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to generate auth token"}
+	}
+
+	return GoogleAuthResponse{
+		Token: token,
+		User:  userResponse,
+		IsNew: isNew,
+	}, nil
+}
+
+func (c *Config) handleGoogleAuth(w http.ResponseWriter, r *http.Request) {
+	var req GoogleAuthRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.RedirectURI) == "" {
+		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "code and redirect_uri are required")
+		return
+	}
+
+	out, procErr := c.googleAuthFromCode(r.Context(), req.Code, req.RedirectURI)
+	if procErr != nil {
+		respondWithGoogleAuthError(w, procErr.status, procErr.code, procErr.msg)
+		return
+	}
+	respondWithJSON(w, http.StatusOK, out)
+}
+
+func (c *Config) handleGoogleOAuthStart(w http.ResponseWriter, r *http.Request) {
+	cb := strings.TrimSpace(c.GoogleOAuthCallbackURL)
+	if cb == "" {
+		http.Error(w, "Google OAuth callback URL is not configured (GOOGLE_OAUTH_CALLBACK_URL)", http.StatusServiceUnavailable)
+		return
+	}
+	if strings.TrimSpace(c.GoogleOAuthClientID) == "" {
+		http.Error(w, "Google OAuth client ID is not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	returnToApp := strings.TrimSpace(r.URL.Query().Get("return"))
+	if returnToApp == "" {
+		returnToApp = "fucci://auth"
+	}
+	if !auth.AllowedGoogleAppReturnURI(returnToApp) {
+		http.Error(w, "return URL is not allowed", http.StatusBadRequest)
+		return
+	}
+
+	state, err := auth.SignGoogleOAuthState(returnToApp)
+	if err != nil {
+		http.Error(w, "failed to start OAuth", http.StatusInternalServerError)
+		return
+	}
+
+	u, err := url.Parse("https://accounts.google.com/o/oauth2/v2/auth")
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	q := u.Query()
+	q.Set("client_id", strings.TrimSpace(c.GoogleOAuthClientID))
+	q.Set("redirect_uri", cb)
+	q.Set("response_type", "code")
+	q.Set("scope", "openid email profile")
+	q.Set("state", state)
+	q.Set("access_type", "online")
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+func redirectGoogleOAuthApp(w http.ResponseWriter, r *http.Request, appReturn, code, message string) {
+	u, err := url.Parse(appReturn)
+	if err != nil {
+		http.Error(w, "invalid app return URL", http.StatusInternalServerError)
+		return
+	}
+	q := u.Query()
+	q.Set("google_error", code)
+	if message != "" {
+		q.Set("google_error_description", message)
+	}
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	if errMsg := q.Get("error"); errMsg != "" {
+		ret := "fucci://auth"
+		if ru, err := auth.ParseGoogleOAuthState(q.Get("state")); err == nil && strings.TrimSpace(ru) != "" {
+			ret = ru
+		}
+		redirectGoogleOAuthApp(w, r, ret, errMsg, q.Get("error_description"))
+		return
+	}
+	code := q.Get("code")
+	state := q.Get("state")
+	if code == "" || state == "" {
+		http.Error(w, "missing code or state", http.StatusBadRequest)
+		return
+	}
+	appReturn, err := auth.ParseGoogleOAuthState(state)
+	if err != nil {
+		http.Error(w, "invalid or expired OAuth state", http.StatusBadRequest)
+		return
+	}
+
+	cb := strings.TrimSpace(c.GoogleOAuthCallbackURL)
+	if cb == "" {
+		http.Error(w, "Google OAuth callback URL is not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	out, procErr := c.googleAuthFromCode(r.Context(), code, cb)
+	if procErr != nil {
+		redirectGoogleOAuthApp(w, r, appReturn, procErr.code, procErr.msg)
+		return
+	}
+
+	u, err := url.Parse(appReturn)
+	if err != nil {
+		http.Error(w, "invalid app return URL", http.StatusInternalServerError)
+		return
+	}
+	qq := u.Query()
+	qq.Set("token", out.Token)
+	if out.IsNew {
+		qq.Set("is_new", "1")
+	} else {
+		qq.Set("is_new", "0")
+	}
+	u.RawQuery = qq.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+func respondWithGoogleAuthError(w http.ResponseWriter, status int, code, message string) {
+	respondWithJSON(w, status, googleAuthErrorPayload{Code: code, Message: message})
 }
 
 func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
