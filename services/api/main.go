@@ -89,7 +89,7 @@ func main() {
 		OpenAIBaseURL:                 c.OPENAI_BASE_URL,
 		SystemUserEmail:               c.SYSTEM_USER_EMAIL,
 	}
-	apiRouter := api.New(apiCfg)
+	apiRouter := api.New(&apiCfg)
 	v1Router.Mount("/api", apiRouter)
 	router.Mount("/v1", v1Router)
 

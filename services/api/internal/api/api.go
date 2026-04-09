@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
 	"github.com/ArronJLinton/fucci-api/internal/auth"
@@ -87,6 +88,11 @@ type Config struct {
 	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default fucci@system.local
 	GoogleVerifier                GoogleVerifier
 
+	// lazyGoogleVerifier is the default *auth.GoogleOAuthVerifier when GoogleVerifier is nil (production).
+	// Initialized once via googleVerifierOnce to avoid new http.Client allocations per request.
+	lazyGoogleVerifier GoogleVerifier
+	googleVerifierOnce sync.Once
+
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
 	CardVoteReader  CardVoteReader
 	CommentReader   CommentReader
@@ -97,7 +103,10 @@ type Config struct {
 	ProfileUpdateDB ProfileUpdatePersistence
 }
 
-func New(c Config) http.Handler {
+func New(c *Config) http.Handler {
+	if c == nil {
+		panic("api.New: nil Config")
+	}
 	router := chi.NewRouter()
 
 	// Do not silently populate OAuth redirect URI allowlists here.
@@ -262,11 +271,14 @@ func (c *Config) googleVerifier() GoogleVerifier {
 	if c.GoogleVerifier != nil {
 		return c.GoogleVerifier
 	}
-	return auth.NewGoogleOAuthVerifier(
-		c.GoogleOAuthClientID,
-		c.GoogleOAuthClientSecret,
-		c.googleAllowedRedirectURIs(),
-	)
+	c.googleVerifierOnce.Do(func() {
+		c.lazyGoogleVerifier = auth.NewGoogleOAuthVerifier(
+			c.GoogleOAuthClientID,
+			c.GoogleOAuthClientSecret,
+			c.googleAllowedRedirectURIs(),
+		)
+	})
+	return c.lazyGoogleVerifier
 }
 
 // debatesFeedStore returns the querier for debate feed handlers (test mock or DB).
