@@ -55,11 +55,14 @@
       ]
     ],
     "extra": {
-      "API_BASE_URL": "https://fucci-api.fly.dev/v1/api",
+      "APP_ENV": "development",
+      "API_DEV_URL": "http://localhost:8080/v1/api",
+      "API_STAGING_URL": "https://fucci-api.fly.dev/v1/api",
+      "API_BASE_URL": "http://localhost:8080/v1/api",
       "APP_NAME": "Fucci",
-      "APP_VERSION": "1.0.0",
-      "NODE_ENV": "production",
-      "DEBUG": "false",
+      "APP_VERSION": "1.0.1",
+      "NODE_ENV": "development",
+      "DEBUG": "true",
       "releaseOwnership": {
         "accountModel": "organization-owned",
         "androidPackage": "com.magistridev.fucci",

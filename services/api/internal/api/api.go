@@ -125,6 +125,7 @@ func New(c Config) http.Handler {
 	authRouter.Post("/google", c.handleGoogleAuth)
 	authRouter.Get("/google/start", c.handleGoogleOAuthStart)
 	authRouter.Get("/google/callback", c.handleGoogleOAuthCallback)
+	authRouter.Post("/google/exchange", c.handleGoogleOAuthExchange)
 
 	// User routes (authentication required)
 	userRouter := chi.NewRouter()

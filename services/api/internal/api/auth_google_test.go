@@ -562,3 +562,60 @@ func TestHandleGoogleAuth_EmailFallbackNonGoogleProviderReturns409(t *testing.T)
 		t.Fatalf("unmet sql expectations: %v", err)
 	}
 }
+
+func TestIsGoogleProviderCancellation(t *testing.T) {
+	tests := []struct {
+		name    string
+		code    string
+		want    bool
+	}{
+		{name: "access denied", code: "access_denied", want: true},
+		{name: "user cancelled", code: "user_cancelled", want: true},
+		{name: "user canceled", code: "user_canceled", want: true},
+		{name: "trim and case", code: "  Access_Denied ", want: true},
+		{name: "non cancel error", code: "invalid_request", want: false},
+		{name: "empty", code: "", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isGoogleProviderCancellation(tc.code)
+			if got != tc.want {
+				t.Fatalf("isGoogleProviderCancellation(%q) = %v, want %v", tc.code, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGoogleOAuthExchangeCode_SingleUse(t *testing.T) {
+	in := GoogleAuthResponse{
+		Token: "jwt-token",
+		User: UserResponse{
+			ID:    99,
+			Email: "user@example.com",
+			Role:  "fan",
+		},
+		IsNew: true,
+	}
+
+	code, err := issueGoogleOAuthExchangeCode(in)
+	if err != nil {
+		t.Fatalf("issueGoogleOAuthExchangeCode error: %v", err)
+	}
+	if code == "" {
+		t.Fatalf("expected non-empty code")
+	}
+
+	out, ok := consumeGoogleOAuthExchangeCode(code)
+	if !ok {
+		t.Fatalf("expected first consume to succeed")
+	}
+	if out.Token != in.Token || out.User.ID != in.User.ID || out.IsNew != in.IsNew {
+		t.Fatalf("unexpected consumed payload: %#v", out)
+	}
+
+	_, ok = consumeGoogleOAuthExchangeCode(code)
+	if ok {
+		t.Fatalf("expected second consume to fail (single use)")
+	}
+}

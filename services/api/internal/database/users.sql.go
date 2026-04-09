@@ -152,10 +152,10 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, erro
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE google_id = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE google_id = $1::text
 `
 
-func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID sql.NullString) (Users, error) {
+func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (Users, error) {
 	row := q.db.QueryRowContext(ctx, getUserByGoogleID, googleID)
 	var i Users
 	err := row.Scan(
@@ -220,19 +220,19 @@ func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
 const updateGoogleLoginFields = `-- name: UpdateGoogleLoginFields :one
 UPDATE users
 SET last_login_at = CURRENT_TIMESTAMP,
-    avatar_url = CASE WHEN $2::text <> '' THEN $2 ELSE avatar_url END,
+    avatar_url = CASE WHEN $1::text <> '' THEN $1 ELSE avatar_url END,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+WHERE id = $2
 RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
 `
 
 type UpdateGoogleLoginFieldsParams struct {
-	ID      int32
-	Column2 string
+	AvatarUrl string
+	ID        int32
 }
 
 func (q *Queries) UpdateGoogleLoginFields(ctx context.Context, arg UpdateGoogleLoginFieldsParams) (Users, error) {
-	row := q.db.QueryRowContext(ctx, updateGoogleLoginFields, arg.ID, arg.Column2)
+	row := q.db.QueryRowContext(ctx, updateGoogleLoginFields, arg.AvatarUrl, arg.ID)
 	var i Users
 	err := row.Scan(
 		&i.ID,

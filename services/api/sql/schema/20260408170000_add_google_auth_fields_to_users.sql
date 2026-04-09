@@ -41,15 +41,6 @@ ALTER TABLE users
     DROP COLUMN IF EXISTS auth_provider,
     DROP COLUMN IF EXISTS google_id;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'auth_provider'
-    ) THEN
-        DROP TYPE IF EXISTS auth_provider_type;
-    END IF;
-END
-$$;
-
+-- Intentionally do not DROP TYPE auth_provider_type here. Up creates the enum only if missing,
+-- so the type may pre-exist or be referenced by other objects; dropping it can fail rollbacks
+-- or remove a shared type. Remove the type manually if needed after confirming no pg_depend users.

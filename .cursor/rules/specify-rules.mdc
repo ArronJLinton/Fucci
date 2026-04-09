@@ -19,8 +19,8 @@ Auto-generated from all feature plans. Last updated: 2025-10-23
 - Supabase Postgres + Realtime + Storage (existing backend) (018-internal-test-deployment)
 - TypeScript (Expo React Native), Go (backend integration touchpoints), GitHub Actions YAML + Expo CLI, EAS Build, EAS Submit, EAS Update, Google Play Console, Firebase FCM, Apple Developer, App Store Connect, GitHub Actions (018-internal-test-deployment)
 - Supabase (Postgres + Realtime + Storage), GitHub/Expo secret stores for deployment credentials (018-internal-test-deployment)
-- Go 1.22+ (API), TypeScript strict mode (React Native mobile) + Gin HTTP server, JWT issuance utilities, Google token exchange/verification library (`google-auth-library` per requirement), Expo/React Native auth session integrations (001-google-auth)
-- PostgreSQL `users` table migration updates (001-google-auth)
+- Go 1.22+ (API), TypeScript strict mode (React Native mobile) + chi HTTP router (`go-chi/chi`), JWT issuance utilities, custom Google OAuth in Go (`services/api/internal/auth/google_oauth.go`: code exchange via `net/http`, ID token checks via Google tokeninfo + claim validation), Expo `expo-web-browser` / `expo-linking` for backend-driven browser OAuth handoff (001-google-auth)
+- PostgreSQL `users` table migration updates (`google_id`, `auth_provider`, etc.) (001-google-auth)
 
 - TypeScript (React Native), Go 1.22+, SQL + React Native with Expo, Gin framework, PostgreSQL, Redis, OpenAI API, Socket.io (001-football-community)
 
@@ -40,7 +40,7 @@ npm test && npm run lint
 TypeScript (React Native), Go 1.22+, SQL: Follow standard conventions
 
 ## Recent Changes
-- 001-google-auth: Added Go 1.22+ (API), TypeScript strict mode (React Native mobile) + Gin HTTP server, JWT issuance utilities, Google token exchange/verification library (`google-auth-library` per requirement), Expo/React Native auth session integrations
+- 001-google-auth: Added Go 1.22+ (API), TypeScript strict mode (React Native mobile) + chi HTTP router, JWT issuance utilities, custom Google OAuth client in Go (`internal/auth`), Expo browser OAuth handoff (`expo-web-browser` / `expo-linking`)
 - 018-internal-test-deployment: Added TypeScript (Expo React Native), Go (backend integration touchpoints), GitHub Actions YAML + Expo CLI, EAS Build, EAS Submit, EAS Update, Google Play Console, Firebase FCM, Apple Developer, App Store Connect, GitHub Actions
 - 018-internal-test-deployment: Added TypeScript (Expo React Native), Go (API), GitHub Actions YAML + Expo CLI, EAS Build/Submit/Update, Firebase (FCM), Apple Developer + App Store Connect, Google Play Console, GitHub Actions
 

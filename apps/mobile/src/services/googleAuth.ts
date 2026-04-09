@@ -10,6 +10,11 @@ export type GoogleBrowserAuthResult =
   | {kind: 'cancel'}
   | {kind: 'error'; message: string};
 
+type GoogleExchangeResponse = {
+  token: string;
+  is_new: boolean;
+};
+
 function firstQuery(
   v: string | string[] | undefined,
 ): string | undefined {
@@ -19,9 +24,44 @@ function firstQuery(
   return Array.isArray(v) ? v[0] : v;
 }
 
+async function exchangeGoogleOAuthCode(
+  code: string,
+): Promise<
+  | {ok: true; data: GoogleExchangeResponse}
+  | {ok: false; message: string}
+> {
+  const url = `${apiConfig.baseURL}/auth/google/exchange`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {...apiConfig.headers},
+      body: JSON.stringify({code}),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message =
+        (typeof data.error === 'string' && data.error) ||
+        (typeof data.message === 'string' && data.message) ||
+        `Request failed (${response.status})`;
+      return {ok: false, message};
+    }
+    if (typeof data.token !== 'string') {
+      return {ok: false, message: 'Google sign-in failed'};
+    }
+    return {ok: true, data: data as GoogleExchangeResponse};
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : 'Google sign-in failed',
+    };
+  }
+}
+
 /**
  * Opens the backend-driven Google OAuth flow: GET /auth/google/start → Google →
- * GET /auth/google/callback → redirect to this app with ?token=…&is_new=….
+ * GET /auth/google/callback → redirect to this app with ?code=…&is_new=….
+ * The app then exchanges the short-lived code at POST /auth/google/exchange.
  * Client ID and secret stay on the API only.
  */
 export async function launchGoogleAuthBrowserFlow(): Promise<GoogleBrowserAuthResult> {
@@ -48,15 +88,21 @@ export async function launchGoogleAuthBrowserFlow(): Promise<GoogleBrowserAuthRe
     };
   }
 
-  const token = firstQuery(q.token);
-  if (!token) {
+  const exchangeCode = firstQuery(q.code);
+  if (!exchangeCode) {
     return {kind: 'cancel'};
   }
 
-  const rawNew = firstQuery(q.is_new);
-  const isNew = rawNew === '1' || rawNew === 'true';
+  const exchanged = await exchangeGoogleOAuthCode(exchangeCode);
+  if (!exchanged.ok) {
+    return {kind: 'error', message: exchanged.message};
+  }
 
-  return {kind: 'success', token, isNew};
+  return {
+    kind: 'success',
+    token: exchanged.data.token,
+    isNew: exchanged.data.is_new,
+  };
 }
 
 export function resolvePostGoogleAuthRoute(isNew: boolean): PostGoogleAuthRoute {

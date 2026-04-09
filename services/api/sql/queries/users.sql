@@ -10,7 +10,7 @@ SELECT * FROM users WHERE id = $1;
 SELECT * FROM users WHERE email = $1;
 
 -- name: GetUserByGoogleID :one
-SELECT * FROM users WHERE google_id = $1;
+SELECT * FROM users WHERE google_id = sqlc.arg(google_id)::text;
 
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY created_at DESC;
@@ -23,9 +23,9 @@ RETURNING *;
 -- name: UpdateGoogleLoginFields :one
 UPDATE users
 SET last_login_at = CURRENT_TIMESTAMP,
-    avatar_url = CASE WHEN $2::text <> '' THEN $2 ELSE avatar_url END,
+    avatar_url = CASE WHEN sqlc.arg(avatar_url)::text <> '' THEN sqlc.arg(avatar_url) ELSE avatar_url END,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: UpdateUser :one

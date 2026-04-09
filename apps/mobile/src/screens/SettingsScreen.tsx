@@ -17,7 +17,7 @@ import {useAuth} from '../context/AuthContext';
 import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
 import {getPlayerProfile} from '../services/playerProfile';
 import {updateProfile} from '../services/auth';
-import {userFacingApiMessage} from '../services/api';
+import {ApiRequestError, userFacingApiMessage} from '../services/api';
 import {uploadToCloudinary} from '../services/cloudinaryUpload';
 
 interface SettingsScreenProps {
@@ -128,6 +128,11 @@ export default function SettingsScreen({
     } catch (err) {
       if (__DEV__) {
         console.warn('[Settings] getPlayerProfile failed', err);
+      }
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        await authLogout();
+        rootResetTo('Login');
+        return;
       }
       Alert.alert(
         'Something went wrong',

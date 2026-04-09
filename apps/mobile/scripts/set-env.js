@@ -13,25 +13,36 @@
 const fs = require('fs');
 const path = require('path');
 
+const defaultStagingApi =
+  process.env.STAGING_API_BASE_URL ||
+  'https://fucci-api.fly.dev/v1/api';
+const defaultProductionApi =
+  process.env.PRODUCTION_API_BASE_URL ||
+  'https://fucci-api.fly.dev/v1/api';
+
 const environments = {
   development: {
+    APP_ENV: 'development',
+    API_DEV_URL: 'http://localhost:8080/v1/api',
     API_BASE_URL: 'http://localhost:8080/v1/api',
+    API_STAGING_URL: defaultStagingApi,
     APP_NAME: 'Fucci',
-    APP_VERSION: '1.0.0',
     NODE_ENV: 'development',
     DEBUG: 'true',
   },
   staging: {
-    API_BASE_URL: 'https://fucci-api.fly.dev/v1/api',
+    APP_ENV: 'staging',
+    API_STAGING_URL: defaultStagingApi,
+    API_BASE_URL: defaultStagingApi,
     APP_NAME: 'Fucci Staging',
-    APP_VERSION: '1.0.0',
     NODE_ENV: 'development',
     DEBUG: 'true',
   },
   production: {
-    API_BASE_URL: 'https://fucci-api.fly.dev/v1/api',
+    APP_ENV: 'production',
+    API_BASE_URL: defaultProductionApi,
+    API_STAGING_URL: defaultStagingApi,
     APP_NAME: 'Fucci',
-    APP_VERSION: '1.0.0',
     NODE_ENV: 'production',
     DEBUG: 'false',
   },
@@ -45,12 +56,15 @@ if (!environments[targetEnv]) {
   process.exit(1);
 }
 
-const envConfig = environments[targetEnv];
-
 // Update app.json
 const appJsonPath = path.join(__dirname, '..', 'app.json');
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 const existingExtra = appJson.expo.extra || {};
+const derivedAppVersion = String(appJson.expo.version || '1.0.0');
+const envConfig = {
+  ...environments[targetEnv],
+  APP_VERSION: derivedAppVersion,
+};
 
 appJson.expo.extra = {
   ...existingExtra,

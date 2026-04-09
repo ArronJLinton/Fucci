@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
@@ -38,6 +41,22 @@ type GoogleAuthResponse struct {
 	User  UserResponse `json:"user"`
 	IsNew bool         `json:"is_new"`
 }
+
+type GoogleOAuthExchangeRequest struct {
+	Code string `json:"code"`
+}
+
+type googleOAuthExchangeSession struct {
+	Response  GoogleAuthResponse
+	ExpiresAt time.Time
+}
+
+const googleOAuthExchangeTTL = 2 * time.Minute
+
+var (
+	googleOAuthExchangeMu       sync.Mutex
+	googleOAuthExchangeSessions = map[string]googleOAuthExchangeSession{}
+)
 
 // UserResponse represents a user without sensitive data
 type UserResponse struct {
@@ -413,12 +432,89 @@ func redirectGoogleOAuthApp(w http.ResponseWriter, r *http.Request, appReturn, c
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
+func redirectGoogleOAuthAppCancel(w http.ResponseWriter, r *http.Request, appReturn string) {
+	u, err := url.Parse(appReturn)
+	if err != nil {
+		http.Error(w, "invalid app return URL", http.StatusInternalServerError)
+		return
+	}
+	q := u.Query()
+	q.Set("cancel", "1")
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+func isGoogleProviderCancellation(errCode string) bool {
+	switch strings.ToLower(strings.TrimSpace(errCode)) {
+	case "access_denied", "user_cancelled", "user_canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+func issueGoogleOAuthExchangeCode(response GoogleAuthResponse) (string, error) {
+	// Opportunistic cleanup of expired entries.
+	now := time.Now()
+	googleOAuthExchangeMu.Lock()
+	for k, v := range googleOAuthExchangeSessions {
+		if now.After(v.ExpiresAt) {
+			delete(googleOAuthExchangeSessions, k)
+		}
+	}
+	googleOAuthExchangeMu.Unlock()
+
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	code := base64.RawURLEncoding.EncodeToString(raw)
+
+	googleOAuthExchangeMu.Lock()
+	googleOAuthExchangeSessions[code] = googleOAuthExchangeSession{
+		Response:  response,
+		ExpiresAt: now.Add(googleOAuthExchangeTTL),
+	}
+	googleOAuthExchangeMu.Unlock()
+	return code, nil
+}
+
+func consumeGoogleOAuthExchangeCode(code string) (GoogleAuthResponse, bool) {
+	if strings.TrimSpace(code) == "" {
+		return GoogleAuthResponse{}, false
+	}
+
+	now := time.Now()
+	googleOAuthExchangeMu.Lock()
+	defer googleOAuthExchangeMu.Unlock()
+
+	// Opportunistic cleanup and single-use consume.
+	for k, v := range googleOAuthExchangeSessions {
+		if now.After(v.ExpiresAt) {
+			delete(googleOAuthExchangeSessions, k)
+		}
+	}
+
+	session, ok := googleOAuthExchangeSessions[code]
+	if !ok || now.After(session.ExpiresAt) {
+		delete(googleOAuthExchangeSessions, code)
+		return GoogleAuthResponse{}, false
+	}
+	delete(googleOAuthExchangeSessions, code)
+	return session.Response, true
+}
+
 func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if errMsg := q.Get("error"); errMsg != "" {
 		ret := "fucci://auth"
 		if ru, err := auth.ParseGoogleOAuthState(q.Get("state")); err == nil && strings.TrimSpace(ru) != "" {
 			ret = ru
+		}
+		if isGoogleProviderCancellation(errMsg) {
+			logGoogleAuthEvent("callback_provider_cancelled", "path", r.URL.Path, "provider_error", errMsg, "return_url", ret)
+			redirectGoogleOAuthAppCancel(w, r, ret)
+			return
 		}
 		logGoogleAuthEvent("callback_provider_error", "path", r.URL.Path, "provider_error", errMsg, "return_url", ret)
 		redirectGoogleOAuthApp(w, r, ret, errMsg, q.Get("error_description"))
@@ -451,6 +547,12 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		redirectGoogleOAuthApp(w, r, appReturn, procErr.code, procErr.msg)
 		return
 	}
+	oneTimeCode, err := issueGoogleOAuthExchangeCode(out)
+	if err != nil {
+		logGoogleAuthEvent("callback_issue_exchange_code_failed", "path", r.URL.Path, "return_url", appReturn)
+		redirectGoogleOAuthApp(w, r, appReturn, auth.GoogleAuthUpstreamAPIError, "failed to create OAuth exchange code")
+		return
+	}
 
 	u, err := url.Parse(appReturn)
 	if err != nil {
@@ -458,7 +560,7 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	qq := u.Query()
-	qq.Set("token", out.Token)
+	qq.Set("code", oneTimeCode)
 	if out.IsNew {
 		qq.Set("is_new", "1")
 	} else {
@@ -467,6 +569,20 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	u.RawQuery = qq.Encode()
 	logGoogleAuthEvent("callback_success", "path", r.URL.Path, "user_id", out.User.ID, "is_new", out.IsNew, "return_url", appReturn)
 	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
+func (c *Config) handleGoogleOAuthExchange(w http.ResponseWriter, r *http.Request) {
+	var req GoogleOAuthExchangeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid request body")
+		return
+	}
+	out, ok := consumeGoogleOAuthExchangeCode(req.Code)
+	if !ok {
+		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid or expired oauth exchange code")
+		return
+	}
+	respondWithJSON(w, http.StatusOK, out)
 }
 
 func respondWithGoogleAuthError(w http.ResponseWriter, status int, code, message string) {
