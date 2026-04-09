@@ -1,11 +1,15 @@
 # All *.sql files under queries/ are included (e.g. sql/queries/debates.sql).
+# Schema merges sql/sqlc/*.sql (parseable DDL sqlc needs but goose skips in DO blocks) with sql/schema.
 # Regenerate Go: cd services/api && sqlc generate
 # Requires: sqlc CLI — https://docs.sqlc.dev/en/latest/overview/install.html
 version: "2"
 sql:
   - engine: "postgresql"
     queries: "./sql/queries"
-    schema: "./sql/schema"
+    schema:
+      # Enum DDL parseable by sqlc (016 creates the same type inside DO $$, which sqlc skips).
+      - "./sql/sqlc/user_role_enum.sql"
+      - "./sql/schema"
     gen:
       go:
         package: "database"

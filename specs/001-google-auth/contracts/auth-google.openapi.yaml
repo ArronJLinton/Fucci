@@ -205,6 +205,10 @@ paths:
                   value:
                     code: INVALID_REDIRECT_URI
                     error: redirect_uri is not allowed
+                missingRedirectURI:
+                  value:
+                    code: INVALID_REDIRECT_URI
+                    error: redirect_uri is required
         '401':
           description: Token signature/verification failed
           content:

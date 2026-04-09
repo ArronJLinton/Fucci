@@ -521,6 +521,47 @@ func TestHandleGoogleAuth_InvalidCodeReturns400(t *testing.T) {
 	}
 }
 
+func TestHandleGoogleAuth_MissingRedirectURIReturnsInvalidRedirectURI(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				t.Fatal("exchange must not be called when redirect_uri is missing")
+				return "", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				t.Fatal("verify must not be called")
+				return auth.GoogleIDTokenClaims{}, nil
+			},
+		},
+	}
+
+	body := map[string]string{"code": "auth-code", "redirect_uri": ""}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleAuth(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out apiErrorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if out.Code != auth.GoogleAuthInvalidRedirectURI {
+		t.Fatalf("expected code %s, got %s", auth.GoogleAuthInvalidRedirectURI, out.Code)
+	}
+}
+
 func TestHandleGoogleAuth_InvalidRedirectURIReturns400(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

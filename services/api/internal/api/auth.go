@@ -254,8 +254,11 @@ func userResponseFromDBUser(u database.Users) UserResponse {
 		active = u.IsActive.Bool
 	}
 	role := "fan"
-	if u.Role.Valid && strings.TrimSpace(u.Role.String) != "" {
-		role = strings.TrimSpace(u.Role.String)
+	if u.Role.Valid {
+		s := strings.TrimSpace(string(u.Role.UserRole))
+		if s != "" {
+			role = s
+		}
 	}
 	return UserResponse{
 		ID:          u.ID,
@@ -457,9 +460,14 @@ func (c *Config) handleGoogleAuth(w http.ResponseWriter, r *http.Request) {
 		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid request body")
 		return
 	}
-	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.RedirectURI) == "" {
-		logGoogleAuthEvent("post_validation_failed", "path", r.URL.Path, "missing_code", strings.TrimSpace(req.Code) == "", "missing_redirect_uri", strings.TrimSpace(req.RedirectURI) == "")
-		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "code and redirect_uri are required")
+	if strings.TrimSpace(req.Code) == "" {
+		logGoogleAuthEvent("post_validation_failed", "path", r.URL.Path, "missing_code", true)
+		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "code is required")
+		return
+	}
+	if strings.TrimSpace(req.RedirectURI) == "" {
+		logGoogleAuthEvent("post_validation_failed", "path", r.URL.Path, "missing_redirect_uri", true)
+		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthInvalidRedirectURI, "redirect_uri is required")
 		return
 	}
 
