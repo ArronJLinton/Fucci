@@ -70,7 +70,7 @@ func TestGetFootballNews_CacheMiss_Success(t *testing.T) {
 	mockCache := &MockCache{
 		existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
-		setFunc:   func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
+		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
 	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football", nil)
@@ -99,7 +99,7 @@ func TestGetFootballNews_RapidAPIFailure_NoCache(t *testing.T) {
 	mockCache := &MockCache{
 		existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
-		setFunc:   func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
+		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
 	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football", nil)
@@ -181,8 +181,8 @@ func TestGetMatchNews_RapidAPIFailure_NoCache(t *testing.T) {
 
 	mockCache := &MockCache{
 		existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
-		getFunc:   func(ctx context.Context, key string, value interface{}) error { return nil },
-		setFunc:  func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
+		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
+		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
 	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football/match", nil)
@@ -209,7 +209,7 @@ func TestGetMatchNews_CacheMiss_Success(t *testing.T) {
 	mockCache := &MockCache{
 		existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
-		setFunc:   func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
+		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
 	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football/match", nil)

@@ -42,9 +42,9 @@ type RapidAPIArticle struct {
 
 // Client wraps the RapidAPI Real-Time News Data API client
 type Client struct {
-	apiKey           string
-	baseURL          string
-	timeout          time.Duration
+	apiKey             string
+	baseURL            string
+	timeout            time.Duration
 	MinRequestInterval time.Duration // Min time between requests (default 1s; use 100ms for 10 req/s plans)
 }
 

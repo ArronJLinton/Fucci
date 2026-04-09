@@ -232,10 +232,10 @@ func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerC
 	countryCode := strings.ToUpper(strings.TrimSpace(row.CountryCode))
 	completion := completionPercentForCompare(row)
 	return ComparePlayerCatalogItem{
-		ID:             "profile-" + strconv.Itoa(int(row.ID)),
-		DisplayName:    compareCatalogDisplayName(row),
-		Age:            age,
-		CountryCode:    countryCode,
+		ID:          "profile-" + strconv.Itoa(int(row.ID)),
+		DisplayName: compareCatalogDisplayName(row),
+		Age:         age,
+		CountryCode: countryCode,
 		// Placeholder until API ships authoritative country labels.
 		CountryLabel:   "—",
 		Team:           team,
@@ -252,7 +252,7 @@ func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerC
 		ValueLabel:     "—",
 		SeasonGoals:    0,
 		// Placeholder until season data is available in profile domain.
-		SeasonLabel:    "—",
+		SeasonLabel: "—",
 	}
 }
 

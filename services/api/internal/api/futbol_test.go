@@ -163,13 +163,13 @@ func TestGetMatchLineup(t *testing.T) {
 
 // MockCache is a mock implementation of the cache interface
 type MockCache struct {
-	existsFunc  func(ctx context.Context, key string) (bool, error)
-	getFunc     func(ctx context.Context, key string, value interface{}) error
-	getDelFunc  func(ctx context.Context, key string, value interface{}) (bool, error)
-	setFunc     func(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	incrFunc    func(ctx context.Context, key string) (int64, error)
-	expireFunc  func(ctx context.Context, key string, ttl time.Duration) error
-	ttlFunc     func(ctx context.Context, key string) (time.Duration, error)
+	existsFunc func(ctx context.Context, key string) (bool, error)
+	getFunc    func(ctx context.Context, key string, value interface{}) error
+	getDelFunc func(ctx context.Context, key string, value interface{}) (bool, error)
+	setFunc    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	incrFunc   func(ctx context.Context, key string) (int64, error)
+	expireFunc func(ctx context.Context, key string, ttl time.Duration) error
+	ttlFunc    func(ctx context.Context, key string) (time.Duration, error)
 }
 
 func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {

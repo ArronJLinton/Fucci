@@ -74,18 +74,18 @@ type Config struct {
 	GoogleOAuthCallbackURL string
 	// GoogleOAuthAllowDevReturnURLs enables exp:// and http dev return URLs for GET /auth/google/start (must stay false in production).
 	GoogleOAuthAllowDevReturnURLs bool
-	CloudinaryCloudName     string
-	CloudinaryAPIKey        string
-	CloudinaryAPISecret     string
-	CloudinaryUploadPreset  string
-	Cache                   cache.CacheInterface
-	APIFootballBaseURL      string
-	NewsBaseURL             string // optional; when set, news client uses this (e.g. for tests)
-	OpenAIKey               string
-	OpenAIBaseURL           string
-	AIPromptGenerator       *ai.PromptGenerator
-	SystemUserEmail         string // Email for Fucci system user (006 seeded comments); default fucci@system.local
-	GoogleVerifier          GoogleVerifier
+	CloudinaryCloudName           string
+	CloudinaryAPIKey              string
+	CloudinaryAPISecret           string
+	CloudinaryUploadPreset        string
+	Cache                         cache.CacheInterface
+	APIFootballBaseURL            string
+	NewsBaseURL                   string // optional; when set, news client uses this (e.g. for tests)
+	OpenAIKey                     string
+	OpenAIBaseURL                 string
+	AIPromptGenerator             *ai.PromptGenerator
+	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	GoogleVerifier                GoogleVerifier
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
 	CardVoteReader  CardVoteReader
