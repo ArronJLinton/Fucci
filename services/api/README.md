@@ -38,5 +38,5 @@ Set these values in `.env` (or exported env vars) before enabling Google auth en
 
 - `GOOGLE_OAUTH_CLIENT_ID` - Google OAuth web client ID used for ID token audience validation.
 - `GOOGLE_OAUTH_CLIENT_SECRET` - OAuth client secret used for auth code exchange.
-- `GOOGLE_OAUTH_CALLBACK_URL` - OAuth callback URL used by `/auth/google/start` and `/auth/google/callback` (e.g. `http://localhost:8080/auth/google/callback`).
+- `GOOGLE_OAUTH_CALLBACK_URL` - OAuth callback URL used by `/v1/api/auth/google/start` and `/v1/api/auth/google/callback` (e.g. `http://localhost:8080/v1/api/auth/google/callback`).
 - `GOOGLE_OAUTH_REDIRECT_URIS` - Comma-separated allowlist for callback URIs (e.g. `fucci://auth,com.fucci.app:/oauth2redirect`).
