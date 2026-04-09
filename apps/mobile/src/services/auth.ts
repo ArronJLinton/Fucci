@@ -122,34 +122,6 @@ export const login = async (
   }
 };
 
-// POST /auth/google
-export const googleAuth = async (
-  body: GoogleAuthRequest,
-): Promise<
-  | {ok: true; data: GoogleAuthResponse}
-  | {ok: false; status: number; message: string; code?: string}
-> => {
-  const url = `${apiConfig.baseURL}/auth/google`;
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {...apiConfig.headers},
-      body: JSON.stringify(body),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (response.status === 200 && data.user && data.token) {
-      return {ok: true, data: data as GoogleAuthResponse};
-    }
-    const message =
-      data.message || data.error || `Request failed (${response.status})`;
-    const code = typeof data.code === 'string' ? data.code : undefined;
-    return {ok: false, status: response.status, message, code};
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Network error';
-    return {ok: false, status: 0, message};
-  }
-};
-
 // GET /users/profile (auth required)
 export const getProfile = async (token: string): Promise<AuthUser | null> => {
   try {
