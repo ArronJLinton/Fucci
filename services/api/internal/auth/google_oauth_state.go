@@ -11,6 +11,9 @@ import (
 
 const googleOAuthStatePurpose = "google_oauth_start"
 
+// ErrJWTNotInitialized means JWT signing cannot run because no secret was loaded (JWT_SECRET / InitJWTAuth).
+var ErrJWTNotInitialized = errors.New("jwt not initialized")
+
 // GoogleOAuthStateClaims binds the browser OAuth round-trip to a safe app return URL.
 type GoogleOAuthStateClaims struct {
 	Purpose   string `json:"purpose"`
@@ -21,7 +24,7 @@ type GoogleOAuthStateClaims struct {
 // SignGoogleOAuthState issues a short-lived JWT used as the OAuth `state` parameter.
 func SignGoogleOAuthState(returnURL string) (string, error) {
 	if len(jwtSecret) == 0 {
-		return "", errors.New("jwt not initialized")
+		return "", ErrJWTNotInitialized
 	}
 	if strings.TrimSpace(returnURL) == "" {
 		return "", errors.New("missing return url")
@@ -47,7 +50,7 @@ func ParseGoogleOAuthState(raw string) (string, error) {
 		return "", errors.New("missing state")
 	}
 	if len(jwtSecret) == 0 {
-		return "", errors.New("jwt not initialized")
+		return "", ErrJWTNotInitialized
 	}
 	claims := &GoogleOAuthStateClaims{}
 	_, err := jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (interface{}, error) {

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -72,8 +73,8 @@ func TestParseGoogleOAuthState_ErrorsWhenJWTNotInitialized(t *testing.T) {
 	t.Cleanup(func() { jwtSecret = prev })
 
 	_, err := ParseGoogleOAuthState("any-token")
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "jwt not initialized") {
-		t.Fatalf("expected jwt not initialized error, got %v", err)
+	if !errors.Is(err, ErrJWTNotInitialized) {
+		t.Fatalf("expected ErrJWTNotInitialized, got %v", err)
 	}
 }
 

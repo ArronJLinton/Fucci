@@ -453,7 +453,16 @@ func (c *Config) handleGoogleOAuthStart(w http.ResponseWriter, r *http.Request) 
 
 	state, err := auth.SignGoogleOAuthState(returnToApp)
 	if err != nil {
-		logGoogleAuthEvent("start_state_sign_failed", "path", r.URL.Path)
+		if errors.Is(err, auth.ErrJWTNotInitialized) {
+			logGoogleAuthEvent("start_jwt_not_configured", "path", r.URL.Path)
+			http.Error(
+				w,
+				"JWT secret is not configured (JWT_SECRET) — required to sign Google OAuth state",
+				http.StatusServiceUnavailable,
+			)
+			return
+		}
+		logGoogleAuthEvent("start_state_sign_failed", "path", r.URL.Path, "err", err.Error())
 		http.Error(w, "failed to start OAuth", http.StatusInternalServerError)
 		return
 	}
