@@ -16,6 +16,7 @@ const googleTokenEndpoint = "https://oauth2.googleapis.com/token"
 
 var (
 	ErrGoogleInvalidRedirectURI = errors.New("invalid google redirect uri")
+	ErrGoogleInvalidCode        = errors.New("google invalid or expired auth code")
 	ErrGoogleExchangeFailed     = errors.New("google auth code exchange failed")
 	ErrGoogleTokenVerifyFailed  = errors.New("google id token verification failed")
 )
@@ -105,6 +106,9 @@ func (g *GoogleOAuthVerifier) ExchangeCodeForIDToken(ctx context.Context, code, 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest {
+			return "", fmt.Errorf("%w: status=%d", ErrGoogleInvalidCode, resp.StatusCode)
+		}
 		return "", fmt.Errorf("%w: status=%d", ErrGoogleExchangeFailed, resp.StatusCode)
 	}
 

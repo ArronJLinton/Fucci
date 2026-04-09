@@ -13,6 +13,7 @@ const (
 	GoogleAuthAccountExistsEmail = "ACCOUNT_EXISTS_EMAIL"
 	GoogleAuthUpstreamAPIError   = "GOOGLE_API_ERROR"
 	GoogleAuthInvalidRedirectURI = "INVALID_REDIRECT_URI"
+	GoogleAuthNotConfigured      = "GOOGLE_AUTH_NOT_CONFIGURED"
 )
 
 func GetAPIKey(headers http.Header) (string, error) {

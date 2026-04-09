@@ -1,6 +1,11 @@
 package auth
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/golang-jwt/jwt/v5"
+)
 
 func TestAllowedGoogleAppReturnURI(t *testing.T) {
 	cases := []struct {
@@ -33,5 +38,35 @@ func TestSignAndParseGoogleOAuthState(t *testing.T) {
 	ret, err := ParseGoogleOAuthState(tok)
 	if err != nil || ret != "fucci://auth" {
 		t.Fatalf("parse: %v %q", err, ret)
+	}
+}
+
+func TestParseGoogleOAuthState_ErrorsWhenJWTNotInitialized(t *testing.T) {
+	prev := jwtSecret
+	jwtSecret = nil
+	t.Cleanup(func() { jwtSecret = prev })
+
+	_, err := ParseGoogleOAuthState("any-token")
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "jwt not initialized") {
+		t.Fatalf("expected jwt not initialized error, got %v", err)
+	}
+}
+
+func TestParseGoogleOAuthState_RejectsUnexpectedSigningMethod(t *testing.T) {
+	_ = InitJWTAuth("test-secret-for-state")
+
+	claims := &GoogleOAuthStateClaims{
+		Purpose:   googleOAuthStatePurpose,
+		ReturnURL: "fucci://auth",
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
+	raw, err := tok.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ParseGoogleOAuthState(raw)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "unexpected signing method") {
+		t.Fatalf("expected unexpected signing method error, got %v", err)
 	}
 }

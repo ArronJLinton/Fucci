@@ -8,8 +8,8 @@ Represents application identity for authenticated users.
 
 - `id`: UUID, primary key
 - `email`: string, required, stored lowercase
-- `first_name`: string, optional
-- `last_name`: string, optional
+- `firstname`: string, optional
+- `lastname`: string, optional
 - `google_id`: string, nullable, unique when non-null
 - `auth_provider`: enum(`email`, `google`, `apple`), required
 - `avatar_url`: string, nullable

@@ -180,7 +180,10 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 		if errors.Is(err, auth.ErrGoogleInvalidRedirectURI) {
 			return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthInvalidRedirectURI, msg: "redirect_uri is not allowed"}
 		}
-		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthCodeInvalid, msg: "malformed or expired auth code"}
+		if errors.Is(err, auth.ErrGoogleInvalidCode) {
+			return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusBadRequest, code: auth.GoogleAuthCodeInvalid, msg: "malformed or expired auth code"}
+		}
+		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "google token exchange failed"}
 	}
 
 	claims, err := verifier.VerifyIDToken(ctx, idToken)
@@ -204,12 +207,18 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 	).Scan(&userID, &role)
 	switch {
 	case err == nil:
-		_, _ = c.DBConn.ExecContext(
+		if _, err := c.DBConn.ExecContext(
 			ctx,
 			`UPDATE users SET last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE(NULLIF($2, ''), avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
 			userID,
 			strings.TrimSpace(claims.Picture),
-		)
+		); err != nil {
+			return GoogleAuthResponse{}, &googleAuthProcError{
+				status: http.StatusInternalServerError,
+				code:   auth.GoogleAuthUpstreamAPIError,
+				msg:    "failed to update google login fields",
+			}
+		}
 	case err == sql.ErrNoRows:
 		var existingID int32
 		var existingProvider sql.NullString
@@ -222,13 +231,19 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 			if strings.EqualFold(existingProvider.String, "email") {
 				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusConflict, code: auth.GoogleAuthAccountExistsEmail, msg: "Email already registered via password"}
 			}
-			_, _ = c.DBConn.ExecContext(
+			if _, err := c.DBConn.ExecContext(
 				ctx,
 				`UPDATE users SET google_id = COALESCE(NULLIF(google_id, ''), $2), auth_provider = COALESCE(auth_provider, 'google'), last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE(NULLIF($3, ''), avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
 				existingID,
 				subject,
 				strings.TrimSpace(claims.Picture),
-			)
+			); err != nil {
+				return GoogleAuthResponse{}, &googleAuthProcError{
+					status: http.StatusInternalServerError,
+					code:   auth.GoogleAuthUpstreamAPIError,
+					msg:    "failed to update existing account with google login fields",
+				}
+			}
 			userID = existingID
 		} else if qerr == sql.ErrNoRows {
 			err = c.DBConn.QueryRowContext(
@@ -287,6 +302,22 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 }
 
 func (c *Config) handleGoogleAuth(w http.ResponseWriter, r *http.Request) {
+	if strings.TrimSpace(c.GoogleOAuthClientID) == "" || strings.TrimSpace(c.GoogleOAuthClientSecret) == "" {
+		logGoogleAuthEvent(
+			"post_not_configured",
+			"path", r.URL.Path,
+			"missing_client_id", strings.TrimSpace(c.GoogleOAuthClientID) == "",
+			"missing_client_secret", strings.TrimSpace(c.GoogleOAuthClientSecret) == "",
+		)
+		respondWithGoogleAuthError(
+			w,
+			http.StatusServiceUnavailable,
+			auth.GoogleAuthNotConfigured,
+			"Google OAuth is not configured on the server",
+		)
+		return
+	}
+
 	var req GoogleAuthRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logGoogleAuthEvent("post_decode_failed", "path", r.URL.Path, "method", r.Method)

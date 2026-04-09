@@ -38,6 +38,10 @@ paths:
                   value:
                     code: EMAIL_NOT_VERIFIED
                     message: Google email is not verified
+                invalidRedirectURI:
+                  value:
+                    code: INVALID_REDIRECT_URI
+                    message: redirect_uri is not allowed
         '401':
           description: Token signature/verification failed
           content:
@@ -147,6 +151,7 @@ components:
           type: string
           enum:
             - INVALID_CODE
+            - INVALID_REDIRECT_URI
             - EMAIL_NOT_VERIFIED
             - TOKEN_VERIFY_FAILED
             - ACCOUNT_EXISTS_EMAIL

@@ -27,6 +27,36 @@ func (f *fakeGoogleVerifier) VerifyIDToken(ctx context.Context, token string) (a
 	return f.verifyFn(ctx, token)
 }
 
+func TestHandleGoogleAuth_NotConfiguredReturns503(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn: db,
+		// Intentionally unset GoogleOAuthClientID/GoogleOAuthClientSecret.
+	}
+
+	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleAuth(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out googleAuthErrorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if out.Code != auth.GoogleAuthNotConfigured {
+		t.Fatalf("expected code %s, got %s", auth.GoogleAuthNotConfigured, out.Code)
+	}
+}
+
 func TestHandleGoogleAuth_NewUserReturnsIsNewTrue(t *testing.T) {
 	_ = InitJWT("test-secret")
 	db, mock, err := sqlmock.New()
@@ -37,6 +67,8 @@ func TestHandleGoogleAuth_NewUserReturnsIsNewTrue(t *testing.T) {
 
 	cfg := &Config{
 		DBConn: db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
 			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
 				return "id-token", nil
@@ -106,6 +138,8 @@ func TestHandleGoogleAuth_EmailNotVerifiedReturns400(t *testing.T) {
 
 	cfg := &Config{
 		DBConn: db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
 			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
 				return "id-token", nil
@@ -148,6 +182,8 @@ func TestHandleGoogleAuth_ExistingGoogleUserReturnsIsNewFalse(t *testing.T) {
 
 	cfg := &Config{
 		DBConn: db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
 			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
 				return "id-token", nil
@@ -208,9 +244,11 @@ func TestHandleGoogleAuth_InvalidCodeReturns400(t *testing.T) {
 
 	cfg := &Config{
 		DBConn: db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
 			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
-				return "", auth.ErrGoogleExchangeFailed
+				return "", auth.ErrGoogleInvalidCode
 			},
 			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
 				return auth.GoogleIDTokenClaims{}, nil
@@ -236,6 +274,45 @@ func TestHandleGoogleAuth_InvalidCodeReturns400(t *testing.T) {
 	}
 }
 
+func TestHandleGoogleAuth_GoogleExchangeFailedReturns500(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "", auth.ErrGoogleExchangeFailed
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{}, nil
+			},
+		},
+	}
+
+	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleAuth(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out googleAuthErrorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if out.Code != auth.GoogleAuthUpstreamAPIError {
+		t.Fatalf("expected code %s, got %s", auth.GoogleAuthUpstreamAPIError, out.Code)
+	}
+}
+
 func TestHandleGoogleAuth_TokenVerifyFailedReturns401(t *testing.T) {
 	db, _, err := sqlmock.New()
 	if err != nil {
@@ -245,6 +322,8 @@ func TestHandleGoogleAuth_TokenVerifyFailedReturns401(t *testing.T) {
 
 	cfg := &Config{
 		DBConn: db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
 			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
 				return "id-token", nil
@@ -270,5 +349,110 @@ func TestHandleGoogleAuth_TokenVerifyFailedReturns401(t *testing.T) {
 	}
 	if out.Code != auth.GoogleAuthTokenVerifyFailed {
 		t.Fatalf("expected code %s, got %s", auth.GoogleAuthTokenVerifyFailed, out.Code)
+	}
+}
+
+func TestHandleGoogleAuth_ExistingGoogleUserUpdateFailureReturns500(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub-existing",
+					Email:         "existing@example.com",
+					EmailVerified: true,
+					Picture:       "https://cdn.example/new-avatar.jpg",
+				}, nil
+			},
+		},
+	}
+
+	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+		WithArgs("sub-existing").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(int32(42), "fan"))
+	mock.ExpectExec("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE\\(NULLIF\\(\\$2, ''\\), avatar_url\\), updated_at = CURRENT_TIMESTAMP WHERE id = \\$1").
+		WithArgs(int32(42), "https://cdn.example/new-avatar.jpg").
+		WillReturnError(errors.New("db write failed"))
+
+	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleAuth(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out googleAuthErrorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if out.Code != auth.GoogleAuthUpstreamAPIError {
+		t.Fatalf("expected code %s, got %s", auth.GoogleAuthUpstreamAPIError, out.Code)
+	}
+}
+
+func TestHandleGoogleAuth_EmailFallbackUpdateFailureReturns500(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub-fallback",
+					Email:         "existing-social@example.com",
+					EmailVerified: true,
+					Picture:       "https://cdn.example/new-avatar.jpg",
+				}, nil
+			},
+		},
+	}
+
+	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+		WithArgs("sub-fallback").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT id, auth_provider FROM users WHERE lower\\(email\\) = lower\\(\\$1\\) LIMIT 1").
+		WithArgs("existing-social@example.com").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "auth_provider"}).AddRow(int32(77), "google"))
+	mock.ExpectExec("UPDATE users SET google_id = COALESCE\\(NULLIF\\(google_id, ''\\), \\$2\\), auth_provider = COALESCE\\(auth_provider, 'google'\\), last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE\\(NULLIF\\(\\$3, ''\\), avatar_url\\), updated_at = CURRENT_TIMESTAMP WHERE id = \\$1").
+		WithArgs(int32(77), "sub-fallback", "https://cdn.example/new-avatar.jpg").
+		WillReturnError(errors.New("db write failed"))
+
+	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleAuth(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out googleAuthErrorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if out.Code != auth.GoogleAuthUpstreamAPIError {
+		t.Fatalf("expected code %s, got %s", auth.GoogleAuthUpstreamAPIError, out.Code)
 	}
 }

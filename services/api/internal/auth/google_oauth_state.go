@@ -46,8 +46,14 @@ func ParseGoogleOAuthState(raw string) (string, error) {
 	if raw == "" {
 		return "", errors.New("missing state")
 	}
+	if len(jwtSecret) == 0 {
+		return "", errors.New("jwt not initialized")
+	}
 	claims := &GoogleOAuthStateClaims{}
 	_, err := jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
 		return jwtSecret, nil
 	})
 	if err != nil {
