@@ -191,6 +191,40 @@ type googleAuthProcError struct {
 	msg    string
 }
 
+// publicGoogleOAuthAppErrorDescription returns text safe to put in the app redirect URL
+// (google_error_description). Internal/server details stay in logs only.
+func publicGoogleOAuthAppErrorDescription(e *googleAuthProcError) string {
+	if e == nil {
+		return ""
+	}
+	switch e.code {
+	case auth.GoogleAuthNotConfigured:
+		return "Google sign-in is not available yet. Please try again later."
+	case auth.GoogleAuthInvalidRedirectURI:
+		return "Sign-in could not complete. Try again from the app."
+	case auth.GoogleAuthCodeInvalid:
+		return "The sign-in code was invalid or expired. Please try again."
+	case auth.GoogleAuthTokenVerifyFailed:
+		return "We could not verify your Google account. Please try again."
+	case auth.GoogleAuthEmailNotVerified:
+		return "Verify your Google email address, then try again."
+	case auth.GoogleAuthAccountExistsEmail:
+		return "An account already exists for this email. Sign in another way or use a different Google account."
+	case auth.GoogleAuthAccountInactive:
+		return "This account has been deactivated."
+	case auth.GoogleAuthUpstreamAPIError:
+		if e.status >= http.StatusInternalServerError {
+			return "Something went wrong. Please try again."
+		}
+		return "Sign-in could not be completed."
+	default:
+		if e.status >= http.StatusInternalServerError {
+			return "Something went wrong. Please try again."
+		}
+		return "Sign-in could not be completed."
+	}
+}
+
 func logGoogleAuthEvent(event string, kv ...any) {
 	log.Printf("[auth][google] event=%s kv=%v", event, kv)
 }
@@ -635,14 +669,14 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 
 	out, procErr := c.googleAuthFromCode(r.Context(), code, cb)
 	if procErr != nil {
-		logGoogleAuthEvent("callback_failed", "path", r.URL.Path, "status", procErr.status, "code", procErr.code, "return_url", appReturn)
-		redirectGoogleOAuthApp(w, r, appReturn, procErr.code, procErr.msg)
+		logGoogleAuthEvent("callback_failed", "path", r.URL.Path, "status", procErr.status, "code", procErr.code, "return_url", appReturn, "detail", procErr.msg)
+		redirectGoogleOAuthApp(w, r, appReturn, procErr.code, publicGoogleOAuthAppErrorDescription(procErr))
 		return
 	}
 	oneTimeCode, err := c.issueGoogleOAuthExchangeCode(r.Context(), out)
 	if err != nil {
-		logGoogleAuthEvent("callback_issue_exchange_code_failed", "path", r.URL.Path, "return_url", appReturn)
-		redirectGoogleOAuthApp(w, r, appReturn, auth.GoogleAuthUpstreamAPIError, "failed to create OAuth exchange code")
+		logGoogleAuthEvent("callback_issue_exchange_code_failed", "path", r.URL.Path, "return_url", appReturn, "detail", err.Error())
+		redirectGoogleOAuthApp(w, r, appReturn, auth.GoogleAuthUpstreamAPIError, "Something went wrong. Please try again.")
 		return
 	}
 

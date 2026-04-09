@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,11 +20,11 @@ import (
 
 // Regexes match sqlc-generated queries used by googleAuthFromCode (substring match).
 var (
-	rxSQLGoogleGetByGoogleID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::varchar\(255\)`
+	rxSQLGoogleGetByGoogleID   = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::varchar\(255\)`
 	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE lower\(email\) = lower\(\$1\) LIMIT 1`
-	rxSQLGoogleCreateUser = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
-	rxSQLGoogleUpdateLogin = `avatar_url = CASE WHEN \$1::text <> '' THEN \$1 ELSE avatar_url END`
-	rxSQLGoogleLink = `COALESCE\(NULLIF\(google_id::text, ''\), \$1::text\)::varchar\(255\)`
+	rxSQLGoogleCreateUser      = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
+	rxSQLGoogleUpdateLogin     = `avatar_url = CASE WHEN \$1::text <> '' THEN \$1 ELSE avatar_url END`
+	rxSQLGoogleLink            = `COALESCE\(NULLIF\(google_id::text, ''\), \$1::text\)::varchar\(255\)`
 )
 
 var sqlGoogleAuthUserColumns = []string{
@@ -73,6 +74,27 @@ func (f *fakeGoogleVerifier) ExchangeCodeForIDToken(ctx context.Context, code, r
 
 func (f *fakeGoogleVerifier) VerifyIDToken(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
 	return f.verifyFn(ctx, token)
+}
+
+func TestPublicGoogleOAuthAppErrorDescription_OmitsInternalDetail(t *testing.T) {
+	// 5xx: description must not echo internal DB-style messages (shown in URL to app).
+	internal := &googleAuthProcError{
+		status: http.StatusInternalServerError,
+		code:   auth.GoogleAuthUpstreamAPIError,
+		msg:    "failed to update google login fields",
+	}
+	got := publicGoogleOAuthAppErrorDescription(internal)
+	if got == internal.msg || strings.Contains(got, "failed to") {
+		t.Fatalf("expected generic public text, got %q", got)
+	}
+	email := &googleAuthProcError{
+		status: http.StatusBadRequest,
+		code:   auth.GoogleAuthEmailNotVerified,
+		msg:    "Google email is not verified",
+	}
+	if !strings.Contains(publicGoogleOAuthAppErrorDescription(email), "Verify") {
+		t.Fatalf("expected user-facing hint for email, got %q", publicGoogleOAuthAppErrorDescription(email))
+	}
 }
 
 func TestHandleGoogleAuth_NotConfiguredReturns503(t *testing.T) {
@@ -246,7 +268,7 @@ func TestHandleGoogleAuth_NewUserReturnsIsNewTrue(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -313,7 +335,7 @@ func TestHandleGoogleAuth_EmailNotVerifiedReturns400(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -357,7 +379,7 @@ func TestHandleGoogleAuth_ExistingGoogleUserReturnsIsNewFalse(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -417,7 +439,7 @@ func TestHandleGoogleAuth_InactiveUserReturns403(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -468,7 +490,7 @@ func TestHandleGoogleAuth_InvalidCodeReturns400(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -507,7 +529,7 @@ func TestHandleGoogleAuth_InvalidRedirectURIReturns400(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -650,7 +672,7 @@ func TestHandleGoogleAuth_TokenVerifyFailedReturns401(t *testing.T) {
 	defer db.Close()
 
 	cfg := &Config{
-		DBConn: db,
+		DBConn:                  db,
 		GoogleOAuthClientID:     "test-google-client-id",
 		GoogleOAuthClientSecret: "test-google-client-secret",
 		GoogleVerifier: &fakeGoogleVerifier{
@@ -919,9 +941,9 @@ func TestHandleGoogleAuth_EmailFallbackNonGoogleProviderReturns409(t *testing.T)
 
 func TestIsGoogleProviderCancellation(t *testing.T) {
 	tests := []struct {
-		name    string
-		code    string
-		want    bool
+		name string
+		code string
+		want bool
 	}{
 		{name: "access denied", code: "access_denied", want: true},
 		{name: "user cancelled", code: "user_cancelled", want: true},
