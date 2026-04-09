@@ -27,7 +27,7 @@ A new user chooses Google during registration and successfully creates an accoun
 **Acceptance Scenarios**:
 
 1. **Given** a signed-out person without an existing account, **When** they select "Continue with Google" during registration and complete Google consent, **Then** a new account is created and they are signed in.
-2. **Given** a signed-out person who cancels Google consent, **When** they return to the app, **Then** no account is created and they remain signed out with a clear cancellation message.
+2. **Given** a signed-out person who cancels Google consent, **When** they return to the app, **Then** no account is created and they remain signed out with no visible error message.
 
 ---
 

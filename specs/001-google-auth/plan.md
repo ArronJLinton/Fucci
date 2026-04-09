@@ -10,7 +10,7 @@ Implement one backend endpoint, `POST /auth/google`, that handles both registrat
 ## Technical Context
 
 **Language/Version**: Go 1.22+ (API), TypeScript strict mode (React Native mobile)  
-**Primary Dependencies**: Gin HTTP server, JWT issuance utilities, Google token exchange/verification library (`google-auth-library` per requirement), Expo/React Native auth session integrations  
+**Primary Dependencies**: Chi HTTP router, JWT issuance utilities, custom Google OAuth code-exchange + tokeninfo verification client (via `net/http`), Expo/React Native auth integrations  
 **Storage**: PostgreSQL `users` table migration updates  
 **Testing**: Go unit + integration tests, mobile unit tests, E2E flow validation for US-01/US-02  
 **Target Platform**: API service + iOS/Android mobile clients  

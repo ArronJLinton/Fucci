@@ -4,8 +4,8 @@
 
 - Backend and mobile app run locally.
 - Google OAuth client configuration includes:
-  - iOS redirect URI: `fucci://auth`
-  - Android redirect URI: `com.fucci.app:/oauth2redirect`
+  - App return URI (iOS/Android): `fucci://auth`
+  - Backend callback URI (registered in Google Cloud): `http://localhost:8080/v1/api/auth/google/callback` (or your deployed API callback URL)
 - Environment variables configured for Google client credentials and JWT signing.
 - Database migration tooling ready for `users` schema updates.
 
@@ -47,15 +47,17 @@ Expected results:
 ### US-01 Sign up with Google
 
 1. Open Sign Up screen and tap **Continue with Google**.
-2. Complete provider consent.
-3. Verify app calls `POST /auth/google` with `code` + `redirect_uri`.
-4. If response `is_new=true`, verify navigation to **Onboarding – Interests**.
+2. Verify the app opens backend-driven OAuth start: `GET /auth/google/start?return=fucci://auth`.
+3. Complete provider consent.
+4. Verify backend callback flow runs: `GET /auth/google/callback` exchanges code and redirects back to app with auth result.
+5. If callback result indicates `is_new=true`, verify navigation to **Onboarding – Interests**.
 
 ### US-02 Log in with existing Google account
 
 1. Open Login screen and tap **Continue with Google**.
-2. Complete provider consent.
-3. Verify `is_new=false` routes to **Home Feed**.
+2. Verify browser flow starts via backend `GET /auth/google/start`.
+3. Complete provider consent and callback redirect back into app.
+4. Verify `is_new=false` routes to **Home Feed**.
 
 ### Error and cancellation UX
 

@@ -75,6 +75,17 @@ paths:
                   value:
                     code: GOOGLE_API_ERROR
                     error: Google token exchange failed
+        '503':
+          description: Google OAuth configuration is missing on the server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notConfigured:
+                  value:
+                    code: GOOGLE_AUTH_NOT_CONFIGURED
+                    error: Google OAuth is not configured on the server
 components:
   schemas:
     GoogleAuthRequest:
@@ -156,5 +167,6 @@ components:
             - TOKEN_VERIFY_FAILED
             - ACCOUNT_EXISTS_EMAIL
             - GOOGLE_API_ERROR
+            - GOOGLE_AUTH_NOT_CONFIGURED
         error:
           type: string
