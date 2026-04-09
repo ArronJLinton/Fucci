@@ -39,11 +39,6 @@ type GoogleAuthResponse struct {
 	IsNew bool         `json:"is_new"`
 }
 
-type googleAuthErrorPayload struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
 // UserResponse represents a user without sensitive data
 type UserResponse struct {
 	ID          int32  `json:"id"`
@@ -239,6 +234,13 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 			}
 			if strings.EqualFold(existingProvider.String, "email") {
 				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusConflict, code: auth.GoogleAuthAccountExistsEmail, msg: "Email already registered via password"}
+			}
+			if !strings.EqualFold(existingProvider.String, "google") {
+				return GoogleAuthResponse{}, &googleAuthProcError{
+					status: http.StatusConflict,
+					code:   auth.GoogleAuthAccountExistsEmail,
+					msg:    "Email already linked to another account provider",
+				}
 			}
 			if _, err := c.DBConn.ExecContext(
 				ctx,
@@ -468,7 +470,7 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 }
 
 func respondWithGoogleAuthError(w http.ResponseWriter, status int, code, message string) {
-	respondWithJSON(w, status, googleAuthErrorPayload{Code: code, Message: message})
+	respondWithErrorCode(w, status, message, code)
 }
 
 func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {

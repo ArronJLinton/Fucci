@@ -48,7 +48,7 @@ func TestHandleGoogleAuth_NotConfiguredReturns503(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestHandleGoogleAuth_EmailNotVerifiedReturns400(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestHandleGoogleAuth_InvalidCodeReturns400(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestHandleGoogleAuth_GoogleExchangeFailedReturns500(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestHandleGoogleAuth_TokenVerifyFailedReturns401(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestHandleGoogleAuth_ExistingGoogleUserUpdateFailureReturns500(t *testing.T
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -448,7 +448,7 @@ func TestHandleGoogleAuth_EmailFallbackUpdateFailureReturns500(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -498,7 +498,60 @@ func TestHandleGoogleAuth_EmailMatchedDifferentGoogleIDReturns409(t *testing.T) 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	var out googleAuthErrorPayload
+	var out apiErrorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if out.Code != auth.GoogleAuthAccountExistsEmail {
+		t.Fatalf("expected code %s, got %s", auth.GoogleAuthAccountExistsEmail, out.Code)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestHandleGoogleAuth_EmailFallbackNonGoogleProviderReturns409(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "incoming-subject",
+					Email:         "apple-user@example.com",
+					EmailVerified: true,
+				}, nil
+			},
+		},
+	}
+
+	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+		WithArgs("incoming-subject").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT id, auth_provider, google_id FROM users WHERE lower\\(email\\) = lower\\(\\$1\\) LIMIT 1").
+		WithArgs("apple-user@example.com").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "auth_provider", "google_id"}).AddRow(int32(88), "apple", sql.NullString{}))
+
+	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleAuth(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out apiErrorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}

@@ -33,15 +33,15 @@ paths:
                 invalidCode:
                   value:
                     code: INVALID_CODE
-                    message: Malformed or expired auth code
+                    error: Malformed or expired auth code
                 emailNotVerified:
                   value:
                     code: EMAIL_NOT_VERIFIED
-                    message: Google email is not verified
+                    error: Google email is not verified
                 invalidRedirectURI:
                   value:
                     code: INVALID_REDIRECT_URI
-                    message: redirect_uri is not allowed
+                    error: redirect_uri is not allowed
         '401':
           description: Token signature/verification failed
           content:
@@ -52,7 +52,7 @@ paths:
                 verifyFailed:
                   value:
                     code: TOKEN_VERIFY_FAILED
-                    message: Unable to verify Google ID token
+                    error: Unable to verify Google ID token
         '409':
           description: Existing email account created via password auth
           content:
@@ -63,7 +63,7 @@ paths:
                 accountExists:
                   value:
                     code: ACCOUNT_EXISTS_EMAIL
-                    message: Email already registered via password
+                    error: Email already registered via password
         '500':
           description: Google API exchange failure or unexpected backend error
           content:
@@ -74,7 +74,7 @@ paths:
                 googleApiError:
                   value:
                     code: GOOGLE_API_ERROR
-                    message: Google token exchange failed
+                    error: Google token exchange failed
 components:
   schemas:
     GoogleAuthRequest:
@@ -145,7 +145,7 @@ components:
       type: object
       required:
         - code
-        - message
+        - error
       properties:
         code:
           type: string
@@ -156,5 +156,5 @@ components:
             - TOKEN_VERIFY_FAILED
             - ACCOUNT_EXISTS_EMAIL
             - GOOGLE_API_ERROR
-        message:
+        error:
           type: string

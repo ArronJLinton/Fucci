@@ -13,24 +13,6 @@
 const fs = require('fs');
 const path = require('path');
 
-function readEnvFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return {};
-  }
-  return fs
-    .readFileSync(filePath, 'utf8')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('#') && line.includes('='))
-    .reduce((acc, line) => {
-      const idx = line.indexOf('=');
-      const key = line.slice(0, idx).trim();
-      const value = line.slice(idx + 1).trim();
-      acc[key] = value;
-      return acc;
-    }, {});
-}
-
 const environments = {
   development: {
     API_BASE_URL: 'http://localhost:8080/v1/api',
@@ -64,10 +46,6 @@ if (!environments[targetEnv]) {
 }
 
 const envConfig = environments[targetEnv];
-const mobileEnvPath = path.join(__dirname, '..', '.env');
-const rootEnvPath = path.join(__dirname, '..', '..', '.env');
-const mobileEnv = readEnvFile(mobileEnvPath);
-const rootEnv = readEnvFile(rootEnvPath);
 
 // Update app.json
 const appJsonPath = path.join(__dirname, '..', 'app.json');
