@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -42,6 +43,9 @@ type googleTokenInfoResponse struct {
 	Picture       string `json:"picture"`
 	Locale        string `json:"locale"`
 	Audience      string `json:"aud"`
+	Issuer        string `json:"iss"`
+	ExpiresAt     string `json:"exp"`
+	IssuedAt      string `json:"iat"`
 }
 
 type GoogleOAuthVerifier struct {
@@ -140,6 +144,26 @@ func (g *GoogleOAuthVerifier) VerifyIDToken(ctx context.Context, token string) (
 	if strings.TrimSpace(payload.Audience) != g.clientID {
 		return GoogleIDTokenClaims{}, fmt.Errorf("%w: audience mismatch", ErrGoogleTokenVerifyFailed)
 	}
+	iss := strings.TrimSpace(payload.Issuer)
+	if iss != "accounts.google.com" && iss != "https://accounts.google.com" {
+		return GoogleIDTokenClaims{}, fmt.Errorf("%w: issuer mismatch", ErrGoogleTokenVerifyFailed)
+	}
+	now := time.Now().Unix()
+	expUnix, err := parseUnixSeconds(payload.ExpiresAt)
+	if err != nil {
+		return GoogleIDTokenClaims{}, fmt.Errorf("%w: invalid exp", ErrGoogleTokenVerifyFailed)
+	}
+	if now >= expUnix {
+		return GoogleIDTokenClaims{}, fmt.Errorf("%w: token expired", ErrGoogleTokenVerifyFailed)
+	}
+	iatUnix, err := parseUnixSeconds(payload.IssuedAt)
+	if err != nil {
+		return GoogleIDTokenClaims{}, fmt.Errorf("%w: invalid iat", ErrGoogleTokenVerifyFailed)
+	}
+	// Guard against clearly invalid future-issued tokens (allow small skew).
+	if iatUnix > now+300 {
+		return GoogleIDTokenClaims{}, fmt.Errorf("%w: token issued in future", ErrGoogleTokenVerifyFailed)
+	}
 	claims := GoogleIDTokenClaims{
 		Subject:       payload.Subject,
 		Email:         strings.ToLower(strings.TrimSpace(payload.Email)),
@@ -150,6 +174,18 @@ func (g *GoogleOAuthVerifier) VerifyIDToken(ctx context.Context, token string) (
 		Locale:        payload.Locale,
 	}
 	return claims, nil
+}
+
+func parseUnixSeconds(v string) (int64, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, errors.New("empty numeric date")
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func toBool(v any) bool {

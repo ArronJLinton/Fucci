@@ -198,7 +198,7 @@ type Users struct {
 	DisplayName  sql.NullString
 	AvatarUrl    sql.NullString
 	GoogleID     sql.NullString
-	AuthProvider interface{}
+	AuthProvider string
 	Locale       sql.NullString
 	LastLoginAt  sql.NullTime
 }

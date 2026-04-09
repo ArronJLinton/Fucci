@@ -12,3 +12,6 @@ sql:
         out: "./internal/database"
         sql_package: "database/sql"
         emit_exact_table_names: true
+        overrides:
+          - db_type: "auth_provider_type"
+            go_type: "string"
