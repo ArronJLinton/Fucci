@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -930,5 +931,472 @@ func TestGoogleOAuthExchangeCode_SingleUse_SharedCache(t *testing.T) {
 	}
 	if _, ok := cfg.consumeGoogleOAuthExchangeCode(context.Background(), code); ok {
 		t.Fatal("second consume should fail")
+	}
+}
+
+func TestHandleGoogleOAuthCallback_SuccessRedirectsWithExchangeCode(t *testing.T) {
+	_ = InitJWT("test-secret")
+	state, err := auth.SignGoogleOAuthState("fucci://auth")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cbURL := "https://example.com/v1/api/auth/google/callback"
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "test-google-client-id",
+		GoogleOAuthClientSecret: "test-google-client-secret",
+		GoogleOAuthCallbackURL:  cbURL,
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				if code != "google-auth-code" || redirectURI != cbURL {
+					t.Fatalf("unexpected exchange args: code=%q redirectURI=%q", code, redirectURI)
+				}
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub-cb-1",
+					Email:         "cbnew@example.com",
+					EmailVerified: true,
+					GivenName:     "Cb",
+					FamilyName:    "New",
+					Picture:       "https://cdn.example/a.jpg",
+					Locale:        "en",
+				}, nil
+			},
+		},
+	}
+
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
+		WithArgs("sub-cb-1").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(rxSQLGoogleGetByEmailLower).
+		WithArgs("cbnew@example.com").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(rxSQLGoogleCreateUser).
+		WithArgs("Cb", "New", "cbnew@example.com", sql.NullString{String: "sub-cb-1", Valid: true}, sql.NullString{String: "https://cdn.example/a.jpg", Valid: true}, sql.NullString{String: "en", Valid: true}).
+		WillReturnRows(sqlMockGoogleUserFullRow(201, "Cb", "New", "cbnew@example.com", "https://cdn.example/a.jpg", "sub-cb-1", "google", ts))
+	mock.ExpectQuery(rxSQLGoogleGetUserByID).
+		WithArgs(int32(201)).
+		WillReturnRows(sqlMockGoogleUserFullRow(201, "Cb", "New", "cbnew@example.com", "https://cdn.example/a.jpg", "sub-cb-1", "google", ts))
+
+	q := url.Values{}
+	q.Set("code", "google-auth-code")
+	q.Set("state", state)
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	parsed, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("parse Location: %v", err)
+	}
+	if parsed.Scheme != "fucci" || parsed.Host != "auth" {
+		t.Fatalf("unexpected redirect base: %q", loc)
+	}
+	exc := parsed.Query().Get("code")
+	if exc == "" {
+		t.Fatalf("expected exchange code in redirect, got %q", loc)
+	}
+	if parsed.Query().Get("is_new") != "1" {
+		t.Fatalf("expected is_new=1 for new user, got %q", parsed.RawQuery)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+
+	// Exchange endpoint accepts the one-time code exactly once.
+	body := map[string]string{"code": exc}
+	raw, _ := json.Marshal(body)
+	reqEx := httptest.NewRequest(http.MethodPost, "/auth/google/exchange", bytes.NewReader(raw))
+	recEx := httptest.NewRecorder()
+	cfg.handleGoogleOAuthExchange(recEx, reqEx)
+	if recEx.Code != http.StatusOK {
+		t.Fatalf("exchange: expected 200, got %d body=%s", recEx.Code, recEx.Body.String())
+	}
+	var gOut GoogleAuthResponse
+	if err := json.Unmarshal(recEx.Body.Bytes(), &gOut); err != nil {
+		t.Fatalf("exchange unmarshal: %v", err)
+	}
+	if gOut.User.Email != "cbnew@example.com" || !gOut.IsNew {
+		t.Fatalf("unexpected exchange body: %+v", gOut)
+	}
+}
+
+func TestHandleGoogleOAuthCallback_SuccessExistingUser_IsNewZero(t *testing.T) {
+	_ = InitJWT("test-secret")
+	state, err := auth.SignGoogleOAuthState("fucci://oauth/cb")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cbURL := "https://example.com/cb"
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "cid",
+		GoogleOAuthClientSecret: "sec",
+		GoogleOAuthCallbackURL:  cbURL,
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub-ex",
+					Email:         "ex@example.com",
+					EmailVerified: true,
+				}, nil
+			},
+		},
+	}
+
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ts2 := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
+		WithArgs("sub-ex").
+		WillReturnRows(sqlMockGoogleUserFullRow(77, "Ex", "User", "ex@example.com", "", "sub-ex", "google", ts))
+	mock.ExpectQuery(rxSQLGoogleUpdateLogin).
+		WithArgs("", int32(77)).
+		WillReturnRows(sqlMockGoogleUserFullRow(77, "Ex", "User", "ex@example.com", "", "sub-ex", "google", ts2))
+	mock.ExpectQuery(rxSQLGoogleGetUserByID).
+		WithArgs(int32(77)).
+		WillReturnRows(sqlMockGoogleUserFullRow(77, "Ex", "User", "ex@example.com", "", "sub-ex", "google", ts2))
+
+	q := url.Values{}
+	q.Set("code", "c1")
+	q.Set("state", state)
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	parsed, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Query().Get("is_new") != "0" {
+		t.Fatalf("expected is_new=0, got %q", parsed.Query().Get("is_new"))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql: %v", err)
+	}
+}
+
+func TestHandleGoogleOAuthCallback_ProviderErrorRedirectsWithQueryParams(t *testing.T) {
+	_ = InitJWT("test-secret")
+	state, err := auth.SignGoogleOAuthState("fucci://my-return")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cfg := &Config{DBConn: db}
+
+	q := url.Values{}
+	q.Set("error", "invalid_request")
+	q.Set("error_description", "Consent was revoked")
+	q.Set("state", state)
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	parsed, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Query().Get("google_error") != "invalid_request" {
+		t.Fatalf("google_error=%q", parsed.Query().Get("google_error"))
+	}
+	gotDesc := parsed.Query().Get("google_error_description")
+	if gotDesc != "Consent was revoked" {
+		t.Fatalf("google_error_description=%q", gotDesc)
+	}
+}
+
+func TestHandleGoogleOAuthCallback_AccessDeniedRedirectsCancel(t *testing.T) {
+	_ = InitJWT("test-secret")
+	state, err := auth.SignGoogleOAuthState("fucci://arena")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cfg := &Config{DBConn: db}
+
+	q := url.Values{}
+	q.Set("error", "access_denied")
+	q.Set("state", state)
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	parsed, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Query().Get("cancel") != "1" {
+		t.Fatalf("expected cancel=1, got %q", parsed.RawQuery)
+	}
+	if parsed.Scheme != "fucci" || parsed.Host != "arena" {
+		t.Fatalf("unexpected redirect: %s", rec.Header().Get("Location"))
+	}
+}
+
+func TestHandleGoogleOAuthCallback_AccessDeniedWithoutValidStateUsesDefaultReturn(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cfg := &Config{DBConn: db}
+
+	q := url.Values{}
+	q.Set("error", "access_denied")
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	parsed, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.String() != "fucci://auth?cancel=1" && !(parsed.Scheme == "fucci" && parsed.Host == "auth" && parsed.Query().Get("cancel") == "1") {
+		t.Fatalf("expected default fucci://auth?cancel=1, got %s", rec.Header().Get("Location"))
+	}
+}
+
+func TestHandleGoogleOAuthCallback_MissingCodeOrState400(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cfg := &Config{DBConn: db}
+
+	for _, path := range []string{
+		"/auth/google/callback?code=only",
+		"/auth/google/callback?state=only",
+		"/auth/google/callback?",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		cfg.handleGoogleOAuthCallback(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s: expected 400, got %d", path, rec.Code)
+		}
+	}
+}
+
+func TestHandleGoogleOAuthCallback_InvalidState400(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cfg := &Config{DBConn: db}
+
+	q := url.Values{}
+	q.Set("code", "c")
+	q.Set("state", "not-a-valid-jwt")
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleGoogleOAuthCallback_MissingCallbackURL503(t *testing.T) {
+	_ = InitJWT("test-secret")
+	state, err := auth.SignGoogleOAuthState("fucci://auth")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "x",
+		GoogleOAuthClientSecret: "y",
+		// GoogleOAuthCallbackURL intentionally empty
+	}
+
+	q := url.Values{}
+	q.Set("code", "c")
+	q.Set("state", state)
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleGoogleOAuthCallback_ProcErrorRedirectsToApp(t *testing.T) {
+	_ = InitJWT("test-secret")
+	state, err := auth.SignGoogleOAuthState("fucci://auth")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn:                  db,
+		GoogleOAuthClientID:     "cid",
+		GoogleOAuthClientSecret: "sec",
+		GoogleOAuthCallbackURL:  "https://example/cb",
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				return "id-token", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				return auth.GoogleIDTokenClaims{
+					Subject:       "sub",
+					Email:         "u@example.com",
+					EmailVerified: false,
+				}, nil
+			},
+		},
+	}
+
+	q := url.Values{}
+	q.Set("code", "c")
+	q.Set("state", state)
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?"+q.Encode(), nil)
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	parsed, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Query().Get("google_error") != auth.GoogleAuthEmailNotVerified {
+		t.Fatalf("google_error=%q", parsed.Query().Get("google_error"))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql: %v", err)
+	}
+}
+
+func TestHandleGoogleOAuthExchange_InvalidOrExpiredCode400(t *testing.T) {
+	cfg := &Config{}
+	body := map[string]string{"code": "definitely-not-issued"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/google/exchange", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthExchange(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out apiErrorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Code != auth.GoogleAuthCodeInvalid {
+		t.Fatalf("code %q want %q", out.Code, auth.GoogleAuthCodeInvalid)
+	}
+}
+
+func TestHandleGoogleOAuthExchange_MalformedBody400(t *testing.T) {
+	cfg := &Config{}
+	req := httptest.NewRequest(http.MethodPost, "/auth/google/exchange", bytes.NewReader([]byte(`{`)))
+	rec := httptest.NewRecorder()
+	cfg.handleGoogleOAuthExchange(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	var out apiErrorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Code != auth.GoogleAuthCodeInvalid {
+		t.Fatalf("expected INVALID_CODE, got %+v", out)
+	}
+}
+
+func TestHandleGoogleOAuthExchange_ReuseCodeReturns400(t *testing.T) {
+	cfg := &Config{}
+	in := GoogleAuthResponse{
+		Token: "tok",
+		User:  UserResponse{ID: 1, Email: "a@b.com"},
+		IsNew: false,
+	}
+	code, err := cfg.issueGoogleOAuthExchangeCode(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := map[string]string{"code": code}
+	raw, _ := json.Marshal(body)
+	req1 := httptest.NewRequest(http.MethodPost, "/auth/google/exchange", bytes.NewReader(raw))
+	rec1 := httptest.NewRecorder()
+	cfg.handleGoogleOAuthExchange(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first exchange: %d %s", rec1.Code, rec1.Body.String())
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "/auth/google/exchange", bytes.NewReader(raw))
+	rec2 := httptest.NewRecorder()
+	cfg.handleGoogleOAuthExchange(rec2, req2)
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("second exchange: expected 400, got %d body=%s", rec2.Code, rec2.Body.String())
+	}
+	var out apiErrorBody
+	if err := json.Unmarshal(rec2.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Code != auth.GoogleAuthCodeInvalid {
+		t.Fatalf("expected INVALID_CODE on reuse, got %+v", out)
 	}
 }
