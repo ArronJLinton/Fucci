@@ -282,6 +282,13 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 	existingByGoogle, err := q.GetUserByGoogleID(ctx, subject)
 	switch {
 	case err == nil:
+		if existingByGoogle.IsActive.Valid && !existingByGoogle.IsActive.Bool {
+			return GoogleAuthResponse{}, &googleAuthProcError{
+				status: http.StatusForbidden,
+				code:   auth.GoogleAuthAccountInactive,
+				msg:    "This account has been deactivated",
+			}
+		}
 		userID = existingByGoogle.ID
 		if _, err := q.UpdateGoogleLoginFields(ctx, database.UpdateGoogleLoginFieldsParams{
 			AvatarUrl: strings.TrimSpace(claims.Picture),
@@ -296,6 +303,13 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 	case errors.Is(err, sql.ErrNoRows):
 		byEmail, qerr := q.GetUserByEmailLower(ctx, email)
 		if qerr == nil {
+			if byEmail.IsActive.Valid && !byEmail.IsActive.Bool {
+				return GoogleAuthResponse{}, &googleAuthProcError{
+					status: http.StatusForbidden,
+					code:   auth.GoogleAuthAccountInactive,
+					msg:    "This account has been deactivated",
+				}
+			}
 			existingGoogleIDVal := strings.TrimSpace(byEmail.GoogleID.String)
 			if byEmail.GoogleID.Valid && existingGoogleIDVal != "" && existingGoogleIDVal != subject {
 				return GoogleAuthResponse{}, &googleAuthProcError{
@@ -355,6 +369,13 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to load authenticated user"}
 	}
 	userResponse := userResponseFromDBUser(u)
+	if !userResponse.IsActive {
+		return GoogleAuthResponse{}, &googleAuthProcError{
+			status: http.StatusForbidden,
+			code:   auth.GoogleAuthAccountInactive,
+			msg:    "This account has been deactivated",
+		}
+	}
 
 	token, err := auth.GenerateToken(userResponse.ID, userResponse.Email, userResponse.Role, 24*time.Hour)
 	if err != nil {
