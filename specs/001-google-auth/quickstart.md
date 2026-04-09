@@ -50,14 +50,14 @@ Expected results:
 2. Verify the app opens backend-driven OAuth start: `GET /auth/google/start?return=fucci://auth`.
 3. Complete provider consent.
 4. Verify backend callback flow runs: `GET /auth/google/callback` exchanges code and redirects back to app with auth result.
-5. If callback result indicates `is_new=true`, verify navigation to **Onboarding – Interests**.
+5. Verify successful registration navigates to the **Settings** screen (signed-in state).
 
 ### US-02 Log in with existing Google account
 
-1. Open Login screen and tap **Continue with Google**.
+1. From the logged-out **Profile** tab (guest auth), tap **Continue with Google** (same entry point pattern as sign-up; there is no separate Login screen).
 2. Verify browser flow starts via backend `GET /auth/google/start`.
 3. Complete provider consent and callback redirect back into app.
-4. Verify `is_new=false` routes to **Home Feed**.
+4. Verify successful login navigates to the **Settings** screen (`is_new=false` still uses this post-auth destination).
 
 ### Error and cancellation UX
 
@@ -69,7 +69,7 @@ Expected results:
 
 - Backend unit tests: token parsing/verification logic, account lookup branching, error code mapping.
 - Backend integration tests: `POST /auth/google` happy path + all specified failures.
-- Mobile tests: Sign Up/Login button behavior, cancellation handling, route decisions by `is_new`.
+- Mobile tests: Sign Up / Profile guest auth Google button behavior, cancellation handling, post-auth navigation to Settings.
 - E2E tests: full US-01 and US-02 across iOS and Android.
 
 ## 5. Validation outcomes (2026-04-09)
@@ -79,6 +79,6 @@ Expected results:
   - Covered new user (`is_new=true`), existing user (`is_new=false`), `EMAIL_NOT_VERIFIED`, `INVALID_CODE`, `TOKEN_VERIFY_FAILED`
 - Mobile static validation:
   - `yarn type-check` (apps/mobile) -> pass
-  - Login and Sign Up Google buttons now show in-flight loading state and disable interaction while requests are active.
+  - Sign Up and Profile guest auth Google buttons show in-flight loading state and disable interaction while requests are active.
 - Manual flow verification:
   - Backend callback flow (`/auth/google/start` -> `/auth/google/callback`) completed successfully in local development with `GOOGLE_OAUTH_CALLBACK_URL` configured.

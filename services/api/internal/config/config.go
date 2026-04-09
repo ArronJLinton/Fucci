@@ -64,14 +64,29 @@ func InitConfig(logger *otelzap.Logger) Config {
 		googleOAuthClientSecret = viper.GetString("google_client_secret")
 	}
 
+	environment := strings.ToLower(strings.TrimSpace(viper.GetString("environment")))
+	var allowDevOAuthReturnURLs bool
+	if viper.IsSet("google_oauth_allow_dev_return_urls") {
+		allowDevOAuthReturnURLs = viper.GetBool("google_oauth_allow_dev_return_urls")
+	} else {
+		// Expo dev uses exp:// or http://localhost for Linking.createURL('auth'). Production must set ENVIRONMENT=production.
+		switch environment {
+		case "development", "dev", "local":
+			allowDevOAuthReturnURLs = true
+		default:
+			allowDevOAuthReturnURLs = false
+		}
+	}
+
 	cfg := Config{
 		DB_URL:                     viper.GetString("db_url"),
 		FOOTBALL_API_KEY:           viper.GetString("football_api_key"),
 		RAPID_API_KEY:              viper.GetString("rapid_api_key"),
-		GOOGLE_OAUTH_CLIENT_ID:     viper.GetString("google_oauth_client_id"),
-		GOOGLE_OAUTH_CLIENT_SECRET: googleOAuthClientSecret,
-		GOOGLE_OAUTH_REDIRECT_URIS: viper.GetString("google_oauth_redirect_uris"),
-		GOOGLE_OAUTH_CALLBACK_URL:  viper.GetString("google_oauth_callback_url"),
+		GOOGLE_OAUTH_CLIENT_ID:               viper.GetString("google_oauth_client_id"),
+		GOOGLE_OAUTH_CLIENT_SECRET:           googleOAuthClientSecret,
+		GOOGLE_OAUTH_REDIRECT_URIS:           viper.GetString("google_oauth_redirect_uris"),
+		GOOGLE_OAUTH_CALLBACK_URL:            viper.GetString("google_oauth_callback_url"),
+		GOOGLE_OAUTH_ALLOW_DEV_RETURN_URLS:   allowDevOAuthReturnURLs,
 		CLOUDINARY_CLOUD_NAME:      viper.GetString("cloudinary_cloud_name"),
 		CLOUDINARY_API_KEY:         viper.GetString("cloudinary_api_key"),
 		CLOUDINARY_API_SECRET:      viper.GetString("cloudinary_api_secret"),

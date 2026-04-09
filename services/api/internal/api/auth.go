@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
+	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -52,6 +53,13 @@ type googleOAuthExchangeSession struct {
 }
 
 const googleOAuthExchangeTTL = 2 * time.Minute
+
+// googleOAuthExchangeCacheKeyPrefix namespaces one-time exchange payloads in the shared cache (Redis).
+const googleOAuthExchangeCacheKeyPrefix = "oauth:google:exchange:v1:"
+
+func googleOAuthExchangeCacheKey(code string) string {
+	return googleOAuthExchangeCacheKeyPrefix + code
+}
 
 var (
 	googleOAuthExchangeMu       sync.Mutex
@@ -186,8 +194,63 @@ func logGoogleAuthEvent(event string, kv ...any) {
 	log.Printf("[auth][google] event=%s kv=%v", event, kv)
 }
 
+func (c *Config) dbQueries() *database.Queries {
+	if c.DB != nil {
+		return c.DB
+	}
+	return database.New(c.DBConn)
+}
+
+func userResponseFromDBUser(u database.Users) UserResponse {
+	displayName := ""
+	if u.DisplayName.Valid {
+		displayName = u.DisplayName.String
+	}
+	avatarURL := ""
+	if u.AvatarUrl.Valid {
+		avatarURL = u.AvatarUrl.String
+	}
+	verified := false
+	if u.IsVerified.Valid {
+		verified = u.IsVerified.Bool
+	}
+	active := true
+	if u.IsActive.Valid {
+		active = u.IsActive.Bool
+	}
+	role := "fan"
+	if u.Role.Valid && strings.TrimSpace(u.Role.String) != "" {
+		role = strings.TrimSpace(u.Role.String)
+	}
+	return UserResponse{
+		ID:          u.ID,
+		Firstname:   u.Firstname,
+		Lastname:    u.Lastname,
+		Email:       u.Email,
+		DisplayName: displayName,
+		AvatarURL:   avatarURL,
+		IsVerified:  verified,
+		IsActive:    active,
+		Role:        role,
+		CreatedAt:   u.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:   u.UpdatedAt.Format(time.RFC3339Nano),
+	}
+}
+
 // googleAuthFromCode exchanges an OAuth code and returns a session (used by POST /auth/google and GET /auth/google/callback).
 func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI string) (GoogleAuthResponse, *googleAuthProcError) {
+	if strings.TrimSpace(c.GoogleOAuthClientID) == "" || strings.TrimSpace(c.GoogleOAuthClientSecret) == "" {
+		logGoogleAuthEvent(
+			"exchange_not_configured",
+			"missing_client_id", strings.TrimSpace(c.GoogleOAuthClientID) == "",
+			"missing_client_secret", strings.TrimSpace(c.GoogleOAuthClientSecret) == "",
+		)
+		return GoogleAuthResponse{}, &googleAuthProcError{
+			status: http.StatusServiceUnavailable,
+			code:   auth.GoogleAuthNotConfigured,
+			msg:    "Google OAuth is not configured on the server",
+		}
+	}
 	verifier := c.googleVerifier()
 	idToken, err := verifier.ExchangeCodeForIDToken(ctx, code, redirectURI)
 	if err != nil {
@@ -211,85 +274,74 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 	email := strings.ToLower(strings.TrimSpace(claims.Email))
 	subject := strings.TrimSpace(claims.Subject)
 
+	q := c.dbQueries()
+
 	var userID int32
 	var isNew bool
-	var role string
-	err = c.DBConn.QueryRowContext(
-		ctx,
-		`SELECT id, COALESCE(role, 'fan') FROM users WHERE google_id = $1 LIMIT 1`,
-		subject,
-	).Scan(&userID, &role)
+
+	existingByGoogle, err := q.GetUserByGoogleID(ctx, subject)
 	switch {
 	case err == nil:
-		if _, err := c.DBConn.ExecContext(
-			ctx,
-			`UPDATE users SET last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE(NULLIF($2, ''), avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-			userID,
-			strings.TrimSpace(claims.Picture),
-		); err != nil {
+		userID = existingByGoogle.ID
+		if _, err := q.UpdateGoogleLoginFields(ctx, database.UpdateGoogleLoginFieldsParams{
+			AvatarUrl: strings.TrimSpace(claims.Picture),
+			ID:        userID,
+		}); err != nil {
 			return GoogleAuthResponse{}, &googleAuthProcError{
 				status: http.StatusInternalServerError,
 				code:   auth.GoogleAuthUpstreamAPIError,
 				msg:    "failed to update google login fields",
 			}
 		}
-	case err == sql.ErrNoRows:
-		var existingID int32
-		var existingProvider sql.NullString
-		var existingGoogleID sql.NullString
-		qerr := c.DBConn.QueryRowContext(
-			ctx,
-			`SELECT id, auth_provider, google_id FROM users WHERE lower(email) = lower($1) LIMIT 1`,
-			email,
-		).Scan(&existingID, &existingProvider, &existingGoogleID)
+	case errors.Is(err, sql.ErrNoRows):
+		byEmail, qerr := q.GetUserByEmailLower(ctx, email)
 		if qerr == nil {
-			existingGoogleIDVal := strings.TrimSpace(existingGoogleID.String)
-			if existingGoogleID.Valid && existingGoogleIDVal != "" && existingGoogleIDVal != subject {
+			existingGoogleIDVal := strings.TrimSpace(byEmail.GoogleID.String)
+			if byEmail.GoogleID.Valid && existingGoogleIDVal != "" && existingGoogleIDVal != subject {
 				return GoogleAuthResponse{}, &googleAuthProcError{
 					status: http.StatusConflict,
 					code:   auth.GoogleAuthAccountExistsEmail,
 					msg:    "Email already linked to another Google account",
 				}
 			}
-			if strings.EqualFold(existingProvider.String, "email") {
+			prov := strings.TrimSpace(byEmail.AuthProvider)
+			if strings.EqualFold(prov, "email") {
 				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusConflict, code: auth.GoogleAuthAccountExistsEmail, msg: "Email already registered via password"}
 			}
-			if !strings.EqualFold(existingProvider.String, "google") {
+			if !strings.EqualFold(prov, "google") {
 				return GoogleAuthResponse{}, &googleAuthProcError{
 					status: http.StatusConflict,
 					code:   auth.GoogleAuthAccountExistsEmail,
 					msg:    "Email already linked to another account provider",
 				}
 			}
-			if _, err := c.DBConn.ExecContext(
-				ctx,
-				`UPDATE users SET google_id = COALESCE(NULLIF(google_id, ''), $2), auth_provider = COALESCE(auth_provider, 'google'), last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE(NULLIF($3, ''), avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-				existingID,
-				subject,
-				strings.TrimSpace(claims.Picture),
-			); err != nil {
+			if _, err := q.LinkGoogleToExistingUser(ctx, database.LinkGoogleToExistingUserParams{
+				ID:          byEmail.ID,
+				NewGoogleID: subject,
+				AvatarUrl:   strings.TrimSpace(claims.Picture),
+			}); err != nil {
 				return GoogleAuthResponse{}, &googleAuthProcError{
 					status: http.StatusInternalServerError,
 					code:   auth.GoogleAuthUpstreamAPIError,
 					msg:    "failed to update existing account with google login fields",
 				}
 			}
-			userID = existingID
-		} else if qerr == sql.ErrNoRows {
-			err = c.DBConn.QueryRowContext(
-				ctx,
-				`INSERT INTO users (firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at)
-				 VALUES ($1,$2,$3,$4,'google',$5,$6,false,true,true,CURRENT_TIMESTAMP) RETURNING id`,
-				strings.TrimSpace(claims.GivenName),
-				strings.TrimSpace(claims.FamilyName),
-				email,
-				subject,
-				strings.TrimSpace(claims.Picture),
-				strings.TrimSpace(claims.Locale),
-			).Scan(&userID)
+			userID = byEmail.ID
+		} else if errors.Is(qerr, sql.ErrNoRows) {
+			pic := strings.TrimSpace(claims.Picture)
+			loc := strings.TrimSpace(claims.Locale)
+			created, err := q.CreateGoogleUser(ctx, database.CreateGoogleUserParams{
+				Firstname: strings.TrimSpace(claims.GivenName),
+				Lastname:  strings.TrimSpace(claims.FamilyName),
+				Email:     email,
+				GoogleID:  sql.NullString{String: subject, Valid: true},
+				AvatarUrl: sql.NullString{String: pic, Valid: pic != ""},
+				Locale:    sql.NullString{String: loc, Valid: loc != ""},
+			})
 			if err != nil {
 				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to persist google user"}
 			}
+			userID = created.ID
 			isNew = true
 		} else {
 			return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to check existing account"}
@@ -298,26 +350,11 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to lookup google user"}
 	}
 
-	var userResponse UserResponse
-	if err := c.DBConn.QueryRowContext(
-		ctx,
-		`SELECT id, firstname, lastname, email, COALESCE(display_name, ''), COALESCE(avatar_url, ''), COALESCE(is_verified, false), COALESCE(is_active, true), COALESCE(role, 'fan'), created_at::text, updated_at::text FROM users WHERE id = $1`,
-		userID,
-	).Scan(
-		&userResponse.ID,
-		&userResponse.Firstname,
-		&userResponse.Lastname,
-		&userResponse.Email,
-		&userResponse.DisplayName,
-		&userResponse.AvatarURL,
-		&userResponse.IsVerified,
-		&userResponse.IsActive,
-		&userResponse.Role,
-		&userResponse.CreatedAt,
-		&userResponse.UpdatedAt,
-	); err != nil {
+	u, err := q.GetUser(ctx, userID)
+	if err != nil {
 		return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusInternalServerError, code: auth.GoogleAuthUpstreamAPIError, msg: "failed to load authenticated user"}
 	}
+	userResponse := userResponseFromDBUser(u)
 
 	token, err := auth.GenerateToken(userResponse.ID, userResponse.Email, userResponse.Role, 24*time.Hour)
 	if err != nil {
@@ -387,7 +424,7 @@ func (c *Config) handleGoogleOAuthStart(w http.ResponseWriter, r *http.Request) 
 	if returnToApp == "" {
 		returnToApp = "fucci://auth"
 	}
-	if !auth.AllowedGoogleAppReturnURI(returnToApp) {
+	if !auth.AllowedGoogleAppReturnURI(returnToApp, c.GoogleOAuthAllowDevReturnURLs) {
 		logGoogleAuthEvent("start_invalid_return_url", "path", r.URL.Path, "return", returnToApp)
 		http.Error(w, "return URL is not allowed", http.StatusBadRequest)
 		return
@@ -453,8 +490,22 @@ func isGoogleProviderCancellation(errCode string) bool {
 	}
 }
 
-func issueGoogleOAuthExchangeCode(response GoogleAuthResponse) (string, error) {
-	// Opportunistic cleanup of expired entries.
+func (c *Config) issueGoogleOAuthExchangeCode(ctx context.Context, response GoogleAuthResponse) (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	code := base64.RawURLEncoding.EncodeToString(raw)
+
+	if c != nil && c.Cache != nil {
+		key := googleOAuthExchangeCacheKey(code)
+		if err := c.Cache.Set(ctx, key, response, googleOAuthExchangeTTL); err != nil {
+			return "", err
+		}
+		return code, nil
+	}
+
+	// Process-local fallback when no shared cache (single-instance / tests).
 	now := time.Now()
 	googleOAuthExchangeMu.Lock()
 	for k, v := range googleOAuthExchangeSessions {
@@ -462,15 +513,6 @@ func issueGoogleOAuthExchangeCode(response GoogleAuthResponse) (string, error) {
 			delete(googleOAuthExchangeSessions, k)
 		}
 	}
-	googleOAuthExchangeMu.Unlock()
-
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	code := base64.RawURLEncoding.EncodeToString(raw)
-
-	googleOAuthExchangeMu.Lock()
 	googleOAuthExchangeSessions[code] = googleOAuthExchangeSession{
 		Response:  response,
 		ExpiresAt: now.Add(googleOAuthExchangeTTL),
@@ -479,16 +521,25 @@ func issueGoogleOAuthExchangeCode(response GoogleAuthResponse) (string, error) {
 	return code, nil
 }
 
-func consumeGoogleOAuthExchangeCode(code string) (GoogleAuthResponse, bool) {
+func (c *Config) consumeGoogleOAuthExchangeCode(ctx context.Context, code string) (GoogleAuthResponse, bool) {
 	if strings.TrimSpace(code) == "" {
 		return GoogleAuthResponse{}, false
+	}
+
+	if c != nil && c.Cache != nil {
+		key := googleOAuthExchangeCacheKey(code)
+		var out GoogleAuthResponse
+		found, err := c.Cache.GetDel(ctx, key, &out)
+		if err != nil || !found {
+			return GoogleAuthResponse{}, false
+		}
+		return out, true
 	}
 
 	now := time.Now()
 	googleOAuthExchangeMu.Lock()
 	defer googleOAuthExchangeMu.Unlock()
 
-	// Opportunistic cleanup and single-use consume.
 	for k, v := range googleOAuthExchangeSessions {
 		if now.After(v.ExpiresAt) {
 			delete(googleOAuthExchangeSessions, k)
@@ -547,7 +598,7 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		redirectGoogleOAuthApp(w, r, appReturn, procErr.code, procErr.msg)
 		return
 	}
-	oneTimeCode, err := issueGoogleOAuthExchangeCode(out)
+	oneTimeCode, err := c.issueGoogleOAuthExchangeCode(r.Context(), out)
 	if err != nil {
 		logGoogleAuthEvent("callback_issue_exchange_code_failed", "path", r.URL.Path, "return_url", appReturn)
 		redirectGoogleOAuthApp(w, r, appReturn, auth.GoogleAuthUpstreamAPIError, "failed to create OAuth exchange code")
@@ -577,7 +628,7 @@ func (c *Config) handleGoogleOAuthExchange(w http.ResponseWriter, r *http.Reques
 		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid request body")
 		return
 	}
-	out, ok := consumeGoogleOAuthExchangeCode(req.Code)
+	out, ok := c.consumeGoogleOAuthExchangeCode(r.Context(), req.Code)
 	if !ok {
 		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid or expired oauth exchange code")
 		return

@@ -15,7 +15,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '../types/navigation';
 import {useAuth} from '../context/AuthContext';
-import {getProfile, register, type RegisterRequest} from '../services/api';
+import {register, type RegisterRequest} from '../services/api';
 import {
   launchGoogleAuthBrowserFlow,
   resolvePostGoogleAuthRoute,
@@ -122,13 +122,7 @@ export default function SignUpScreen() {
         return;
       }
 
-      const user = await getProfile(authResult.token);
-      if (!user) {
-        setError('Could not load your profile after Google sign-in.');
-        return;
-      }
-
-      await setAuth(authResult.token, user);
+      await setAuth(authResult.token, authResult.user);
       const destination = resolvePostGoogleAuthRoute(authResult.isNew);
       if (destination === 'CreatePlayerProfile') {
         dispatchAfterSignInSuccess({replaceWithCreatePlayerProfile: true});

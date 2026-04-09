@@ -68,23 +68,40 @@ func ParseGoogleOAuthState(raw string) (string, error) {
 	return claims.ReturnURL, nil
 }
 
-// AllowedGoogleAppReturnURI rejects open redirects while allowing dev (exp://) and Expo proxy URLs.
-func AllowedGoogleAppReturnURI(raw string) bool {
+// AllowedGoogleAppReturnURI rejects open redirects. When allowDevReturns is false (production default),
+// only the app deep link scheme (fucci) and the Expo auth proxy (https://auth.expo.io) are accepted.
+// When allowDevReturns is true (development, or GOOGLE_OAUTH_ALLOW_DEV_RETURN_URLS), exp:// and
+// http(s):// localhost / common private LAN hosts are also allowed for Expo Go, Expo web, and emulators.
+func AllowedGoogleAppReturnURI(raw string, allowDevReturns bool) bool {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Scheme == "" {
 		return false
 	}
-	switch u.Scheme {
+	scheme := strings.ToLower(u.Scheme)
+	host := strings.ToLower(u.Hostname())
+
+	switch scheme {
 	case "fucci":
 		return true
-	case "exp":
-		return true
 	case "https":
-		return u.Host == "auth.expo.io"
-	case "http":
-		h := strings.ToLower(u.Hostname())
-		return h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" ||
-			strings.HasPrefix(h, "192.168.") || strings.HasPrefix(h, "10.")
+		if host == "auth.expo.io" {
+			return true
+		}
+		if !allowDevReturns {
+			return false
+		}
+		// Expo web dev uses https://localhost; keep to loopback / private LAN only.
+		return host == "localhost" || host == "127.0.0.1" || host == "10.0.2.2" ||
+			strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.")
+	case "exp", "http":
+		if !allowDevReturns {
+			return false
+		}
+		if scheme == "exp" {
+			return true
+		}
+		return host == "localhost" || host == "127.0.0.1" || host == "10.0.2.2" ||
+			strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.")
 	default:
 		return false
 	}

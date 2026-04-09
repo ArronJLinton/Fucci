@@ -15,7 +15,7 @@ import {
 import {LinearGradient} from 'expo-linear-gradient';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
-import {getProfile, login} from '../services/api';
+import {login} from '../services/api';
 import {
   launchGoogleAuthBrowserFlow,
   resolvePostGoogleAuthRoute,
@@ -76,12 +76,7 @@ export default function ProfileGuestAuth({
         setError(authResult.message);
         return;
       }
-      const user = await getProfile(authResult.token);
-      if (!user) {
-        setError('Could not load your profile after Google sign-in.');
-        return;
-      }
-      await setAuth(authResult.token, user);
+      await setAuth(authResult.token, authResult.user);
       const destination = resolvePostGoogleAuthRoute(authResult.isNew);
       if (destination === 'CreatePlayerProfile') {
         dispatchAfterSignInSuccess({replaceWithCreatePlayerProfile: true});

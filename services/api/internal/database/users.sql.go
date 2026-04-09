@@ -11,9 +11,9 @@ import (
 )
 
 const createGoogleUser = `-- name: CreateGoogleUser :one
-INSERT INTO users (firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin)
-VALUES ($1, $2, $3, $4, 'google', $5, $6, false)
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
+INSERT INTO users (firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at)
+VALUES ($1, $2, $3, $4, 'google', $5, $6, false, true, true, CURRENT_TIMESTAMP)
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role
 `
 
 type CreateGoogleUserParams struct {
@@ -49,6 +49,9 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }
@@ -56,7 +59,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (firstname, lastname, email, is_admin)
 VALUES ($1, $2, $3, $4)
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role
 `
 
 type CreateUserParams struct {
@@ -88,6 +91,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (Users, 
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }
@@ -102,7 +108,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE id = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int32) (Users, error) {
@@ -122,12 +128,15 @@ func (q *Queries) GetUser(ctx context.Context, id int32) (Users, error) {
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE email = $1
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, error) {
@@ -147,12 +156,43 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, erro
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
+	)
+	return i, err
+}
+
+const getUserByEmailLower = `-- name: GetUserByEmailLower :one
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE lower(email) = lower($1) LIMIT 1
+`
+
+func (q *Queries) GetUserByEmailLower(ctx context.Context, lower string) (Users, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailLower, lower)
+	var i Users
+	err := row.Scan(
+		&i.ID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users WHERE google_id = $1::text
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = $1::text
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (Users, error) {
@@ -172,12 +212,56 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (Users
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
+	)
+	return i, err
+}
+
+const linkGoogleToExistingUser = `-- name: LinkGoogleToExistingUser :one
+UPDATE users
+SET google_id = COALESCE(NULLIF(google_id::text, ''), $1::text)::varchar(255),
+    auth_provider = COALESCE(auth_provider, 'google'),
+    last_login_at = CURRENT_TIMESTAMP,
+    avatar_url = CASE WHEN $2::text <> '' THEN $2 ELSE avatar_url END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $3
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role
+`
+
+type LinkGoogleToExistingUserParams struct {
+	NewGoogleID string
+	AvatarUrl   string
+	ID          int32
+}
+
+func (q *Queries) LinkGoogleToExistingUser(ctx context.Context, arg LinkGoogleToExistingUserParams) (Users, error) {
+	row := q.db.QueryRowContext(ctx, linkGoogleToExistingUser, arg.NewGoogleID, arg.AvatarUrl, arg.ID)
+	var i Users
+	err := row.Scan(
+		&i.ID,
+		&i.Firstname,
+		&i.Lastname,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsAdmin,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.GoogleID,
+		&i.AuthProvider,
+		&i.Locale,
+		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at FROM users ORDER BY created_at DESC
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users ORDER BY created_at DESC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
@@ -203,6 +287,9 @@ func (q *Queries) ListUsers(ctx context.Context) ([]Users, error) {
 			&i.AuthProvider,
 			&i.Locale,
 			&i.LastLoginAt,
+			&i.IsVerified,
+			&i.IsActive,
+			&i.Role,
 		); err != nil {
 			return nil, err
 		}
@@ -223,7 +310,7 @@ SET last_login_at = CURRENT_TIMESTAMP,
     avatar_url = CASE WHEN $1::text <> '' THEN $1 ELSE avatar_url END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $2
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role
 `
 
 type UpdateGoogleLoginFieldsParams struct {
@@ -248,6 +335,9 @@ func (q *Queries) UpdateGoogleLoginFields(ctx context.Context, arg UpdateGoogleL
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }
@@ -256,7 +346,7 @@ const updateUser = `-- name: UpdateUser :one
 UPDATE users 
 SET firstname = $2, lastname = $3, email = $4, is_admin = $5, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at
+RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role
 `
 
 type UpdateUserParams struct {
@@ -290,6 +380,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (Users, 
 		&i.AuthProvider,
 		&i.Locale,
 		&i.LastLoginAt,
+		&i.IsVerified,
+		&i.IsActive,
+		&i.Role,
 	)
 	return i, err
 }

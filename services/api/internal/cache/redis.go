@@ -73,6 +73,21 @@ func (c *Cache) Get(ctx context.Context, key string, dest interface{}) error {
 	return json.Unmarshal(data, dest)
 }
 
+// GetDel atomically returns and removes the key. If the key did not exist, returns false and a nil error.
+func (c *Cache) GetDel(ctx context.Context, key string, dest interface{}) (bool, error) {
+	data, err := c.client.GetDel(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := json.Unmarshal(data, dest); err != nil {
+		return false, fmt.Errorf("failed to unmarshal cached value: %w", err)
+	}
+	return true, nil
+}
+
 // Delete removes a key from the cache
 func (c *Cache) Delete(ctx context.Context, key string) error {
 	return c.client.Del(ctx, key).Err()

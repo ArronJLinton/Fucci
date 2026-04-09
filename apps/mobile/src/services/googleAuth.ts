@@ -2,18 +2,14 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 import {apiConfig} from '../config/environment';
+import type {GoogleAuthResponse} from './auth';
 
 export type PostGoogleAuthRoute = 'CreatePlayerProfile' | 'Main';
 
 export type GoogleBrowserAuthResult =
-  | {kind: 'success'; token: string; isNew: boolean}
+  | {kind: 'success'; token: string; user: GoogleAuthResponse['user']; isNew: boolean}
   | {kind: 'cancel'}
   | {kind: 'error'; message: string};
-
-type GoogleExchangeResponse = {
-  token: string;
-  is_new: boolean;
-};
 
 function firstQuery(
   v: string | string[] | undefined,
@@ -27,7 +23,7 @@ function firstQuery(
 async function exchangeGoogleOAuthCode(
   code: string,
 ): Promise<
-  | {ok: true; data: GoogleExchangeResponse}
+  | {ok: true; data: GoogleAuthResponse}
   | {ok: false; message: string}
 > {
   const url = `${apiConfig.baseURL}/auth/google/exchange`;
@@ -45,10 +41,10 @@ async function exchangeGoogleOAuthCode(
         `Request failed (${response.status})`;
       return {ok: false, message};
     }
-    if (typeof data.token !== 'string') {
+    if (typeof data.token !== 'string' || !data.user) {
       return {ok: false, message: 'Google sign-in failed'};
     }
-    return {ok: true, data: data as GoogleExchangeResponse};
+    return {ok: true, data: data as GoogleAuthResponse};
   } catch (error) {
     return {
       ok: false,
@@ -101,6 +97,7 @@ export async function launchGoogleAuthBrowserFlow(): Promise<GoogleBrowserAuthRe
   return {
     kind: 'success',
     token: exchanged.data.token,
+    user: exchanged.data.user,
     isNew: exchanged.data.is_new,
   };
 }

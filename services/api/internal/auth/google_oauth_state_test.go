@@ -7,24 +7,49 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func TestAllowedGoogleAppReturnURI(t *testing.T) {
+func TestAllowedGoogleAppReturnURI_ProductionDefault(t *testing.T) {
 	cases := []struct {
 		raw string
 		ok  bool
 	}{
 		{"fucci://auth", true},
-		{"exp://127.0.0.1:8081/--/auth", true},
 		{"https://auth.expo.io/@someone/slug", true},
-		{"http://localhost:8081/auth", true},
-		{"http://10.0.2.2:8080/cb", true},
+		{"exp://127.0.0.1:8081/--/auth", false},
+		{"http://localhost:8081/auth", false},
+		{"http://10.0.2.2:8080/cb", false},
+		{"http://auth.expo.io/cb", false},
+		{"https://localhost:8081/auth", false},
 		{"com.magistridev.fucci:/oauth2redirect", false},
 		{"https://evil.com/phish", false},
+		{"https://auth.expo.io.evil.com/x", false},
 		{"javascript:alert(1)", false},
 		{"", false},
 	}
 	for _, tc := range cases {
-		if got := AllowedGoogleAppReturnURI(tc.raw); got != tc.ok {
-			t.Fatalf("AllowedGoogleAppReturnURI(%q) = %v, want %v", tc.raw, got, tc.ok)
+		if got := AllowedGoogleAppReturnURI(tc.raw, false); got != tc.ok {
+			t.Fatalf("AllowedGoogleAppReturnURI(%q, false) = %v, want %v", tc.raw, got, tc.ok)
+		}
+	}
+}
+
+func TestAllowedGoogleAppReturnURI_DevFlag(t *testing.T) {
+	cases := []struct {
+		raw string
+		ok  bool
+	}{
+		{"fucci://auth", true},
+		{"https://auth.expo.io/@someone/slug", true},
+		{"exp://127.0.0.1:8081/--/auth", true},
+		{"http://localhost:8081/auth", true},
+		{"http://10.0.2.2:8080/cb", true},
+		{"http://192.168.1.1/x", true},
+		{"https://localhost:8081/--/auth", true},
+		{"https://evil.com/phish", false},
+		{"http://evil.com/x", false},
+	}
+	for _, tc := range cases {
+		if got := AllowedGoogleAppReturnURI(tc.raw, true); got != tc.ok {
+			t.Fatalf("AllowedGoogleAppReturnURI(%q, true) = %v, want %v", tc.raw, got, tc.ok)
 		}
 	}
 }

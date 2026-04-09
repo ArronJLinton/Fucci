@@ -201,6 +201,9 @@ type Users struct {
 	AuthProvider string
 	Locale       sql.NullString
 	LastLoginAt  sql.NullTime
+	IsVerified   sql.NullBool
+	IsActive     sql.NullBool
+	Role         sql.NullString
 }
 
 type Votes struct {

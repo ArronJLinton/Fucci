@@ -18,9 +18,26 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS avatar_url TEXT,
     ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
 
--- Normalize timestamp type for login tracking.
-ALTER TABLE users
-    ALTER COLUMN last_login_at TYPE TIMESTAMPTZ USING last_login_at::timestamptz;
+-- Normalize legacy last_login_at to timestamptz only when needed (avoids a no-op ALTER TYPE
+-- that can take a strong lock and rewrite the table when the column is already TIMESTAMPTZ).
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute a
+        JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+        JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+        JOIN pg_catalog.pg_type t ON a.atttypid = t.oid
+        WHERE n.nspname = 'public'
+          AND c.relname = 'users'
+          AND a.attname = 'last_login_at'
+          AND NOT a.attisdropped
+          AND t.typname IS DISTINCT FROM 'timestamptz'
+    ) THEN
+        ALTER TABLE users
+            ALTER COLUMN last_login_at TYPE TIMESTAMPTZ USING last_login_at::timestamptz;
+    END IF;
+END $$;
 
 UPDATE users
 SET auth_provider = 'email'

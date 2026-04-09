@@ -9,6 +9,9 @@ type Config struct {
 	GOOGLE_OAUTH_REDIRECT_URIS string
 	// GOOGLE_OAUTH_CALLBACK_URL is the full backend URL registered with Google (e.g. https://api.example.com/v1/api/auth/google/callback).
 	GOOGLE_OAUTH_CALLBACK_URL string
+	// GOOGLE_OAUTH_ALLOW_DEV_RETURN_URLS allows exp:// and http(s):// localhost/private-LAN return URLs for /auth/google/start.
+	// When unset, this is true for ENVIRONMENT development|dev|local and false otherwise (set ENVIRONMENT=production when deploying).
+	GOOGLE_OAUTH_ALLOW_DEV_RETURN_URLS bool
 	CLOUDINARY_CLOUD_NAME      string
 	CLOUDINARY_API_KEY         string
 	CLOUDINARY_API_SECRET      string

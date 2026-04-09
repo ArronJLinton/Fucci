@@ -8,11 +8,44 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+// Regexes match sqlc-generated queries used by googleAuthFromCode (substring match).
+var (
+	rxSQLGoogleGetByGoogleID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::text`
+	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE lower\(email\) = lower\(\$1\) LIMIT 1`
+	rxSQLGoogleCreateUser = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
+	rxSQLGoogleGetUserByID = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE id = \$1`
+	rxSQLGoogleUpdateLogin = `avatar_url = CASE WHEN \$1::text <> '' THEN \$1 ELSE avatar_url END`
+	rxSQLGoogleLink = `COALESCE\(NULLIF\(google_id::text, ''\), \$1::text\)::varchar\(255\)`
+)
+
+var sqlGoogleAuthUserColumns = []string{
+	"id", "firstname", "lastname", "email", "created_at", "updated_at", "is_admin",
+	"display_name", "avatar_url", "google_id", "auth_provider", "locale", "last_login_at",
+	"is_verified", "is_active", "role",
+}
+
+func sqlMockGoogleUserFullRow(id int32, firstname, lastname, email, avatarURL, googleSub, authProv string, ts time.Time) *sqlmock.Rows {
+	return sqlmock.NewRows(sqlGoogleAuthUserColumns).AddRow(
+		id, firstname, lastname, email, ts, ts, false,
+		sql.NullString{},
+		sql.NullString{String: avatarURL, Valid: avatarURL != ""},
+		sql.NullString{String: googleSub, Valid: googleSub != ""},
+		authProv,
+		sql.NullString{},
+		sql.NullTime{},
+		sql.NullBool{Bool: true, Valid: true},
+		sql.NullBool{Bool: true, Valid: true},
+		sql.NullString{String: "fan", Valid: true},
+	)
+}
 
 type fakeGoogleVerifier struct {
 	exchangeFn func(ctx context.Context, code, redirectURI string) (string, error)
@@ -57,6 +90,39 @@ func TestHandleGoogleAuth_NotConfiguredReturns503(t *testing.T) {
 	}
 }
 
+func TestGoogleAuthFromCode_NotConfiguredBeforeExchange(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	cfg := &Config{
+		DBConn: db,
+		GoogleVerifier: &fakeGoogleVerifier{
+			exchangeFn: func(ctx context.Context, code, redirectURI string) (string, error) {
+				t.Fatal("exchange must not be called when OAuth client credentials are missing")
+				return "", nil
+			},
+			verifyFn: func(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error) {
+				t.Fatal("verify must not be called")
+				return auth.GoogleIDTokenClaims{}, nil
+			},
+		},
+	}
+
+	_, procErr := cfg.googleAuthFromCode(context.Background(), "any-code", "https://example/callback")
+	if procErr == nil {
+		t.Fatal("expected procErr")
+	}
+	if procErr.status != http.StatusServiceUnavailable {
+		t.Fatalf("status %d want %d", procErr.status, http.StatusServiceUnavailable)
+	}
+	if procErr.code != auth.GoogleAuthNotConfigured {
+		t.Fatalf("code %q want %q", procErr.code, auth.GoogleAuthNotConfigured)
+	}
+}
+
 func TestHandleGoogleAuth_NewUserReturnsIsNewTrue(t *testing.T) {
 	_ = InitJWT("test-secret")
 	db, mock, err := sqlmock.New()
@@ -87,20 +153,19 @@ func TestHandleGoogleAuth_NewUserReturnsIsNewTrue(t *testing.T) {
 		},
 	}
 
-	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
 		WithArgs("sub-123").
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT id, auth_provider, google_id FROM users WHERE lower\\(email\\) = lower\\(\\$1\\) LIMIT 1").
+	mock.ExpectQuery(rxSQLGoogleGetByEmailLower).
 		WithArgs("newuser@example.com").
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("INSERT INTO users").
-		WithArgs("New", "User", "newuser@example.com", "sub-123", "https://cdn.example/avatar.jpg", "en").
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int32(101)))
-	mock.ExpectQuery("SELECT id, firstname, lastname, email, COALESCE\\(display_name, ''\\), COALESCE\\(avatar_url, ''\\), COALESCE\\(is_verified, false\\), COALESCE\\(is_active, true\\), COALESCE\\(role, 'fan'\\), created_at::text, updated_at::text FROM users WHERE id = \\$1").
+	mock.ExpectQuery(rxSQLGoogleCreateUser).
+		WithArgs("New", "User", "newuser@example.com", sql.NullString{String: "sub-123", Valid: true}, sql.NullString{String: "https://cdn.example/avatar.jpg", Valid: true}, sql.NullString{String: "en", Valid: true}).
+		WillReturnRows(sqlMockGoogleUserFullRow(101, "New", "User", "newuser@example.com", "https://cdn.example/avatar.jpg", "sub-123", "google", ts))
+	mock.ExpectQuery(rxSQLGoogleGetUserByID).
 		WithArgs(int32(101)).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "firstname", "lastname", "email", "display_name", "avatar_url", "is_verified", "is_active", "role", "created_at", "updated_at",
-		}).AddRow(101, "New", "User", "newuser@example.com", "", "https://cdn.example/avatar.jpg", true, true, "fan", "2026-01-01", "2026-01-01"))
+		WillReturnRows(sqlMockGoogleUserFullRow(101, "New", "User", "newuser@example.com", "https://cdn.example/avatar.jpg", "sub-123", "google", ts))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
 	raw, _ := json.Marshal(body)
@@ -199,17 +264,17 @@ func TestHandleGoogleAuth_ExistingGoogleUserReturnsIsNewFalse(t *testing.T) {
 		},
 	}
 
-	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ts2 := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
 		WithArgs("sub-existing").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(int32(42), "fan"))
-	mock.ExpectExec("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE\\(NULLIF\\(\\$2, ''\\), avatar_url\\), updated_at = CURRENT_TIMESTAMP WHERE id = \\$1").
-		WithArgs(int32(42), "https://cdn.example/new-avatar.jpg").
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery("SELECT id, firstname, lastname, email, COALESCE\\(display_name, ''\\), COALESCE\\(avatar_url, ''\\), COALESCE\\(is_verified, false\\), COALESCE\\(is_active, true\\), COALESCE\\(role, 'fan'\\), created_at::text, updated_at::text FROM users WHERE id = \\$1").
+		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/old.jpg", "sub-existing", "google", ts))
+	mock.ExpectQuery(rxSQLGoogleUpdateLogin).
+		WithArgs("https://cdn.example/new-avatar.jpg", int32(42)).
+		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/new-avatar.jpg", "sub-existing", "google", ts2))
+	mock.ExpectQuery(rxSQLGoogleGetUserByID).
 		WithArgs(int32(42)).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "firstname", "lastname", "email", "display_name", "avatar_url", "is_verified", "is_active", "role", "created_at", "updated_at",
-		}).AddRow(42, "Existing", "User", "existing@example.com", "", "https://cdn.example/new-avatar.jpg", true, true, "fan", "2026-01-01", "2026-01-02"))
+		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/new-avatar.jpg", "sub-existing", "google", ts2))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
 	raw, _ := json.Marshal(body)
@@ -378,11 +443,12 @@ func TestHandleGoogleAuth_ExistingGoogleUserUpdateFailureReturns500(t *testing.T
 		},
 	}
 
-	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
 		WithArgs("sub-existing").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(int32(42), "fan"))
-	mock.ExpectExec("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE\\(NULLIF\\(\\$2, ''\\), avatar_url\\), updated_at = CURRENT_TIMESTAMP WHERE id = \\$1").
-		WithArgs(int32(42), "https://cdn.example/new-avatar.jpg").
+		WillReturnRows(sqlMockGoogleUserFullRow(42, "Existing", "User", "existing@example.com", "https://cdn.example/old.jpg", "sub-existing", "google", ts))
+	mock.ExpectQuery(rxSQLGoogleUpdateLogin).
+		WithArgs("https://cdn.example/new-avatar.jpg", int32(42)).
 		WillReturnError(errors.New("db write failed"))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
@@ -429,14 +495,22 @@ func TestHandleGoogleAuth_EmailFallbackUpdateFailureReturns500(t *testing.T) {
 		},
 	}
 
-	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
 		WithArgs("sub-fallback").
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT id, auth_provider, google_id FROM users WHERE lower\\(email\\) = lower\\(\\$1\\) LIMIT 1").
+	mock.ExpectQuery(rxSQLGoogleGetByEmailLower).
 		WithArgs("existing-social@example.com").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "auth_provider", "google_id"}).AddRow(int32(77), "google", sql.NullString{}))
-	mock.ExpectExec("UPDATE users SET google_id = COALESCE\\(NULLIF\\(google_id, ''\\), \\$2\\), auth_provider = COALESCE\\(auth_provider, 'google'\\), last_login_at = CURRENT_TIMESTAMP, avatar_url = COALESCE\\(NULLIF\\(\\$3, ''\\), avatar_url\\), updated_at = CURRENT_TIMESTAMP WHERE id = \\$1").
-		WithArgs(int32(77), "sub-fallback", "https://cdn.example/new-avatar.jpg").
+		WillReturnRows(sqlmock.NewRows(sqlGoogleAuthUserColumns).AddRow(
+			int32(77), "", "", "existing-social@example.com", ts, ts, false,
+			sql.NullString{}, sql.NullString{},
+			sql.NullString{}, "google",
+			sql.NullString{}, sql.NullTime{},
+			sql.NullBool{}, sql.NullBool{},
+			sql.NullString{String: "fan", Valid: true},
+		))
+	mock.ExpectQuery(rxSQLGoogleLink).
+		WithArgs("sub-fallback", "https://cdn.example/new-avatar.jpg", int32(77)).
 		WillReturnError(errors.New("db write failed"))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
@@ -482,12 +556,20 @@ func TestHandleGoogleAuth_EmailMatchedDifferentGoogleIDReturns409(t *testing.T) 
 		},
 	}
 
-	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
 		WithArgs("incoming-subject").
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT id, auth_provider, google_id FROM users WHERE lower\\(email\\) = lower\\(\\$1\\) LIMIT 1").
+	mock.ExpectQuery(rxSQLGoogleGetByEmailLower).
 		WithArgs("existing-social@example.com").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "auth_provider", "google_id"}).AddRow(int32(77), "google", "different-subject"))
+		WillReturnRows(sqlmock.NewRows(sqlGoogleAuthUserColumns).AddRow(
+			int32(77), "", "", "existing-social@example.com", ts, ts, false,
+			sql.NullString{}, sql.NullString{},
+			sql.NullString{String: "different-subject", Valid: true}, "google",
+			sql.NullString{}, sql.NullTime{},
+			sql.NullBool{}, sql.NullBool{},
+			sql.NullString{String: "fan", Valid: true},
+		))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
 	raw, _ := json.Marshal(body)
@@ -535,12 +617,20 @@ func TestHandleGoogleAuth_EmailFallbackNonGoogleProviderReturns409(t *testing.T)
 		},
 	}
 
-	mock.ExpectQuery("SELECT id, COALESCE\\(role, 'fan'\\) FROM users WHERE google_id = \\$1 LIMIT 1").
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(rxSQLGoogleGetByGoogleID).
 		WithArgs("incoming-subject").
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT id, auth_provider, google_id FROM users WHERE lower\\(email\\) = lower\\(\\$1\\) LIMIT 1").
+	mock.ExpectQuery(rxSQLGoogleGetByEmailLower).
 		WithArgs("apple-user@example.com").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "auth_provider", "google_id"}).AddRow(int32(88), "apple", sql.NullString{}))
+		WillReturnRows(sqlmock.NewRows(sqlGoogleAuthUserColumns).AddRow(
+			int32(88), "", "", "apple-user@example.com", ts, ts, false,
+			sql.NullString{}, sql.NullString{},
+			sql.NullString{}, "apple",
+			sql.NullString{}, sql.NullTime{},
+			sql.NullBool{}, sql.NullBool{},
+			sql.NullString{String: "fan", Valid: true},
+		))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
 	raw, _ := json.Marshal(body)
@@ -598,7 +688,8 @@ func TestGoogleOAuthExchangeCode_SingleUse(t *testing.T) {
 		IsNew: true,
 	}
 
-	code, err := issueGoogleOAuthExchangeCode(in)
+	cfg := &Config{}
+	code, err := cfg.issueGoogleOAuthExchangeCode(context.Background(), in)
 	if err != nil {
 		t.Fatalf("issueGoogleOAuthExchangeCode error: %v", err)
 	}
@@ -606,7 +697,7 @@ func TestGoogleOAuthExchangeCode_SingleUse(t *testing.T) {
 		t.Fatalf("expected non-empty code")
 	}
 
-	out, ok := consumeGoogleOAuthExchangeCode(code)
+	out, ok := cfg.consumeGoogleOAuthExchangeCode(context.Background(), code)
 	if !ok {
 		t.Fatalf("expected first consume to succeed")
 	}
@@ -614,8 +705,59 @@ func TestGoogleOAuthExchangeCode_SingleUse(t *testing.T) {
 		t.Fatalf("unexpected consumed payload: %#v", out)
 	}
 
-	_, ok = consumeGoogleOAuthExchangeCode(code)
+	_, ok = cfg.consumeGoogleOAuthExchangeCode(context.Background(), code)
 	if ok {
 		t.Fatalf("expected second consume to fail (single use)")
+	}
+}
+
+func TestGoogleOAuthExchangeCode_SingleUse_SharedCache(t *testing.T) {
+	store := make(map[string][]byte)
+	var mu sync.Mutex
+	mc := &MockCache{
+		setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+			mu.Lock()
+			defer mu.Unlock()
+			b, err := json.Marshal(value)
+			if err != nil {
+				return err
+			}
+			store[key] = b
+			return nil
+		},
+		getDelFunc: func(ctx context.Context, key string, value interface{}) (bool, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			b, ok := store[key]
+			if !ok {
+				return false, nil
+			}
+			delete(store, key)
+			if err := json.Unmarshal(b, value); err != nil {
+				return false, err
+			}
+			return true, nil
+		},
+	}
+
+	in := GoogleAuthResponse{
+		Token: "jwt-shared",
+		User:  UserResponse{ID: 42, Email: "x@y.com"},
+		IsNew: false,
+	}
+	cfg := &Config{Cache: mc}
+	code, err := cfg.issueGoogleOAuthExchangeCode(context.Background(), in)
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	out, ok := cfg.consumeGoogleOAuthExchangeCode(context.Background(), code)
+	if !ok {
+		t.Fatal("first consume should succeed")
+	}
+	if out.Token != in.Token {
+		t.Fatalf("token mismatch")
+	}
+	if _, ok := cfg.consumeGoogleOAuthExchangeCode(context.Background(), code); ok {
+		t.Fatal("second consume should fail")
 	}
 }

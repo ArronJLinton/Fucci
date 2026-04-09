@@ -72,6 +72,8 @@ type Config struct {
 	GoogleOAuthRedirectURIs string // comma-separated list of allowed callback URIs
 	// GoogleOAuthCallbackURL is the full URL registered with Google for GET /auth/google/callback (server-side code exchange).
 	GoogleOAuthCallbackURL string
+	// GoogleOAuthAllowDevReturnURLs enables exp:// and http dev return URLs for GET /auth/google/start (must stay false in production).
+	GoogleOAuthAllowDevReturnURLs bool
 	CloudinaryCloudName     string
 	CloudinaryAPIKey        string
 	CloudinaryAPISecret     string
