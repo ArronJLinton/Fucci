@@ -33,9 +33,9 @@
 - [X] T006 Add partial unique index migration for non-null `google_id` in `services/api/sql/schema/20260408170100_add_users_google_id_partial_unique_index.sql`
 - [X] T007 [P] Add sqlc query support for Google lookup/update paths in `services/api/sql/queries/users.sql`
 - [X] T008 [P] Regenerate DB query bindings for new users fields in `services/api/internal/db/` (generated sqlc output)
-- [X] T009 Implement shared Google code-exchange + ID token verification utility in `services/api/internal/api/google_oauth.go`
-- [X] T010 [P] Implement redirect URI allowlist validator in `services/api/internal/api/google_oauth.go`
-- [X] T011 [P] Add backend unit tests for verifier + redirect URI validation in `services/api/internal/api/google_oauth_test.go`
+- [X] T009 Implement shared Google code-exchange + ID token verification utility in `services/api/internal/auth/google_oauth.go`
+- [X] T010 [P] Implement redirect URI allowlist validator in `services/api/internal/auth/google_oauth.go`
+- [X] T011 [P] Add backend unit tests for verifier + redirect URI validation in `services/api/internal/auth/google_oauth_test.go`
 - [X] T012 Add typed mobile service method for `POST /auth/google` contract in `apps/mobile/src/services/auth.ts`
 - [X] T013 Add shared mobile Google auth launcher utility (iOS/Android) in `apps/mobile/src/services/googleAuth.ts`
 
@@ -51,18 +51,18 @@
 
 ### Tests for User Story 1
 
-- [ ] T014 [P] [US1] Add backend integration test for new Google user registration success in `services/api/internal/api/auth_google_test.go`
-- [ ] T015 [P] [US1] Add backend integration test for `EMAIL_NOT_VERIFIED` rejection in `services/api/internal/api/auth_google_test.go`
-- [ ] T016 [P] [US1] Add mobile test for Sign Up Google success -> onboarding routing in `apps/mobile/src/services/__tests__/googleAuth.signup.test.ts`
+- [X] T014 [P] [US1] Add backend integration test for new Google user registration success in `services/api/internal/api/auth_google_test.go`
+- [X] T015 [P] [US1] Add backend integration test for `EMAIL_NOT_VERIFIED` rejection in `services/api/internal/api/auth_google_test.go`
+- [X] T016 [P] [US1] Add mobile test for Sign Up Google success -> onboarding routing in `apps/mobile/src/services/__tests__/googleAuth.signup.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Implement `POST /auth/google` handler request parsing + validation in `services/api/internal/api/auth.go`
-- [ ] T018 [US1] Implement new-user creation flow from verified Google claims in `services/api/internal/api/auth.go`
-- [ ] T019 [US1] Issue Fucci JWT and return `{ token, user, is_new:true }` in `services/api/internal/api/auth.go`
-- [ ] T020 [US1] Add "Continue with Google" CTA to sign-up UI in `apps/mobile/src/screens/SignUpScreen.tsx`
-- [ ] T021 [US1] Wire Sign Up Google success path to onboarding navigation in `apps/mobile/src/screens/SignUpScreen.tsx`
-- [ ] T022 [US1] Handle Google cancellation silently in sign-up flow in `apps/mobile/src/screens/SignUpScreen.tsx`
+- [X] T017 [US1] Implement `POST /auth/google` handler request parsing + validation in `services/api/internal/api/auth.go`
+- [X] T018 [US1] Implement new-user creation flow from verified Google claims in `services/api/internal/api/auth.go`
+- [X] T019 [US1] Issue Fucci JWT and return `{ token, user, is_new:true }` in `services/api/internal/api/auth.go`
+- [X] T020 [US1] Add "Continue with Google" CTA to sign-up UI in `apps/mobile/src/screens/SignUpScreen.tsx`
+- [X] T021 [US1] Wire Sign Up Google success path to onboarding navigation in `apps/mobile/src/screens/SignUpScreen.tsx`
+- [X] T022 [US1] Handle Google cancellation silently in sign-up flow in `apps/mobile/src/screens/SignUpScreen.tsx`
 
 **Checkpoint**: US1 independently functional and testable.
 

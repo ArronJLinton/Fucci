@@ -120,6 +120,7 @@ export const makeAuthRequest = async (
 export {
   register,
   login,
+  googleAuth,
   getProfile,
   updateProfile,
   getFollowing,
@@ -127,6 +128,8 @@ export {
   type RegisterResponse,
   type LoginRequest,
   type LoginResponse,
+  type GoogleAuthRequest,
+  type GoogleAuthResponse,
   type AuthUser,
   type FollowingItem,
 } from './auth';
