@@ -76,18 +76,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] Add backend integration test for existing Google user login (`is_new=false`) in `services/api/internal/api/auth_google_test.go`
-- [ ] T024 [P] [US2] Add backend integration test for `TOKEN_VERIFY_FAILED` and `INVALID_CODE` mapping in `services/api/internal/api/auth_google_test.go`
-- [ ] T025 [P] [US2] Add mobile test for Login Google success -> home routing in `apps/mobile/src/services/__tests__/googleAuth.login.test.ts`
+- [X] T023 [P] [US2] Add backend integration test for existing Google user login (`is_new=false`) in `services/api/internal/api/auth_google_test.go`
+- [X] T024 [P] [US2] Add backend integration test for `TOKEN_VERIFY_FAILED` and `INVALID_CODE` mapping in `services/api/internal/api/auth_google_test.go`
+- [X] T025 [P] [US2] Add mobile test for Login Google success -> home routing in `apps/mobile/src/services/__tests__/googleAuth.login.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement existing-user lookup by `google_id` then legacy email fallback in `services/api/internal/api/auth.go`
-- [ ] T027 [US2] Implement existing-user update policy (`last_login_at`, optional `avatar_url`) in `services/api/internal/api/auth.go`
-- [ ] T028 [US2] Return `{ token, user, is_new:false }` for existing Google users in `services/api/internal/api/auth.go`
-- [ ] T029 [US2] Add "Continue with Google" CTA to login UI in `apps/mobile/src/screens/LoginScreen.tsx`
-- [ ] T030 [US2] Wire Login Google success path to home feed navigation in `apps/mobile/src/screens/LoginScreen.tsx`
-- [ ] T031 [US2] Handle Google cancellation silently in login flow in `apps/mobile/src/screens/LoginScreen.tsx`
+- [X] T026 [US2] Implement existing-user lookup by `google_id` then legacy email fallback in `services/api/internal/api/auth.go`
+- [X] T027 [US2] Implement existing-user update policy (`last_login_at`, optional `avatar_url`) in `services/api/internal/api/auth.go`
+- [X] T028 [US2] Return `{ token, user, is_new:false }` for existing Google users in `services/api/internal/api/auth.go`
+- [X] T029 [US2] Add "Continue with Google" CTA to login UI in `apps/mobile/src/screens/LoginScreen.tsx`
+- [X] T030 [US2] Wire Login Google success path to home feed navigation in `apps/mobile/src/screens/LoginScreen.tsx`
+- [X] T031 [US2] Handle Google cancellation silently in login flow in `apps/mobile/src/screens/LoginScreen.tsx`
 
 **Checkpoint**: US2 independently functional and testable.
 

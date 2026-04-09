@@ -15,7 +15,11 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '../types/navigation';
 import {useAuth} from '../context/AuthContext';
-import {login, type LoginRequest} from '../services/api';
+import {getProfile, login, type LoginRequest} from '../services/api';
+import {
+  launchGoogleAuthBrowserFlow,
+  resolvePostGoogleAuthRoute,
+} from '../services/googleAuth';
 
 export default function LoginScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Login'>>();
@@ -66,6 +70,40 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const authResult = await launchGoogleAuthBrowserFlow();
+      if (authResult.kind === 'cancel') {
+        // User cancelled provider flow; intentionally no visible error.
+        return;
+      }
+      if (authResult.kind === 'error') {
+        setError(authResult.message);
+        return;
+      }
+
+      const user = await getProfile(authResult.token);
+      if (!user) {
+        setError('Could not load your profile after Google sign-in.');
+        return;
+      }
+
+      await setAuth(authResult.token, user);
+      const destination = resolvePostGoogleAuthRoute(authResult.isNew);
+      navigation.reset({
+        index: 0,
+        routes: [{name: destination}],
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Google login failed. Try again.';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -111,6 +149,13 @@ export default function LoginScreen() {
           ) : (
             <Text style={styles.buttonText}>Login</Text>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.googleButton, submitting && styles.buttonDisabled]}
+          onPress={handleGoogleLogin}
+          disabled={submitting}>
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -182,6 +227,20 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 17,
+    fontWeight: '600',
+  },
+  googleButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: '#fff',
+  },
+  googleButtonText: {
+    color: '#202124',
+    fontSize: 16,
     fontWeight: '600',
   },
   linkButton: {
