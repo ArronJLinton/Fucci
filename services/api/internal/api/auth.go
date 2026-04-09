@@ -222,12 +222,21 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 	case err == sql.ErrNoRows:
 		var existingID int32
 		var existingProvider sql.NullString
+		var existingGoogleID sql.NullString
 		qerr := c.DBConn.QueryRowContext(
 			ctx,
-			`SELECT id, auth_provider FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+			`SELECT id, auth_provider, google_id FROM users WHERE lower(email) = lower($1) LIMIT 1`,
 			email,
-		).Scan(&existingID, &existingProvider)
+		).Scan(&existingID, &existingProvider, &existingGoogleID)
 		if qerr == nil {
+			existingGoogleIDVal := strings.TrimSpace(existingGoogleID.String)
+			if existingGoogleID.Valid && existingGoogleIDVal != "" && existingGoogleIDVal != subject {
+				return GoogleAuthResponse{}, &googleAuthProcError{
+					status: http.StatusConflict,
+					code:   auth.GoogleAuthAccountExistsEmail,
+					msg:    "Email already linked to another Google account",
+				}
+			}
 			if strings.EqualFold(existingProvider.String, "email") {
 				return GoogleAuthResponse{}, &googleAuthProcError{status: http.StatusConflict, code: auth.GoogleAuthAccountExistsEmail, msg: "Email already registered via password"}
 			}
