@@ -100,10 +100,8 @@ type Config struct {
 func New(c Config) http.Handler {
 	router := chi.NewRouter()
 
-	// Ensure Google OAuth defaults are available for handlers that need them.
-	if strings.TrimSpace(c.GoogleOAuthRedirectURIs) == "" {
-		c.GoogleOAuthRedirectURIs = "fucci://auth,com.fucci.app:/oauth2redirect"
-	}
+	// Do not silently populate OAuth redirect URI allowlists here.
+	// Redirect URIs must be explicitly configured by the operator so auth flows fail closed when unset.
 
 	// Initialize AI prompt generator if OpenAI key is provided
 	if c.OpenAIKey != "" {
