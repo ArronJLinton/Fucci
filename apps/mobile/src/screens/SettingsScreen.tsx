@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   avatar: {
     width: 76,
@@ -397,8 +397,8 @@ const styles = StyleSheet.create({
   },
   avatarEditBtn: {
     position: 'absolute',
-    right: 4,
-    bottom: 4,
+    right: -8,
+    bottom: -8,
     width: 32,
     height: 32,
     borderRadius: 8,
