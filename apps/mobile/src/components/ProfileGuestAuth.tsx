@@ -221,7 +221,12 @@ export default function ProfileGuestAuth({
 
           <TouchableOpacity
             style={styles.footerRow}
-            onPress={() => rootNavigate('SignUp')}
+            onPress={() =>
+              rootNavigate(
+                'SignUp',
+                returnToDebate ? {returnToDebate} : undefined,
+              )
+            }
             disabled={busy}>
             <Text style={styles.footerMuted}>{"Don't have an account? "}</Text>
             <Text style={styles.footerAccent}>Sign up</Text>
