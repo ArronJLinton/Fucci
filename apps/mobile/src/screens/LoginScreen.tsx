@@ -155,7 +155,11 @@ export default function LoginScreen() {
           style={[styles.googleButton, submitting && styles.buttonDisabled]}
           onPress={handleGoogleLogin}
           disabled={submitting}>
-          <Text style={styles.googleButtonText}>Continue with Google</Text>
+          {submitting ? (
+            <ActivityIndicator color="#202124" />
+          ) : (
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity

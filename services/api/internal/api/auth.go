@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -167,6 +168,10 @@ type googleAuthProcError struct {
 	msg    string
 }
 
+func logGoogleAuthEvent(event string, kv ...any) {
+	log.Printf("[auth][google] event=%s kv=%v", event, kv)
+}
+
 // googleAuthFromCode exchanges an OAuth code and returns a session (used by POST /auth/google and GET /auth/google/callback).
 func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI string) (GoogleAuthResponse, *googleAuthProcError) {
 	verifier := c.googleVerifier()
@@ -284,29 +289,35 @@ func (c *Config) googleAuthFromCode(ctx context.Context, code, redirectURI strin
 func (c *Config) handleGoogleAuth(w http.ResponseWriter, r *http.Request) {
 	var req GoogleAuthRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logGoogleAuthEvent("post_decode_failed", "path", r.URL.Path, "method", r.Method)
 		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "invalid request body")
 		return
 	}
 	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.RedirectURI) == "" {
+		logGoogleAuthEvent("post_validation_failed", "path", r.URL.Path, "missing_code", strings.TrimSpace(req.Code) == "", "missing_redirect_uri", strings.TrimSpace(req.RedirectURI) == "")
 		respondWithGoogleAuthError(w, http.StatusBadRequest, auth.GoogleAuthCodeInvalid, "code and redirect_uri are required")
 		return
 	}
 
 	out, procErr := c.googleAuthFromCode(r.Context(), req.Code, req.RedirectURI)
 	if procErr != nil {
+		logGoogleAuthEvent("post_failed", "path", r.URL.Path, "status", procErr.status, "code", procErr.code)
 		respondWithGoogleAuthError(w, procErr.status, procErr.code, procErr.msg)
 		return
 	}
+	logGoogleAuthEvent("post_success", "path", r.URL.Path, "user_id", out.User.ID, "is_new", out.IsNew)
 	respondWithJSON(w, http.StatusOK, out)
 }
 
 func (c *Config) handleGoogleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	cb := strings.TrimSpace(c.GoogleOAuthCallbackURL)
 	if cb == "" {
+		logGoogleAuthEvent("start_missing_callback_url", "path", r.URL.Path)
 		http.Error(w, "Google OAuth callback URL is not configured (GOOGLE_OAUTH_CALLBACK_URL)", http.StatusServiceUnavailable)
 		return
 	}
 	if strings.TrimSpace(c.GoogleOAuthClientID) == "" {
+		logGoogleAuthEvent("start_missing_client_id", "path", r.URL.Path)
 		http.Error(w, "Google OAuth client ID is not configured", http.StatusServiceUnavailable)
 		return
 	}
@@ -316,12 +327,14 @@ func (c *Config) handleGoogleOAuthStart(w http.ResponseWriter, r *http.Request) 
 		returnToApp = "fucci://auth"
 	}
 	if !auth.AllowedGoogleAppReturnURI(returnToApp) {
+		logGoogleAuthEvent("start_invalid_return_url", "path", r.URL.Path, "return", returnToApp)
 		http.Error(w, "return URL is not allowed", http.StatusBadRequest)
 		return
 	}
 
 	state, err := auth.SignGoogleOAuthState(returnToApp)
 	if err != nil {
+		logGoogleAuthEvent("start_state_sign_failed", "path", r.URL.Path)
 		http.Error(w, "failed to start OAuth", http.StatusInternalServerError)
 		return
 	}
@@ -339,6 +352,7 @@ func (c *Config) handleGoogleOAuthStart(w http.ResponseWriter, r *http.Request) 
 	q.Set("state", state)
 	q.Set("access_type", "online")
 	u.RawQuery = q.Encode()
+	logGoogleAuthEvent("start_redirect_google", "path", r.URL.Path, "callback_url", cb, "return_url", returnToApp)
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
@@ -364,29 +378,34 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		if ru, err := auth.ParseGoogleOAuthState(q.Get("state")); err == nil && strings.TrimSpace(ru) != "" {
 			ret = ru
 		}
+		logGoogleAuthEvent("callback_provider_error", "path", r.URL.Path, "provider_error", errMsg, "return_url", ret)
 		redirectGoogleOAuthApp(w, r, ret, errMsg, q.Get("error_description"))
 		return
 	}
 	code := q.Get("code")
 	state := q.Get("state")
 	if code == "" || state == "" {
+		logGoogleAuthEvent("callback_missing_code_or_state", "path", r.URL.Path, "missing_code", code == "", "missing_state", state == "")
 		http.Error(w, "missing code or state", http.StatusBadRequest)
 		return
 	}
 	appReturn, err := auth.ParseGoogleOAuthState(state)
 	if err != nil {
+		logGoogleAuthEvent("callback_invalid_state", "path", r.URL.Path)
 		http.Error(w, "invalid or expired OAuth state", http.StatusBadRequest)
 		return
 	}
 
 	cb := strings.TrimSpace(c.GoogleOAuthCallbackURL)
 	if cb == "" {
+		logGoogleAuthEvent("callback_missing_callback_url", "path", r.URL.Path)
 		http.Error(w, "Google OAuth callback URL is not configured", http.StatusServiceUnavailable)
 		return
 	}
 
 	out, procErr := c.googleAuthFromCode(r.Context(), code, cb)
 	if procErr != nil {
+		logGoogleAuthEvent("callback_failed", "path", r.URL.Path, "status", procErr.status, "code", procErr.code, "return_url", appReturn)
 		redirectGoogleOAuthApp(w, r, appReturn, procErr.code, procErr.msg)
 		return
 	}
@@ -404,6 +423,7 @@ func (c *Config) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		qq.Set("is_new", "0")
 	}
 	u.RawQuery = qq.Encode()
+	logGoogleAuthEvent("callback_success", "path", r.URL.Path, "user_id", out.User.ID, "is_new", out.IsNew, "return_url", appReturn)
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 

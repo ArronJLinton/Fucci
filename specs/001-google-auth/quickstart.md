@@ -69,3 +69,14 @@ Expected results:
 - Backend integration tests: `POST /auth/google` happy path + all specified failures.
 - Mobile tests: Sign Up/Login button behavior, cancellation handling, route decisions by `is_new`.
 - E2E tests: full US-01 and US-02 across iOS and Android.
+
+## 5. Validation outcomes (2026-04-09)
+
+- Backend integration-focused auth tests:
+  - `go test ./internal/api -run TestHandleGoogleAuth -count=1` -> pass
+  - Covered new user (`is_new=true`), existing user (`is_new=false`), `EMAIL_NOT_VERIFIED`, `INVALID_CODE`, `TOKEN_VERIFY_FAILED`
+- Mobile static validation:
+  - `yarn type-check` (apps/mobile) -> pass
+  - Login and Sign Up Google buttons now show in-flight loading state and disable interaction while requests are active.
+- Manual flow verification:
+  - Backend callback flow (`/auth/google/start` -> `/auth/google/callback`) completed successfully in local development with `GOOGLE_OAUTH_CALLBACK_URL` configured.

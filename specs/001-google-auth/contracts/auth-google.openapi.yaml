@@ -103,28 +103,40 @@ components:
       required:
         - id
         - email
-        - auth_provider
+        - firstname
+        - lastname
+        - display_name
+        - avatar_url
+        - is_verified
+        - is_active
+        - role
+        - created_at
+        - updated_at
       properties:
         id:
-          type: string
+          type: integer
+          format: int32
         email:
           type: string
           format: email
-        first_name:
+        firstname:
           type: string
-          nullable: true
-        last_name:
+        lastname:
           type: string
-          nullable: true
+        display_name:
+          type: string
         avatar_url:
           type: string
-          nullable: true
-        locale:
+        is_verified:
+          type: boolean
+        is_active:
+          type: boolean
+        role:
           type: string
-          nullable: true
-        auth_provider:
+        created_at:
           type: string
-          enum: [email, google, apple]
+        updated_at:
+          type: string
     ErrorResponse:
       type: object
       required:

@@ -120,11 +120,11 @@
 
 **Purpose**: Final validation, observability, and documentation updates.
 
-- [ ] T039 [P] Add structured auth event logging for success/failure branches in `services/api/internal/api/auth.go`
-- [ ] T040 [P] Add mobile loading/disabled-button state for in-flight Google auth in `apps/mobile/src/screens/LoginScreen.tsx`
-- [ ] T041 [P] Add mobile loading/disabled-button state for in-flight Google auth in `apps/mobile/src/screens/SignUpScreen.tsx`
-- [ ] T042 Run quickstart validation scenarios and record outcomes in `specs/001-google-auth/quickstart.md`
-- [ ] T043 Update contract/examples if response fields changed during implementation in `specs/001-google-auth/contracts/auth-google.openapi.yaml`
+- [X] T039 [P] Add structured auth event logging for success/failure branches in `services/api/internal/api/auth.go`
+- [X] T040 [P] Add mobile loading/disabled-button state for in-flight Google auth in `apps/mobile/src/screens/LoginScreen.tsx`
+- [X] T041 [P] Add mobile loading/disabled-button state for in-flight Google auth in `apps/mobile/src/screens/SignUpScreen.tsx`
+- [X] T042 Run quickstart validation scenarios and record outcomes in `specs/001-google-auth/quickstart.md`
+- [X] T043 Update contract/examples if response fields changed during implementation in `specs/001-google-auth/contracts/auth-google.openapi.yaml`
 
 ---
 
