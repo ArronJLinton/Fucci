@@ -301,6 +301,7 @@ const MatchDetailsScreen = () => {
         <MatchHero />
         <View style={styles.tabsWrap}>
           <TabNavigator
+          initialRouteName="News"
           screenListeners={{
             tabPress: () => {
               scrollY.value = 0;
