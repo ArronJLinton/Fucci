@@ -68,11 +68,11 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	// Build URL with optional league filter
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
 	if leagueID != "" {
-		// When filtering by league, RapidAPI requires a season parameter
+		// When filtering by league, include season parameter
 		// Extract year from date to determine season
 		// dateTime, err := time.Parse("2006-01-02", date)
 		if err != nil {
@@ -89,7 +89,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	}
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -169,12 +169,12 @@ func (c *Config) FetchLineupData(ctx context.Context, matchID string) (*GetLineU
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/fixtures/lineups?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -223,12 +223,12 @@ func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetF
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/fixtures/statistics?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -474,13 +474,13 @@ func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse,
 
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	// Use configurable base URL with fallback
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/players/squads?team=%d", baseURL, id)
 
@@ -541,12 +541,12 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := baseURL + "/leagues?season=2025"
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -617,12 +617,12 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/standings?season=%d&team=%s", baseURL, currentYear, teamId)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -663,12 +663,12 @@ func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season st
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/standings?league=%s&season=%s", baseURL, leagueID, season)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -747,12 +747,12 @@ func (c *Config) FetchHeadToHead(ctx context.Context, homeTeamID, awayTeamID int
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	u := fmt.Sprintf("%s/fixtures/headtohead?h2h=%d-%d&last=10", baseURL, homeTeamID, awayTeamID)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", u, headers, nil)

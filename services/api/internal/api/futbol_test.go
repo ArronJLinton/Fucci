@@ -78,8 +78,8 @@ func TestGetMatchLineup(t *testing.T) {
 
 		// Create a test server that handles both lineup and squad requests
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			// Determine which response to return based on the URL
@@ -329,8 +329,8 @@ func TestGetLeagueStandings(t *testing.T) {
 
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			// Verify query parameters
@@ -521,8 +521,8 @@ func TestCacheExpiration(t *testing.T) {
 
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			w.WriteHeader(http.StatusOK)
@@ -1009,8 +1009,8 @@ func TestGetTeamSquad(t *testing.T) {
 
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			// Verify the URL contains the team ID
