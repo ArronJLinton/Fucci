@@ -61,6 +61,19 @@ function minutesUntilKickoff(fixtureDate: string): number {
   return Math.ceil((t - Date.now()) / 60000);
 }
 
+/** e.g. STARTS IN 45M, STARTS IN 1H 30M, STARTS IN 5H 22M */
+function formatStartsInFromMinutes(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h <= 0) {
+    return `STARTS IN ${m}M`;
+  }
+  if (m <= 0) {
+    return `STARTS IN ${h}H`;
+  }
+  return `STARTS IN ${h}H ${m}M`;
+}
+
 function formatVenueUpper(match: Match): string {
   const v = match.fixture.venue?.name || '';
   const c = match.fixture.venue?.city || '';
@@ -83,7 +96,7 @@ function statusLeftRight(match: Match): {
   if (s === 'NS' || s === 'TBD') {
     const mins = minutesUntilKickoff(match.fixture.date);
     if (mins > 0 && mins < 24 * 60) {
-      return {left: `STARTS IN ${mins}M`, tone: 'upcoming'};
+      return {left: formatStartsInFromMinutes(mins), tone: 'upcoming'};
     }
     return {left: 'UPCOMING', tone: 'upcoming'};
   }
