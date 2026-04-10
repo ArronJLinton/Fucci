@@ -1161,6 +1161,14 @@ func TestGetMatchesQueryValidation(t *testing.T) {
 				name:     "invalid season with numeric league_id",
 				rawQuery: "date=2025-06-01&league_id=39&season=notayear",
 			},
+			{
+				name:     "invalid date without league_id",
+				rawQuery: "date=not-a-date",
+			},
+			{
+				name:     "malformed date without league_id",
+				rawQuery: "date=2025/06/01",
+			},
 		}
 
 		for _, tt := range tests {

@@ -33,6 +33,14 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	matchDate, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		log.Printf("ERROR: Invalid date format: %s\n", date)
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
+		return
+	}
+	dateCanonical := matchDate.Format("2006-01-02")
+
 	// Validate inputs once before cache lookup so keys and upstream URLs use the same normalized values.
 	var cacheKey string
 	var leagueIDNum int
@@ -40,14 +48,8 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	haveLeague := leagueIDStr != ""
 
 	if !haveLeague {
-		cacheKey = fmt.Sprintf("matches:date:%s", date)
+		cacheKey = fmt.Sprintf("matches:date:%s", dateCanonical)
 	} else {
-		matchDate, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			log.Printf("ERROR: Invalid date format: %s\n", date)
-			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
-			return
-		}
 		lid, err := strconv.Atoi(leagueIDStr)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "league_id must be numeric")
@@ -65,7 +67,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		} else {
 			seasonNum = ResolveAPIFootballSeason(lid, matchDate)
 		}
-		cacheKey = fmt.Sprintf("matches:league:%d:date:%s:season:%d", leagueIDNum, date, seasonNum)
+		cacheKey = fmt.Sprintf("matches:league:%d:date:%s:season:%d", leagueIDNum, dateCanonical, seasonNum)
 	}
 	log.Printf("Cache key: %s (league_id=%q)\n", cacheKey, leagueIDStr)
 
@@ -98,7 +100,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	if baseURL == "" {
 		baseURL = "https://v3.football.api-sports.io"
 	}
-	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
+	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, dateCanonical)
 	if haveLeague {
 		url = fmt.Sprintf("%s&league=%d&season=%d", url, leagueIDNum, seasonNum)
 		log.Printf("URL: %s\n", url)
