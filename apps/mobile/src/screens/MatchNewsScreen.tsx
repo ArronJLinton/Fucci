@@ -465,7 +465,7 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
       onScroll={onScroll}
-      scrollEventThrottle={1}
+      scrollEventThrottle={16}
       nestedScrollEnabled
       overScrollMode="never"
       refreshControl={
