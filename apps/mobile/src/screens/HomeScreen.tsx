@@ -76,8 +76,16 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     [date, selectedLeague?.id],
   );
   const loadedCacheKeysRef = React.useRef<Set<string>>(new Set());
+  /** When league/date changes, drop the previous key so revisiting a league refetches (Set was blocking that). */
+  const prevCacheKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
+    const prev = prevCacheKeyRef.current;
+    if (prev !== null && prev !== cacheKey) {
+      loadedCacheKeysRef.current.delete(prev);
+    }
+    prevCacheKeyRef.current = cacheKey;
+
     if (!loadedCacheKeysRef.current.has(cacheKey)) {
       hasLoadedRef.current = false;
       setMatches([]);
