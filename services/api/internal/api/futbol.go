@@ -543,7 +543,7 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 	if baseURL == "" {
 		baseURL = "https://v3.football.api-sports.io"
 	}
-	url := baseURL + "/leagues?season=2025"
+	url := fmt.Sprintf("%s/leagues?season=%d", baseURL, currentYear)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
 		"x-apisports-key": c.FootballAPIKey,
