@@ -129,6 +129,10 @@ This task list implements a news feed feature that displays recent and historic 
 - [ ] T036 Add integration tests for news API endpoint in services/api/internal/api/
 - [ ] T037 Add E2E test for news feed user journey in apps/mobile/**tests**/
 
+### Cross-cutting backlog
+
+- [ ] **DebateDataAggregator + Redis**: Debate generation still fetches match news via `FetchMatchNews` without the Redis layer; see backlog item in `specs/004-ai-debate-generator/tasks.md` (section *Backlog / TODO*).
+
 ---
 
 ## Task Summary

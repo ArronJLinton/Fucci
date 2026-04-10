@@ -30,7 +30,6 @@ import {useAuth} from '../context/AuthContext';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {rootNavigate} from '../navigation/rootNavigation';
 import {AuthGateModal} from '../components/AuthGateModal';
-import environment from '../config/environment';
 
 /** Velocity Strike–style debate detail (009) — aligned with MainDebatesScreen */
 const BG = '#0B0E14';
@@ -563,7 +562,6 @@ const SingleDebateScreen = () => {
     );
   };
 
-  const brandTitle = environment.APP_NAME.toUpperCase();
   const sourceHeadline = debate?.source_headline?.trim();
   const sourceUrl = debate?.source_url?.trim();
   const sourcePublishedAt = debate?.source_published_at?.trim();
@@ -581,20 +579,6 @@ const SingleDebateScreen = () => {
           hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}>
           <Ionicons name="chevron-back" size={28} color={LIME} />
         </TouchableOpacity>
-        <Text style={styles.brandMark} numberOfLines={1}>
-          {brandTitle}
-        </Text>
-        <View style={styles.topBarRight}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="person-outline" size={22} color={LIME} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="notifications-outline" size={22} color={LIME} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={LIME} />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView
@@ -919,7 +903,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: 8,
     paddingTop: 8,
     paddingBottom: 12,
@@ -931,29 +915,11 @@ const styles = StyleSheet.create({
     padding: 4,
     width: 40,
   },
-  brandMark: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '800',
-    fontStyle: 'italic',
-    color: LIME,
-    letterSpacing: 1,
-  },
   logoTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: TEXT,
     letterSpacing: 0.5,
-  },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    maxWidth: 120,
-  },
-  iconButton: {
-    padding: 4,
   },
   scrollView: {
     flex: 1,

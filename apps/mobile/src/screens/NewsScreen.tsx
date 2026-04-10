@@ -36,6 +36,7 @@ import {
   filterByLeague,
   articleCategoryLabel,
 } from '../utils/newsFilters';
+import {userFacingApiMessage} from '../services/api';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 const PAGE_PAD = 16;
@@ -51,7 +52,6 @@ const STORY_RINGS: {
   {key: 'goals', label: 'TOP GOALS', category: 'match', name: 'football'},
   {key: 'rumours', label: 'RUMOURS', category: 'transfers', name: 'people'},
   {key: 'matchday', label: 'MATCH DAY', category: 'match', name: 'flash'},
-  {key: 'mystory', label: 'MY STORY', category: 'all', name: 'add'},
 ];
 
 const NewsScreen: React.FC = () => {
@@ -105,9 +105,6 @@ const NewsScreen: React.FC = () => {
   const gridArticles = filteredArticles.slice(1);
 
   const onStoryPress = (s: (typeof STORY_RINGS)[0]) => {
-    if (s.key === 'mystory') {
-      return;
-    }
     setCategory(s.category);
   };
 
@@ -217,7 +214,7 @@ const NewsScreen: React.FC = () => {
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#ff6b6b" />
         <Text style={styles.errorText}>
-          {error?.message || 'Failed to load news'}
+          {error ? userFacingApiMessage(error) : 'Failed to load news'}
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
           <Ionicons
@@ -282,11 +279,7 @@ const NewsScreen: React.FC = () => {
                   end={{x: 1, y: 1}}
                   style={styles.storyGradient}>
                   <View style={styles.storyInner}>
-                    {s.key === 'mystory' ? (
-                      <Ionicons name="add" size={32} color={NEWS_MUTED} />
-                    ) : (
-                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                    )}
+                    <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
                   </View>
                 </LinearGradient>
                 <Text style={styles.storyLabel}>{s.label}</Text>

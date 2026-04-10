@@ -211,6 +211,8 @@ const LineupScreen: React.FC<LineupScreenProps> = ({
       style={styles.container}
       onScroll={onScroll}
       scrollEventThrottle={16}
+      bounces={false}
+      overScrollMode="never"
       nestedScrollEnabled>
       <View style={[styles.field, {width: width, height: width * 2.0}]}>
         {/* Field markings */}

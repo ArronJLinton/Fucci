@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -78,8 +79,8 @@ func TestGetMatchLineup(t *testing.T) {
 
 		// Create a test server that handles both lineup and squad requests
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			// Determine which response to return based on the URL
@@ -329,8 +330,8 @@ func TestGetLeagueStandings(t *testing.T) {
 
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			// Verify query parameters
@@ -521,8 +522,8 @@ func TestCacheExpiration(t *testing.T) {
 
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			w.WriteHeader(http.StatusOK)
@@ -918,6 +919,319 @@ func TestTeamStandingsCache(t *testing.T) {
 	})
 }
 
+const testGetMatchesFixtureOK = `{"get":"fixtures","results":1,"response":[{"fixture":{"id":1,"status":{"short":"FT"}},"teams":{"home":{"name":"A"},"away":{"name":"B"}}}]}`
+
+// TestGetMatchesSeasonResolutionAndCache covers ResolveAPIFootballSeason vs explicit season, cache keys, and rejections.
+func TestGetMatchesSeasonResolutionAndCache(t *testing.T) {
+	newMatchServer := func(t *testing.T, onReq func(path string)) *httptest.Server {
+		t.Helper()
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if onReq != nil {
+				onReq(r.URL.RequestURI())
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testGetMatchesFixtureOK))
+		}))
+	}
+
+	mockCacheMiss := func(t *testing.T, onExists, onSet func(key string)) *MockCache {
+		t.Helper()
+		return &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				if onExists != nil {
+					onExists(key)
+				}
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				if onSet != nil {
+					onSet(key)
+				}
+				return nil
+			},
+		}
+	}
+
+	t.Run("computed season UCL uses calendar year of match date", func(t *testing.T) {
+		var gotPath string
+		var existsKey, setKey string
+		srv := newMatchServer(t, func(path string) { gotPath = path })
+		defer srv.Close()
+		config := &Config{
+			Cache:              mockCacheMiss(t, func(k string) { existsKey = k }, func(k string) { setKey = k }),
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-04-09&league_id=2"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code = %d, body=%s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(gotPath, "league=2") || !strings.Contains(gotPath, "season=2026") {
+			t.Fatalf("upstream URL want league=2 and season=2026; got %q", gotPath)
+		}
+		want := "matches:league:2:date:2026-04-09:season:2026"
+		if existsKey != want || setKey != want {
+			t.Fatalf("cache keys: exists=%q set=%q want %q", existsKey, setKey, want)
+		}
+	})
+
+	t.Run("computed season domestic Jan–Jul uses previous year", func(t *testing.T) {
+		var gotPath string
+		srv := newMatchServer(t, func(path string) { gotPath = path })
+		defer srv.Close()
+		config := &Config{
+			Cache:              mockCacheMiss(t, nil, nil),
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-04-15&league_id=39"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code = %d", rec.Code)
+		}
+		if !strings.Contains(gotPath, "league=39") || !strings.Contains(gotPath, "season=2025") {
+			t.Fatalf("upstream URL want season=2025 for April domestic; got %q", gotPath)
+		}
+	})
+
+	t.Run("computed season domestic Aug–Dec uses current year", func(t *testing.T) {
+		var gotPath string
+		srv := newMatchServer(t, func(path string) { gotPath = path })
+		defer srv.Close()
+		config := &Config{
+			Cache:              mockCacheMiss(t, nil, nil),
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-09-01&league_id=39"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code = %d", rec.Code)
+		}
+		if !strings.Contains(gotPath, "season=2026") {
+			t.Fatalf("upstream URL want season=2026 for September domestic; got %q", gotPath)
+		}
+	})
+
+	t.Run("explicit season override used for URL and cache key", func(t *testing.T) {
+		var gotPath string
+		var existsKey, setKey string
+		srv := newMatchServer(t, func(path string) { gotPath = path })
+		defer srv.Close()
+		config := &Config{
+			Cache:              mockCacheMiss(t, func(k string) { existsKey = k }, func(k string) { setKey = k }),
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		// Without override, April 2026 + league 39 would resolve to 2025; override must win.
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-04-15&league_id=39&season=2024"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code = %d", rec.Code)
+		}
+		if !strings.Contains(gotPath, "season=2024") {
+			t.Fatalf("upstream want season=2024; got %q", gotPath)
+		}
+		want := "matches:league:39:date:2026-04-15:season:2024"
+		if existsKey != want || setKey != want {
+			t.Fatalf("cache keys: exists=%q set=%q want %q", existsKey, setKey, want)
+		}
+	})
+
+	t.Run("invalid season rejected before cache", func(t *testing.T) {
+		var cacheCalls int
+		mockCache := &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				cacheCalls++
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				return nil
+			},
+		}
+		config := &Config{
+			Cache:              mockCache,
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: "http://127.0.0.1:9",
+		}
+		for _, raw := range []string{
+			"date=2026-04-15&league_id=39&season=1999",
+			"date=2026-04-15&league_id=39&season=2101",
+			"date=2026-04-15&league_id=39&season=nan",
+		} {
+			t.Run(raw, func(t *testing.T) {
+				cacheCalls = 0
+				req := httptest.NewRequest("GET", "/matches", nil)
+				req.URL.RawQuery = raw
+				rec := httptest.NewRecorder()
+				config.getMatches(rec, req)
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("code = %d, want 400", rec.Code)
+				}
+				if cacheCalls != 0 {
+					t.Fatalf("cache should not be used, got %d Exists calls", cacheCalls)
+				}
+			})
+		}
+	})
+
+	t.Run("non-numeric league_id rejected even when season is valid", func(t *testing.T) {
+		var cacheCalls int
+		mockCache := &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				cacheCalls++
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				return nil
+			},
+		}
+		config := &Config{
+			Cache:              mockCache,
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: "http://127.0.0.1:9",
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-04-15&league_id=bar&season=2026"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("code = %d, want 400", rec.Code)
+		}
+		if cacheCalls != 0 {
+			t.Fatalf("cache should not be used, got %d Exists calls", cacheCalls)
+		}
+	})
+}
+
+// TestGetMatchesQueryValidation ensures league_id and season are validated before cache or upstream calls.
+func TestGetMatchesQueryValidation(t *testing.T) {
+	t.Run("invalid queries return 400 before cache", func(t *testing.T) {
+		var cacheCalls int
+		mockCache := &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				cacheCalls++
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				return nil
+			},
+		}
+		config := &Config{
+			Cache:              mockCache,
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: "http://127.0.0.1:9",
+		}
+
+		tests := []struct {
+			name     string
+			rawQuery string
+		}{
+			{
+				name:     "non-numeric league_id with season override",
+				rawQuery: "date=2025-06-01&league_id=foo&season=2026",
+			},
+			{
+				name:     "non-numeric league_id",
+				rawQuery: "date=2025-06-01&league_id=++foo&season=2026",
+			},
+			{
+				name:     "invalid season with numeric league_id",
+				rawQuery: "date=2025-06-01&league_id=39&season=notayear",
+			},
+			{
+				name:     "invalid date without league_id",
+				rawQuery: "date=not-a-date",
+			},
+			{
+				name:     "malformed date without league_id",
+				rawQuery: "date=2025/06/01",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				cacheCalls = 0
+				req := httptest.NewRequest("GET", "/matches", nil)
+				req.URL.RawQuery = tt.rawQuery
+				rec := httptest.NewRecorder()
+				config.getMatches(rec, req)
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("code = %d, want 400, body=%s", rec.Code, rec.Body.String())
+				}
+				if cacheCalls != 0 {
+					t.Fatalf("expected no cache access, got %d Exists calls", cacheCalls)
+				}
+			})
+		}
+	})
+
+	t.Run("trimmed league_id and int league in upstream URL", func(t *testing.T) {
+		var gotPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.RequestURI()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"get":"fixtures","results":1,"response":[{"fixture":{"id":1,"status":{"short":"FT"}},"teams":{"home":{"name":"A"},"away":{"name":"B"}}}]}`))
+		}))
+		defer server.Close()
+
+		mockCache := &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				return nil
+			},
+		}
+		config := &Config{
+			Cache:              mockCache,
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: server.URL,
+		}
+
+		q := url.Values{}
+		q.Set("date", "2025-06-15")
+		q.Set("league_id", " 39 ")
+		q.Set("season", "2024")
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = q.Encode()
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code = %d, body=%s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(gotPath, "league=39") || !strings.Contains(gotPath, "season=2024") {
+			t.Fatalf("upstream URL should use normalized league and season; got %q", gotPath)
+		}
+	})
+}
+
 // TestCacheErrorHandling tests that endpoints handle cache errors gracefully
 func TestCacheErrorHandling(t *testing.T) {
 	// Create a mock cache that simulates errors
@@ -1009,8 +1323,8 @@ func TestGetTeamSquad(t *testing.T) {
 
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("x-rapidapi-key") != mockAPIKey {
-				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-rapidapi-key"))
+			if r.Header.Get("x-apisports-key") != mockAPIKey {
+				t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
 			}
 
 			// Verify the URL contains the team ID

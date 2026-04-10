@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -21,25 +22,54 @@ type GetMatchesParams struct {
 func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Step 1: Get date and optional league_id from query parameters
 	queryParams := r.URL.Query()
-	date := queryParams.Get("date")
-	leagueID := queryParams.Get("league_id")
-	log.Printf("League ID: %s\n", leagueID)
+	date := strings.TrimSpace(queryParams.Get("date"))
+	leagueIDStr := strings.TrimSpace(queryParams.Get("league_id"))
+	seasonStr := strings.TrimSpace(queryParams.Get("season"))
+
 	if date == "" {
 		log.Printf("ERROR: date parameter is missing")
 		respondWithError(w, http.StatusBadRequest, "date parameter is required")
 		return
 	}
 
-	// Generate cache key (include league_id if provided)
-	var cacheKey string
-	if leagueID != "" {
-		cacheKey = fmt.Sprintf("matches:league:%s:date:%s", leagueID, date)
-	} else {
-		cacheKey = fmt.Sprintf("matches:date:%s", date)
+	matchDate, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		log.Printf("ERROR: Invalid date format: %s\n", date)
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
+		return
 	}
-	log.Printf("Cache key: %s\n", cacheKey)
+	dateCanonical := matchDate.Format("2006-01-02")
+
+	// Validate inputs once before cache lookup so keys and upstream URLs use the same normalized values.
+	var cacheKey string
+	var leagueIDNum int
+	var seasonNum int
+	haveLeague := leagueIDStr != ""
+
+	if !haveLeague {
+		cacheKey = fmt.Sprintf("matches:date:%s", dateCanonical)
+	} else {
+		lid, err := strconv.Atoi(leagueIDStr)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "league_id must be numeric")
+			return
+		}
+		leagueIDNum = lid
+
+		if seasonStr != "" {
+			s, err := strconv.Atoi(seasonStr)
+			if err != nil || s < 2000 || s > 2100 {
+				respondWithError(w, http.StatusBadRequest, "season must be a valid year (e.g. 2026)")
+				return
+			}
+			seasonNum = s
+		} else {
+			seasonNum = ResolveAPIFootballSeason(lid, matchDate)
+		}
+		cacheKey = fmt.Sprintf("matches:league:%d:date:%s:season:%d", leagueIDNum, dateCanonical, seasonNum)
+	}
+	log.Printf("Cache key: %s (league_id=%q)\n", cacheKey, leagueIDStr)
 
 	// Try to get from cache first
 	var data GetMatchesAPIResponse
@@ -68,28 +98,17 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	// Build URL with optional league filter
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
-	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
-	if leagueID != "" {
-		// When filtering by league, RapidAPI requires a season parameter
-		// Extract year from date to determine season
-		// dateTime, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			log.Printf("ERROR: Invalid date format: %s\n", date)
-			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
-			return
-		}
-		// FIXME: Need to dynamically set the season year
-		// season := dateTime.Year()
-		season := 2025
-		url = fmt.Sprintf("%s&league=%s&season=%d", url, leagueID, season)
+	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, dateCanonical)
+	if haveLeague {
+		url = fmt.Sprintf("%s&league=%d&season=%d", url, leagueIDNum, seasonNum)
 		log.Printf("URL: %s\n", url)
-		log.Printf("Filtering matches by league_id: %s, season: %d\n", leagueID, season)
+		log.Printf("Filtering matches by league_id: %d, season: %d\n", leagueIDNum, seasonNum)
 	}
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -169,12 +188,12 @@ func (c *Config) FetchLineupData(ctx context.Context, matchID string) (*GetLineU
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/fixtures/lineups?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -223,12 +242,12 @@ func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetF
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/fixtures/statistics?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -474,13 +493,13 @@ func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse,
 
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	// Use configurable base URL with fallback
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/players/squads?team=%d", baseURL, id)
 
@@ -541,12 +560,12 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
-	url := baseURL + "/leagues?season=2025"
+	url := fmt.Sprintf("%s/leagues?season=%d", baseURL, currentYear)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -617,12 +636,12 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/standings?season=%d&team=%s", baseURL, currentYear, teamId)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
@@ -663,12 +682,12 @@ func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season st
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/standings?league=%s&season=%s", baseURL, leagueID, season)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -747,12 +766,12 @@ func (c *Config) FetchHeadToHead(ctx context.Context, homeTeamID, awayTeamID int
 
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 	u := fmt.Sprintf("%s/fixtures/headtohead?h2h=%d-%d&last=10", baseURL, homeTeamID, awayTeamID)
 	headers := map[string]string{
 		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", u, headers, nil)

@@ -1834,13 +1834,13 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 	// Use configurable base URL with fallback
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
-		baseURL = "https://api-football-v1.p.rapidapi.com/v3"
+		baseURL = "https://v3.football.api-sports.io"
 	}
 
 	url := fmt.Sprintf("%s/fixtures?id=%s", baseURL, matchID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
-		"x-rapidapi-key": c.FootballAPIKey,
+		"Content-Type":    "application/json",
+		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", url, headers, nil)

@@ -11,7 +11,11 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
 import {fetchMatches} from '../services/api';
-import {DEFAULT_LEAGUE, type League} from '../constants/leagues';
+import {
+  DEFAULT_LEAGUE,
+  seasonParamForMatchSearch,
+  type League,
+} from '../constants/leagues';
 import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 
@@ -68,66 +72,71 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const isSelected = route.name === currentRoute;
   const [matches, setMatches] = React.useState<any[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
-  const hasLoadedRef = React.useRef(false);
   const isLoadingRef = React.useRef(false);
 
   const cacheKey = React.useMemo(
     () => `${date.toISOString()}-${selectedLeague?.id || 'all'}`,
     [date, selectedLeague?.id],
   );
-  const loadedCacheKeysRef = React.useRef<Set<string>>(new Set());
+  /** In-memory cache per date tab: (date ISO + league id) → matches. Survives league switching (e.g. EPL → La Liga → EPL). */
+  const matchesByKeyRef = React.useRef<Map<string, any[]>>(new Map());
 
   React.useEffect(() => {
-    if (!loadedCacheKeysRef.current.has(cacheKey)) {
-      hasLoadedRef.current = false;
-      setMatches([]);
+    if (!isSelected || !selectedLeague) {
+      return;
     }
 
-    if (
-      isSelected &&
-      selectedLeague &&
-      !loadedCacheKeysRef.current.has(cacheKey) &&
-      !isLoadingRef.current
-    ) {
-      isLoadingRef.current = true;
-      setIsLoading(true);
-
-      const currentCacheKey = cacheKey;
-      const currentLeague = selectedLeague;
-
-      const timeoutId = setTimeout(() => {
-        if (
-          currentCacheKey === cacheKey &&
-          isSelected &&
-          !loadedCacheKeysRef.current.has(currentCacheKey)
-        ) {
-          fetchMatches(date, currentLeague.id)
-            .then(data => {
-              if (currentCacheKey === cacheKey && data) {
-                setMatches(data);
-                loadedCacheKeysRef.current.add(currentCacheKey);
-                hasLoadedRef.current = true;
-              }
-            })
-            .catch(error => {
-              console.error('Error loading matches:', error);
-            })
-            .finally(() => {
-              if (currentCacheKey === cacheKey) {
-                isLoadingRef.current = false;
-                setIsLoading(false);
-              }
-            });
-        } else {
-          isLoadingRef.current = false;
-          setIsLoading(false);
-        }
-      }, 100);
-
-      return () => {
-        clearTimeout(timeoutId);
-      };
+    const cached = matchesByKeyRef.current.get(cacheKey);
+    if (cached) {
+      setMatches(cached);
+      setIsLoading(false);
+      isLoadingRef.current = false;
+      return;
     }
+
+    isLoadingRef.current = true;
+    setIsLoading(true);
+    setMatches([]);
+
+    const currentCacheKey = cacheKey;
+    const currentLeague = selectedLeague;
+
+    const timeoutId = setTimeout(() => {
+      if (
+        currentCacheKey !== cacheKey ||
+        !isSelected ||
+        matchesByKeyRef.current.has(currentCacheKey)
+      ) {
+        isLoadingRef.current = false;
+        setIsLoading(false);
+        return;
+      }
+
+      fetchMatches(
+        date,
+        currentLeague.id,
+        seasonParamForMatchSearch(currentLeague, date),
+      )
+        .then(data => {
+          if (currentCacheKey === cacheKey && data) {
+            matchesByKeyRef.current.set(currentCacheKey, data);
+            setMatches(data);
+          }
+        })
+        .catch(error => {
+          console.error('Error loading matches:', error);
+        })
+        .finally(() => {
+          if (currentCacheKey === cacheKey) {
+            isLoadingRef.current = false;
+            setIsLoading(false);
+          }
+        });
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [isSelected, date, selectedLeague, cacheKey]);
 
   const filteredMatches = React.useMemo(() => {

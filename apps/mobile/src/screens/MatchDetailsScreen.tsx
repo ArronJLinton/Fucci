@@ -11,6 +11,7 @@ import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import {StatusBar} from 'expo-status-bar';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
@@ -103,6 +104,7 @@ const MatchDetailsScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
@@ -111,14 +113,13 @@ const MatchDetailsScreen = () => {
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: event => {
-      scrollY.value = event.contentOffset.y;
+      const y = event.contentOffset.y;
+      // Avoid negative offsets (rubber-band) fighting hero interpolation
+      scrollY.value = y < 0 ? 0 : y;
     },
   });
 
-  const scrollContextValue = useMemo(
-    () => ({scrollHandler}),
-    [scrollHandler],
-  );
+  const scrollContextValue = useMemo(() => ({scrollHandler}), [scrollHandler]);
 
   useEffect(() => {
     return () => {
@@ -161,30 +162,36 @@ const MatchDetailsScreen = () => {
   });
 
   /** Fades and collapses expanded score row so compact strip can dominate when scrolled */
-  const expandedScoreStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      scrollY.value,
-      [0, 72],
-      [1, 0],
-      Extrapolation.CLAMP,
-    ),
-    maxHeight: interpolate(
-      scrollY.value,
-      [0, 100],
-      [200, 0],
-      Extrapolation.CLAMP,
-    ),
-    overflow: 'hidden' as const,
-  }));
+  const expandedScoreStyle = useAnimatedStyle(() => {
+    const r = HERO_COLLAPSE_SCROLL_RANGE;
+    return {
+      opacity: interpolate(
+        scrollY.value,
+        [0, r * 0.58],
+        [1, 0],
+        Extrapolation.CLAMP,
+      ),
+      maxHeight: interpolate(
+        scrollY.value,
+        [0, r * 0.92],
+        [200, 0],
+        Extrapolation.CLAMP,
+      ),
+      overflow: 'hidden' as const,
+    };
+  });
 
-  const heroCompactOpacityStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      scrollY.value,
-      [28, 88],
-      [0, 1],
-      Extrapolation.CLAMP,
-    ),
-  }));
+  const heroCompactOpacityStyle = useAnimatedStyle(() => {
+    const r = HERO_COLLAPSE_SCROLL_RANGE;
+    return {
+      opacity: interpolate(
+        scrollY.value,
+        [r * 0.33, r * 1.05],
+        [0, 1],
+        Extrapolation.CLAMP,
+      ),
+    };
+  });
 
   const statusLabel = statusPillLabel(match);
   const live = isLiveStatus(match.fixture.status.short);
@@ -232,11 +239,7 @@ const MatchDetailsScreen = () => {
             <Text style={styles.scoreText}>
               {match.goals.home ?? 0} - {match.goals.away ?? 0}
             </Text>
-            <View
-              style={[
-                styles.statusPill,
-                live && styles.statusPillLive,
-              ]}>
+            <View style={[styles.statusPill, live && styles.statusPillLive]}>
               <Text
                 style={[
                   styles.statusPillText,
@@ -280,94 +283,105 @@ const MatchDetailsScreen = () => {
   );
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        // Bleed into parent SafeArea top padding so hero/tabs sit higher; insets keep controls clear of notch.
+        {marginTop: -insets.top, paddingTop: insets.top},
+      ]}>
       <StatusBar style="light" />
       <MatchDetailsScrollProvider value={scrollContextValue}>
         <MatchHero />
         <View style={styles.tabsWrap}>
           <TabNavigator
-          screenListeners={{
-            tabPress: () => {
-              scrollY.value = 0;
-            },
-            focus: () => {
-              scrollY.value = 0;
-            },
-          }}
-          style={styles.tabNavigator}
-          screenOptions={{
-            tabBarScrollEnabled: true,
-            tabBarItemStyle: {
-              width: width / 4,
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-            tabBarStyle: {
-              backgroundColor: MATCH_CENTER_BG,
-              elevation: 0,
-              shadowOpacity: 0,
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: 'rgba(255,255,255,0.08)',
-            },
-            tabBarIndicatorStyle: {
-              backgroundColor: MATCH_CENTER_LIME,
-              height: 3,
-            },
-            tabBarActiveTintColor: MATCH_CENTER_LIME,
-            tabBarInactiveTintColor: MATCH_CENTER_TAB_INACTIVE,
-            tabBarLabelStyle: {
-              fontWeight: '800',
-              fontSize: 10,
-              letterSpacing: 0.6,
-              textTransform: 'uppercase',
-            },
-            tabBarPressColor: 'rgba(223,255,0,0.12)',
-            tabBarPressOpacity: 0.85,
-          }}>
-          <TabScreen
-            name="Lineup"
-            options={{
-              tabBarLabel: 'Lineup',
+            initialRouteName="News"
+            screenListeners={{
+              tabPress: () => {
+                scrollY.value = 0;
+              },
+              focus: () => {
+                scrollY.value = 0;
+              },
+            }}
+            style={styles.tabNavigator}
+            screenOptions={{
+              // Pager horizontal swipe competes with vertical ScrollViews; disable for smoother scroll + hero sync.
+              swipeEnabled: false,
+              tabBarScrollEnabled: true,
+              tabBarItemStyle: {
+                width: width / 4,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              tabBarStyle: {
+                backgroundColor: MATCH_CENTER_BG,
+                elevation: 0,
+                shadowOpacity: 0,
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: 'rgba(255,255,255,0.08)',
+              },
+              tabBarIndicatorStyle: {
+                backgroundColor: MATCH_CENTER_LIME,
+                height: 3,
+              },
+              tabBarActiveTintColor: MATCH_CENTER_LIME,
+              tabBarInactiveTintColor: MATCH_CENTER_TAB_INACTIVE,
+              tabBarLabelStyle: {
+                fontWeight: '800',
+                fontSize: 10,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+              },
+              tabBarPressColor: 'rgba(223,255,0,0.12)',
+              tabBarPressOpacity: 0.85,
             }}>
-            {() => (
-              <LineupScreen match={match} matchScrollHandler={scrollHandler} />
-            )}
-          </TabScreen>
-          <TabScreen
-            name="Table"
-            options={{
-              tabBarLabel: 'Table',
-            }}>
-            {() => (
-              <TableScreen match={match} matchScrollHandler={scrollHandler} />
-            )}
-          </TabScreen>
-          <TabScreen
-            name="News"
-            options={{
-              tabBarLabel: 'News',
-            }}>
-            {() => (
-              <MatchNewsScreen
-                match={match}
-                matchScrollHandler={scrollHandler}
-              />
-            )}
-          </TabScreen>
-          <TabScreen
-            name="Debate"
-            options={{
-              tabBarLabel: 'Debate',
-            }}>
-            {() => (
-              <DebateScreen
-                match={match}
-                stackNavigation={navigation}
-                matchScrollHandler={scrollHandler}
-              />
-            )}
-          </TabScreen>
-        </TabNavigator>
+            <TabScreen
+              name="Lineup"
+              options={{
+                tabBarLabel: 'Lineup',
+              }}>
+              {() => (
+                <LineupScreen
+                  match={match}
+                  matchScrollHandler={scrollHandler}
+                />
+              )}
+            </TabScreen>
+            <TabScreen
+              name="Table"
+              options={{
+                tabBarLabel: 'Table',
+              }}>
+              {() => (
+                <TableScreen match={match} matchScrollHandler={scrollHandler} />
+              )}
+            </TabScreen>
+            <TabScreen
+              name="News"
+              options={{
+                tabBarLabel: 'News',
+              }}>
+              {() => (
+                <MatchNewsScreen
+                  match={match}
+                  matchScrollHandler={scrollHandler}
+                />
+              )}
+            </TabScreen>
+            <TabScreen
+              name="Debate"
+              options={{
+                tabBarLabel: 'Debate',
+              }}>
+              {() => (
+                <DebateScreen
+                  match={match}
+                  stackNavigation={navigation}
+                  matchScrollHandler={scrollHandler}
+                />
+              )}
+            </TabScreen>
+          </TabNavigator>
         </View>
       </MatchDetailsScrollProvider>
     </View>
@@ -398,16 +412,16 @@ const styles = StyleSheet.create({
   heroInner: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 6,
     zIndex: 1,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    minHeight: 32,
-    paddingTop: 4,
+    marginBottom: 4,
+    minHeight: 28,
+    paddingTop: 0,
   },
   heroScoreBlock: {
     flex: 1,
@@ -428,10 +442,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badge: {
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 4,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   badgePlaceholder: {
@@ -449,7 +463,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   scoreText: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: MATCH_CENTER_TEXT,
     letterSpacing: 1,
@@ -458,7 +472,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   statusPill: {
-    marginTop: 8,
+    marginTop: 4,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 999,
@@ -483,7 +497,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 10,
+    bottom: 8,
     alignItems: 'center',
   },
   heroCompactScore: {

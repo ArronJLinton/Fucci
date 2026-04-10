@@ -151,6 +151,8 @@ export const TableScreen: React.FC<TableScreenProps> = ({
       contentContainerStyle={styles.scrollContent}
       onScroll={onScroll}
       scrollEventThrottle={16}
+      bounces={false}
+      overScrollMode="never"
       nestedScrollEnabled
       showsVerticalScrollIndicator={false}>
       {Array.isArray(standings) &&

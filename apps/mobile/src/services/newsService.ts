@@ -1,4 +1,5 @@
 import {apiConfig} from '../config/environment';
+import {ApiRequestError} from './api';
 import type {NewsAPIResponse, MatchNewsAPIResponse} from '../types/news';
 
 /**
@@ -9,7 +10,7 @@ import type {NewsAPIResponse, MatchNewsAPIResponse} from '../types/news';
 /**
  * Fetches football news articles from the backend API
  * @returns Promise resolving to NewsAPIResponse
- * @throws Error if the API request fails
+ * @throws ApiRequestError on non-2xx (includes HTTP status for userFacingApiMessage)
  */
 export const fetchFootballNews = async (): Promise<NewsAPIResponse> => {
   const url = `${apiConfig.baseURL}/news/football`;
@@ -25,8 +26,9 @@ export const fetchFootballNews = async (): Promise<NewsAPIResponse> => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[fetchFootballNews] Error response:', errorText);
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`,
+      throw new ApiRequestError(
+        `Request failed (${response.status})`,
+        response.status,
       );
     }
 
@@ -51,7 +53,7 @@ export const fetchFootballNews = async (): Promise<NewsAPIResponse> => {
  * @param matchStatus - Match status (e.g. NS, 1H, FT) - used for time filtering
  * @param matchEndTime - ISO8601 string of match end time (for completed matches only)
  * @returns Promise resolving to MatchNewsAPIResponse
- * @throws Error if the API request fails
+ * @throws ApiRequestError on non-2xx (includes HTTP status for userFacingApiMessage)
  */
 export const fetchMatchNews = async (
   homeTeam: string,
@@ -82,8 +84,9 @@ export const fetchMatchNews = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[fetchMatchNews] Error response:', errorText);
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`,
+      throw new ApiRequestError(
+        `Request failed (${response.status})`,
+        response.status,
       );
     }
 

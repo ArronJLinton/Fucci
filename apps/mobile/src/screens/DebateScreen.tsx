@@ -5,11 +5,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import {LinearGradient} from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../types/navigation';
@@ -41,9 +38,10 @@ function getDefaultDebateType(match: Match): DebateType {
   return FINISHED_STATUSES.includes(short) ? 'post_match' : 'pre_match';
 }
 
-function agreePercentFromDebate(
-  d: DebateResponse,
-): {agreePct: number; hasVotes: boolean} {
+function agreePercentFromDebate(d: DebateResponse): {
+  agreePct: number;
+  hasVotes: boolean;
+} {
   let agree = 0;
   let disagree = 0;
   for (const c of d.cards ?? []) {
@@ -203,7 +201,8 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
         }
       } catch (err) {
         if (cancelled()) return;
-        const msg = err instanceof Error ? err.message : 'Failed to load debate';
+        const msg =
+          err instanceof Error ? err.message : 'Failed to load debate';
         setError(msg);
         setDebateList([]);
       } finally {
@@ -271,30 +270,15 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
   const refYN = referee ? yesNoFromDebate(referee) : {yes: 50, no: 50};
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={80}>
+    <View style={styles.container}>
       <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
         scrollEventThrottle={16}
-        nestedScrollEnabled
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}>
-        <LinearGradient
-          colors={['#1a2332', MATCH_CENTER_CARD]}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 1}}
-          style={styles.introCard}>
-          <Text style={styles.introTitle}>MATCH DEBATE</Text>
-          <Text style={styles.introBody}>
-            Join the pulse of the game. Analyze key moments and settle the score
-            with the global community.
-          </Text>
-        </LinearGradient>
-
         <View style={styles.hotCard}>
           <View style={styles.hotHeader}>
             <View style={styles.hotPill}>
@@ -306,7 +290,9 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
             {hasVotes ? (
               <>
                 <Text style={styles.agreeLabel}>AGREE ({agreePct}%)</Text>
-                <Text style={styles.disagreeLabel}>DISAGREE ({disagreePct}%)</Text>
+                <Text style={styles.disagreeLabel}>
+                  DISAGREE ({disagreePct}%)
+                </Text>
               </>
             ) : (
               <Text style={styles.noVotesLabel}>NO VOTES YET</Text>
@@ -324,7 +310,11 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
             activeOpacity={0.9}
             onPress={() => openSingleDebate(hot, 0)}>
             <Text style={styles.joinCtaText}>JOIN THE CONVERSATION</Text>
-            <Ionicons name="chatbubble-ellipses" size={18} color={MATCH_CENTER_BLACK} />
+            <Ionicons
+              name="chatbubble-ellipses"
+              size={18}
+              color={MATCH_CENTER_BLACK}
+            />
           </TouchableOpacity>
         </View>
 
@@ -351,7 +341,11 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
               activeOpacity={0.85}
               onPress={() => openSingleDebate(referee, 0)}>
               <Text style={styles.refTapText}>Open debate</Text>
-              <Ionicons name="chevron-forward" size={18} color={MATCH_CENTER_LIME} />
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={MATCH_CENTER_LIME}
+              />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -377,7 +371,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           </TouchableOpacity>
         </View>
       </Animated.ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -423,26 +417,6 @@ const styles = StyleSheet.create({
     color: MATCH_CENTER_MUTED,
     marginTop: 8,
     textAlign: 'center',
-  },
-  introCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  introTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    fontStyle: 'italic',
-    letterSpacing: 1,
-    color: MATCH_CENTER_TEXT,
-    marginBottom: 8,
-  },
-  introBody: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: MATCH_CENTER_MUTED,
   },
   hotCard: {
     backgroundColor: MATCH_CENTER_CARD,

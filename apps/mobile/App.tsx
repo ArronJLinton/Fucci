@@ -74,7 +74,7 @@ const baseTabBarStyle = {
 
 function getFocusedTabName(state?: NavigationState): string {
   if (!state) {
-    return 'Home';
+    return 'News';
   }
   const top = state.routes[state.index];
   if (top.name !== 'Main' || !top.state) {
@@ -84,7 +84,7 @@ function getFocusedTabName(state?: NavigationState): string {
     index: number;
     routes: {name: string}[];
   };
-  return tabState.routes[tabState.index]?.name ?? 'Home';
+  return tabState.routes[tabState.index]?.name ?? 'News';
 }
 
 const MainStack = () => {
@@ -154,6 +154,7 @@ const MainStack = () => {
         backgroundColor={shellBg}
       />
       <TabNavigator
+        initialRouteName="News"
         screenOptions={{
           tabBarActiveTintColor: tabActiveTint,
           tabBarInactiveTintColor: inactiveTint,
