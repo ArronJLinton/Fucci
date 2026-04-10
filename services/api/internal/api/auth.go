@@ -191,8 +191,9 @@ type googleAuthProcError struct {
 	msg    string
 }
 
-// publicGoogleOAuthAppErrorDescription returns text safe to put in the app redirect URL
-// (google_error_description). Internal/server details stay in logs only.
+// publicGoogleOAuthAppErrorDescription returns a stable, user-safe message for OAuth app redirects
+// (google_error_description) and JSON error bodies from handleGoogleAuth. Internal/server details
+// stay in logs only (see logGoogleAuthEvent detail fields).
 func publicGoogleOAuthAppErrorDescription(e *googleAuthProcError) string {
 	if e == nil {
 		return ""
@@ -473,8 +474,8 @@ func (c *Config) handleGoogleAuth(w http.ResponseWriter, r *http.Request) {
 
 	out, procErr := c.googleAuthFromCode(r.Context(), req.Code, req.RedirectURI)
 	if procErr != nil {
-		logGoogleAuthEvent("post_failed", "path", r.URL.Path, "status", procErr.status, "code", procErr.code)
-		respondWithGoogleAuthError(w, procErr.status, procErr.code, procErr.msg)
+		logGoogleAuthEvent("post_failed", "path", r.URL.Path, "status", procErr.status, "code", procErr.code, "detail", procErr.msg)
+		respondWithGoogleAuthError(w, procErr.status, procErr.code, publicGoogleOAuthAppErrorDescription(procErr))
 		return
 	}
 	logGoogleAuthEvent("post_success", "path", r.URL.Path, "user_id", out.User.ID, "is_new", out.IsNew)

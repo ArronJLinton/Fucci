@@ -21,7 +21,7 @@ import (
 // Regexes match sqlc-generated queries used by googleAuthFromCode (substring match).
 var (
 	rxSQLGoogleGetByGoogleID   = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::varchar\(255\)`
-	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE lower\(email\) = lower\(\$1\) LIMIT 1`
+	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE email = \$1 LIMIT 1`
 	rxSQLGoogleCreateUser      = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
 	rxSQLGoogleUpdateLogin     = `avatar_url = CASE WHEN \$1::text <> '' THEN \$1 ELSE avatar_url END`
 	rxSQLGoogleLink            = `COALESCE\(NULLIF\(google_id::text, ''\), \$1::text\)::varchar\(255\)`
