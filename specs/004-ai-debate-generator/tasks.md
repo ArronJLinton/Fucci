@@ -269,6 +269,12 @@ T054  quickstart.md generate-set curl and preload
 
 ---
 
+## Backlog / TODO
+
+- [ ] **DebateDataAggregator should use Redis for news headlines**: Today `fetchNewsHeadlines` in `services/api/internal/api/debate_data_aggregator.go` calls `news.Client.FetchMatchNews` directly, so every debate context build can hit RapidAPI even when `GET /news/football/match` would be served from cache. Align with the HTTP handlers in `services/api/internal/api/news.go`: reuse `news.GenerateMatchCacheKey` (or equivalent), read through `Config.Cache` with the same TTL as match news (`cache.NewsTTL`), and only call RapidAPI on cache miss—same semantics as `/news/football/match`.
+
+---
+
 ## Notes
 
 - [P] tasks use different files or can be reordered without breaking dependencies.
