@@ -119,10 +119,7 @@ const MatchDetailsScreen = () => {
     },
   });
 
-  const scrollContextValue = useMemo(
-    () => ({scrollHandler}),
-    [scrollHandler],
-  );
+  const scrollContextValue = useMemo(() => ({scrollHandler}), [scrollHandler]);
 
   useEffect(() => {
     return () => {
@@ -242,11 +239,7 @@ const MatchDetailsScreen = () => {
             <Text style={styles.scoreText}>
               {match.goals.home ?? 0} - {match.goals.away ?? 0}
             </Text>
-            <View
-              style={[
-                styles.statusPill,
-                live && styles.statusPillLive,
-              ]}>
+            <View style={[styles.statusPill, live && styles.statusPillLive]}>
               <Text
                 style={[
                   styles.statusPillText,
@@ -301,91 +294,94 @@ const MatchDetailsScreen = () => {
         <MatchHero />
         <View style={styles.tabsWrap}>
           <TabNavigator
-          initialRouteName="News"
-          screenListeners={{
-            tabPress: () => {
-              scrollY.value = 0;
-            },
-            focus: () => {
-              scrollY.value = 0;
-            },
-          }}
-          style={styles.tabNavigator}
-          screenOptions={{
-            // Pager horizontal swipe competes with vertical ScrollViews; disable for smoother scroll + hero sync.
-            swipeEnabled: false,
-            tabBarScrollEnabled: true,
-            tabBarItemStyle: {
-              width: width / 4,
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-            tabBarStyle: {
-              backgroundColor: MATCH_CENTER_BG,
-              elevation: 0,
-              shadowOpacity: 0,
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: 'rgba(255,255,255,0.08)',
-            },
-            tabBarIndicatorStyle: {
-              backgroundColor: MATCH_CENTER_LIME,
-              height: 3,
-            },
-            tabBarActiveTintColor: MATCH_CENTER_LIME,
-            tabBarInactiveTintColor: MATCH_CENTER_TAB_INACTIVE,
-            tabBarLabelStyle: {
-              fontWeight: '800',
-              fontSize: 10,
-              letterSpacing: 0.6,
-              textTransform: 'uppercase',
-            },
-            tabBarPressColor: 'rgba(223,255,0,0.12)',
-            tabBarPressOpacity: 0.85,
-          }}>
-          <TabScreen
-            name="Lineup"
-            options={{
-              tabBarLabel: 'Lineup',
+            initialRouteName="News"
+            screenListeners={{
+              tabPress: () => {
+                scrollY.value = 0;
+              },
+              focus: () => {
+                scrollY.value = 0;
+              },
+            }}
+            style={styles.tabNavigator}
+            screenOptions={{
+              // Pager horizontal swipe competes with vertical ScrollViews; disable for smoother scroll + hero sync.
+              swipeEnabled: false,
+              tabBarScrollEnabled: true,
+              tabBarItemStyle: {
+                width: width / 4,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              tabBarStyle: {
+                backgroundColor: MATCH_CENTER_BG,
+                elevation: 0,
+                shadowOpacity: 0,
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: 'rgba(255,255,255,0.08)',
+              },
+              tabBarIndicatorStyle: {
+                backgroundColor: MATCH_CENTER_LIME,
+                height: 3,
+              },
+              tabBarActiveTintColor: MATCH_CENTER_LIME,
+              tabBarInactiveTintColor: MATCH_CENTER_TAB_INACTIVE,
+              tabBarLabelStyle: {
+                fontWeight: '800',
+                fontSize: 10,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+              },
+              tabBarPressColor: 'rgba(223,255,0,0.12)',
+              tabBarPressOpacity: 0.85,
             }}>
-            {() => (
-              <LineupScreen match={match} matchScrollHandler={scrollHandler} />
-            )}
-          </TabScreen>
-          <TabScreen
-            name="Table"
-            options={{
-              tabBarLabel: 'Table',
-            }}>
-            {() => (
-              <TableScreen match={match} matchScrollHandler={scrollHandler} />
-            )}
-          </TabScreen>
-          <TabScreen
-            name="News"
-            options={{
-              tabBarLabel: 'News',
-            }}>
-            {() => (
-              <MatchNewsScreen
-                match={match}
-                matchScrollHandler={scrollHandler}
-              />
-            )}
-          </TabScreen>
-          <TabScreen
-            name="Debate"
-            options={{
-              tabBarLabel: 'Debate',
-            }}>
-            {() => (
-              <DebateScreen
-                match={match}
-                stackNavigation={navigation}
-                matchScrollHandler={scrollHandler}
-              />
-            )}
-          </TabScreen>
-        </TabNavigator>
+            <TabScreen
+              name="Lineup"
+              options={{
+                tabBarLabel: 'Lineup',
+              }}>
+              {() => (
+                <LineupScreen
+                  match={match}
+                  matchScrollHandler={scrollHandler}
+                />
+              )}
+            </TabScreen>
+            <TabScreen
+              name="Table"
+              options={{
+                tabBarLabel: 'Table',
+              }}>
+              {() => (
+                <TableScreen match={match} matchScrollHandler={scrollHandler} />
+              )}
+            </TabScreen>
+            <TabScreen
+              name="News"
+              options={{
+                tabBarLabel: 'News',
+              }}>
+              {() => (
+                <MatchNewsScreen
+                  match={match}
+                  matchScrollHandler={scrollHandler}
+                />
+              )}
+            </TabScreen>
+            <TabScreen
+              name="Debate"
+              options={{
+                tabBarLabel: 'Debate',
+              }}>
+              {() => (
+                <DebateScreen
+                  match={match}
+                  stackNavigation={navigation}
+                  matchScrollHandler={scrollHandler}
+                />
+              )}
+            </TabScreen>
+          </TabNavigator>
         </View>
       </MatchDetailsScrollProvider>
     </View>
