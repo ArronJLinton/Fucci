@@ -32,6 +32,7 @@ import {
   useMatchDetailsScroll,
   type MatchDetailsScrollHandler,
 } from '../context/MatchDetailsScrollContext';
+import {userFacingApiMessage} from '../services/api';
 
 interface MatchNewsScreenProps {
   match: Match;
@@ -42,13 +43,7 @@ const PAGE_PAD = 16;
 const CARD_RADIUS = 12;
 
 // Actually played + finished statuses only.
-const COMPLETED_STATUSES = [
-  'FT',
-  'AET',
-  'PEN',
-  'FT_PEN',
-  'AET_PEN',
-];
+const COMPLETED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
 
 function isMatchCompleted(statusShort: string): boolean {
   return COMPLETED_STATUSES.includes(statusShort);
@@ -114,11 +109,7 @@ function isPremiumArticle(a: NewsArticle): boolean {
 /** Uppercase tag for standard cards (mock: ATMOSPHERE, POST-MATCH) */
 function matchNewsTag(a: NewsArticle): string {
   const t = articleText(a);
-  if (
-    t.includes('atmosphere') ||
-    t.includes('crowd') ||
-    t.includes('fans ')
-  ) {
+  if (t.includes('atmosphere') || t.includes('crowd') || t.includes('fans ')) {
     return 'ATMOSPHERE';
   }
   if (
@@ -167,10 +158,7 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({
     setFailedImageIds(prev => new Set(prev).add(articleId));
   }, []);
 
-  const sorted = useMemo(
-    () => sortByPublishedDesc(articles),
-    [articles],
-  );
+  const sorted = useMemo(() => sortByPublishedDesc(articles), [articles]);
 
   const layout = useMemo(() => {
     if (sorted.length === 0) {
@@ -185,9 +173,7 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({
     const rest = sorted.slice(1);
 
     const statsArticle = rest.find(isStatsArticle);
-    const injuryCandidate = rest.filter(
-      a => a.id !== statsArticle?.id,
-    );
+    const injuryCandidate = rest.filter(a => a.id !== statsArticle?.id);
     const injuryArticle = injuryCandidate.find(isInjuryArticle);
 
     const skip = new Set<string>();
@@ -393,7 +379,11 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({
           </Text>
           <View style={styles.premiumFooter}>
             <View style={styles.premiumAuthor}>
-              <Ionicons name="person-circle-outline" size={18} color={NEWS_MUTED} />
+              <Ionicons
+                name="person-circle-outline"
+                size={18}
+                color={NEWS_MUTED}
+              />
               <Text style={styles.premiumBy} numberOfLines={1}>
                 BY {article.sourceName.toUpperCase()}
               </Text>
@@ -419,10 +409,15 @@ const MatchNewsScreen: React.FC<MatchNewsScreenProps> = ({
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#ff6b6b" />
         <Text style={styles.errorText}>
-          {error?.message || 'Failed to load news'}
+          {error ? userFacingApiMessage(error) : 'Failed to load news'}
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-          <Ionicons name="refresh" size={20} color={NEWS_BG} style={styles.icon} />
+          <Ionicons
+            name="refresh"
+            size={20}
+            color={NEWS_BG}
+            style={styles.icon}
+          />
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>

@@ -1,5 +1,9 @@
 import {apiConfig} from '../config/environment';
 
+/** Shown when the backend returns 5xx or an unauthenticated request fails with a server error. */
+export const BACKEND_UNAVAILABLE_MESSAGE =
+  'Something went wrong. Please refresh and try again. If the problem persists, reach out to support.';
+
 /** Thrown when an authenticated request returns a non-2xx status; includes HTTP status for callers. */
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -22,16 +26,25 @@ export function userFacingApiMessage(error: unknown): string {
       return 'Too many requests. Please wait and try again.';
     }
     if (error.status >= 500) {
-      return 'Server error. Please try again in a moment.';
+      return BACKEND_UNAVAILABLE_MESSAGE;
     }
     return error.message;
   }
   if (error instanceof Error && error.message) {
-    return /network|fetch|failed/i.test(error.message)
-      ? 'Network error. Check your connection and try again.'
-      : error.message;
+    const m = error.message;
+    // Legacy plain errors from fetch helpers (before ApiRequestError).
+    if (/API request failed:\s*5\d\d/i.test(m)) {
+      return BACKEND_UNAVAILABLE_MESSAGE;
+    }
+    if (
+      /network|Unable to connect|ECONNRESET|ENOTFOUND|fetch failed/i.test(m) ||
+      (error instanceof TypeError && /fetch/i.test(m))
+    ) {
+      return 'Network error. Check your connection and try again.';
+    }
+    return m;
   }
-  return 'Something went wrong. Please try again.';
+  return BACKEND_UNAVAILABLE_MESSAGE;
 }
 
 /**
@@ -55,8 +68,9 @@ export const makeApiRequest = async (
       ...options,
     });
     if (!response.ok) {
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`,
+      throw new ApiRequestError(
+        `Request failed (${response.status})`,
+        response.status,
       );
     }
     return response.json();

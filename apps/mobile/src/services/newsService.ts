@@ -1,4 +1,5 @@
 import {apiConfig} from '../config/environment';
+import {ApiRequestError} from './api';
 import type {NewsAPIResponse, MatchNewsAPIResponse} from '../types/news';
 
 /**
@@ -82,8 +83,9 @@ export const fetchMatchNews = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[fetchMatchNews] Error response:', errorText);
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`,
+      throw new ApiRequestError(
+        `Request failed (${response.status})`,
+        response.status,
       );
     }
 

@@ -36,6 +36,7 @@ import {
   filterByLeague,
   articleCategoryLabel,
 } from '../utils/newsFilters';
+import {userFacingApiMessage} from '../services/api';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 const PAGE_PAD = 16;
@@ -213,7 +214,7 @@ const NewsScreen: React.FC = () => {
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#ff6b6b" />
         <Text style={styles.errorText}>
-          {error?.message || 'Failed to load news'}
+          {error ? userFacingApiMessage(error) : 'Failed to load news'}
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
           <Ionicons
