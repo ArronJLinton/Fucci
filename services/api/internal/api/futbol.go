@@ -22,45 +22,52 @@ type GetMatchesParams struct {
 func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Step 1: Get date and optional league_id / season from query parameters
 	queryParams := r.URL.Query()
-	date := queryParams.Get("date")
-	leagueID := queryParams.Get("league_id")
-	seasonOverride := queryParams.Get("season")
-	log.Printf("League ID: %s\n", leagueID)
+	date := strings.TrimSpace(queryParams.Get("date"))
+	leagueIDStr := strings.TrimSpace(queryParams.Get("league_id"))
+	seasonStr := strings.TrimSpace(queryParams.Get("season"))
+
 	if date == "" {
 		log.Printf("ERROR: date parameter is missing")
 		respondWithError(w, http.StatusBadRequest, "date parameter is required")
 		return
 	}
 
-	// Generate cache key (include league_id and season when filtering — season affects payload)
+	// Validate inputs once before cache lookup so keys and upstream URLs use the same normalized values.
 	var cacheKey string
-	if leagueID != "" {
+	var leagueIDNum int
+	var seasonNum int
+	haveLeague := leagueIDStr != ""
+
+	if !haveLeague {
+		cacheKey = fmt.Sprintf("matches:date:%s", date)
+	} else {
 		matchDate, err := time.Parse("2006-01-02", date)
 		if err != nil {
 			log.Printf("ERROR: Invalid date format: %s\n", date)
 			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
 			return
 		}
-		seasonForKey := ""
-		if s := queryParams.Get("season"); s != "" {
-			seasonForKey = strings.TrimSpace(s)
-		} else {
-			lid, convErr := strconv.Atoi(strings.TrimSpace(leagueID))
-			if convErr == nil {
-				seasonForKey = fmt.Sprintf("%d", ResolveAPIFootballSeason(lid, matchDate))
+		lid, err := strconv.Atoi(leagueIDStr)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "league_id must be numeric")
+			return
+		}
+		leagueIDNum = lid
+
+		if seasonStr != "" {
+			s, err := strconv.Atoi(seasonStr)
+			if err != nil || s < 2000 || s > 2100 {
+				respondWithError(w, http.StatusBadRequest, "season must be a valid year (e.g. 2026)")
+				return
 			}
-		}
-		if seasonForKey != "" {
-			cacheKey = fmt.Sprintf("matches:league:%s:date:%s:season:%s", leagueID, date, seasonForKey)
+			seasonNum = s
 		} else {
-			cacheKey = fmt.Sprintf("matches:league:%s:date:%s", leagueID, date)
+			seasonNum = ResolveAPIFootballSeason(lid, matchDate)
 		}
-	} else {
-		cacheKey = fmt.Sprintf("matches:date:%s", date)
+		cacheKey = fmt.Sprintf("matches:league:%d:date:%s:season:%d", leagueIDNum, date, seasonNum)
 	}
-	log.Printf("Cache key: %s\n", cacheKey)
+	log.Printf("Cache key: %s (league_id=%q)\n", cacheKey, leagueIDStr)
 
 	// Try to get from cache first
 	var data GetMatchesAPIResponse
@@ -92,32 +99,10 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		baseURL = "https://v3.football.api-sports.io"
 	}
 	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
-	if leagueID != "" {
-		matchDate, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			log.Printf("ERROR: Invalid date format: %s\n", date)
-			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
-			return
-		}
-		var season int
-		if seasonOverride != "" {
-			s, convErr := strconv.Atoi(strings.TrimSpace(seasonOverride))
-			if convErr != nil || s < 2000 || s > 2100 {
-				respondWithError(w, http.StatusBadRequest, "season must be a valid year (e.g. 2026)")
-				return
-			}
-			season = s
-		} else {
-			lid, convErr := strconv.Atoi(strings.TrimSpace(leagueID))
-			if convErr != nil {
-				respondWithError(w, http.StatusBadRequest, "league_id must be numeric")
-				return
-			}
-			season = ResolveAPIFootballSeason(lid, matchDate)
-		}
-		url = fmt.Sprintf("%s&league=%s&season=%d", url, leagueID, season)
+	if haveLeague {
+		url = fmt.Sprintf("%s&league=%d&season=%d", url, leagueIDNum, seasonNum)
 		log.Printf("URL: %s\n", url)
-		log.Printf("Filtering matches by league_id: %s, season: %d\n", leagueID, season)
+		log.Printf("Filtering matches by league_id: %d, season: %d\n", leagueIDNum, seasonNum)
 	}
 	headers := map[string]string{
 		"Content-Type":   "application/json",
