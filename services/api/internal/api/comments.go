@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	commentMaxLength   = 500
-	commentRateLimitN  = 10
-	commentRateWindow  = time.Minute
+	commentMaxLength  = 500
+	commentRateLimitN = 10
+	commentRateWindow = time.Minute
 )
 
 type commentRateEntry struct {
@@ -83,18 +83,18 @@ func checkCommentRateLimit(ctx context.Context, c *Config, userID int32) bool {
 
 // DebateComment is the public API shape for a comment (006 spec). Seeded flag is not exposed.
 type DebateComment struct {
-	ID                int32              `json:"id"`
-	DebateID          int32              `json:"debate_id"`
-	ParentCommentID   *int32             `json:"parent_comment_id,omitempty"`
-	UserID            int32              `json:"user_id"`
-	UserDisplayName   string             `json:"user_display_name"`
-	UserAvatarURL     *string            `json:"user_avatar_url,omitempty"`
-	Content           string             `json:"content"`
-	CreatedAt         time.Time          `json:"created_at"`
-	NetScore          int32              `json:"net_score"`
-	CurrentUserVote   *string            `json:"current_user_vote,omitempty"` // "upvote" | "downvote" | null when unauthenticated
-	Reactions         []ReactionCount    `json:"reactions"`
-	Subcomments       []DebateComment    `json:"subcomments,omitempty"`
+	ID              int32           `json:"id"`
+	DebateID        int32           `json:"debate_id"`
+	ParentCommentID *int32          `json:"parent_comment_id,omitempty"`
+	UserID          int32           `json:"user_id"`
+	UserDisplayName string          `json:"user_display_name"`
+	UserAvatarURL   *string         `json:"user_avatar_url,omitempty"`
+	Content         string          `json:"content"`
+	CreatedAt       time.Time       `json:"created_at"`
+	NetScore        int32           `json:"net_score"`
+	CurrentUserVote *string         `json:"current_user_vote,omitempty"` // "upvote" | "downvote" | null when unauthenticated
+	Reactions       []ReactionCount `json:"reactions"`
+	Subcomments     []DebateComment `json:"subcomments,omitempty"`
 }
 
 // ReactionCount is emoji + count for a comment.
@@ -202,8 +202,8 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 
 // CreateDebateCommentRequest is the body for POST /api/debates/{debate_id}/comments.
 type CreateDebateCommentRequest struct {
-	Content          string `json:"content"`
-	ParentCommentID  *int32 `json:"parent_comment_id,omitempty"`
+	Content         string `json:"content"`
+	ParentCommentID *int32 `json:"parent_comment_id,omitempty"`
 }
 
 // CreateDebateComment handles POST /api/debates/{debate_id}/comments.
@@ -527,16 +527,16 @@ func (c *Config) buildDebateCommentFromRowWithPreloaded(
 		reactions = []ReactionCount{}
 	}
 	comment := DebateComment{
-		ID:                row.ID,
-		DebateID:          row.DebateID.Int32,
-		UserID:            row.UserID.Int32,
-		UserDisplayName:   displayName,
-		UserAvatarURL:     avatarURL,
-		Content:           row.Content,
-		CreatedAt:         createdAt,
-		NetScore:          netScore,
-		Reactions:         reactions,
-		CurrentUserVote:   currentUserVote,
+		ID:              row.ID,
+		DebateID:        row.DebateID.Int32,
+		UserID:          row.UserID.Int32,
+		UserDisplayName: displayName,
+		UserAvatarURL:   avatarURL,
+		Content:         row.Content,
+		CreatedAt:       createdAt,
+		NetScore:        netScore,
+		Reactions:       reactions,
+		CurrentUserVote: currentUserVote,
 	}
 	if row.ParentCommentID.Valid {
 		comment.ParentCommentID = &row.ParentCommentID.Int32

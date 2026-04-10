@@ -17,7 +17,7 @@ export function rootNavigate(
 }
 
 /**
- * Resets the root stack to a single screen (e.g. Login). Use after logout so
+ * Resets the root stack to a single screen. Use after logout so
  * Back cannot return to authenticated screens.
  */
 export function rootResetTo(

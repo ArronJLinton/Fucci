@@ -245,7 +245,7 @@ func TestPostMyPlayerProfile_Create(t *testing.T) {
 				Speed: upsertArgCoreInt32(t, arg.Speed, d), Shooting: upsertArgCoreInt32(t, arg.Shooting, d),
 				Passing: upsertArgCoreInt32(t, arg.Passing, d), Dribbling: upsertArgCoreInt32(t, arg.Dribbling, d),
 				Defending: upsertArgCoreInt32(t, arg.Defending, d), Physical: upsertArgCoreInt32(t, arg.Physical, d),
-				Stamina: upsertArgCoreInt32(t, arg.Stamina, d),
+				Stamina:   upsertArgCoreInt32(t, arg.Stamina, d),
 				CreatedAt: time.Now(), UpdatedAt: time.Now(),
 			}, nil
 		},

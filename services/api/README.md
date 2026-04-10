@@ -31,3 +31,12 @@ Or, if you don't want/need a background service you can just run:
     - Step 1) Create New Schema
     - Step 2) Create Query
     - Step 3) Run `sqlc generate`
+
+#### Google OAuth Environment
+
+Set these values in `.env` (or exported env vars) before enabling Google auth endpoints:
+
+- `GOOGLE_OAUTH_CLIENT_ID` - Google OAuth web client ID used for ID token audience validation.
+- `GOOGLE_OAUTH_CLIENT_SECRET` - OAuth client secret used for auth code exchange.
+- `GOOGLE_OAUTH_CALLBACK_URL` - OAuth callback URL used by `/v1/api/auth/google/start` and `/v1/api/auth/google/callback` (e.g. `http://localhost:8080/v1/api/auth/google/callback`).
+- `GOOGLE_OAUTH_REDIRECT_URIS` - Comma-separated allowlist for callback URIs (e.g. `fucci://auth,com.fucci.app:/oauth2redirect`).

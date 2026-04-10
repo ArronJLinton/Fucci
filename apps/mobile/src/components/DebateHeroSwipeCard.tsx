@@ -28,7 +28,7 @@ import type {
 } from '../types/debate';
 import type {Match} from '../types/match';
 import {fetchDebateById, setCardVote} from '../services/debate';
-import {rootNavigate} from '../navigation/rootNavigation';
+import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 
 const BG = '#0B0E14';
 const LIME = '#C6FF00';
@@ -243,12 +243,10 @@ export default function DebateHeroSwipeCard({
       return;
     }
     const match = buildPlaceholderMatch(summary);
-    rootNavigate('Login', {
-      returnToDebate: {
-        match,
-        debate,
-        pendingAction: 'swipe',
-      },
+    rootNavigateToProfileAuth({
+      match,
+      debate,
+      pendingAction: 'swipe',
     });
   }, [debate, summary, buildPlaceholderMatch]);
 

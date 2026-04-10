@@ -7,12 +7,12 @@ import (
 // API-Football v3 league IDs for international tournaments (national teams).
 // See https://www.api-football.com/documentation-v3 — verify via GET /leagues if fixtures look wrong.
 const (
-	LeagueWorldCup           = 1
-	LeagueFriendlies         = 10
-	LeagueWCQUEFA            = 32
-	LeagueWCQCONMEBOL        = 29
-	LeagueWCQCAF             = 34
-	LeagueWCQAFC             = 35
+	LeagueWorldCup    = 1
+	LeagueFriendlies  = 10
+	LeagueWCQUEFA     = 32
+	LeagueWCQCONMEBOL = 29
+	LeagueWCQCAF      = 34
+	LeagueWCQAFC      = 35
 	LeagueWCQCONCACAF = 36
 	LeagueWCQOFC      = 37
 )

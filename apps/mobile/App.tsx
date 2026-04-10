@@ -39,7 +39,6 @@ import NewsWebViewScreen from './src/screens/NewsWebViewScreen';
 import NewsScreen from './src/screens/NewsScreen';
 import MainDebatesScreen from './src/screens/MainDebatesScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
-import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceholderScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
@@ -380,11 +379,6 @@ function App(): React.JSX.Element {
                   name="SignUp"
                   component={SignUpScreen}
                   options={{title: 'Sign Up'}}
-                />
-                <Stack.Screen
-                  name="Login"
-                  component={LoginScreen}
-                  options={{title: 'Login'}}
                 />
                 <Stack.Screen
                   name="ForgotPassword"

@@ -7,6 +7,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "dev",
+      "env": {
+        "APP_ENV": "development"
+      },
       "android": {
         "gradleCommand": ":app:assembleDebug"
       },
@@ -17,12 +20,18 @@
     "preview": {
       "distribution": "internal",
       "channel": "staging",
+      "env": {
+        "APP_ENV": "staging"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "channel": "production",
+      "env": {
+        "APP_ENV": "production"
+      },
       "android": {
         "buildType": "app-bundle"
       }

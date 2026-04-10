@@ -1,3 +1,4 @@
+import type {NavigatorScreenParams} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {Match} from './match';
 import type {DebateResponse} from './debate';
@@ -34,14 +35,18 @@ export type MainTabParamList = {
   Home: undefined;
   News: undefined;
   Debates: undefined;
-  Profile: undefined;
+  Profile:
+    | {
+        embeddedInTab?: boolean;
+        returnToDebate?: ReturnToDebateParams;
+      }
+    | undefined;
 };
 
-/** Root stack screens (Main = tab navigator, SignUp, Login, CameraPreview) and nested screen names for typing navigate() */
+/** Root stack screens (Main = tab navigator, SignUp, ForgotPassword, …) */
 export type RootStackParamList = {
-  Main: undefined | {screen?: keyof MainTabParamList};
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   SignUp: undefined | {returnToDebate?: ReturnToDebateParams};
-  Login: undefined | {returnToDebate?: ReturnToDebateParams};
   ForgotPassword: undefined;
   Settings: undefined;
   HomeTab: undefined;

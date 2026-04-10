@@ -55,7 +55,7 @@ func TestFetchHeadToHead_Success(t *testing.T) {
 	config := &Config{
 		APIFootballBaseURL: server.URL,
 		FootballAPIKey:     "test-key",
-		Cache:             nil,
+		Cache:              nil,
 	}
 
 	ctx := context.Background()
@@ -99,7 +99,7 @@ func TestFetchHeadToHead_CacheHit(t *testing.T) {
 	config := &Config{
 		APIFootballBaseURL: server.URL,
 		FootballAPIKey:     "test-key",
-		Cache:             mockCache,
+		Cache:              mockCache,
 	}
 	ctx := context.Background()
 	summary, err := config.FetchHeadToHead(ctx, 33, 34)
@@ -128,7 +128,7 @@ func TestFetchLeagueStandings_Success(t *testing.T) {
 	config := &Config{
 		APIFootballBaseURL: server.URL,
 		FootballAPIKey:     "test-key",
-		Cache:             nil,
+		Cache:              nil,
 	}
 
 	ctx := context.Background()
@@ -178,7 +178,7 @@ func TestFetchLeagueStandings_CacheHit(t *testing.T) {
 	config := &Config{
 		APIFootballBaseURL: server.URL,
 		FootballAPIKey:     "test-key",
-		Cache:             mockCache,
+		Cache:              mockCache,
 	}
 
 	ctx := context.Background()
@@ -224,15 +224,15 @@ func TestAggregateMatchData_SetsH2HAndStandingsWhenIDsPresent(t *testing.T) {
 	dda := NewDebateDataAggregator(config)
 
 	req := MatchDataRequest{
-		MatchID:      "100",
-		HomeTeam:     "Team A",
-		AwayTeam:     "Team B",
-		Date:         "2025-02-01T15:00:00Z",
-		Status:       "NS",
-		LeagueID:     39,
-		SeasonYear:   2024,
-		HomeTeamID:   33,
-		AwayTeamID:   34,
+		MatchID:    "100",
+		HomeTeam:   "Team A",
+		AwayTeam:   "Team B",
+		Date:       "2025-02-01T15:00:00Z",
+		Status:     "NS",
+		LeagueID:   39,
+		SeasonYear: 2024,
+		HomeTeamID: 33,
+		AwayTeamID: 34,
 	}
 
 	ctx := context.Background()

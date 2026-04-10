@@ -38,11 +38,11 @@ func TestBuildUserPrompt_OmitsH2HAndLeagueTableWhenEmpty(t *testing.T) {
 	pg := &PromptGenerator{}
 
 	matchData := MatchData{
-		MatchID:   "100",
-		HomeTeam:  "Team A",
-		AwayTeam:  "Team B",
-		Date:      "2025-02-01T15:00:00Z",
-		Status:    "NS",
+		MatchID:  "100",
+		HomeTeam: "Team A",
+		AwayTeam: "Team B",
+		Date:     "2025-02-01T15:00:00Z",
+		Status:   "NS",
 		// HeadToHeadSummary and LeagueTableSummary left empty
 	}
 

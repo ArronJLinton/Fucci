@@ -14,7 +14,7 @@ export default function ForgotPasswordPlaceholderScreen() {
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.goBack()}>
-        <Text style={styles.buttonText}>Back to Login</Text>
+        <Text style={styles.buttonText}>Back</Text>
       </TouchableOpacity>
     </View>
   );

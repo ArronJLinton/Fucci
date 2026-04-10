@@ -15,11 +15,11 @@ import (
 
 // CardVoteCounts is the response for PUT card vote (006 spec).
 type CardVoteCounts struct {
-	CardID    int32 `json:"card_id"`
-	YesCount  int   `json:"yes_count"`
-	NoCount   int   `json:"no_count"`
-	TotalYes  int   `json:"total_yes,omitempty"`
-	TotalNo   int   `json:"total_no,omitempty"`
+	CardID   int32 `json:"card_id"`
+	YesCount int   `json:"yes_count"`
+	NoCount  int   `json:"no_count"`
+	TotalYes int   `json:"total_yes,omitempty"`
+	TotalNo  int   `json:"total_no,omitempty"`
 }
 
 // SetCardVoteRequest is the body for PUT /api/debates/{debate_id}/cards/{card_id}/vote.

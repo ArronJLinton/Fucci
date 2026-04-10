@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+const (
+	GoogleAuthCodeInvalid        = "INVALID_CODE"
+	GoogleAuthEmailNotVerified   = "EMAIL_NOT_VERIFIED"
+	GoogleAuthTokenVerifyFailed  = "TOKEN_VERIFY_FAILED"
+	GoogleAuthAccountExistsEmail = "ACCOUNT_EXISTS_EMAIL"
+	GoogleAuthUpstreamAPIError   = "GOOGLE_API_ERROR"
+	GoogleAuthInvalidRedirectURI = "INVALID_REDIRECT_URI"
+	GoogleAuthNotConfigured      = "GOOGLE_AUTH_NOT_CONFIGURED"
+	GoogleAuthAccountInactive    = "ACCOUNT_INACTIVE"
+)
+
 func GetAPIKey(headers http.Header) (string, error) {
 	val := headers.Get("Authorization")
 	if val == "" {

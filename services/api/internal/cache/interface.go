@@ -9,6 +9,8 @@ import (
 type CacheInterface interface {
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
 	Get(ctx context.Context, key string, dest interface{}) error
+	// GetDel atomically reads and deletes the key. Returns true if the key existed and was unmarshaled into dest.
+	GetDel(ctx context.Context, key string, dest interface{}) (bool, error)
 	Exists(ctx context.Context, key string) (bool, error)
 	Delete(ctx context.Context, key string) error
 	DeletePattern(ctx context.Context, pattern string) error

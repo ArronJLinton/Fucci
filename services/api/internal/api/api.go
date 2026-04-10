@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
 	"github.com/ArronJLinton/fucci-api/internal/auth"
@@ -51,40 +53,64 @@ type PlayerProfileStore interface {
 	InsertPlayerProfileTrait(ctx context.Context, arg database.InsertPlayerProfileTraitParams) (database.PlayerProfileTrait, error)
 }
 
+type GoogleVerifier interface {
+	ExchangeCodeForIDToken(ctx context.Context, code, redirectURI string) (string, error)
+	VerifyIDToken(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error)
+}
+
 // InitJWT initializes JWT authentication with the provided secret
 func InitJWT(secret string) error {
 	return auth.InitJWTAuth(secret)
 }
 
 type Config struct {
-	DB                     *database.Queries
-	DBConn                 *sql.DB
-	FootballAPIKey         string
-	RapidAPIKey            string
-	CloudinaryCloudName    string
-	CloudinaryAPIKey       string
-	CloudinaryAPISecret    string
-	CloudinaryUploadPreset string
-	Cache                  cache.CacheInterface
-	APIFootballBaseURL     string
-	NewsBaseURL            string // optional; when set, news client uses this (e.g. for tests)
-	OpenAIKey              string
-	OpenAIBaseURL          string
-	AIPromptGenerator      *ai.PromptGenerator
-	SystemUserEmail        string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	DB                      *database.Queries
+	DBConn                  *sql.DB
+	FootballAPIKey          string
+	RapidAPIKey             string
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	GoogleOAuthRedirectURIs string // comma-separated list of allowed callback URIs
+	// GoogleOAuthCallbackURL is the full URL registered with Google for GET /auth/google/callback (server-side code exchange).
+	GoogleOAuthCallbackURL string
+	// GoogleOAuthAllowDevReturnURLs enables exp:// and http dev return URLs for GET /auth/google/start (must stay false in production).
+	GoogleOAuthAllowDevReturnURLs bool
+	CloudinaryCloudName           string
+	CloudinaryAPIKey              string
+	CloudinaryAPISecret           string
+	CloudinaryUploadPreset        string
+	Cache                         cache.CacheInterface
+	APIFootballBaseURL            string
+	NewsBaseURL                   string // optional; when set, news client uses this (e.g. for tests)
+	OpenAIKey                     string
+	OpenAIBaseURL                 string
+	AIPromptGenerator             *ai.PromptGenerator
+	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	GoogleVerifier                GoogleVerifier
+
+	// lazyGoogleVerifier is the default *auth.GoogleOAuthVerifier when GoogleVerifier is nil (production).
+	// Initialized once via googleVerifierOnce to avoid new http.Client allocations per request.
+	lazyGoogleVerifier GoogleVerifier
+	googleVerifierOnce sync.Once
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
-	CardVoteReader   CardVoteReader
-	CommentReader    CommentReader
-	DebatesFeedDB    DebatesFeedStore // nil => use DB for debate feed GETs
-	PlayerProfileDB  PlayerProfileStore // nil => use DB for /api/player-profile routes
+	CardVoteReader  CardVoteReader
+	CommentReader   CommentReader
+	DebatesFeedDB   DebatesFeedStore   // nil => use DB for debate feed GETs
+	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
 }
 
-func New(c Config) http.Handler {
+func New(c *Config) http.Handler {
+	if c == nil {
+		panic("api.New: nil Config")
+	}
 	router := chi.NewRouter()
+
+	// Do not silently populate OAuth redirect URI allowlists here.
+	// Redirect URIs must be explicitly configured by the operator so auth flows fail closed when unset.
 
 	// Initialize AI prompt generator if OpenAI key is provided
 	if c.OpenAIKey != "" {
@@ -105,6 +131,10 @@ func New(c Config) http.Handler {
 	authRouter := chi.NewRouter()
 	authRouter.Post("/register", c.handleCreateUser)
 	authRouter.Post("/login", c.handleLogin)
+	authRouter.Post("/google", c.handleGoogleAuth)
+	authRouter.Get("/google/start", c.handleGoogleOAuthStart)
+	authRouter.Get("/google/callback", c.handleGoogleOAuthCallback)
+	authRouter.Post("/google/exchange", c.handleGoogleOAuthExchange)
 
 	// User routes (authentication required)
 	userRouter := chi.NewRouter()
@@ -213,6 +243,42 @@ func New(c Config) http.Handler {
 	// Canonical profile surface is /player-profile (singular) + /player-profile/traits.
 
 	return router
+}
+
+func (c *Config) googleAllowedRedirectURIs() []string {
+	raw := strings.Split(c.GoogleOAuthRedirectURIs, ",")
+	allowed := make([]string, 0, len(raw)+1)
+	seen := map[string]struct{}{}
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		if _, ok := seen[s]; ok {
+			return
+		}
+		seen[s] = struct{}{}
+		allowed = append(allowed, s)
+	}
+	for _, v := range raw {
+		add(v)
+	}
+	add(c.GoogleOAuthCallbackURL)
+	return allowed
+}
+
+func (c *Config) googleVerifier() GoogleVerifier {
+	if c.GoogleVerifier != nil {
+		return c.GoogleVerifier
+	}
+	c.googleVerifierOnce.Do(func() {
+		c.lazyGoogleVerifier = auth.NewGoogleOAuthVerifier(
+			c.GoogleOAuthClientID,
+			c.GoogleOAuthClientSecret,
+			c.googleAllowedRedirectURIs(),
+		)
+	})
+	return c.lazyGoogleVerifier
 }
 
 // debatesFeedStore returns the querier for debate feed handlers (test mock or DB).

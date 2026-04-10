@@ -36,6 +36,17 @@ export interface LoginResponse {
   token: string;
 }
 
+export interface GoogleAuthRequest {
+  code: string;
+  redirect_uri: string;
+}
+
+export interface GoogleAuthResponse {
+  user: AuthUser;
+  token: string;
+  is_new: boolean;
+}
+
 export interface FollowingItem {
   id: string;
   type: string;

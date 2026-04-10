@@ -22,7 +22,7 @@ import (
 // Stable client error codes for debate routes (never echo raw DB/driver errors).
 const (
 	errCodeDebateDBNotConfigured = "DEBATE_DB_NOT_CONFIGURED"
-	errCodeDebateAuthRequired      = "DEBATE_AUTH_REQUIRED"
+	errCodeDebateAuthRequired    = "DEBATE_AUTH_REQUIRED"
 
 	errCodeDebateInvalidBody     = "DEBATE_INVALID_BODY"
 	errCodeDebateValidation      = "DEBATE_VALIDATION_FAILED"
@@ -33,35 +33,35 @@ const (
 	errCodeDebateInvalidStance   = "DEBATE_INVALID_STANCE"
 	errCodeDebateInvalidMatchID  = "DEBATE_INVALID_MATCH_ID"
 
-	errCodeDebateCreate    = "DEBATE_CREATE_FAILED"
-	errCodeDebateGet       = "DEBATE_GET_FAILED"
-	errCodeDebateCards     = "DEBATE_CARDS_LOAD_FAILED"
-	errCodeDebateAnalytics = "DEBATE_ANALYTICS_LOAD_FAILED"
-	errCodeVoteCounts      = "DEBATE_VOTE_COUNTS_FAILED"
-	errCodeDebateListMatch = "DEBATE_LIST_MATCH_FAILED"
-	errCodeMatchInfo       = "DEBATE_MATCH_INFO_FAILED"
-	errCodeAggregateMatch  = "DEBATE_MATCH_AGGREGATE_FAILED"
-	errCodeAIPrompt        = "DEBATE_AI_PROMPT_FAILED"
-	errCodeSoftDelete      = "DEBATE_SOFT_DELETE_FAILED"
-	errCodeCreateCard      = "DEBATE_CARD_CREATE_FAILED"
-	errCodeComments        = "DEBATE_COMMENTS_LOAD_FAILED"
-	errCodeGenSetMatch     = "DEBATE_GENSET_MATCH_FAILED"
-	errCodeGenSetAggregate = "DEBATE_GENSET_AGGREGATE_FAILED"
-	errCodeGenSetGenerate  = "DEBATE_GENSET_GENERATE_FAILED"
-	errCodeGenSetEmpty     = "DEBATE_GENSET_EMPTY"
-	errCodeGenSetTimeout   = "DEBATE_GENSET_TIMEOUT"
-	errCodeFeedPublic      = "DEBATE_FEED_PUBLIC_FAILED"
-	errCodeFeedNew         = "DEBATE_FEED_NEW_FAILED"
-	errCodeFeedVoted       = "DEBATE_FEED_VOTED_FAILED"
-	errCodeTopDebates      = "DEBATE_TOP_FAILED"
-	errCodeBuildResponse   = "DEBATE_RESPONSE_BUILD_FAILED"
-	errCodeDelete          = "DEBATE_DELETE_FAILED"
-	errCodeRestore         = "DEBATE_RESTORE_FAILED"
-	errCodeAINotConfigured = "DEBATE_AI_NOT_CONFIGURED"
+	errCodeDebateCreate     = "DEBATE_CREATE_FAILED"
+	errCodeDebateGet        = "DEBATE_GET_FAILED"
+	errCodeDebateCards      = "DEBATE_CARDS_LOAD_FAILED"
+	errCodeDebateAnalytics  = "DEBATE_ANALYTICS_LOAD_FAILED"
+	errCodeVoteCounts       = "DEBATE_VOTE_COUNTS_FAILED"
+	errCodeDebateListMatch  = "DEBATE_LIST_MATCH_FAILED"
+	errCodeMatchInfo        = "DEBATE_MATCH_INFO_FAILED"
+	errCodeAggregateMatch   = "DEBATE_MATCH_AGGREGATE_FAILED"
+	errCodeAIPrompt         = "DEBATE_AI_PROMPT_FAILED"
+	errCodeSoftDelete       = "DEBATE_SOFT_DELETE_FAILED"
+	errCodeCreateCard       = "DEBATE_CARD_CREATE_FAILED"
+	errCodeComments         = "DEBATE_COMMENTS_LOAD_FAILED"
+	errCodeGenSetMatch      = "DEBATE_GENSET_MATCH_FAILED"
+	errCodeGenSetAggregate  = "DEBATE_GENSET_AGGREGATE_FAILED"
+	errCodeGenSetGenerate   = "DEBATE_GENSET_GENERATE_FAILED"
+	errCodeGenSetEmpty      = "DEBATE_GENSET_EMPTY"
+	errCodeGenSetTimeout    = "DEBATE_GENSET_TIMEOUT"
+	errCodeFeedPublic       = "DEBATE_FEED_PUBLIC_FAILED"
+	errCodeFeedNew          = "DEBATE_FEED_NEW_FAILED"
+	errCodeFeedVoted        = "DEBATE_FEED_VOTED_FAILED"
+	errCodeTopDebates       = "DEBATE_TOP_FAILED"
+	errCodeBuildResponse    = "DEBATE_RESPONSE_BUILD_FAILED"
+	errCodeDelete           = "DEBATE_DELETE_FAILED"
+	errCodeRestore          = "DEBATE_RESTORE_FAILED"
+	errCodeAINotConfigured  = "DEBATE_AI_NOT_CONFIGURED"
 	errCodeGenPromptInvalid = "DEBATE_GENERATION_INVALID_PROMPT"
-	errCodeNoValidCards    = "DEBATE_NO_VALID_CARDS"
-	errCodeGenSetInFlight  = "DEBATE_GENSET_IN_PROGRESS"
-	errCodeGenSetRateLimit = "DEBATE_GENSET_RATE_LIMIT"
+	errCodeNoValidCards     = "DEBATE_NO_VALID_CARDS"
+	errCodeGenSetInFlight   = "DEBATE_GENSET_IN_PROGRESS"
+	errCodeGenSetRateLimit  = "DEBATE_GENSET_RATE_LIMIT"
 )
 
 const errMsgTryAgain = "Something went wrong. Please try again."
@@ -116,16 +116,16 @@ type GenerateDebateRequest struct {
 // GenerateDebateSetRequest is the body for POST /debates/generate-set.
 type GenerateDebateSetRequest struct {
 	MatchID         string `json:"match_id"`
-	DebateType      string `json:"debate_type"`                   // "pre_match" or "post_match"
-	Count           int    `json:"count,omitempty"`                // default 3, max 7
-	ForceRegenerate bool   `json:"force_regenerate,omitempty"`   // replace existing set
+	DebateType      string `json:"debate_type"`                // "pre_match" or "post_match"
+	Count           int    `json:"count,omitempty"`            // default 3, max 7
+	ForceRegenerate bool   `json:"force_regenerate,omitempty"` // replace existing set
 }
 
 // GenerateDebateSetResponse is the response for POST /debates/generate-set.
 type GenerateDebateSetResponse struct {
 	Debates    []DebateResponse `json:"debates"`
 	Pending    bool             `json:"pending,omitempty"`
-	PartialSet bool            `json:"partial_set,omitempty"` // true when fewer valid debates than requested (AI returned invalid/skipped items)
+	PartialSet bool             `json:"partial_set,omitempty"` // true when fewer valid debates than requested (AI returned invalid/skipped items)
 }
 
 type CreateDebateCardRequest struct {
@@ -154,18 +154,18 @@ type DebateTeams struct {
 }
 
 type DebateResponse struct {
-	ID              int32                    `json:"id"`
-	MatchID         string                   `json:"match_id"`
-	DebateType      string                   `json:"debate_type"`
-	Headline        string                   `json:"headline"`
-	Description     string                   `json:"description"`
-	AIGenerated     bool                     `json:"ai_generated"`
-	CreatedAt       time.Time                `json:"created_at"`
-	UpdatedAt       time.Time                `json:"updated_at"`
-	Cards           []DebateCardResponse     `json:"cards,omitempty"`
-	CardVoteTotals  *CardVoteTotals          `json:"card_vote_totals,omitempty"`
-	Analytics       *DebateAnalyticsResponse `json:"analytics,omitempty"`
-	Teams           *DebateTeams             `json:"teams,omitempty"`
+	ID             int32                    `json:"id"`
+	MatchID        string                   `json:"match_id"`
+	DebateType     string                   `json:"debate_type"`
+	Headline       string                   `json:"headline"`
+	Description    string                   `json:"description"`
+	AIGenerated    bool                     `json:"ai_generated"`
+	CreatedAt      time.Time                `json:"created_at"`
+	UpdatedAt      time.Time                `json:"updated_at"`
+	Cards          []DebateCardResponse     `json:"cards,omitempty"`
+	CardVoteTotals *CardVoteTotals          `json:"card_vote_totals,omitempty"`
+	Analytics      *DebateAnalyticsResponse `json:"analytics,omitempty"`
+	Teams          *DebateTeams             `json:"teams,omitempty"`
 }
 
 type DebateCardResponse struct {
@@ -327,10 +327,10 @@ type DebateFeedResponse struct {
 }
 
 const (
-	defaultPublicFeedLimit   = int32(30)
-	maxPublicFeedLimit       = int32(50)
-	defaultFeedBucketLimit   = int32(20)
-	maxFeedBucketLimit       = int32(50)
+	defaultPublicFeedLimit = int32(30)
+	maxPublicFeedLimit     = int32(50)
+	defaultFeedBucketLimit = int32(20)
+	maxFeedBucketLimit     = int32(50)
 )
 
 // parsePositiveInt32Query parses a query param as a positive int32, clamped to [1, max]; invalid/missing uses def.

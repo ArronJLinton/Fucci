@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -111,17 +111,17 @@ func TestDebateFeedResponseJSONShape(t *testing.T) {
 
 func TestDebateSummaryFromPublicFeedRowMapsAnalytics(t *testing.T) {
 	row := database.ListDebatesPublicFeedRow{
-		ID:              5,
-		MatchID:         "99",
-		DebateType:      "pre_match",
-		Headline:        "H",
-		Description:     sql.NullString{String: "D", Valid: true},
-		AiGenerated:     sql.NullBool{Bool: true, Valid: true},
-		CreatedAt:       sql.NullTime{Time: time.Unix(100, 0).UTC(), Valid: true},
-		UpdatedAt:       sql.NullTime{Time: time.Unix(200, 0).UTC(), Valid: true},
-		TotalVotes:      sql.NullInt32{Int32: 3, Valid: true},
-		TotalComments:   sql.NullInt32{Int32: 1, Valid: true},
-		EngagementScore: sql.NullString{String: "5.50", Valid: true},
+		ID:                    5,
+		MatchID:               "99",
+		DebateType:            "pre_match",
+		Headline:              "H",
+		Description:           sql.NullString{String: "D", Valid: true},
+		AiGenerated:           sql.NullBool{Bool: true, Valid: true},
+		CreatedAt:             sql.NullTime{Time: time.Unix(100, 0).UTC(), Valid: true},
+		UpdatedAt:             sql.NullTime{Time: time.Unix(200, 0).UTC(), Valid: true},
+		TotalVotes:            sql.NullInt32{Int32: 3, Valid: true},
+		TotalComments:         sql.NullInt32{Int32: 1, Valid: true},
+		EngagementScore:       sql.NullString{String: "5.50", Valid: true},
 		BinaryAgreeUpvotes:    int64(12),
 		BinaryDisagreeUpvotes: int64(8),
 	}
@@ -175,7 +175,6 @@ func TestDebateSummaryFromVotedFeedRowIncludesLastVotedAt(t *testing.T) {
 		t.Fatalf("binary_consensus: %+v", s.BinaryConsensus)
 	}
 }
-
 
 func TestDebateDataAggregator(t *testing.T) {
 	// Skip if no Redis connection
@@ -366,13 +365,13 @@ func TestMultipleEmojiVotesOnDebateCard(t *testing.T) {
 
 // mockDebatesFeedStore records calls for handler-level feed tests.
 type mockDebatesFeedStore struct {
-	publicLimits     []int32
-	publicFeedRows   []database.ListDebatesPublicFeedRow
-	newParams        []database.ListDebatesFeedNewForUserParams
-	votedParams      []database.ListDebatesFeedVotedForUserParams
-	publicErr        error
-	newErr           error
-	votedErr         error
+	publicLimits   []int32
+	publicFeedRows []database.ListDebatesPublicFeedRow
+	newParams      []database.ListDebatesFeedNewForUserParams
+	votedParams    []database.ListDebatesFeedVotedForUserParams
+	publicErr      error
+	newErr         error
+	votedErr       error
 }
 
 func (m *mockDebatesFeedStore) ListDebatesPublicFeed(ctx context.Context, limit int32) ([]database.ListDebatesPublicFeedRow, error) {

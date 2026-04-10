@@ -1,0 +1,360 @@
+openapi: 3.0.3
+info:
+  title: Fucci Google Auth API
+  version: 1.0.0
+  description: |
+    Google OAuth for registration and sign-in.
+
+    **Two client flows:**
+    - **Browser / server-side code flow** (mobile opens system browser): `GET /auth/google/start` → Google →
+      `GET /auth/google/callback` → app deep link with one-time `code` → `POST /auth/google/exchange` returns JWT + user.
+    - **Native code exchange** (client obtains code with client id): `POST /auth/google` with `code` + `redirect_uri`.
+
+    Full HTTP paths are mounted under the API prefix (e.g. `/v1/api`); paths below are route suffixes.
+tags:
+  - name: Auth
+    description: Google OAuth and session issuance
+
+paths:
+  /auth/google/start:
+    get:
+      summary: Start server-side Google OAuth (redirect to Google)
+      description: |
+        Validates the app `return` URL, signs OAuth `state` (JWT), and responds with **302 Found**
+        to `https://accounts.google.com/o/oauth2/v2/auth` with `client_id`, `redirect_uri` (backend callback),
+        `scope`, `state`, etc. Used by mobile `WebBrowser` / ASWebAuthenticationSession flows.
+
+        Errors are plain text (`text/plain`), not JSON.
+      operationId: getAuthGoogleStart
+      tags:
+        - Auth
+      parameters:
+        - name: return
+          in: query
+          required: false
+          description: |
+            URL the user should be sent back to after OAuth (e.g. `fucci://auth` or Expo dev URL).
+            Must pass server allowlist checks. Defaults to `fucci://auth` if omitted.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Google authorization endpoint (`Location` header).
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://accounts.google.com/o/oauth2/v2/auth?client_id=...
+        '400':
+          description: return URL is not allowed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: return URL is not allowed
+        '500':
+          description: Failed to sign OAuth state or internal error
+          content:
+            text/plain:
+              schema:
+                type: string
+        '503':
+          description: Google OAuth client ID or callback URL not configured on the server
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Google OAuth callback URL is not configured (GOOGLE_OAUTH_CALLBACK_URL)
+
+  /auth/google/callback:
+    get:
+      summary: Google OAuth redirect_uri callback (backend)
+      description: |
+        Registered in Google Cloud as **GOOGLE_OAUTH_CALLBACK_URL**. Google redirects here with `code` and `state`
+        on success, or `error` / `error_description` on failure.
+
+        **Success:** Exchanges the Google code, stores session payload, then **302** redirects to the app URL from
+        signed `state` with query `code` (one-time token for `POST /auth/google/exchange`) and `is_new` (`0` | `1`).
+
+        **Google error:** **302** to app with `google_error` and optional `google_error_description`.
+
+        **User cancelled consent (specific error codes):** **302** to app with `cancel=1`.
+
+        **Handler errors:** Plain-text body for 400 / 503 when redirect is not possible.
+      operationId: getAuthGoogleCallback
+      tags:
+        - Auth
+      parameters:
+        - name: state
+          in: query
+          description: JWT from `/auth/google/start` (binds allowed app return URL).
+          schema:
+            type: string
+        - name: code
+          in: query
+          description: Authorization code from Google (success path).
+          schema:
+            type: string
+        - name: error
+          in: query
+          description: OAuth error from Google (failure path).
+          schema:
+            type: string
+        - name: error_description
+          in: query
+          description: Human-readable detail from Google.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: |
+            Redirect to app deep link. Success adds `code` + `is_new`; errors add `google_error` (+ optional description)
+            or `cancel=1` for user cancellation.
+          headers:
+            Location:
+              schema:
+                type: string
+        '400':
+          description: Missing code/state, invalid state, or malformed request
+          content:
+            text/plain:
+              schema:
+                type: string
+        '503':
+          description: Callback URL not configured
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: Invalid app return URL or unexpected error
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /auth/google/exchange:
+    post:
+      summary: Exchange one-time browser handoff code for session
+      description: |
+        Consumes the opaque `code` delivered to the app via the **302** from `/auth/google/callback` (single-use, short TTL).
+        Returns the same JSON shape as `POST /auth/google` (`token`, `user`, `is_new`).
+      operationId: postAuthGoogleExchange
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuthExchangeRequest'
+      responses:
+        '200':
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthSuccess'
+        '400':
+          description: Invalid body or invalid/expired/reused exchange code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidExchangeCode:
+                  value:
+                    code: INVALID_CODE
+                    error: invalid or expired oauth exchange code
+
+  /auth/google:
+    post:
+      summary: Exchange Google auth code and authenticate user (native redirect_uri flow)
+      operationId: postAuthGoogle
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthRequest'
+      responses:
+        '200':
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthSuccess'
+        '400':
+          description: Invalid request or unverified email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCode:
+                  value:
+                    code: INVALID_CODE
+                    error: Malformed or expired auth code
+                emailNotVerified:
+                  value:
+                    code: EMAIL_NOT_VERIFIED
+                    error: Google email is not verified
+                invalidRedirectURI:
+                  value:
+                    code: INVALID_REDIRECT_URI
+                    error: redirect_uri is not allowed
+                missingRedirectURI:
+                  value:
+                    code: INVALID_REDIRECT_URI
+                    error: redirect_uri is required
+        '401':
+          description: Token signature/verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                verifyFailed:
+                  value:
+                    code: TOKEN_VERIFY_FAILED
+                    error: Unable to verify Google ID token
+        '403':
+          description: Account is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                inactive:
+                  value:
+                    code: ACCOUNT_INACTIVE
+                    error: This account has been deactivated
+        '409':
+          description: Email already used by another account or provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                accountExists:
+                  value:
+                    code: ACCOUNT_EXISTS_EMAIL
+                    error: Email already registered via password
+        '500':
+          description: Google API exchange failure or unexpected backend error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                googleApiError:
+                  value:
+                    code: GOOGLE_API_ERROR
+                    error: Google token exchange failed
+        '503':
+          description: Google OAuth configuration is missing on the server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notConfigured:
+                  value:
+                    code: GOOGLE_AUTH_NOT_CONFIGURED
+                    error: Google OAuth is not configured on the server
+components:
+  schemas:
+    GoogleAuthRequest:
+      type: object
+      required:
+        - code
+        - redirect_uri
+      properties:
+        code:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+    GoogleOAuthExchangeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: One-time code from the app redirect after /auth/google/callback
+    GoogleAuthSuccess:
+      type: object
+      required:
+        - token
+        - user
+        - is_new
+      properties:
+        token:
+          type: string
+        is_new:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/UserSummary'
+    UserSummary:
+      type: object
+      required:
+        - id
+        - email
+        - firstname
+        - lastname
+        - display_name
+        - avatar_url
+        - is_verified
+        - is_active
+        - role
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        email:
+          type: string
+          format: email
+        firstname:
+          type: string
+        lastname:
+          type: string
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+        is_verified:
+          type: boolean
+        is_active:
+          type: boolean
+        role:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_CODE
+            - INVALID_REDIRECT_URI
+            - EMAIL_NOT_VERIFIED
+            - TOKEN_VERIFY_FAILED
+            - ACCOUNT_EXISTS_EMAIL
+            - ACCOUNT_INACTIVE
+            - GOOGLE_API_ERROR
+            - GOOGLE_AUTH_NOT_CONFIGURED
+        error:
+          type: string

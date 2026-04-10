@@ -14,27 +14,33 @@ import {useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {useAuth} from '../context/AuthContext';
-import {rootNavigate, rootResetTo} from '../navigation/rootNavigation';
+import {rootNavigate} from '../navigation/rootNavigation';
 import {getPlayerProfile} from '../services/playerProfile';
 import {updateProfile} from '../services/auth';
-import {userFacingApiMessage} from '../services/api';
+import {ApiRequestError, userFacingApiMessage} from '../services/api';
 import {uploadToCloudinary} from '../services/cloudinaryUpload';
+import ProfileGuestAuth from '../components/ProfileGuestAuth';
+import {dispatchResetToMainProfileTab} from '../navigation/authNavigationActions';
+import type {ReturnToDebateParams} from '../types/navigation';
 
 interface SettingsScreenProps {
   /** When true, screen is embedded in Profile tab (no back button) */
   embeddedInTab?: boolean;
 }
 
-type SettingsRouteParams = {embeddedInTab?: boolean};
+type SettingsRouteParams = {
+  embeddedInTab?: boolean;
+  returnToDebate?: ReturnToDebateParams;
+};
 
 export default function SettingsScreen({
   embeddedInTab: embeddedInTabProp,
 }: SettingsScreenProps = {}) {
   const route = useRoute();
+  const routeParams = (route.params as SettingsRouteParams | undefined) ?? {};
   const embeddedInTab =
-    embeddedInTabProp ??
-    (route.params as SettingsRouteParams | undefined)?.embeddedInTab ??
-    false;
+    embeddedInTabProp ?? routeParams.embeddedInTab ?? false;
+  const profileAuthReturnToDebate = routeParams.returnToDebate;
   const {user, isLoggedIn, logout: authLogout, token, setAuth} = useAuth();
   const [playerModeLoading, setPlayerModeLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -129,6 +135,11 @@ export default function SettingsScreen({
       if (__DEV__) {
         console.warn('[Settings] getPlayerProfile failed', err);
       }
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        await authLogout();
+        dispatchResetToMainProfileTab();
+        return;
+      }
       Alert.alert(
         'Something went wrong',
         userFacingApiMessage(err),
@@ -146,7 +157,7 @@ export default function SettingsScreen({
         style: 'destructive',
         onPress: async () => {
           await authLogout();
-          rootResetTo('Login');
+          dispatchResetToMainProfileTab();
         },
       },
     ]);
@@ -161,28 +172,14 @@ export default function SettingsScreen({
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.tabContent}
-        showsVerticalScrollIndicator={false}>
-        {!isLoggedIn ? (
-          <View style={styles.loginPromptContainer}>
-            <Text style={styles.loginPromptText}>
-              <Text
-                style={styles.loginLinkText}
-                onPress={() => rootNavigate('Login')}>
-                Login
-              </Text>
-              <Text> or </Text>
-              <Text
-                style={styles.loginLinkText}
-                onPress={() => rootNavigate('SignUp')}>
-                Register
-              </Text>
-              <Text> to access account features.</Text>
-            </Text>
-          </View>
-        ) : (
-          <>
+      {!isLoggedIn ? (
+        <View style={styles.guestAuthFill}>
+          <ProfileGuestAuth returnToDebate={profileAuthReturnToDebate} />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.tabContent}
+          showsVerticalScrollIndicator={false}>
             <View style={styles.profileSummary}>
               <View style={styles.profileAvatarWrap}>
                 {avatarURL ? (
@@ -259,9 +256,8 @@ export default function SettingsScreen({
                 <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
               </TouchableOpacity>
             </View>
-          </>
-        )}
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {isLoggedIn && (
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -297,24 +293,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94a3b8',
     marginBottom: 16,
-  },
-  loginPromptContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-  },
-  loginPromptText: {
-    fontSize: 16,
-    color: '#94a3b8',
-    textAlign: 'center',
-    width: '100%',
-  },
-  loginLinkText: {
-    fontSize: 16,
-    color: '#67e8f9',
-    textDecorationLine: 'underline',
   },
   headerRightRow: {
     flexDirection: 'row',
@@ -380,7 +358,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   avatar: {
     width: 76,
@@ -397,8 +375,8 @@ const styles = StyleSheet.create({
   },
   avatarEditBtn: {
     position: 'absolute',
-    right: 4,
-    bottom: 4,
+    right: -8,
+    bottom: -8,
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -436,6 +414,10 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#e2e8f0',
     fontWeight: '700',
+  },
+  guestAuthFill: {
+    flex: 1,
+    minHeight: 400,
   },
   tabContent: {
     flex: 1,
