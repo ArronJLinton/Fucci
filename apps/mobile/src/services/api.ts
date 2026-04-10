@@ -22,7 +22,10 @@ export function userFacingApiMessage(error: unknown): string {
     if (error.status === 401 || error.status === 403) {
       return 'Session expired. Please sign in again.';
     }
-    if (error.status === 408 || error.status === 429) {
+    if (error.status === 408) {
+      return 'Request timed out. Please try again.';
+    }
+    if (error.status === 429) {
       return 'Too many requests. Please wait and try again.';
     }
     if (error.status >= 500) {
