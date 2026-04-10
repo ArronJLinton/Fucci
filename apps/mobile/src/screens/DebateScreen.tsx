@@ -5,8 +5,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import Animated from 'react-native-reanimated';
@@ -272,17 +270,14 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
   const refYN = referee ? yesNoFromDebate(referee) : {yes: 50, no: 50};
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={80}>
+    <View style={styles.container}>
       <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
-        scrollEventThrottle={16}
-        nestedScrollEnabled
+        scrollEventThrottle={1}
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}>
         <View style={styles.hotCard}>
           <View style={styles.hotHeader}>
@@ -376,7 +371,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           </TouchableOpacity>
         </View>
       </Animated.ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

@@ -11,6 +11,7 @@ import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import {StatusBar} from 'expo-status-bar';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
@@ -103,6 +104,7 @@ const MatchDetailsScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const match = route.params.match;
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
@@ -111,7 +113,9 @@ const MatchDetailsScreen = () => {
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: event => {
-      scrollY.value = event.contentOffset.y;
+      const y = event.contentOffset.y;
+      // Avoid negative offsets (rubber-band) fighting hero interpolation
+      scrollY.value = y < 0 ? 0 : y;
     },
   });
 
@@ -161,30 +165,36 @@ const MatchDetailsScreen = () => {
   });
 
   /** Fades and collapses expanded score row so compact strip can dominate when scrolled */
-  const expandedScoreStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      scrollY.value,
-      [0, 72],
-      [1, 0],
-      Extrapolation.CLAMP,
-    ),
-    maxHeight: interpolate(
-      scrollY.value,
-      [0, 100],
-      [200, 0],
-      Extrapolation.CLAMP,
-    ),
-    overflow: 'hidden' as const,
-  }));
+  const expandedScoreStyle = useAnimatedStyle(() => {
+    const r = HERO_COLLAPSE_SCROLL_RANGE;
+    return {
+      opacity: interpolate(
+        scrollY.value,
+        [0, r * 0.58],
+        [1, 0],
+        Extrapolation.CLAMP,
+      ),
+      maxHeight: interpolate(
+        scrollY.value,
+        [0, r * 0.92],
+        [200, 0],
+        Extrapolation.CLAMP,
+      ),
+      overflow: 'hidden' as const,
+    };
+  });
 
-  const heroCompactOpacityStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      scrollY.value,
-      [28, 88],
-      [0, 1],
-      Extrapolation.CLAMP,
-    ),
-  }));
+  const heroCompactOpacityStyle = useAnimatedStyle(() => {
+    const r = HERO_COLLAPSE_SCROLL_RANGE;
+    return {
+      opacity: interpolate(
+        scrollY.value,
+        [r * 0.33, r * 1.05],
+        [0, 1],
+        Extrapolation.CLAMP,
+      ),
+    };
+  });
 
   const statusLabel = statusPillLabel(match);
   const live = isLiveStatus(match.fixture.status.short);
@@ -280,7 +290,12 @@ const MatchDetailsScreen = () => {
   );
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        // Bleed into parent SafeArea top padding so hero/tabs sit higher; insets keep controls clear of notch.
+        {marginTop: -insets.top, paddingTop: insets.top},
+      ]}>
       <StatusBar style="light" />
       <MatchDetailsScrollProvider value={scrollContextValue}>
         <MatchHero />
@@ -296,6 +311,8 @@ const MatchDetailsScreen = () => {
           }}
           style={styles.tabNavigator}
           screenOptions={{
+            // Pager horizontal swipe competes with vertical ScrollViews; disable for smoother scroll + hero sync.
+            swipeEnabled: false,
             tabBarScrollEnabled: true,
             tabBarItemStyle: {
               width: width / 4,
@@ -398,16 +415,16 @@ const styles = StyleSheet.create({
   heroInner: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 6,
     zIndex: 1,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    minHeight: 32,
-    paddingTop: 4,
+    marginBottom: 4,
+    minHeight: 28,
+    paddingTop: 0,
   },
   heroScoreBlock: {
     flex: 1,
@@ -428,10 +445,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badge: {
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 4,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   badgePlaceholder: {
@@ -449,7 +466,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   scoreText: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: MATCH_CENTER_TEXT,
     letterSpacing: 1,
@@ -458,7 +475,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   statusPill: {
-    marginTop: 8,
+    marginTop: 4,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 999,
@@ -483,7 +500,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 10,
+    bottom: 8,
     alignItems: 'center',
   },
   heroCompactScore: {
