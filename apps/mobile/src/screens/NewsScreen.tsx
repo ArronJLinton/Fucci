@@ -51,7 +51,6 @@ const STORY_RINGS: {
   {key: 'goals', label: 'TOP GOALS', category: 'match', name: 'football'},
   {key: 'rumours', label: 'RUMOURS', category: 'transfers', name: 'people'},
   {key: 'matchday', label: 'MATCH DAY', category: 'match', name: 'flash'},
-  {key: 'mystory', label: 'MY STORY', category: 'all', name: 'add'},
 ];
 
 const NewsScreen: React.FC = () => {
@@ -105,9 +104,6 @@ const NewsScreen: React.FC = () => {
   const gridArticles = filteredArticles.slice(1);
 
   const onStoryPress = (s: (typeof STORY_RINGS)[0]) => {
-    if (s.key === 'mystory') {
-      return;
-    }
     setCategory(s.category);
   };
 
@@ -282,11 +278,7 @@ const NewsScreen: React.FC = () => {
                   end={{x: 1, y: 1}}
                   style={styles.storyGradient}>
                   <View style={styles.storyInner}>
-                    {s.key === 'mystory' ? (
-                      <Ionicons name="add" size={32} color={NEWS_MUTED} />
-                    ) : (
-                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                    )}
+                    <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
                   </View>
                 </LinearGradient>
                 <Text style={styles.storyLabel}>{s.label}</Text>
