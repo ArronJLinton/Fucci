@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -21,10 +22,11 @@ type GetMatchesParams struct {
 func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Step 1: Get date and optional league_id from query parameters
+	// Step 1: Get date and optional league_id / season from query parameters
 	queryParams := r.URL.Query()
 	date := queryParams.Get("date")
 	leagueID := queryParams.Get("league_id")
+	seasonOverride := queryParams.Get("season")
 	log.Printf("League ID: %s\n", leagueID)
 	if date == "" {
 		log.Printf("ERROR: date parameter is missing")
@@ -32,10 +34,29 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate cache key (include league_id if provided)
+	// Generate cache key (include league_id and season when filtering — season affects payload)
 	var cacheKey string
 	if leagueID != "" {
-		cacheKey = fmt.Sprintf("matches:league:%s:date:%s", leagueID, date)
+		matchDate, err := time.Parse("2006-01-02", date)
+		if err != nil {
+			log.Printf("ERROR: Invalid date format: %s\n", date)
+			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
+			return
+		}
+		seasonForKey := ""
+		if s := queryParams.Get("season"); s != "" {
+			seasonForKey = strings.TrimSpace(s)
+		} else {
+			lid, convErr := strconv.Atoi(strings.TrimSpace(leagueID))
+			if convErr == nil {
+				seasonForKey = fmt.Sprintf("%d", ResolveAPIFootballSeason(lid, matchDate))
+			}
+		}
+		if seasonForKey != "" {
+			cacheKey = fmt.Sprintf("matches:league:%s:date:%s:season:%s", leagueID, date, seasonForKey)
+		} else {
+			cacheKey = fmt.Sprintf("matches:league:%s:date:%s", leagueID, date)
+		}
 	} else {
 		cacheKey = fmt.Sprintf("matches:date:%s", date)
 	}
@@ -72,17 +93,28 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	}
 	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, date)
 	if leagueID != "" {
-		// When filtering by league, include season parameter
-		// Extract year from date to determine season
-		// dateTime, err := time.Parse("2006-01-02", date)
+		matchDate, err := time.Parse("2006-01-02", date)
 		if err != nil {
 			log.Printf("ERROR: Invalid date format: %s\n", date)
 			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
 			return
 		}
-		// FIXME: Need to dynamically set the season year
-		// season := dateTime.Year()
-		season := 2025
+		var season int
+		if seasonOverride != "" {
+			s, convErr := strconv.Atoi(strings.TrimSpace(seasonOverride))
+			if convErr != nil || s < 2000 || s > 2100 {
+				respondWithError(w, http.StatusBadRequest, "season must be a valid year (e.g. 2026)")
+				return
+			}
+			season = s
+		} else {
+			lid, convErr := strconv.Atoi(strings.TrimSpace(leagueID))
+			if convErr != nil {
+				respondWithError(w, http.StatusBadRequest, "league_id must be numeric")
+				return
+			}
+			season = ResolveAPIFootballSeason(lid, matchDate)
+		}
 		url = fmt.Sprintf("%s&league=%s&season=%d", url, leagueID, season)
 		log.Printf("URL: %s\n", url)
 		log.Printf("Filtering matches by league_id: %s, season: %d\n", leagueID, season)

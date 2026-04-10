@@ -11,7 +11,11 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
 import {fetchMatches} from '../services/api';
-import {DEFAULT_LEAGUE, type League} from '../constants/leagues';
+import {
+  DEFAULT_LEAGUE,
+  seasonParamForMatchSearch,
+  type League,
+} from '../constants/leagues';
 import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 
@@ -109,7 +113,11 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
           isSelected &&
           !loadedCacheKeysRef.current.has(currentCacheKey)
         ) {
-          fetchMatches(date, currentLeague.id)
+          fetchMatches(
+            date,
+            currentLeague.id,
+            seasonParamForMatchSearch(currentLeague, date),
+          )
             .then(data => {
               if (currentCacheKey === cacheKey && data) {
                 setMatches(data);

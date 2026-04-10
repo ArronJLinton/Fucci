@@ -60,6 +60,8 @@ export interface LineupData {
 export const fetchMatches = async (
   date: Date,
   leagueId?: number,
+  /** When set (e.g. UCL), sent as `season` so API-Football returns the right competition year. */
+  season?: number,
 ): Promise<Match[] | null> => {
   try {
     const formattedDate = `${date.getFullYear()}-${String(
@@ -69,6 +71,9 @@ export const fetchMatches = async (
     let endpoint = `/futbol/matches?date=${formattedDate}`;
     if (leagueId) {
       endpoint += `&league_id=${leagueId}`;
+    }
+    if (season !== undefined) {
+      endpoint += `&season=${season}`;
     }
 
     const data = await makeApiRequest(endpoint, 'GET');
