@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Image,
+  ImageBackground,
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
@@ -198,7 +199,12 @@ const MatchDetailsScreen = () => {
 
   const MatchHero = () => (
     <Animated.View style={[styles.heroOuter, heroAnimatedStyle]}>
-      <View style={styles.heroInner}>
+      <ImageBackground
+        source={require('../../assets/images/stadium_background.jpeg')}
+        style={styles.heroImageBg}
+        resizeMode="cover">
+        <View style={styles.heroScrim} pointerEvents="none" />
+        <View style={styles.heroInner}>
         <View style={styles.heroTopRow}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -278,7 +284,8 @@ const MatchDetailsScreen = () => {
             {match.teams.away.name.slice(0, 3).toUpperCase()}
           </Text>
         </Animated.View>
-      </View>
+        </View>
+      </ImageBackground>
     </Animated.View>
   );
 
@@ -406,8 +413,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  heroBgFill: {
+  heroImageBg: {
+    flex: 1,
+    width: '100%',
+  },
+  heroScrim: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(6, 8, 12, 0.62)',
   },
   heroInner: {
     flex: 1,
