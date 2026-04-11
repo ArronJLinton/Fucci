@@ -40,7 +40,7 @@ import NewsScreen from './src/screens/NewsScreen';
 import MainDebatesScreen from './src/screens/MainDebatesScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceholderScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
+import AccountScreen from './src/screens/AccountScreen';
 import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
@@ -58,7 +58,7 @@ const StackNavigator = Stack.Navigator as any;
 const StackScreen = Stack.Screen as any;
 const StackGroup = Stack.Group as any;
 
-/** Matches MainDebatesScreen / Settings so safe areas and tab bar are not white bands. */
+/** Matches MainDebatesScreen / Account so safe areas and tab bar are not white bands. */
 const SHELL_DEBATES_BG = '#0B0E14';
 const SHELL_MATCHES_BG = '#0B0E14';
 const SHELL_PROFILE_BG = '#030712';
@@ -245,7 +245,7 @@ const MainStack = () => {
         />
         <Tab.Screen
           name="Profile"
-          component={SettingsScreen}
+          component={AccountScreen}
           initialParams={{embeddedInTab: true}}
           options={{
             headerShown: false,
@@ -387,9 +387,9 @@ function App(): React.JSX.Element {
                   options={{title: 'Forgot password'}}
                 />
                 <Stack.Screen
-                  name="Settings"
-                  component={SettingsScreen}
-                  options={{title: 'Settings'}}
+                  name="Account"
+                  component={AccountScreen}
+                  options={{title: 'Account'}}
                 />
                 <Stack.Screen
                   name="CreatePlayerProfile"

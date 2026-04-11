@@ -337,7 +337,7 @@ export default function CreatePlayerProfileScreen() {
       'Profile photo',
       defaultAvatarUri
         ? 'Your account photo is shown by default. Player-specific photo upload will be available in a future update.'
-        : 'Profile photo upload will be available in a future update. You can set an avatar in Settings to show it here.',
+        : 'Profile photo upload will be available in a future update. You can set an avatar from your account to show it here.',
     );
   };
 

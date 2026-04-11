@@ -362,7 +362,7 @@ export interface RootStackParamList {
   DebateDetails: { debateId: string };
   StoryDetails: { storyId: string };
   Profile: undefined;
-  Settings: undefined;
+  Account: undefined;
   Login: undefined;
   Register: undefined;
 }

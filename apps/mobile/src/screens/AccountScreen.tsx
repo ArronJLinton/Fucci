@@ -23,21 +23,21 @@ import ProfileGuestAuth from '../components/ProfileGuestAuth';
 import {dispatchResetToMainProfileTab} from '../navigation/authNavigationActions';
 import type {ReturnToDebateParams} from '../types/navigation';
 
-interface SettingsScreenProps {
+interface AccountScreenProps {
   /** When true, screen is embedded in Profile tab (no back button) */
   embeddedInTab?: boolean;
 }
 
-type SettingsRouteParams = {
+type AccountRouteParams = {
   embeddedInTab?: boolean;
   returnToDebate?: ReturnToDebateParams;
 };
 
-export default function SettingsScreen({
+export default function AccountScreen({
   embeddedInTab: embeddedInTabProp,
-}: SettingsScreenProps = {}) {
+}: AccountScreenProps = {}) {
   const route = useRoute();
-  const routeParams = (route.params as SettingsRouteParams | undefined) ?? {};
+  const routeParams = (route.params as AccountRouteParams | undefined) ?? {};
   const embeddedInTab =
     embeddedInTabProp ?? routeParams.embeddedInTab ?? false;
   const profileAuthReturnToDebate = routeParams.returnToDebate;
@@ -133,7 +133,7 @@ export default function SettingsScreen({
       }
     } catch (err) {
       if (__DEV__) {
-        console.warn('[Settings] getPlayerProfile failed', err);
+        console.warn('[Account] getPlayerProfile failed', err);
       }
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
         await authLogout();
@@ -204,7 +204,7 @@ export default function SettingsScreen({
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.accountHeading}>Account Settings</Text>
+              <Text style={styles.accountHeading}>Account</Text>
 
               <TouchableOpacity style={styles.settingsCard}>
                 <View style={styles.settingsCardIconWrap}>
