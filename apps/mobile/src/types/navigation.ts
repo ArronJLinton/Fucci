@@ -49,6 +49,7 @@ export type RootStackParamList = {
   SignUp: undefined | {returnToDebate?: ReturnToDebateParams};
   ForgotPassword: undefined;
   Account: undefined;
+  Settings: undefined;
   HomeTab: undefined;
   MatchDetails: {
     match: Match;

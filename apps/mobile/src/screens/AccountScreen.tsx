@@ -149,25 +149,15 @@ export default function AccountScreen({
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert('Log out?', 'Are you sure you want to log out?', [
-      {text: 'Cancel', style: 'cancel'},
-      {
-        text: 'Log out',
-        style: 'destructive',
-        onPress: async () => {
-          await authLogout();
-          dispatchResetToMainProfileTab();
-        },
-      },
-    ]);
-  };
-
   const mainContent = (
     <>
       <View style={styles.headerRightRow}>
         <View />
-        <TouchableOpacity style={styles.headerGear}>
+        <TouchableOpacity
+          style={styles.headerGear}
+          onPress={() => rootNavigate('Settings')}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings">
           <Ionicons name="settings" size={18} color="#c7f349" />
         </TouchableOpacity>
       </View>
@@ -257,13 +247,6 @@ export default function AccountScreen({
               </TouchableOpacity>
             </View>
         </ScrollView>
-      )}
-
-      {isLoggedIn && (
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#f87171" />
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
       )}
     </>
   );
@@ -593,25 +576,6 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#67e8f9',
     fontSize: 16,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#3f1d1d',
-    borderRadius: 10,
-    marginHorizontal: 120,
-    marginBottom: 8,
-    gap: 8,
-  },
-  logoutText: {
-    fontSize: 15,
-    color: '#f87171',
-    fontWeight: '700',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
   },
   buildFooter: {
     textAlign: 'center',

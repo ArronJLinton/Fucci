@@ -363,6 +363,7 @@ export interface RootStackParamList {
   StoryDetails: { storyId: string };
   Profile: undefined;
   Account: undefined;
+  Settings: undefined;
   Login: undefined;
   Register: undefined;
 }

@@ -41,6 +41,7 @@ import MainDebatesScreen from './src/screens/MainDebatesScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import ForgotPasswordPlaceholderScreen from './src/screens/ForgotPasswordPlaceholderScreen';
 import AccountScreen from './src/screens/AccountScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
@@ -390,6 +391,11 @@ function App(): React.JSX.Element {
                   name="Account"
                   component={AccountScreen}
                   options={{title: 'Account'}}
+                />
+                <Stack.Screen
+                  name="Settings"
+                  component={SettingsScreen}
+                  options={{title: 'Settings', animation: 'slide_from_right'}}
                 />
                 <Stack.Screen
                   name="CreatePlayerProfile"
