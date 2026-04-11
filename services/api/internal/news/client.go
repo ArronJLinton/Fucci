@@ -48,7 +48,7 @@ type Client struct {
 	MinRequestInterval time.Duration // Min time between requests (default 1s; use 100ms for 10 req/s plans)
 }
 
-const defaultNewsBaseURL = "https://real-time-news-data.p.rapidapi.com/search"
+const defaultNewsBaseURL = "https://api.openwebninja.com/realtime-news-data/search"
 
 // NewClient creates a new RapidAPI news client (MinRequestInterval defaults to 1s for BASIC plan).
 func NewClient(apiKey string) *Client {
@@ -145,9 +145,7 @@ func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAP
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add RapidAPI headers
-	req.Header.Add("X-RapidAPI-Key", c.apiKey)
-	req.Header.Add("X-RapidAPI-Host", "real-time-news-data.p.rapidapi.com")
+	req.Header.Set("x-api-key", c.apiKey)
 
 	// Make the request with timeout
 	client := &http.Client{Timeout: c.timeout}
@@ -165,7 +163,7 @@ func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAP
 
 	// Check if response is successful
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("RapidAPI returned status %d: %s", resp.StatusCode, string(body))
+		log.Printf("news API returned status %d: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
 	}
 

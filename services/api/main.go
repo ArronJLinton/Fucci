@@ -75,6 +75,7 @@ func main() {
 		DBConn:                        conn,
 		FootballAPIKey:                c.FOOTBALL_API_KEY,
 		RapidAPIKey:                   c.RAPID_API_KEY,
+		NewsBaseURL:                   c.NewsBaseURL,
 		GoogleOAuthClientID:           c.GOOGLE_OAUTH_CLIENT_ID,
 		GoogleOAuthClientSecret:       c.GOOGLE_OAUTH_CLIENT_SECRET,
 		GoogleOAuthRedirectURIs:       c.GOOGLE_OAUTH_REDIRECT_URIS,

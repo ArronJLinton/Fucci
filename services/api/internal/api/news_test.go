@@ -61,6 +61,9 @@ func TestGetFootballNews_CacheHit(t *testing.T) {
 
 func TestGetFootballNews_CacheMiss_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-API-Key") != "key" {
+			t.Errorf("expected X-API-Key: key, got %q", r.Header.Get("X-API-Key"))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(validRapidAPIResponse))
