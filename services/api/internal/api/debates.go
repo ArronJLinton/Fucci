@@ -259,6 +259,25 @@ type VoteResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+func userSwipeVoteRowToResponse(v database.Votes) *VoteResponse {
+	if !v.DebateCardID.Valid || !v.UserID.Valid {
+		return nil
+	}
+	vr := &VoteResponse{
+		ID:           v.ID,
+		DebateCardID: v.DebateCardID.Int32,
+		UserID:       v.UserID.Int32,
+		VoteType:     v.VoteType,
+	}
+	if v.Emoji.Valid {
+		vr.Emoji = v.Emoji.String
+	}
+	if v.CreatedAt.Valid {
+		vr.CreatedAt = v.CreatedAt.Time
+	}
+	return vr
+}
+
 type CommentResponse struct {
 	ID              int32     `json:"id"`
 	DebateID        int32     `json:"debate_id"`
@@ -858,6 +877,29 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		var uvByCard map[int32]*VoteResponse
+		if uidVal := ctx.Value("user_id"); uidVal != nil {
+			if userID, ok := uidVal.(int32); ok && userID != 0 {
+				swipeRows, errUV := c.DB.GetUserSwipeVotesForCards(ctx, database.GetUserSwipeVotesForCardsParams{
+					UserID:  sql.NullInt32{Int32: userID, Valid: true},
+					Column2: cardIDs,
+				})
+				if errUV != nil {
+					log.Printf("[debates] GetUserSwipeVotesForCards debate_id=%d user_id=%d: %v", debate.ID, userID, errUV)
+				} else if len(swipeRows) > 0 {
+					uvByCard = make(map[int32]*VoteResponse, len(swipeRows))
+					for _, row := range swipeRows {
+						if !row.DebateCardID.Valid {
+							continue
+						}
+						if vr := userSwipeVoteRowToResponse(row); vr != nil {
+							uvByCard[row.DebateCardID.Int32] = vr
+						}
+					}
+				}
+			}
+		}
+
 		// Build card responses
 		for _, card := range cards {
 			cardResponse := DebateCardResponse{
@@ -870,6 +912,11 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 				CreatedAt:   card.CreatedAt.Time,
 				UpdatedAt:   card.UpdatedAt.Time,
 				VoteCounts:  voteCountsMap[card.ID],
+			}
+			if uvByCard != nil {
+				if uv, ok := uvByCard[card.ID]; ok {
+					cardResponse.UserVote = uv
+				}
 			}
 			response.Cards = append(response.Cards, cardResponse)
 		}

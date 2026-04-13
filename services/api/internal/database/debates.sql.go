@@ -622,6 +622,50 @@ func (q *Queries) GetTopDebates(ctx context.Context, limit int32) ([]GetTopDebat
 	return items, nil
 }
 
+const getUserSwipeVotesForCards = `-- name: GetUserSwipeVotesForCards :many
+SELECT id, debate_card_id, user_id, vote_type, emoji, created_at
+FROM votes
+WHERE user_id = $1
+  AND debate_card_id = ANY($2::int[])
+  AND emoji IS NULL
+  AND vote_type IN ('upvote', 'downvote')
+`
+
+type GetUserSwipeVotesForCardsParams struct {
+	UserID  sql.NullInt32
+	Column2 []int32
+}
+
+func (q *Queries) GetUserSwipeVotesForCards(ctx context.Context, arg GetUserSwipeVotesForCardsParams) ([]Votes, error) {
+	rows, err := q.db.QueryContext(ctx, getUserSwipeVotesForCards, arg.UserID, pq.Array(arg.Column2))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Votes
+	for rows.Next() {
+		var i Votes
+		if err := rows.Scan(
+			&i.ID,
+			&i.DebateCardID,
+			&i.UserID,
+			&i.VoteType,
+			&i.Emoji,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserVote = `-- name: GetUserVote :one
 SELECT id, debate_card_id, user_id, vote_type, emoji, created_at FROM votes WHERE debate_card_id = $1 AND user_id = $2 AND vote_type = $3
 `

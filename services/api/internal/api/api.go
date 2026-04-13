@@ -186,7 +186,7 @@ func New(c *Config) http.Handler {
 	debateRouter.Post("/generate-set", c.generateDebateSet)
 	debateRouter.Get("/health", c.checkDebateGenerationHealth)
 	debateRouter.Get("/match", c.getDebatesByMatch)
-	debateRouter.Get("/{id}", c.getDebate)
+	debateRouter.With(auth.OptionalAuth).Get("/{id}", c.getDebate)
 	debateRouter.With(auth.RequireAuth).Put("/{debateId}/cards/{cardId}/vote", c.setCardVote)
 	debateRouter.Post("/cards", c.createDebateCard)
 	// Legacy POST /debates/votes and POST /debates/comments removed: they were unauthenticated and used hardcoded user_id. Use PUT /debates/{id}/cards/{cardId}/vote and POST /debates/{id}/comments (auth required) instead.

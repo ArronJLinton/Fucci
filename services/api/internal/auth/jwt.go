@@ -84,6 +84,28 @@ func ExtractToken(r *http.Request) (string, error) {
 	return parts[1], nil
 }
 
+// OptionalAuth validates Bearer JWT when present and attaches user_id (and related claims) to context.
+// Invalid or missing tokens are ignored so the handler can serve public responses.
+func OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString, err := ExtractToken(r)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		claims, err := ValidateToken(tokenString)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, "user_id", claims.UserID)
+		ctx = context.WithValue(ctx, "user_email", claims.Email)
+		ctx = context.WithValue(ctx, "user_role", claims.Role)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 // RequireAuth is a middleware that validates JWT token
 func RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

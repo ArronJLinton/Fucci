@@ -113,12 +113,15 @@ export const generateDebateSet = async (
   }
 };
 
-/** GET /debates/:id — fetch full debate with cards */
+/** GET /debates/:id — fetch full debate with cards. Pass `token` when signed in so cards include `user_vote` for this user. */
 export const fetchDebateById = async (
   debateId: number,
+  token?: string | null,
 ): Promise<DebateResponse | null> => {
   try {
-    const data = await makeApiRequest(`/debates/${debateId}`, 'GET');
+    const data = token
+      ? await makeAuthRequest(token, `/debates/${debateId}`, 'GET')
+      : await makeApiRequest(`/debates/${debateId}`, 'GET');
     if (data?.headline && Array.isArray(data?.cards)) {
       return data as DebateResponse;
     }

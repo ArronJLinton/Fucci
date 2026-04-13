@@ -82,6 +82,14 @@ FROM votes
 WHERE debate_card_id = ANY($1::int[])
 GROUP BY debate_card_id, vote_type, emoji;
 
+-- name: GetUserSwipeVotesForCards :many
+SELECT id, debate_card_id, user_id, vote_type, emoji, created_at
+FROM votes
+WHERE user_id = $1
+  AND debate_card_id = ANY($2::int[])
+  AND emoji IS NULL
+  AND vote_type IN ('upvote', 'downvote');
+
 -- name: CreateComment :one
 INSERT INTO comments (debate_id, parent_comment_id, user_id, content, seeded)
 VALUES ($1, $2, $3, $4, $5)
