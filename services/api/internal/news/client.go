@@ -145,7 +145,7 @@ func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAP
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("x-api-key", c.apiKey)
+	req.Header.Set("X-API-Key", c.apiKey)
 
 	// Make the request with timeout
 	client := &http.Client{Timeout: c.timeout}
