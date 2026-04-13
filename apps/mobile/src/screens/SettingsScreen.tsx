@@ -69,31 +69,27 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
-          accessibilityRole="button"
-          accessibilityLabel="Go back">
-          <View style={styles.topBarIconBox}>
-            <Ionicons name="person" size={18} color={LIME} />
-          </View>
-        </TouchableOpacity>
-        <Text style={styles.brandMark}>{APP_NAME}</Text>
-        <View style={styles.topBarIconBox}>
-          <Ionicons name="settings" size={18} color={LIME} />
+        <View style={styles.topBarSide}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
+            <View style={styles.topBarIconBox}>
+              <Ionicons name="person" size={18} color={LIME} />
+            </View>
+          </TouchableOpacity>
         </View>
+        <View style={styles.topBarCenter}>
+          <Text style={styles.brandMark}>{APP_NAME}</Text>
+        </View>
+        <View style={styles.topBarSide} />
       </View>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.heroTitle}>
-          <Text style={styles.heroTitleLight}>SYSTEM </Text>
-          <Text style={styles.heroTitleAccent}>PROTOCOL</Text>
-        </Text>
-        <Text style={styles.heroSub}>CONFIGURE YOUR MATCH PARAMETERS</Text>
-
         {/* Account settings */}
         <SectionHeader icon="person" label="ACCOUNT SETTINGS" />
         <View style={styles.card}>
@@ -131,7 +127,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Prefs */}
-        <SectionHeader icon="sliders-outline" label="PREFS" />
+        {/* <SectionHeader icon="sliders-outline" label="PREFS" />
         <View style={styles.card}>
           <Text style={styles.fieldLabel}>DISPLAY MODE</Text>
           <View style={styles.segment}>
@@ -187,11 +183,13 @@ export default function SettingsScreen() {
             <Text style={styles.dropdownText}>English (UK)</Text>
             <Ionicons name="chevron-down" size={18} color={MUTED} />
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* Notifications */}
-        <SectionHeader icon="notifications" label="NOTIFICATIONS" />
-        <Text style={styles.sectionHint}>Control the pulse of your experience</Text>
+        {/* <SectionHeader icon="notifications" label="NOTIFICATIONS" />
+        <Text style={styles.sectionHint}>
+          Control the pulse of your experience
+        </Text>
         <View style={styles.card}>
           <ToggleRow
             label="MATCH ALERTS"
@@ -209,21 +207,19 @@ export default function SettingsScreen() {
             onValueChange={setSocialPing}
             last
           />
-        </View>
+        </View> */}
 
         {/* Support */}
         <SectionHeader icon="help-circle" label="SUPPORT" />
         <View style={styles.card}>
           <SupportRow
             icon="book-outline"
-            title="Tactical Guide (FAQ)"
-            onPress={() =>
-              Alert.alert('FAQ', 'Help center is coming soon.')
-            }
+            title="FAQ"
+            onPress={() => Alert.alert('FAQ', 'Help center is coming soon.')}
           />
           <SupportRow
             icon="headset-outline"
-            title="Contact Pit Crew"
+            title="Contact Support"
             onPress={() =>
               Alert.alert(
                 'Contact',
@@ -240,22 +236,20 @@ export default function SettingsScreen() {
             }
           />
         </View>
-        <Text style={styles.version}>
-          VERSION {appVersion}-FUCCI_BETA
-        </Text>
+        <Text style={styles.version}>VERSION {appVersion}-FUCCI_BETA</Text>
 
         {/* Critical zone */}
-        <Text style={styles.criticalTitle}>CRITICAL ZONE</Text>
+        {/* <Text style={styles.criticalTitle}>CRITICAL ZONE</Text>
         <Text style={styles.criticalCopy}>
           Deactivating your account will result in the permanent loss of all
           player stats and achievements.
-        </Text>
-        <TouchableOpacity
+        </Text> */}
+        {/* <TouchableOpacity
           style={styles.terminateBtn}
           onPress={handleTerminateAccount}
           activeOpacity={0.85}>
           <Text style={styles.terminateText}>TERMINATE ACCOUNT</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {isLoggedIn ? (
           <TouchableOpacity
@@ -361,11 +355,20 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  topBarSide: {
+    width: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  topBarCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   topBarIconBox: {
     width: 36,
