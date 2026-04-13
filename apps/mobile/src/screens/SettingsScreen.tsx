@@ -33,10 +33,10 @@ const APP_NAME = 'FUCCI';
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
   const {logout: authLogout, isLoggedIn} = useAuth();
-  const [displayMode, setDisplayMode] = useState<'dark' | 'light'>('dark');
-  const [matchAlerts, setMatchAlerts] = useState(true);
-  const [latestNews, setLatestNews] = useState(true);
-  const [socialPing, setSocialPing] = useState(false);
+  // const [displayMode, setDisplayMode] = useState<'dark' | 'light'>('dark');
+  // const [matchAlerts, setMatchAlerts] = useState(true);
+  // const [latestNews, setLatestNews] = useState(true);
+  // const [socialPing, setSocialPing] = useState(false);
 
   const appVersion =
     Constants.expoConfig?.version ??
@@ -58,13 +58,13 @@ export default function SettingsScreen() {
     ]);
   }, [authLogout, navigation]);
 
-  const handleTerminateAccount = useCallback(() => {
-    Alert.alert(
-      'Terminate account?',
-      'This would permanently remove your account and data. This action is not available in the app yet — contact support if you need to delete your account.',
-      [{text: 'OK', style: 'default'}],
-    );
-  }, []);
+  // const handleTerminateAccount = useCallback(() => {
+  //   Alert.alert(
+  //     'Terminate account?',
+  //     'This would permanently remove your account and data. This action is not available in the app yet — contact support if you need to delete your account.',
+  //     [{text: 'OK', style: 'default'}],
+  //   );
+  // }, []);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
