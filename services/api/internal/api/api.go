@@ -67,6 +67,7 @@ type Config struct {
 	DB                      *database.Queries
 	DBConn                  *sql.DB
 	FootballAPIKey          string
+	// RapidAPIKey is RAPID_API_KEY: used for Google News (RapidAPI host/headers in google.go) and for realtime news search (X-API-Key; news package).
 	RapidAPIKey             string
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string

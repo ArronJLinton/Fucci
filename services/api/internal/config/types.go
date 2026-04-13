@@ -4,6 +4,8 @@ type Config struct {
 	DB_URL                     string
 	FOOTBALL_API_KEY           string
 	RAPID_API_KEY              string
+	// NEWS_BASE_URL is the full base URL for GET /search-style news requests (query string appended). Empty uses the client default.
+	NEWS_BASE_URL              string
 	GOOGLE_OAUTH_CLIENT_ID     string
 	GOOGLE_OAUTH_CLIENT_SECRET string
 	GOOGLE_OAUTH_REDIRECT_URIS string

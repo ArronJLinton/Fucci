@@ -14,21 +14,21 @@ import (
 	"time"
 )
 
-// Throttle RapidAPI news; interval is configurable per client (default 1 req/s for BASIC plan; e.g. 100ms for 10 req/s).
+// Throttle outbound news search requests; interval is configurable per client (default 1 req/s; e.g. 100ms for 10 req/s plans).
 var (
 	newsRateMu      sync.Mutex
 	newsLastRequest time.Time
 )
 
-// RapidAPIResponse represents the response from RapidAPI Real-Time News Data
-type RapidAPIResponse struct {
-	Status    string            `json:"status"`
-	RequestID string            `json:"request_id"`
-	Data      []RapidAPIArticle `json:"data"`
+// NewsSearchResponse is the JSON envelope returned by the realtime news search HTTP API (provider-specific host; same wire shape).
+type NewsSearchResponse struct {
+	Status    string              `json:"status"`
+	RequestID string              `json:"request_id"`
+	Data      []NewsSearchArticle `json:"data"`
 }
 
-// RapidAPIArticle represents a single article from RapidAPI
-type RapidAPIArticle struct {
+// NewsSearchArticle is one article record in the search API response body.
+type NewsSearchArticle struct {
 	Title                string `json:"title"`
 	Link                 string `json:"link"`
 	Snippet              string `json:"snippet,omitempty"`
@@ -40,7 +40,7 @@ type RapidAPIArticle struct {
 	SourceFaviconURL     string `json:"source_favicon_url,omitempty"`
 }
 
-// Client wraps the RapidAPI Real-Time News Data API client
+// Client performs authenticated GET requests to a realtime news search base URL (X-API-Key).
 type Client struct {
 	apiKey             string
 	baseURL            string
@@ -48,9 +48,9 @@ type Client struct {
 	MinRequestInterval time.Duration // Min time between requests (default 1s; use 100ms for 10 req/s plans)
 }
 
-const defaultNewsBaseURL = "https://real-time-news-data.p.rapidapi.com/search"
+const defaultNewsBaseURL = "https://api.openwebninja.com/realtime-news-data/search"
 
-// NewClient creates a new RapidAPI news client (MinRequestInterval defaults to 1s for BASIC plan).
+// NewClient creates a news search client (MinRequestInterval defaults to 1s unless NEWS_RATE_LIMIT_RPS overrides).
 func NewClient(apiKey string) *Client {
 	return NewClientWithBaseURL(apiKey, defaultNewsBaseURL)
 }
@@ -127,8 +127,8 @@ func throttleNewsRequest(ctx context.Context, minInterval time.Duration) error {
 	return nil
 }
 
-// FetchNews fetches football news from RapidAPI with custom options.
-func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAPIResponse, error) {
+// FetchNews performs a single search request with the given query options.
+func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*NewsSearchResponse, error) {
 	if err := throttleNewsRequest(ctx, c.MinRequestInterval); err != nil {
 		return nil, err
 	}
@@ -145,9 +145,7 @@ func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAP
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add RapidAPI headers
-	req.Header.Add("X-RapidAPI-Key", c.apiKey)
-	req.Header.Add("X-RapidAPI-Host", "real-time-news-data.p.rapidapi.com")
+	req.Header.Set("X-API-Key", c.apiKey)
 
 	// Make the request with timeout
 	client := &http.Client{Timeout: c.timeout}
@@ -165,12 +163,12 @@ func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAP
 
 	// Check if response is successful
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("RapidAPI returned status %d: %s", resp.StatusCode, string(body))
+		log.Printf("news API returned status %d: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse JSON response
-	var newsResponse RapidAPIResponse
+	var newsResponse NewsSearchResponse
 	if err := json.Unmarshal(body, &newsResponse); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
@@ -179,8 +177,8 @@ func (c *Client) FetchNews(ctx context.Context, opts FetchNewsOptions) (*RapidAP
 
 // TodayAndHistoryResponse contains both today's and historical news responses
 type TodayAndHistoryResponse struct {
-	TodayResponse   *RapidAPIResponse
-	HistoryResponse *RapidAPIResponse
+	TodayResponse   *NewsSearchResponse
+	HistoryResponse *NewsSearchResponse
 }
 
 // FetchTodayAndHistoryNews fetches both today's news and historical news.
@@ -200,7 +198,7 @@ func (c *Client) FetchTodayAndHistoryNews(ctx context.Context) (*TodayAndHistory
 	todayResp, todayErr := c.FetchNews(ctx, todayOpts)
 	if todayErr != nil {
 		log.Printf("Failed to fetch today's news: %v", todayErr)
-		todayResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
+		todayResp = &NewsSearchResponse{Data: []NewsSearchArticle{}}
 	}
 
 	// Fetch historical news
@@ -211,7 +209,7 @@ func (c *Client) FetchTodayAndHistoryNews(ctx context.Context) (*TodayAndHistory
 	historyResp, historyErr := c.FetchNews(ctx, historyOpts)
 	if historyErr != nil {
 		log.Printf("Failed to fetch historical news: %v", historyErr)
-		historyResp = &RapidAPIResponse{Data: []RapidAPIArticle{}}
+		historyResp = &NewsSearchResponse{Data: []NewsSearchArticle{}}
 	}
 
 	// If both failed, return error so handler can return 5xx and not cache empty response
@@ -239,7 +237,7 @@ func MatchStatusCompleted(status string) bool {
 // Time filtering:
 // - Not started / ongoing: fetches articles from past 1 day
 // - Completed: fetches articles from past 7 days, then filters to only those published after match end
-func (c *Client) FetchMatchNews(ctx context.Context, homeTeam, awayTeam string, limit int, matchStatus string, matchEndTime *time.Time) (*RapidAPIResponse, error) {
+func (c *Client) FetchMatchNews(ctx context.Context, homeTeam, awayTeam string, limit int, matchStatus string, matchEndTime *time.Time) (*NewsSearchResponse, error) {
 	// Build combined query: "Team A and Team B"
 	query := fmt.Sprintf("%s and %s", homeTeam, awayTeam)
 
@@ -263,7 +261,7 @@ func (c *Client) FetchMatchNews(ctx context.Context, homeTeam, awayTeam string, 
 
 	// For completed matches, filter to only articles published after match end
 	if MatchStatusCompleted(matchStatus) && matchEndTime != nil {
-		filtered := make([]RapidAPIArticle, 0, len(resp.Data))
+		filtered := make([]NewsSearchArticle, 0, len(resp.Data))
 		for _, article := range resp.Data {
 			pubTime, err := time.Parse(time.RFC3339, article.PublishedDatetimeUTC)
 			if err != nil {

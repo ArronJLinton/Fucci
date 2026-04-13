@@ -48,6 +48,7 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   SignUp: undefined | {returnToDebate?: ReturnToDebateParams};
   ForgotPassword: undefined;
+  Account: undefined;
   Settings: undefined;
   HomeTab: undefined;
   MatchDetails: {

@@ -1,155 +1,49 @@
-import React, {useState} from 'react';
+import React, {useState, useCallback} from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
+  Switch,
   Alert,
-  ActivityIndicator,
-  Image,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import {useRoute} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Ionicons} from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import {useAuth} from '../context/AuthContext';
-import {rootNavigate} from '../navigation/rootNavigation';
-import {getPlayerProfile} from '../services/playerProfile';
-import {updateProfile} from '../services/auth';
-import {ApiRequestError, userFacingApiMessage} from '../services/api';
-import {uploadToCloudinary} from '../services/cloudinaryUpload';
-import ProfileGuestAuth from '../components/ProfileGuestAuth';
 import {dispatchResetToMainProfileTab} from '../navigation/authNavigationActions';
-import type {ReturnToDebateParams} from '../types/navigation';
+import type {RootStackParamList} from '../types/navigation';
 
-interface SettingsScreenProps {
-  /** When true, screen is embedded in Profile tab (no back button) */
-  embeddedInTab?: boolean;
-}
+const LIME = '#c7f349';
+const CYAN = '#22d3ee';
+const BG = '#030712';
+const CARD = '#0b1224';
+const CARD_BORDER = '#1f2937';
+const MUTED = '#64748b';
+const TEXT = '#e2e8f0';
+const ORANGE = '#f97316';
 
-type SettingsRouteParams = {
-  embeddedInTab?: boolean;
-  returnToDebate?: ReturnToDebateParams;
-};
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-export default function SettingsScreen({
-  embeddedInTab: embeddedInTabProp,
-}: SettingsScreenProps = {}) {
-  const route = useRoute();
-  const routeParams = (route.params as SettingsRouteParams | undefined) ?? {};
-  const embeddedInTab =
-    embeddedInTabProp ?? routeParams.embeddedInTab ?? false;
-  const profileAuthReturnToDebate = routeParams.returnToDebate;
-  const {user, isLoggedIn, logout: authLogout, token, setAuth} = useAuth();
-  const [playerModeLoading, setPlayerModeLoading] = useState(false);
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarURL, setAvatarURL] = useState<string | null>(
-    user?.avatar_url ?? null,
-  );
+const APP_NAME = 'FUCCI';
 
-  React.useEffect(() => {
-    setAvatarURL(user?.avatar_url ?? null);
-  }, [user?.avatar_url]);
+export default function SettingsScreen() {
+  const navigation = useNavigation<Nav>();
+  const {logout: authLogout, isLoggedIn} = useAuth();
+  // const [displayMode, setDisplayMode] = useState<'dark' | 'light'>('dark');
+  // const [matchAlerts, setMatchAlerts] = useState(true);
+  // const [latestNews, setLatestNews] = useState(true);
+  // const [socialPing, setSocialPing] = useState(false);
 
-  const handlePickAndUploadAvatar = async (source: 'camera' | 'library') => {
-    if (!token || !user) return;
-    try {
-      const permission =
-        source === 'camera'
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Permission needed',
-          `Please allow ${source === 'camera' ? 'camera' : 'photo library'} access in Settings to update your avatar.`,
-        );
-        return;
-      }
+  const appVersion =
+    Constants.expoConfig?.version ??
+    (Constants as {nativeAppVersion?: string}).nativeAppVersion ??
+    '1.0.0';
 
-      const result =
-        source === 'camera'
-          ? await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: false,
-              quality: 0.8,
-            })
-          : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: false,
-              quality: 0.8,
-            });
-
-      if (result.canceled || result.assets.length === 0) return;
-      const asset = result.assets[0];
-
-      setAvatarUploading(true);
-      const secureURL = await uploadToCloudinary(token, 'avatar', {
-        uri: asset.uri,
-        fileName: asset.fileName ?? undefined,
-        mimeType: asset.mimeType ?? undefined,
-        size: asset.fileSize ?? undefined,
-      });
-      const updatedUser = await updateProfile(token, {avatar_url: secureURL});
-      if (!updatedUser) {
-        throw new Error('Could not save your profile. Please try again.');
-      }
-      setAvatarURL(updatedUser.avatar_url ?? secureURL);
-      await setAuth(token, updatedUser);
-    } catch (err) {
-      Alert.alert('Upload failed', userFacingApiMessage(err));
-    } finally {
-      setAvatarUploading(false);
-    }
-  };
-
-  const handleEditAvatar = () => {
-    Alert.alert('Update avatar', 'Choose a source', [
-      {text: 'Cancel', style: 'cancel'},
-      {
-        text: 'Camera',
-        onPress: () => {
-          void handlePickAndUploadAvatar('camera');
-        },
-      },
-      {
-        text: 'Photo Library',
-        onPress: () => {
-          void handlePickAndUploadAvatar('library');
-        },
-      },
-    ]);
-  };
-
-  const handleOpenPlayerMode = async () => {
-    if (!token) return;
-    setPlayerModeLoading(true);
-    try {
-      const profile = await getPlayerProfile(token);
-      if (profile) {
-        rootNavigate('PlayerProfile');
-      } else {
-        rootNavigate('CreatePlayerProfile');
-      }
-    } catch (err) {
-      if (__DEV__) {
-        console.warn('[Settings] getPlayerProfile failed', err);
-      }
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        await authLogout();
-        dispatchResetToMainProfileTab();
-        return;
-      }
-      Alert.alert(
-        'Something went wrong',
-        userFacingApiMessage(err),
-      );
-    } finally {
-      setPlayerModeLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     Alert.alert('Log out?', 'Are you sure you want to log out?', [
       {text: 'Cancel', style: 'cancel'},
       {
@@ -157,475 +51,537 @@ export default function SettingsScreen({
         style: 'destructive',
         onPress: async () => {
           await authLogout();
+          navigation.goBack();
           dispatchResetToMainProfileTab();
         },
       },
     ]);
-  };
+  }, [authLogout, navigation]);
 
-  const mainContent = (
-    <>
-      <View style={styles.headerRightRow}>
-        <View />
-        <TouchableOpacity style={styles.headerGear}>
-          <Ionicons name="settings" size={18} color="#c7f349" />
-        </TouchableOpacity>
+  // const handleTerminateAccount = useCallback(() => {
+  //   Alert.alert(
+  //     'Terminate account?',
+  //     'This would permanently remove your account and data. This action is not available in the app yet — contact support if you need to delete your account.',
+  //     [{text: 'OK', style: 'default'}],
+  //   );
+  // }, []);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.topBar}>
+        <View style={styles.topBarSide}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
+            <View style={styles.topBarIconBox}>
+              <Ionicons name="person" size={18} color={LIME} />
+            </View>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.topBarCenter}>
+          <Text style={styles.brandMark}>{APP_NAME}</Text>
+        </View>
+        <View style={styles.topBarSide} />
       </View>
 
-      {!isLoggedIn ? (
-        <View style={styles.guestAuthFill}>
-          <ProfileGuestAuth returnToDebate={profileAuthReturnToDebate} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        {/* Account settings */}
+        <SectionHeader icon="person" label="ACCOUNT SETTINGS" />
+        <View style={styles.card}>
+          <SettingsRow
+            icon="person-outline"
+            title="Profile Identity"
+            onPress={() =>
+              Alert.alert(
+                'Profile Identity',
+                'Edit your name and avatar from the Account tab.',
+              )
+            }
+          />
+          <SettingsRow
+            icon="lock-closed-outline"
+            title="Security & Password"
+            onPress={() =>
+              Alert.alert(
+                'Security & Password',
+                'Password changes will be available in a future update.',
+              )
+            }
+          />
+          <SettingsRow
+            icon="shield-checkmark-outline"
+            title="Privacy Encryption"
+            last
+            onPress={() =>
+              Alert.alert(
+                'Privacy',
+                'Your data is transmitted over HTTPS. More privacy controls coming soon.',
+              )
+            }
+          />
         </View>
-      ) : (
-        <ScrollView
-          style={styles.tabContent}
-          showsVerticalScrollIndicator={false}>
-            <View style={styles.profileSummary}>
-              <View style={styles.profileAvatarWrap}>
-                {avatarURL ? (
-                  <Image source={{uri: avatarURL}} style={styles.avatar} />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person" size={30} color="#94a3b8" />
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={styles.avatarEditBtn}
-                  onPress={handleEditAvatar}
-                  disabled={avatarUploading}
-                  accessibilityLabel="Change profile photo">
-                  {avatarUploading ? (
-                    <ActivityIndicator size="small" color="#c7f349" />
-                  ) : (
-                    <Ionicons name="camera" size={18} color="#c7f349" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
 
-            <View style={styles.section}>
-              <Text style={styles.accountHeading}>Account Settings</Text>
+        {/* Prefs */}
+        {/* <SectionHeader icon="sliders-outline" label="PREFS" />
+        <View style={styles.card}>
+          <Text style={styles.fieldLabel}>DISPLAY MODE</Text>
+          <View style={styles.segment}>
+            <TouchableOpacity
+              style={[
+                styles.segmentBtn,
+                displayMode === 'dark' && styles.segmentBtnActive,
+              ]}
+              onPress={() => setDisplayMode('dark')}
+              activeOpacity={0.85}>
+              <Text
+                style={[
+                  styles.segmentText,
+                  displayMode === 'dark' && styles.segmentTextActive,
+                ]}>
+                DARK
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.segmentBtn,
+                displayMode === 'light' && styles.segmentBtnActive,
+              ]}
+              onPress={() => {
+                setDisplayMode('light');
+                Alert.alert(
+                  'Light mode',
+                  'Full light theme support is coming in a future update.',
+                );
+              }}
+              activeOpacity={0.85}>
+              <Text
+                style={[
+                  styles.segmentText,
+                  displayMode === 'light' && styles.segmentTextActive,
+                ]}>
+                LIGHT
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-              <TouchableOpacity style={styles.settingsCard}>
-                <View style={styles.settingsCardIconWrap}>
-                  <Ionicons name="people" size={16} color="#d9f99d" />
-                </View>
-                <View style={styles.settingsCardTextWrap}>
-                  <Text style={styles.settingsCardTitle}>Following</Text>
-                  <Text style={styles.settingsCardSub}>
-                    View teams and leagues you follow
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-              </TouchableOpacity>
+          <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+            INTERFACE LANGUAGE
+          </Text>
+          <TouchableOpacity
+            style={styles.dropdown}
+            onPress={() =>
+              Alert.alert('Language', 'Additional languages coming soon.', [
+                {text: 'OK'},
+              ])
+            }
+            activeOpacity={0.85}>
+            <Text style={styles.dropdownText}>English (UK)</Text>
+            <Ionicons name="chevron-down" size={18} color={MUTED} />
+          </TouchableOpacity>
+        </View> */}
 
-              <TouchableOpacity
-                style={styles.settingsCard}
-                onPress={handleOpenPlayerMode}
-                disabled={playerModeLoading}
-                accessibilityLabel="Open Player Mode"
-                accessibilityState={{busy: playerModeLoading}}>
-                <View style={styles.settingsCardIconWrap}>
-                  <Ionicons name="person" size={16} color="#d9f99d" />
-                </View>
-                <View style={styles.settingsCardTextWrap}>
-                  <Text style={styles.settingsCardTitle}>Player Mode</Text>
-                  <Text style={styles.settingsCardSub}>
-                    Open player profile portal
-                  </Text>
-                </View>
-                {playerModeLoading ? (
-                  <ActivityIndicator size="small" color="#94a3b8" />
-                ) : (
-                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-                )}
-              </TouchableOpacity>
+        {/* Notifications */}
+        {/* <SectionHeader icon="notifications" label="NOTIFICATIONS" />
+        <Text style={styles.sectionHint}>
+          Control the pulse of your experience
+        </Text>
+        <View style={styles.card}>
+          <ToggleRow
+            label="MATCH ALERTS"
+            value={matchAlerts}
+            onValueChange={setMatchAlerts}
+          />
+          <ToggleRow
+            label="LATEST NEWS"
+            value={latestNews}
+            onValueChange={setLatestNews}
+          />
+          <ToggleRow
+            label="SOCIAL PING"
+            value={socialPing}
+            onValueChange={setSocialPing}
+            last
+          />
+        </View> */}
 
-              <TouchableOpacity style={styles.settingsCard}>
-                <View style={styles.settingsCardIconWrap}>
-                  <Ionicons name="briefcase" size={16} color="#d9f99d" />
-                </View>
-                <View style={styles.settingsCardTextWrap}>
-                  <Text style={styles.settingsCardTitle}>Team Manager</Text>
-                  <Text style={styles.settingsCardSub}>
-                    {user?.role === 'team_manager'
-                      ? 'Manage your team tools'
-                      : 'Request team manager access'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-        </ScrollView>
-      )}
+        {/* Support */}
+        <SectionHeader icon="help-circle" label="SUPPORT" />
+        <View style={styles.card}>
+          <SupportRow
+            icon="book-outline"
+            title="FAQ"
+            onPress={() => Alert.alert('FAQ', 'Help center is coming soon.')}
+          />
+          <SupportRow
+            icon="headset-outline"
+            title="Contact Support"
+            onPress={() =>
+              Alert.alert(
+                'Contact',
+                'Support contact options will be available in a future update.',
+              )
+            }
+          />
+          <SupportRow
+            icon="document-text-outline"
+            title="Terms of Service"
+            last
+            onPress={() =>
+              Alert.alert('Terms', 'Terms of service will be published here.')
+            }
+          />
+        </View>
+        <Text style={styles.version}>VERSION {appVersion}-FUCCI_BETA</Text>
 
-      {isLoggedIn && (
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#f87171" />
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
-      )}
-    </>
-  );
+        {/* Critical zone */}
+        {/* <Text style={styles.criticalTitle}>CRITICAL ZONE</Text>
+        <Text style={styles.criticalCopy}>
+          Deactivating your account will result in the permanent loss of all
+          player stats and achievements.
+        </Text> */}
+        {/* <TouchableOpacity
+          style={styles.terminateBtn}
+          onPress={handleTerminateAccount}
+          activeOpacity={0.85}>
+          <Text style={styles.terminateText}>TERMINATE ACCOUNT</Text>
+        </TouchableOpacity> */}
 
-  return embeddedInTab ? (
-    <View style={styles.container}>{mainContent}</View>
-  ) : (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {mainContent}
+        {isLoggedIn ? (
+          <TouchableOpacity
+            style={styles.logoutCta}
+            onPress={handleLogout}
+            activeOpacity={0.9}>
+            <Ionicons name="log-out-outline" size={22} color="#0f172a" />
+            <Text style={styles.logoutCtaText}>LOGOUT OF SESSION</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <View style={{height: 32}} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+function SectionHeader({icon, label}: {icon: string; label: string}) {
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <Ionicons name={icon as any} size={16} color={LIME} />
+      <Text style={styles.sectionHeaderText}>{label}</Text>
+    </View>
+  );
+}
+
+function SettingsRow({
+  icon,
+  title,
+  onPress,
+  last,
+}: {
+  icon: string;
+  title: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.row, !last && styles.rowBorder]}
+      onPress={onPress}
+      activeOpacity={0.75}>
+      <Ionicons name={icon as any} size={20} color={CYAN} />
+      <Text style={styles.rowTitle}>{title}</Text>
+      <Ionicons name="chevron-forward" size={18} color={MUTED} />
+    </TouchableOpacity>
+  );
+}
+
+function SupportRow({
+  icon,
+  title,
+  onPress,
+  last,
+}: {
+  icon: string;
+  title: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.supportRow, !last && styles.rowBorder]}
+      onPress={onPress}
+      activeOpacity={0.75}>
+      <Ionicons name={icon as any} size={20} color={CYAN} />
+      <Text style={styles.supportTitle}>{title}</Text>
+      <Ionicons name="chevron-forward" size={18} color={MUTED} />
+    </TouchableOpacity>
+  );
+}
+
+function ToggleRow({
+  label,
+  value,
+  onValueChange,
+  last,
+}: {
+  label: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.toggleRow, !last && styles.rowBorder]}>
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{false: '#334155', true: 'rgba(199,243,73,0.45)'}}
+        thumbColor={value ? LIME : '#94a3b8'}
+        ios_backgroundColor="#334155"
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    backgroundColor: '#030712',
+    backgroundColor: BG,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#030712',
-    padding: 24,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: '#94a3b8',
-    marginBottom: 16,
-  },
-  headerRightRow: {
+  topBar: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111827',
-    backgroundColor: '#07101f',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerAvatarDot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: '#c7f349',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  headerAvatarImg: {width: 24, height: 24, borderRadius: 12},
-  headerGear: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: 1.4,
-    color: '#c7f349',
-    fontStyle: 'italic',
-  },
-  profileSummary: {
-    alignItems: 'center',
-    paddingTop: 14,
-    paddingBottom: 14,
-    paddingHorizontal: 20,
-  },
-  profileAvatarWrap: {
-    width: 84,
-    height: 84,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#84cc16',
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'visible',
-  },
-  avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 10,
-  },
-  avatarPlaceholder: {
-    width: 76,
-    height: 76,
-    borderRadius: 10,
-    backgroundColor: '#0b1224',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarEditBtn: {
-    position: 'absolute',
-    right: -8,
-    bottom: -8,
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  tabs: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginBottom: 6,
-    overflow: 'hidden',
-    backgroundColor: '#111827',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#1f2937',
-  },
-  tabText: {
-    fontSize: 12,
-    color: '#94a3b8',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  tabTextActive: {
-    color: '#e2e8f0',
-    fontWeight: '700',
-  },
-  guestAuthFill: {
-    flex: 1,
-    minHeight: 400,
-  },
-  tabContent: {
-    flex: 1,
-    padding: 16,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2c1f17',
-    borderBottomWidth: 1,
-    borderBottomColor: '#7c2d12',
-  },
-  errorBannerText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#fdba74',
-  },
-  retryButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  retryButtonText: {
-    fontSize: 14,
-    color: '#67e8f9',
-    fontWeight: '600',
-  },
-  saveErrorText: {
-    fontSize: 14,
-    color: '#f87171',
-    marginBottom: 12,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  accountHeading: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '700',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  settingsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0b1224',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  settingsCardIconWrap: {
+  topBarSide: {
     width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#111827',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  topBarCenter: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsCardTextWrap: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  settingsCardTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#e2e8f0',
-  },
-  settingsCardSub: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#94a3b8',
-  },
-  personalInfoEditor: {
+  topBarIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    borderRadius: 12,
-    backgroundColor: '#0a1220',
-    padding: 12,
-    marginBottom: 12,
-  },
-  playerProfileEntry: {
-    flexDirection: 'row',
+    borderColor: 'rgba(199,243,73,0.35)',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    borderRadius: 10,
-    backgroundColor: '#0b1224',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.6)',
   },
-  playerProfileEntryText: {
+  brandMark: {
+    fontSize: 18,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    letterSpacing: 1.2,
+    color: LIME,
+  },
+  scroll: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#d1d5db',
   },
-  label: {
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  heroTitleLight: {
+    color: TEXT,
+  },
+  heroTitleAccent: {
+    color: LIME,
+  },
+  heroSub: {
+    marginTop: 8,
+    marginBottom: 24,
     fontSize: 11,
     fontWeight: '700',
-    color: '#94a3b8',
-    marginBottom: 8,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    letterSpacing: 1.4,
+    color: MUTED,
   },
-  input: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    color: LIME,
+  },
+  sectionHint: {
+    fontSize: 12,
+    color: MUTED,
+    marginBottom: 10,
+    marginTop: -4,
+  },
+  card: {
+    backgroundColor: CARD,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    borderRadius: 8,
+    borderColor: CARD_BORDER,
     paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginBottom: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 12,
+  },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 12,
+  },
+  rowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(148,163,184,0.15)',
+  },
+  rowTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: TEXT,
+  },
+  supportTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: TEXT,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: MUTED,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  fieldLabelSpaced: {
+    marginTop: 18,
+  },
+  segment: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  segmentBtn: {
+    flex: 1,
     paddingVertical: 12,
-    fontSize: 20,
-    marginBottom: 16,
-    color: '#f8fafc',
+    alignItems: 'center',
     backgroundColor: '#020617',
   },
-  emptyText: {
-    fontSize: 15,
-    color: '#94a3b8',
-    textAlign: 'center',
-    marginTop: 24,
+  segmentBtnActive: {
+    backgroundColor: LIME,
   },
-  followRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1f2937',
-  },
-  followLabel: {
-    fontSize: 15,
-    color: '#d1d5db',
-  },
-  followHint: {
+  segmentText: {
     fontSize: 12,
-    color: '#64748b',
-  },
-  button: {
-    backgroundColor: '#c7f349',
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#bef264',
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#0f172a',
-    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    fontStyle: 'italic',
+    letterSpacing: 1,
+    color: TEXT,
   },
-  linkButton: {
-    marginTop: 12,
-    paddingVertical: 8,
+  segmentTextActive: {
+    color: '#0f172a',
+  },
+  dropdown: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
   },
-  linkText: {
-    color: '#67e8f9',
-    fontSize: 16,
+  dropdownText: {
+    fontSize: 15,
+    color: TEXT,
+    fontWeight: '600',
   },
-  logoutButton: {
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  toggleLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: TEXT,
+  },
+  version: {
+    fontSize: 10,
+    letterSpacing: 1,
+    color: MUTED,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  criticalTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 2,
+    color: ORANGE,
+    marginBottom: 8,
+  },
+  criticalCopy: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: MUTED,
+    marginBottom: 12,
+  },
+  terminateBtn: {
+    borderWidth: 1.5,
+    borderColor: ORANGE,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  terminateText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    color: ORANGE,
+  },
+  logoutCta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
+    backgroundColor: LIME,
+    borderRadius: 12,
     paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#3f1d1d',
-    borderRadius: 10,
-    marginHorizontal: 120,
     marginBottom: 8,
-    gap: 8,
   },
-  logoutText: {
-    fontSize: 15,
-    color: '#f87171',
-    fontWeight: '700',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-  },
-  buildFooter: {
-    textAlign: 'center',
-    color: '#475569',
-    fontSize: 10,
-    letterSpacing: 0.8,
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  stadiumBand: {
-    height: 90,
-    marginHorizontal: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
-    backgroundColor: '#0a1220',
+  logoutCtaText: {
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    color: '#0f172a',
   },
 });

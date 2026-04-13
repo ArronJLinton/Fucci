@@ -11,8 +11,8 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/news"
 )
 
-// validRapidAPIResponse is a minimal valid response the news client can parse
-const validRapidAPIResponse = `{"status":"OK","request_id":"test","data":[{"title":"Test","link":"https://example.com/article/1","snippet":"","photo_url":"","published_datetime_utc":"2025-01-01T12:00:00Z","source_name":"Source","source_url":"https://example.com"}]}`
+// validNewsSearchJSON is a minimal valid search API response the news client can parse.
+const validNewsSearchJSON = `{"status":"OK","request_id":"test","data":[{"title":"Test","link":"https://example.com/article/1","snippet":"","photo_url":"","published_datetime_utc":"2025-01-01T12:00:00Z","source_name":"Source","source_url":"https://example.com"}]}`
 
 func TestGetFootballNews_CacheHit(t *testing.T) {
 	cacheKey := news.GenerateCacheKey()
@@ -61,9 +61,12 @@ func TestGetFootballNews_CacheHit(t *testing.T) {
 
 func TestGetFootballNews_CacheMiss_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-API-Key") != "key" {
+			t.Errorf("expected X-API-Key: key, got %q", r.Header.Get("X-API-Key"))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(validRapidAPIResponse))
+		w.Write([]byte(validNewsSearchJSON))
 	}))
 	defer server.Close()
 
@@ -90,7 +93,7 @@ func TestGetFootballNews_CacheMiss_Success(t *testing.T) {
 	}
 }
 
-func TestGetFootballNews_RapidAPIFailure_NoCache(t *testing.T) {
+func TestGetFootballNews_UpstreamNewsFailure_NoCache(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -113,8 +116,8 @@ func TestGetFootballNews_RapidAPIFailure_NoCache(t *testing.T) {
 }
 
 // Note: 503 with cached fallback is not reachable in the current handler: on cache hit we return 200
-// and never call RapidAPI; when we call RapidAPI we only reach the error path with exists=false
-// (because Get failure sets exists=false). So RapidAPI failure always yields 500 when no cache.
+// and never call the news client; when we do, we only reach the error path with exists=false
+// (because Get failure sets exists=false). So upstream news failure always yields 500 when no cache.
 
 func TestGetMatchNews_MissingParams(t *testing.T) {
 	config := &Config{Cache: &MockCache{}, RapidAPIKey: "key"}
@@ -173,7 +176,7 @@ func TestGetMatchNews_CacheHit(t *testing.T) {
 	}
 }
 
-func TestGetMatchNews_RapidAPIFailure_NoCache(t *testing.T) {
+func TestGetMatchNews_UpstreamNewsFailure_NoCache(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -202,7 +205,7 @@ func TestGetMatchNews_CacheMiss_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(validRapidAPIResponse))
+		w.Write([]byte(validNewsSearchJSON))
 	}))
 	defer server.Close()
 

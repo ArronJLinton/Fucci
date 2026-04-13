@@ -10,7 +10,7 @@ import (
 )
 
 // getFootballNews handles GET /api/news/football
-// Fetches football news from RapidAPI with caching
+// Fetches football news from the configured news provider with caching
 func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Generate cache key
@@ -38,10 +38,9 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 		newsClient = news.NewClientWithBaseURL(c.RapidAPIKey, c.NewsBaseURL)
 	}
 
-	// Fetch both today's news and historical news from RapidAPI
 	todayAndHistoryResp, err := newsClient.FetchTodayAndHistoryNews(ctx)
 	if err != nil {
-		log.Printf("Failed to fetch news from RapidAPI: %v", err)
+		log.Printf("Failed to fetch news: %v", err)
 
 		// If we have cached data, return it even if stale
 		if exists {
@@ -135,7 +134,7 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 	limit := 10
 	matchResp, err := newsClient.FetchMatchNews(ctx, homeTeam, awayTeam, limit, matchStatus, matchEndTime)
 	if err != nil {
-		log.Printf("Failed to fetch match news from RapidAPI: %v", err)
+		log.Printf("Failed to fetch match news: %v", err)
 
 		// If we have cached data, return it even if stale
 		if exists {
