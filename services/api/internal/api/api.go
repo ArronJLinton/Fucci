@@ -81,7 +81,7 @@ type Config struct {
 	CloudinaryUploadPreset        string
 	Cache                         cache.CacheInterface
 	APIFootballBaseURL            string
-	NewsBaseURL                   string // optional; when set, news client uses this (e.g. for tests)
+	NEWS_BASE_URL                 string // optional; when set, news client uses this (e.g. for tests)
 	OpenAIKey                     string
 	OpenAIBaseURL                 string
 	AIPromptGenerator             *ai.PromptGenerator
