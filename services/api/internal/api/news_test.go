@@ -75,7 +75,7 @@ func TestGetFootballNews_CacheMiss_Success(t *testing.T) {
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
 		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
-	config := &Config{Cache: mockCache, RapidAPIKey: "key", NEWS_BASE_URL: server.URL}
+	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football", nil)
 	rec := httptest.NewRecorder()
 
@@ -104,7 +104,7 @@ func TestGetFootballNews_RapidAPIFailure_NoCache(t *testing.T) {
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
 		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
-	config := &Config{Cache: mockCache, RapidAPIKey: "key", NEWS_BASE_URL: server.URL}
+	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football", nil)
 	rec := httptest.NewRecorder()
 
@@ -187,7 +187,7 @@ func TestGetMatchNews_RapidAPIFailure_NoCache(t *testing.T) {
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
 		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
-	config := &Config{Cache: mockCache, RapidAPIKey: "key", NEWS_BASE_URL: server.URL}
+	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football/match", nil)
 	req.URL.RawQuery = "homeTeam=TeamA&awayTeam=TeamB&matchId=123"
 	rec := httptest.NewRecorder()
@@ -214,7 +214,7 @@ func TestGetMatchNews_CacheMiss_Success(t *testing.T) {
 		getFunc:    func(ctx context.Context, key string, value interface{}) error { return nil },
 		setFunc:    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
 	}
-	config := &Config{Cache: mockCache, RapidAPIKey: "key", NEWS_BASE_URL: server.URL}
+	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
 	req := httptest.NewRequest(http.MethodGet, "/news/football/match", nil)
 	req.URL.RawQuery = "homeTeam=TeamA&awayTeam=TeamB&matchId=123"
 	rec := httptest.NewRecorder()

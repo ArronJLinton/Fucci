@@ -324,8 +324,8 @@ func valueToInt(v interface{}) int {
 // fetchNewsHeadlines gets match news via the news module's FetchMatchNews (Real-Time News Data API).
 func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTeam, awayTeam, matchStatus string) ([]string, error) {
 	newsClient := news.NewClient(dda.Config.RapidAPIKey)
-	if dda.Config.NEWS_BASE_URL != "" {
-		newsClient = news.NewClientWithBaseURL(dda.Config.RapidAPIKey, dda.Config.NEWS_BASE_URL)
+	if dda.Config.NewsBaseURL != "" {
+		newsClient = news.NewClientWithBaseURL(dda.Config.RapidAPIKey, dda.Config.NewsBaseURL)
 	}
 
 	limit := 10

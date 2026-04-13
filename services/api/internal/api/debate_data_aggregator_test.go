@@ -219,7 +219,7 @@ func TestAggregateMatchData_SetsH2HAndStandingsWhenIDsPresent(t *testing.T) {
 		FootballAPIKey:     "test-key",
 		Cache:              nil,
 		RapidAPIKey:        "key",
-		NEWS_BASE_URL:      server.URL,
+		NewsBaseURL:        server.URL,
 	}
 	dda := NewDebateDataAggregator(config)
 
