@@ -74,6 +74,8 @@ export interface DebateSummary {
   source_url?: string;
   source_published_at?: string;
   teams?: DebateTeams;
+  /** ISO kickoff from API when match_info includes fixture date; used to hide pre_match after kickoff. */
+  match_date?: string;
 }
 
 /** Guest browse — GET /debates/public-feed */

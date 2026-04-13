@@ -172,6 +172,7 @@ WITH feed_candidates AS (
     FROM debates d
     LEFT JOIN debate_analytics da ON d.id = da.debate_id
     WHERE d.deleted_at IS NULL
+      AND d.created_at >= CURRENT_TIMESTAMP - INTERVAL '6 days'
       AND EXISTS (SELECT 1 FROM debate_cards dc WHERE dc.debate_id = d.id)
     ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
     LIMIT $1
@@ -212,6 +213,7 @@ WITH feed_candidates AS (
     FROM debates d
     LEFT JOIN debate_analytics da ON d.id = da.debate_id
     WHERE d.deleted_at IS NULL
+      AND d.created_at >= CURRENT_TIMESTAMP - INTERVAL '6 days'
       AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
       AND NOT EXISTS (
         SELECT 1
@@ -271,6 +273,7 @@ WITH feed_candidates AS (
     ) uv ON uv.debate_id = d.id
     LEFT JOIN debate_analytics da ON d.id = da.debate_id
     WHERE d.deleted_at IS NULL
+      AND d.created_at >= CURRENT_TIMESTAMP - INTERVAL '6 days'
       AND EXISTS (SELECT 1 FROM debate_cards dc0 WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree'))
     ORDER BY uv.last_voted_at DESC NULLS LAST
     LIMIT $2

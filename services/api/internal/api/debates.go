@@ -332,6 +332,8 @@ type DebateSummary struct {
 	SourceURL         *string                 `json:"source_url,omitempty"`
 	SourcePublishedAt *time.Time              `json:"source_published_at,omitempty"`
 	Teams             *DebateTeams            `json:"teams,omitempty"`
+	// MatchDate is kickoff from stored match_info (RFC3339 in JSON); clients hide pre_match after kickoff.
+	MatchDate *time.Time `json:"match_date,omitempty"`
 }
 
 // PublicDebateFeedResponse is GET /debates/public-feed (guest browse).
@@ -420,6 +422,14 @@ func buildDebateSummary(
 			EngagementScore: eng,
 		}
 	}
+	if mi := decodeMatchInfo(matchInfo); mi != nil {
+		if d := strings.TrimSpace(mi.Date); d != "" {
+			if tt, err := parseFixtureDate(d); err == nil {
+				t := tt.UTC()
+				s.MatchDate = &t
+			}
+		}
+	}
 	return s, nil
 }
 
@@ -485,7 +495,8 @@ func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryC
 	}
 }
 
-func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
+// decodeMatchInfo unmarshals debates.match_info JSON into MatchInfo when present.
+func decodeMatchInfo(matchInfo interface{}) *MatchInfo {
 	if matchInfo == nil {
 		return nil
 	}
@@ -514,6 +525,37 @@ func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
 	if err := json.Unmarshal(raw, &mi); err != nil {
 		return nil
 	}
+	return &mi
+}
+
+func parseFixtureDate(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, fmt.Errorf("empty fixture date")
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	var firstErr error
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		} else if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return time.Time{}, fmt.Errorf("parse fixture date %q: %v", s, firstErr)
+}
+
+func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
+	mi := decodeMatchInfo(matchInfo)
+	if mi == nil {
+		return nil
+	}
 	teams := &DebateTeams{
 		Home: DebateTeamSide{
 			Name: mi.HomeTeam,
@@ -524,7 +566,7 @@ func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
 			Logo: mi.AwayTeamLogo,
 		},
 	}
-	if matchInfoShowsFullScoreline(mi) {
+	if matchInfoShowsFullScoreline(*mi) {
 		hs := mi.HomeScore
 		as := mi.AwayScore
 		teams.Home.Score = &hs
