@@ -26,11 +26,11 @@ type NewsAPIResponse struct {
 	CachedAt        string        `json:"cachedAt,omitempty"` // ISO 8601 format
 }
 
-// TransformRapidAPIResponse transforms RapidAPI response to internal format
-func TransformRapidAPIResponse(rapidAPIResp *RapidAPIResponse) (*NewsAPIResponse, error) {
-	articles := make([]NewsArticle, 0, len(rapidAPIResp.Data))
+// TransformNewsSearchResponse maps a single search API payload to the public NewsAPIResponse shape (legacy helper).
+func TransformNewsSearchResponse(raw *NewsSearchResponse) (*NewsAPIResponse, error) {
+	articles := make([]NewsArticle, 0, len(raw.Data))
 
-	for _, article := range rapidAPIResp.Data {
+	for _, article := range raw.Data {
 		articleID, err := GenerateArticleID(article.Link)
 		if err != nil {
 			log.Printf("news: skipping article, GenerateArticleID failed for link %q: %v", article.Link, err)
@@ -189,11 +189,11 @@ type MatchNewsAPIResponse struct {
 	CachedAt string        `json:"cachedAt,omitempty"` // ISO 8601 format
 }
 
-// TransformMatchNewsResponse transforms RapidAPI response to match news format (today's articles only)
-func TransformMatchNewsResponse(rapidAPIResp *RapidAPIResponse) (*MatchNewsAPIResponse, error) {
-	articles := make([]NewsArticle, 0, len(rapidAPIResp.Data))
+// TransformMatchNewsResponse maps search API articles to match news format (today's articles only).
+func TransformMatchNewsResponse(raw *NewsSearchResponse) (*MatchNewsAPIResponse, error) {
+	articles := make([]NewsArticle, 0, len(raw.Data))
 
-	for _, article := range rapidAPIResp.Data {
+	for _, article := range raw.Data {
 		articleID, err := GenerateArticleID(article.Link)
 		if err != nil {
 			log.Printf("news: skipping match article, GenerateArticleID failed for link %q: %v", article.Link, err)
