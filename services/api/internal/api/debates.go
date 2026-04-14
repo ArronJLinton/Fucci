@@ -529,20 +529,21 @@ func decodeMatchInfo(matchInfo interface{}) *MatchInfo {
 	return &mi
 }
 
+var fixtureDateLayouts = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05Z07:00",
+	"2006-01-02 15:04:05",
+	"2006-01-02",
+}
+
 func parseFixtureDate(s string) (time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty fixture date")
 	}
-	layouts := []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04:05Z07:00",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
-	}
 	var firstErr error
-	for _, layout := range layouts {
+	for _, layout := range fixtureDateLayouts {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t, nil
 		} else if firstErr == nil {
