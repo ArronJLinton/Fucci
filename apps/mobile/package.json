@@ -17,6 +17,7 @@
     "prod": "yarn env:prod && expo start",
     "build:android": "yarn env:prod && eas build -p android --profile production",
     "build:ios": "yarn env:prod && eas build -p ios --profile production",
+    "build:ios-preview": "yarn env:staging && npx eas-cli build -p ios --profile preview",
     "preflight:typecheck": "yarn type-check",
     "preflight:doctor": "npx expo-doctor",
     "preflight:eas": "npx eas-cli whoami",
