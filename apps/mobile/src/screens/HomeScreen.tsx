@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   useWindowDimensions,
   View,
@@ -184,13 +184,20 @@ const HomeScreen = () => {
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
     DEFAULT_LEAGUE,
   );
+  /** Set when the user picks a league from the strip; blocks async default from overwriting. */
+  const userChangedSelectionRef = useRef(false);
+
+  const handleLeagueSelect = useCallback((league: League | null) => {
+    userChangedSelectionRef.current = true;
+    setSelectedLeague(league);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const league = await resolveHomeScreenDefaultLeague(new Date());
-        if (!cancelled) {
+        if (!cancelled && !userChangedSelectionRef.current) {
           setSelectedLeague(league);
         }
       } catch {
@@ -286,7 +293,7 @@ const HomeScreen = () => {
                 <View style={styles.tabBody}>
                   <LeagueHorizontalStrip
                     selectedLeague={selectedLeague}
-                    onSelect={setSelectedLeague}
+                    onSelect={handleLeagueSelect}
                     includeAllOption={false}
                     accentColor={MATCHES_LIME}
                     mutedColor={MATCHES_MUTED}
