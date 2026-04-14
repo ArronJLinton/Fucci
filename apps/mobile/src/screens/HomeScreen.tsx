@@ -82,11 +82,24 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const matchesByKeyRef = React.useRef<Map<string, any[]>>(new Map());
 
   React.useEffect(() => {
-    if (!isSelected || !selectedLeague) {
+    if (!selectedLeague) {
       return;
     }
 
     const cached = matchesByKeyRef.current.get(cacheKey);
+
+    /** Inactive tab: keep list in sync with (date + league) so we never flash another league after switching strip on a different day tab. */
+    if (!isSelected) {
+      if (cached !== undefined) {
+        setMatches(cached);
+      } else {
+        setMatches([]);
+      }
+      setIsLoading(false);
+      isLoadingRef.current = false;
+      return;
+    }
+
     if (cached) {
       setMatches(cached);
       setIsLoading(false);
@@ -102,11 +115,15 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     const currentLeague = selectedLeague;
 
     const timeoutId = setTimeout(() => {
-      if (
-        currentCacheKey !== cacheKey ||
-        !isSelected ||
-        matchesByKeyRef.current.has(currentCacheKey)
-      ) {
+      if (currentCacheKey !== cacheKey || !isSelected) {
+        isLoadingRef.current = false;
+        setIsLoading(false);
+        return;
+      }
+
+      const hitWhileWaiting = matchesByKeyRef.current.get(currentCacheKey);
+      if (hitWhileWaiting) {
+        setMatches(hitWhileWaiting);
         isLoadingRef.current = false;
         setIsLoading(false);
         return;
