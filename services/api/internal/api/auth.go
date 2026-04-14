@@ -726,7 +726,7 @@ func respondWithGoogleAuthError(w http.ResponseWriter, status int, code, message
 
 func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context (set by auth middleware)
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		respondWithError(w, http.StatusUnauthorized, "authentication required")
 		return
@@ -836,7 +836,7 @@ type GetFollowingResponse struct {
 }
 
 func (c *Config) handleGetFollowing(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		respondWithError(w, http.StatusUnauthorized, "authentication required")
 		return
@@ -874,7 +874,7 @@ func (c *Config) handleGetFollowing(w http.ResponseWriter, r *http.Request) {
 
 func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context (set by auth middleware)
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		respondWithError(w, http.StatusUnauthorized, "authentication required")
 		return

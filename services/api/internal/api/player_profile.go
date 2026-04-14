@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 )
 
@@ -257,7 +258,7 @@ func compareCatalogItem(row database.ListComparePlayerCatalogRow) ComparePlayerC
 }
 
 func (c *Config) getPlayerProfileCatalog(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -285,7 +286,7 @@ func (c *Config) getPlayerProfileCatalog(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *Config) getPlayerProfile(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -334,7 +335,7 @@ func (c *Config) getPlayerProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -429,7 +430,7 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -560,7 +561,7 @@ func dedupeTraitCodesPreserveOrder(codes []string) []string {
 }
 
 func (c *Config) putPlayerProfileTraits(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -669,7 +670,7 @@ func (c *Config) putPlayerProfileTraits(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *Config) deletePlayerProfile(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return

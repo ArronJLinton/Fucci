@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/DATA-DOG/go-sqlmock"
@@ -476,7 +477,7 @@ func TestGetDebatesFeed_OKWithUserID(t *testing.T) {
 	c := &Config{DebatesFeedDB: mock}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
-	ctx := context.WithValue(req.Context(), "user_id", int32(7))
+	ctx := auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 7})
 	req = req.WithContext(ctx)
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusOK {
@@ -502,7 +503,7 @@ func TestGetDebatesFeed_LimitsClamped(t *testing.T) {
 	c := &Config{DebatesFeedDB: mock}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debates/feed?new_limit=999&voted_limit=888", nil)
-	ctx := context.WithValue(req.Context(), "user_id", int32(1))
+	ctx := auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 1})
 	req = req.WithContext(ctx)
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusOK {
@@ -518,7 +519,7 @@ func TestGetDebatesFeed_NewListError(t *testing.T) {
 	c := &Config{DebatesFeedDB: mock}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
-	ctx := context.WithValue(req.Context(), "user_id", int32(1))
+	ctx := auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 1})
 	req = req.WithContext(ctx)
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusInternalServerError {

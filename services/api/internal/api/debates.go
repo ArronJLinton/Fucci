@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 	"github.com/sqlc-dev/pqtype"
@@ -920,23 +921,21 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var uvByCard map[int32]*VoteResponse
-		if uidVal := ctx.Value("user_id"); uidVal != nil {
-			if userID, ok := uidVal.(int32); ok && userID != 0 {
-				swipeRows, errUV := c.DB.GetUserSwipeVotesForCards(ctx, database.GetUserSwipeVotesForCardsParams{
-					UserID:  sql.NullInt32{Int32: userID, Valid: true},
-					Column2: cardIDs,
-				})
-				if errUV != nil {
-					log.Printf("[debates] GetUserSwipeVotesForCards debate_id=%d user_id=%d: %v", debate.ID, userID, errUV)
-				} else if len(swipeRows) > 0 {
-					uvByCard = make(map[int32]*VoteResponse, len(swipeRows))
-					for _, row := range swipeRows {
-						if !row.DebateCardID.Valid {
-							continue
-						}
-						if vr := userSwipeVoteRowToResponse(row); vr != nil {
-							uvByCard[row.DebateCardID.Int32] = vr
-						}
+		if userID, ok := auth.UserIDFromContext(ctx); ok && userID != 0 {
+			swipeRows, errUV := c.DB.GetUserSwipeVotesForCards(ctx, database.GetUserSwipeVotesForCardsParams{
+				UserID:  sql.NullInt32{Int32: userID, Valid: true},
+				Column2: cardIDs,
+			})
+			if errUV != nil {
+				log.Printf("[debates] GetUserSwipeVotesForCards debate_id=%d user_id=%d: %v", debate.ID, userID, errUV)
+			} else if len(swipeRows) > 0 {
+				uvByCard = make(map[int32]*VoteResponse, len(swipeRows))
+				for _, row := range swipeRows {
+					if !row.DebateCardID.Valid {
+						continue
+					}
+					if vr := userSwipeVoteRowToResponse(row); vr != nil {
+						uvByCard[row.DebateCardID.Int32] = vr
 					}
 				}
 			}
@@ -2153,8 +2152,7 @@ func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 		respondWithErrorCode(w, http.StatusInternalServerError, "database not configured", errCodeDebateDBNotConfigured)
 		return
 	}
-	uidVal := ctx.Value("user_id")
-	userID, ok := uidVal.(int32)
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		respondWithErrorCode(w, http.StatusUnauthorized, "authentication required", errCodeDebateAuthRequired)
 		return

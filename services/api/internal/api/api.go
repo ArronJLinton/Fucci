@@ -64,9 +64,9 @@ func InitJWT(secret string) error {
 }
 
 type Config struct {
-	DB                      *database.Queries
-	DBConn                  *sql.DB
-	FootballAPIKey          string
+	DB             *database.Queries
+	DBConn         *sql.DB
+	FootballAPIKey string
 	// RapidAPIKey is RAPID_API_KEY: used for Google News (RapidAPI host/headers in google.go) and for realtime news search (X-API-Key; news package).
 	RapidAPIKey             string
 	GoogleOAuthClientID     string
@@ -295,7 +295,7 @@ func (c *Config) debatesFeedStore() DebatesFeedStore {
 
 // getUserIDFromContext extracts user ID from request context (set by auth middleware)
 func getUserIDFromContext(r *http.Request) uuid.UUID {
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		// Return default UUID if no user ID in context (for backward compatibility)
 		return uuid.MustParse("00000000-0000-0000-0000-000000000001")

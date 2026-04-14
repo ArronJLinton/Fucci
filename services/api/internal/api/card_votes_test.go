@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func (m *mockCardVoteReader) GetDebateCard(ctx context.Context, id int32) (datab
 	return database.DebateCards{}, sql.ErrNoRows
 }
 
-// requestWithChiParams builds a request with chi URL params and optional user_id in context.
+// requestWithChiParams builds a request with chi URL params and optional JWT user id in context.
 func requestWithChiParams(method, path string, body interface{}, urlParams map[string]string, userID *int32) *http.Request {
 	var bodyBytes []byte
 	if body != nil {
@@ -57,7 +58,7 @@ func requestWithChiParams(method, path string, body interface{}, urlParams map[s
 		req = req.WithContext(ctx)
 	}
 	if userID != nil {
-		ctx = context.WithValue(req.Context(), "user_id", *userID)
+		ctx = auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: *userID})
 		req = req.WithContext(ctx)
 	}
 	return req

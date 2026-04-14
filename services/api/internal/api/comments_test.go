@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func (m *mockCommentReader) GetComment(ctx context.Context, id int32) (database.
 	return database.GetCommentRow{}, sql.ErrNoRows
 }
 
-// commentRequestWithChiParams builds a request with chi URL params and optional user_id.
+// commentRequestWithChiParams builds a request with chi URL params and optional JWT user id in context.
 func commentRequestWithChiParams(method, path string, body interface{}, urlParams map[string]string, userID *int32) *http.Request {
 	var bodyBytes []byte
 	if body != nil {
@@ -66,7 +67,7 @@ func commentRequestWithChiParams(method, path string, body interface{}, urlParam
 		req = req.WithContext(ctx)
 	}
 	if userID != nil {
-		ctx = context.WithValue(req.Context(), "user_id", *userID)
+		ctx = auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: *userID})
 		req = req.WithContext(ctx)
 	}
 	return req
