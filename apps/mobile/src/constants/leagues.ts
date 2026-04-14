@@ -5,20 +5,17 @@ export interface League {
   logo?: string;
 }
 
-/** API-Football league id for UEFA Champions League (`/fixtures` season = calendar year of match day). */
+/** API-Football league id for UEFA Champions League. */
 export const UCL_LEAGUE_ID = 2;
 
 /**
- * Optional `season` query for GET /futbol/matches. UCL uses the calendar year of the
- * requested match date (e.g. April 2026 → 2026); other leagues are resolved on the server.
+ * Optional `season` for GET /futbol/matches. Omitted so the API resolves the correct
+ * API-Football season (competition start year, including UCL) from league + date.
  */
 export function seasonParamForMatchSearch(
-  league: League,
-  matchDate: Date,
+  _league: League,
+  _matchDate: Date,
 ): number | undefined {
-  if (league.id === UCL_LEAGUE_ID) {
-    return matchDate.getFullYear();
-  }
   return undefined;
 }
 
