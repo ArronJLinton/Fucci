@@ -1,13 +1,14 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 )
 
 func TestCloudinarySign_Deterministic(t *testing.T) {
@@ -29,7 +30,7 @@ func TestPostCloudinarySignature_RequiresUploadAuthMethod(t *testing.T) {
 	}
 	body := strings.NewReader(`{"context":"avatar"}`)
 	req := httptest.NewRequest(http.MethodPost, "/upload/cloudinary/signature", body)
-	req = req.WithContext(context.WithValue(req.Context(), "user_id", int32(1)))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 1}))
 	rr := httptest.NewRecorder()
 	cfg.postCloudinarySignature(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -54,7 +55,7 @@ func TestPostCloudinarySignature_OKWithAPISecret(t *testing.T) {
 	}
 	body := strings.NewReader(`{"context":"avatar"}`)
 	req := httptest.NewRequest(http.MethodPost, "/upload/cloudinary/signature", body)
-	req = req.WithContext(context.WithValue(req.Context(), "user_id", int32(1)))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 1}))
 	rr := httptest.NewRecorder()
 	cfg.postCloudinarySignature(rr, req)
 	if rr.Code != http.StatusOK {

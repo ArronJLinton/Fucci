@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {Ionicons} from '@expo/vector-icons';
@@ -74,6 +75,7 @@ export const TableScreen: React.FC<TableScreenProps> = ({
   match,
   matchScrollHandler,
 }) => {
+  const {height: windowHeight} = useWindowDimensions();
   const matchScroll = useMatchDetailsScroll();
   const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
   const [standings, setStandings] = useState<Standing[][]>([]);
@@ -148,12 +150,17 @@ export const TableScreen: React.FC<TableScreenProps> = ({
   return (
     <Animated.ScrollView
       style={styles.container}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[
+        styles.scrollContent,
+        // Short table + insight often fits in one screen; without extra height the
+        // list cannot scroll far enough for the hero collapse animation (rubber-band bounce).
+        {minHeight: windowHeight},
+      ]}
       onScroll={onScroll}
       scrollEventThrottle={16}
       bounces={false}
+      alwaysBounceVertical={false}
       overScrollMode="never"
-      nestedScrollEnabled
       showsVerticalScrollIndicator={false}>
       {Array.isArray(standings) &&
         standings.map((group: Standing[], groupIdx: number) => {

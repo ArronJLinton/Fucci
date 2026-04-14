@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useRef} from 'react';
+import React, {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,19 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../types/navigation';
 import type {Match} from '../types/match';
-import type {DebateResponse, DebateType} from '../types/debate';
+import type {DebateCard, DebateResponse, DebateType} from '../types/debate';
 import {
   fetchDebatesByMatch,
   fetchDebateById,
@@ -31,56 +39,131 @@ import {
   MATCH_CENTER_TEXT,
 } from '../constants/matchCenterUi';
 
+/** Same semantics as SingleDebateScreen `binaryPulseSideTotals` (read-only on this screen). */
+function binaryPulseSideTotals(
+  binaryCards: DebateCard[],
+  localCounts: Record<number, {upvotes: number; downvotes: number}>,
+): {agreeVotes: number; disagreeVotes: number} {
+  let agreeVotes = 0;
+  let disagreeVotes = 0;
+  for (const c of binaryCards) {
+    if (c.id == null) continue;
+    const counts = localCounts[c.id] ?? {
+      upvotes: c.vote_counts?.upvotes ?? 0,
+      downvotes: c.vote_counts?.downvotes ?? 0,
+    };
+    if (c.stance === 'agree') {
+      agreeVotes += counts.upvotes;
+      disagreeVotes += counts.downvotes;
+    } else if (c.stance === 'disagree') {
+      disagreeVotes += counts.upvotes + counts.downvotes;
+    }
+  }
+  return {agreeVotes, disagreeVotes};
+}
+
+const PULSE_DISAGREE = '#FF3B30';
+
+const MatchDebatePulse: React.FC<{cards: DebateCard[] | undefined}> = ({
+  cards,
+}) => {
+  const binaryCards = useMemo(
+    () =>
+      (cards ?? []).filter(
+        c => c.stance === 'agree' || c.stance === 'disagree',
+      ),
+    [cards],
+  );
+
+  const glow = useSharedValue(1);
+
+  useEffect(() => {
+    if (binaryCards.length === 0) {
+      cancelAnimation(glow);
+      glow.value = 1;
+      return;
+    }
+
+    glow.value = withRepeat(
+      withSequence(
+        withTiming(0.82, {
+          duration: 1100,
+          easing: Easing.inOut(Easing.ease),
+        }),
+        withTiming(1, {
+          duration: 1100,
+          easing: Easing.inOut(Easing.ease),
+        }),
+      ),
+      -1,
+      false,
+    );
+
+    return () => {
+      cancelAnimation(glow);
+      glow.value = 1;
+    };
+  }, [binaryCards.length, glow]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: glow.value,
+  }));
+
+  const {agreeVotes, disagreeVotes} = useMemo(
+    () => binaryPulseSideTotals(binaryCards, {}),
+    [binaryCards],
+  );
+
+  if (binaryCards.length === 0) {
+    return null;
+  }
+
+  const totalSide = agreeVotes + disagreeVotes;
+  const agreePct =
+    totalSide > 0 ? Math.round((agreeVotes / totalSide) * 100) : 0;
+  const disagreePct = totalSide > 0 ? 100 - agreePct : 0;
+
+  const agreeCard = binaryCards.find(c => c.stance === 'agree');
+  const disagreeCard = binaryCards.find(c => c.stance === 'disagree');
+  const agreeSubHead = agreeCard?.title?.trim() || 'Agree';
+  const disagreeSubHead = disagreeCard?.title?.trim() || 'Disagree';
+
+  return (
+    <Animated.View style={[styles.pulseWrap, pulseStyle]}>
+      <View style={styles.pulseSubHeadRow}>
+        <Text
+          style={styles.pulseSubHeadAgree}
+          numberOfLines={2}>
+          {agreeSubHead}
+        </Text>
+        <Text
+          style={styles.pulseSubHeadDisagree}
+          numberOfLines={2}>
+          {disagreeSubHead}
+        </Text>
+      </View>
+      <View style={styles.pulseMiniPctRow}>
+        <Text style={styles.pulsePctSmallAgree}>{agreePct}%</Text>
+        <Text style={styles.pulsePctSmallDisagree}>{disagreePct}%</Text>
+      </View>
+      <View style={styles.pulseBarTrack}>
+        <View style={[styles.pulseSegAgree, {width: `${agreePct}%`}]} />
+        <View
+          style={[styles.pulseSegDisagree, {width: `${disagreePct}%`}]}
+        />
+      </View>
+    </Animated.View>
+  );
+};
+
 const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
+
+/** Labels for the up-to-three match debates returned by generate-set / DB. */
+const MATCH_DEBATE_PILLS = ['HOT TOPIC', 'REFEREE WATCH', 'KEY TALKING POINT'] as const;
 
 function getDefaultDebateType(match: Match): DebateType {
   const short = match?.fixture?.status?.short ?? '';
   return FINISHED_STATUSES.includes(short) ? 'post_match' : 'pre_match';
-}
-
-function agreePercentFromDebate(d: DebateResponse): {
-  agreePct: number;
-  hasVotes: boolean;
-} {
-  let agree = 0;
-  let disagree = 0;
-  for (const c of d.cards ?? []) {
-    const u = c.vote_counts?.upvotes ?? 0;
-    if (c.stance === 'agree') agree += u;
-    if (c.stance === 'disagree') disagree += u;
-  }
-  const t = agree + disagree;
-  if (t < 1) {
-    return {agreePct: 50, hasVotes: false};
-  }
-  return {agreePct: Math.round((agree / t) * 100), hasVotes: true};
-}
-
-function yesNoFromDebate(d: DebateResponse): {yes: number; no: number} {
-  const t = d.card_vote_totals;
-  if (t) {
-    const ty = t.total_yes ?? 0;
-    const tn = t.total_no ?? 0;
-    const sum = ty + tn;
-    if (sum >= 1) {
-      return {
-        yes: Math.round((ty / sum) * 100),
-        no: Math.round((tn / sum) * 100),
-      };
-    }
-  }
-  let y = 0;
-  let n = 0;
-  for (const c of d.cards ?? []) {
-    if (c.stance === 'agree') y += c.vote_counts?.upvotes ?? 0;
-    if (c.stance === 'disagree') n += c.vote_counts?.upvotes ?? 0;
-  }
-  const sum = y + n;
-  if (sum < 1) return {yes: 42, no: 58};
-  return {
-    yes: Math.round((y / sum) * 100),
-    no: Math.round((n / sum) * 100),
-  };
 }
 
 interface DebateScreenProps {
@@ -261,13 +344,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
     );
   }
 
-  const hot = debateList[0];
-  const referee = debateList.length > 1 ? debateList[1] : null;
-  const hotConsensus = agreePercentFromDebate(hot);
-  const agreePct = hotConsensus.agreePct;
-  const hasVotes = hotConsensus.hasVotes;
-  const disagreePct = 100 - agreePct;
-  const refYN = referee ? yesNoFromDebate(referee) : {yes: 50, no: 50};
+  const debatesToShow = debateList.slice(0, 3);
 
   return (
     <View style={styles.container}>
@@ -279,97 +356,49 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
         bounces={false}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
-        <View style={styles.hotCard}>
-          <View style={styles.hotHeader}>
-            <View style={styles.hotPill}>
-              <Text style={styles.hotPillText}>HOT TOPIC</Text>
-            </View>
-          </View>
-          <Text style={styles.quoteText}>&ldquo;{hot.headline}&rdquo;</Text>
-          <View style={styles.pollRow}>
-            {hasVotes ? (
-              <>
-                <Text style={styles.agreeLabel}>AGREE ({agreePct}%)</Text>
-                <Text style={styles.disagreeLabel}>
-                  DISAGREE ({disagreePct}%)
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.noVotesLabel}>NO VOTES YET</Text>
-            )}
-          </View>
-          <View style={styles.barTrack}>
-            {hasVotes ? (
-              <View style={[styles.barFill, {width: `${agreePct}%`}]} />
-            ) : (
-              <View style={styles.barEmpty} />
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.joinCta}
-            activeOpacity={0.9}
-            onPress={() => openSingleDebate(hot, 0)}>
-            <Text style={styles.joinCtaText}>JOIN THE CONVERSATION</Text>
-            <Ionicons
-              name="chatbubble-ellipses"
-              size={18}
-              color={MATCH_CENTER_BLACK}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {referee ? (
-          <View style={styles.refCard}>
-            <View style={styles.refHeader}>
-              <View style={styles.refPill}>
-                <Text style={styles.refPillText}>REFEREE WATCH</Text>
+        {debatesToShow.map((d, index) => {
+          const pillLabel =
+            MATCH_DEBATE_PILLS[index] ?? `DEBATE ${index + 1}`;
+          const pillHot = index === 0;
+          return (
+            <View
+              key={d.id ?? `debate-${index}`}
+              style={styles.topicCard}>
+              <View style={styles.topicHeader}>
+                <View
+                  style={[
+                    styles.topicPill,
+                    pillHot ? styles.topicPillHot : styles.topicPillMuted,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.topicPillText,
+                      pillHot ? styles.topicPillTextHot : styles.topicPillTextMuted,
+                    ]}>
+                    {pillLabel}
+                  </Text>
+                </View>
               </View>
+              <Text style={styles.quoteText}>
+                &ldquo;{d.headline}&rdquo;
+              </Text>
+              <MatchDebatePulse cards={d.cards} />
+              <TouchableOpacity
+                style={styles.joinCta}
+                activeOpacity={0.9}
+                onPress={() => openSingleDebate(d, 0)}
+                accessibilityRole="button"
+                accessibilityLabel="Join the conversation">
+                <Text style={styles.joinCtaText}>JOIN THE CONVERSATION</Text>
+                <Ionicons
+                  name="chatbubble-ellipses"
+                  size={18}
+                  color={MATCH_CENTER_BLACK}
+                />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.refQuestion}>{referee.headline}</Text>
-            <View style={styles.refButtons}>
-              <View style={styles.refBtn}>
-                <Text style={styles.refBtnLabel}>YES</Text>
-                <Text style={styles.refBtnPct}>{refYN.yes}%</Text>
-              </View>
-              <View style={styles.refBtn}>
-                <Text style={styles.refBtnLabel}>NO</Text>
-                <Text style={styles.refBtnPct}>{refYN.no}%</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.refTap}
-              activeOpacity={0.85}
-              onPress={() => openSingleDebate(referee, 0)}>
-              <Text style={styles.refTapText}>Open debate</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={MATCH_CENTER_LIME}
-              />
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        <View style={styles.gridRow}>
-          <TouchableOpacity
-            style={styles.gridCard}
-            activeOpacity={0.9}
-            onPress={() => openSingleDebate(hot, 0)}>
-            <Ionicons name="star" size={22} color={MATCH_CENTER_CYAN} />
-            <Text style={styles.gridTitle}>PLAYER OF THE MATCH</Text>
-            <Text style={styles.gridCta}>Vote Now</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.gridCard}
-            activeOpacity={0.9}
-            onPress={() => openSingleDebate(hot, 0)}>
-            <View style={styles.gridIconWrap}>
-              <Ionicons name="bar-chart" size={22} color={MATCH_CENTER_LIME} />
-            </View>
-            <Text style={styles.gridTitle}>TOP DEBATERS</Text>
-            <Text style={styles.gridSub}>+45 pts today</Text>
-          </TouchableOpacity>
-        </View>
+          );
+        })}
       </Animated.ScrollView>
     </View>
   );
@@ -418,7 +447,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  hotCard: {
+  topicCard: {
     backgroundColor: MATCH_CENTER_CARD,
     borderRadius: 12,
     padding: 16,
@@ -426,77 +455,97 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
-  hotHeader: {
+  topicHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 12,
-    flexWrap: 'wrap',
-    gap: 8,
   },
-  hotPill: {
-    backgroundColor: MATCH_CENTER_CYAN,
+  topicPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  hotPillText: {
+  topicPillHot: {
+    backgroundColor: MATCH_CENTER_CYAN,
+  },
+  topicPillMuted: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  topicPillText: {
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.8,
+  },
+  topicPillTextHot: {
     color: MATCH_CENTER_BLACK,
   },
-  joinedMuted: {
-    fontSize: 12,
+  topicPillTextMuted: {
     color: MATCH_CENTER_MUTED,
-    fontWeight: '600',
   },
   quoteText: {
     fontSize: 16,
     fontWeight: '800',
     color: MATCH_CENTER_TEXT,
     lineHeight: 22,
+    marginBottom: 12,
+  },
+  pulseWrap: {
     marginBottom: 14,
   },
-  pollRow: {
+  pulseSubHeadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 6,
   },
-  agreeLabel: {
-    fontSize: 12,
-    fontWeight: '800',
+  pulseSubHeadAgree: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 14,
     color: MATCH_CENTER_LIME,
-    letterSpacing: 0.3,
   },
-  disagreeLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: MATCH_CENTER_MUTED,
-    letterSpacing: 0.3,
+  pulseSubHeadDisagree: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 14,
+    color: PULSE_DISAGREE,
+    textAlign: 'right',
   },
-  noVotesLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: MATCH_CENTER_MUTED,
-    letterSpacing: 0.4,
+  pulseMiniPctRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  barTrack: {
+  pulsePctSmallAgree: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: MATCH_CENTER_LIME,
+  },
+  pulsePctSmallDisagree: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: PULSE_DISAGREE,
+  },
+  pulseBarTrack: {
+    flexDirection: 'row',
     height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 999,
     overflow: 'hidden',
-    marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  barFill: {
+  pulseSegAgree: {
     height: '100%',
     backgroundColor: MATCH_CENTER_LIME,
-    borderRadius: 4,
   },
-  barEmpty: {
+  pulseSegDisagree: {
     height: '100%',
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: PULSE_DISAGREE,
   },
   joinCta: {
     flexDirection: 'row',
@@ -512,116 +561,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.8,
     color: MATCH_CENTER_BLACK,
-  },
-  refCard: {
-    backgroundColor: MATCH_CENTER_CARD,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  refHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  refPill: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  refPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    color: MATCH_CENTER_MUTED,
-  },
-  refQuestion: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: MATCH_CENTER_TEXT,
-    lineHeight: 21,
-    marginBottom: 14,
-  },
-  refButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  refBtn: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  refBtnLabel: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: MATCH_CENTER_TEXT,
-    letterSpacing: 0.5,
-  },
-  refBtnPct: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: MATCH_CENTER_MUTED,
-    marginTop: 4,
-  },
-  refTap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    gap: 4,
-  },
-  refTapText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: MATCH_CENTER_MUTED,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  gridCard: {
-    flex: 1,
-    backgroundColor: MATCH_CENTER_CARD,
-    borderRadius: 12,
-    padding: 14,
-    minHeight: 120,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    justifyContent: 'space-between',
-  },
-  gridIconWrap: {
-    marginBottom: 4,
-  },
-  gridTitle: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    color: MATCH_CENTER_TEXT,
-    marginTop: 6,
-  },
-  gridCta: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: MATCH_CENTER_CYAN,
-    marginTop: 8,
-  },
-  gridSub: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: MATCH_CENTER_LIME,
-    marginTop: 8,
   },
 });
 

@@ -19,7 +19,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {useQuery} from '@tanstack/react-query';
 import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
 import type {DebateComment, DebateCard, ReactionCount} from '../types/debate';
-import {fetchDebateById} from '../services/debate';
+import {fetchDebateById, setCardVote} from '../services/debate';
 import {
   listComments,
   createComment as apiCreateComment,
@@ -95,14 +95,16 @@ const SingleDebateScreen = () => {
   const {token, isLoggedIn} = useAuth();
 
   const debateDetailQuery = useQuery({
-    queryKey: ['singleDebate', debate?.id],
+    queryKey: ['singleDebate', debate?.id, token ?? ''],
     queryFn: async () => {
       if (debate?.id == null) return null;
-      return fetchDebateById(debate.id);
+      return fetchDebateById(debate.id, token);
     },
     enabled: typeof debate?.id === 'number' && debate.id > 0,
     staleTime: 5 * 60 * 1000,
   });
+
+  const resolvedDebate = debateDetailQuery.data ?? debate;
 
   const teams = useMemo(() => {
     const payloadTeams = debateDetailQuery.data?.teams ?? debate?.teams;
@@ -165,20 +167,24 @@ const SingleDebateScreen = () => {
   const [localCardVoteCounts, setLocalCardVoteCounts] = useState<
     Record<number, {upvotes: number; downvotes: number}>
   >({});
+  const [binaryStanceVoteBusy, setBinaryStanceVoteBusy] = useState(false);
+  /** Hide CAST YOUR VOTE after a successful submit (and when API sends user_vote on cards). */
+  const [binaryVoteSubmitted, setBinaryVoteSubmitted] = useState(false);
 
   const allBinaryCards: DebateCard[] = useMemo(
     () =>
-      (debate?.cards ?? []).filter(
+      (resolvedDebate?.cards ?? []).filter(
         c => c.stance === 'agree' || c.stance === 'disagree',
       ),
-    [debate?.cards],
+    [resolvedDebate?.cards],
   );
 
   // Initialize per-card counts from debate when debate loads (e.g. new debate)
   useEffect(() => {
-    if (!debate?.id || !debate?.cards?.length) return;
+    const d = debateDetailQuery.data ?? debate;
+    if (!d?.id || !d?.cards?.length) return;
     const next: Record<number, {upvotes: number; downvotes: number}> = {};
-    debate.cards.forEach(c => {
+    d.cards.forEach(c => {
       if (c.id != null) {
         next[c.id] = {
           upvotes: c.vote_counts?.upvotes ?? 0,
@@ -187,6 +193,10 @@ const SingleDebateScreen = () => {
       }
     });
     setLocalCardVoteCounts(next);
+  }, [debateDetailQuery.data, debate?.id, debate?.cards]);
+
+  useEffect(() => {
+    setBinaryVoteSubmitted(false);
   }, [debate?.id]);
 
   const loadComments = useCallback(async () => {
@@ -233,7 +243,65 @@ const SingleDebateScreen = () => {
     (navigation as any).setParams({pendingAction: undefined});
   }, [isLoggedIn, pendingFromAuth, match, debate, comments.length, navigation]);
 
-  const headline = debate?.headline ?? 'Debate';
+  const headline = resolvedDebate?.headline ?? debate?.headline ?? 'Debate';
+
+  /** Match-center debates: YES = upvote agree card, NO = downvote disagree card (same as feed hero swipe). */
+  const handleBinaryStanceVote = useCallback(
+    async (side: 'yes' | 'no') => {
+      const d = debateDetailQuery.data ?? debate;
+      const agreeCard = d?.cards?.find(c => c.stance === 'agree');
+      const disagreeCard = d?.cards?.find(c => c.stance === 'disagree');
+      const debateId = d?.id;
+      if (
+        debateId == null ||
+        agreeCard?.id == null ||
+        disagreeCard?.id == null
+      ) {
+        return;
+      }
+      if (!isLoggedIn || !token) {
+        setAuthGatePendingAction('vote');
+        return;
+      }
+      setBinaryStanceVoteBusy(true);
+      try {
+        const voteType = side === 'yes' ? 'upvote' : 'downvote';
+        const cardId = side === 'yes' ? agreeCard.id : disagreeCard.id;
+        const counts = await setCardVote(token, debateId, cardId, voteType);
+        if (counts != null) {
+          setBinaryVoteSubmitted(true);
+          await debateDetailQuery.refetch();
+        }
+      } finally {
+        setBinaryStanceVoteBusy(false);
+      }
+    },
+    [debate, debateDetailQuery, isLoggedIn, token],
+  );
+
+  const hasBinaryVoteOnCardsFromApi = useMemo(() => {
+    for (const c of allBinaryCards) {
+      if (c.user_vote?.vote_type) {
+        return true;
+      }
+    }
+    return false;
+  }, [allBinaryCards]);
+
+  const agreeStanceCard = useMemo(
+    () => allBinaryCards.find(c => c.stance === 'agree'),
+    [allBinaryCards],
+  );
+  const disagreeStanceCard = useMemo(
+    () => allBinaryCards.find(c => c.stance === 'disagree'),
+    [allBinaryCards],
+  );
+  const showMatchBinaryVote =
+    match?.fixture?.id != null &&
+    agreeStanceCard != null &&
+    disagreeStanceCard != null &&
+    !binaryVoteSubmitted &&
+    !hasBinaryVoteOnCardsFromApi;
 
   const authGateContent = useMemo(
     () => ({
@@ -728,6 +796,46 @@ const SingleDebateScreen = () => {
           );
         })()}
 
+        {showMatchBinaryVote ? (
+          <View style={styles.matchBinaryVoteWrap}>
+            <Text style={styles.matchBinaryVoteTitle}>CAST YOUR VOTE</Text>
+            {binaryStanceVoteBusy ? (
+              <View style={styles.matchBinaryVoteBusy}>
+                <ActivityIndicator size="small" color={LIME} />
+                <Text style={styles.matchBinaryVoteBusyText}>Submitting…</Text>
+              </View>
+            ) : (
+              <View style={styles.matchBinaryVoteRow}>
+                <TouchableOpacity
+                  style={[styles.matchBinaryVoteBtn, styles.matchBinaryVoteYes]}
+                  onPress={() => handleBinaryStanceVote('yes')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Vote yes">
+                  <Text style={styles.matchBinaryVoteBtnText}>YES</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.matchBinaryVoteBtn, styles.matchBinaryVoteNo]}
+                  onPress={() => handleBinaryStanceVote('no')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Vote no">
+                  <Text
+                    style={[
+                      styles.matchBinaryVoteBtnText,
+                      styles.matchBinaryVoteBtnTextNo,
+                    ]}>
+                    NO
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!isLoggedIn ? (
+              <Text style={styles.matchBinaryVoteHint}>
+                Sign in to submit your vote.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Comments — API thread (seeded + user); card viewpoints are not shown here via swipe */}
         <View style={styles.commentsHeader}>
           <TouchableOpacity style={styles.sortRow}>
@@ -1074,6 +1182,66 @@ const styles = StyleSheet.create({
     color: RED,
     lineHeight: 16,
     textAlign: 'right',
+  },
+  matchBinaryVoteWrap: {
+    marginBottom: 24,
+    paddingTop: 4,
+  },
+  matchBinaryVoteTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: MUTED,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  matchBinaryVoteRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  matchBinaryVoteBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    borderWidth: 1,
+  },
+  matchBinaryVoteYes: {
+    backgroundColor: LIME,
+    borderColor: LIME,
+  },
+  matchBinaryVoteNo: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,59,48,0.5)',
+  },
+  matchBinaryVoteBtnText: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+    color: BG,
+  },
+  matchBinaryVoteBtnTextNo: {
+    color: RED,
+  },
+  matchBinaryVoteHint: {
+    marginTop: 10,
+    fontSize: 12,
+    color: MUTED,
+    textAlign: 'center',
+  },
+  matchBinaryVoteBusy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 18,
+  },
+  matchBinaryVoteBusyText: {
+    fontSize: 14,
+    color: MUTED,
+    fontWeight: '600',
   },
   meterBar: {
     flexDirection: 'row',

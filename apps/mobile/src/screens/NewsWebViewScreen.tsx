@@ -28,15 +28,12 @@ const NewsWebViewScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
-
       <WebView
         source={{uri: url}}
         style={styles.webview}
+        // Default whitelist is http(s) + about:blank. Many news sites use iframes / sandbox
+        // that navigate to about:srcdoc; without this, WebView tries Linking.openURL and warns.
+        originWhitelist={['http://*', 'https://*', 'about:*']}
         onLoadStart={() => setIsLoading(true)}
         onLoadEnd={() => setIsLoading(false)}
         startInLoadingState={true}
@@ -46,16 +43,33 @@ const NewsWebViewScreen: React.FC = () => {
         mediaPlaybackRequiresUserAction={false}
       />
 
-      <View style={[styles.headerSafeArea, {paddingTop: insets.top}]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={handleClose}
-            accessibilityLabel="Close news view">
-            <Ionicons name="close" size={24} color="#333" />
-          </TouchableOpacity>
-        </View>
+      {/* Hoisted above WebView (high z-index); native WebViews can otherwise cover siblings. */}
+      <View
+        style={[
+          styles.closeBar,
+          {
+            // Sit in the same band as typical site top nav (hamburger ~56px below status bar);
+            // pull up into that row so the chip covers the menu control.
+            paddingTop: Math.max(insets.top - 22, 2),
+            paddingLeft: Math.max(10, insets.left),
+          },
+        ]}
+        pointerEvents="box-none">
+        <TouchableOpacity
+          style={[styles.closeButton, styles.closeButtonHoist]}
+          onPress={handleClose}
+          hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+          accessibilityRole="button"
+          accessibilityLabel="Close news view">
+          <Ionicons name="close" size={24} color="#1f2937" />
+        </TouchableOpacity>
       </View>
+
+      {isLoading && (
+        <View style={styles.loadingContainer} pointerEvents="none">
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      )}
     </View>
   );
 };
@@ -68,24 +82,30 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
   },
-  headerSafeArea: {
+  closeBar: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-  },
-  header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    zIndex: 100,
+    elevation: 100,
   },
   closeButton: {
     padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  /** Nudge up so the hit area overlaps fixed site headers (hamburger row). */
+  closeButtonHoist: {
+    marginTop: -4,
   },
   loadingContainer: {
     position: 'absolute',
@@ -95,8 +115,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    zIndex: 1,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    zIndex: 50,
   },
 });
 

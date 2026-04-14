@@ -84,6 +84,75 @@ func ExtractToken(r *http.Request) (string, error) {
 	return parts[1], nil
 }
 
+// claimsCtxKey is a private type for context keys (avoids collisions with other packages).
+type claimsCtxKey int
+
+const (
+	claimsKeyUserID claimsCtxKey = iota + 1
+	claimsKeyUserEmail
+	claimsKeyUserRole
+)
+
+// ContextWithClaims attaches JWT claims to ctx using the same keys as RequireAuth and OptionalAuth.
+// Use from tests with &JWTClaims{UserID: …}; nil claims returns ctx unchanged.
+func ContextWithClaims(ctx context.Context, claims *JWTClaims) context.Context {
+	if claims == nil {
+		return ctx
+	}
+	ctx = context.WithValue(ctx, claimsKeyUserID, claims.UserID)
+	ctx = context.WithValue(ctx, claimsKeyUserEmail, claims.Email)
+	ctx = context.WithValue(ctx, claimsKeyUserRole, claims.Role)
+	return ctx
+}
+
+// UserIDFromContext returns the authenticated user id when set by RequireAuth or OptionalAuth.
+func UserIDFromContext(ctx context.Context) (int32, bool) {
+	v := ctx.Value(claimsKeyUserID)
+	if v == nil {
+		return 0, false
+	}
+	id, ok := v.(int32)
+	return id, ok
+}
+
+// UserEmailFromContext returns the JWT email claim when present.
+func UserEmailFromContext(ctx context.Context) (string, bool) {
+	v := ctx.Value(claimsKeyUserEmail)
+	if v == nil {
+		return "", false
+	}
+	s, ok := v.(string)
+	return s, ok
+}
+
+// UserRoleFromContext returns the JWT role claim when present.
+func UserRoleFromContext(ctx context.Context) (string, bool) {
+	v := ctx.Value(claimsKeyUserRole)
+	if v == nil {
+		return "", false
+	}
+	s, ok := v.(string)
+	return s, ok
+}
+
+// OptionalAuth validates Bearer JWT when present and attaches user_id (and related claims) to context.
+// Invalid or missing tokens are ignored so the handler can serve public responses.
+func OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString, err := ExtractToken(r)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		claims, err := ValidateToken(tokenString)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(ContextWithClaims(r.Context(), claims)))
+	})
+}
+
 // RequireAuth is a middleware that validates JWT token
 func RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,14 +172,7 @@ func RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		// Add claims to request context for later use
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, "user_id", claims.UserID)
-		ctx = context.WithValue(ctx, "user_email", claims.Email)
-		ctx = context.WithValue(ctx, "user_role", claims.Role)
-		r = r.WithContext(ctx)
-
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(ContextWithClaims(r.Context(), claims)))
 	})
 }
 
@@ -118,19 +180,11 @@ func RequireAuth(next http.Handler) http.Handler {
 func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role := r.Context().Value("user_role")
-			if role == nil {
+			userRole, ok := UserRoleFromContext(r.Context())
+			if !ok {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Write([]byte(`{"error": "authentication required"}`))
-				return
-			}
-
-			userRole, ok := role.(string)
-			if !ok {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte(`{"error": "invalid user role"}`))
 				return
 			}
 

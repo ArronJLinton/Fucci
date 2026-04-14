@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,56 @@ const TEXT = '#FFFFFF';
 const MUTED = '#8B92A5';
 const RED = '#FF3B30';
 const LIVE_DOT = '#3B82F6';
+
+/** NEW DEBATES and MY ACTIVITY use `created_at` within this window (generation time). */
+const FEED_MAX_AGE_MS = 6 * 24 * 60 * 60 * 1000;
+
+/**
+ * Go encodes `time.Time` as RFC3339Nano. `Date.parse` often returns NaN when fractional
+ * seconds go past milliseconds (e.g. `.123456789Z`), so every row was filtered out.
+ */
+function parseFeedTimestampMs(iso: string | undefined): number | null {
+  if (iso == null) {
+    return null;
+  }
+  const s0 = String(iso).trim();
+  if (!s0) {
+    return null;
+  }
+  const tryParse = (s: string): number | null => {
+    const n = Date.parse(s);
+    return Number.isNaN(n) ? null : n;
+  };
+  let ms = tryParse(s0);
+  if (ms != null) {
+    return ms;
+  }
+  const withoutSubMsFrac = s0.replace(/(\.\d{3})\d+(?=[Zz]|[+-])/, '$1');
+  ms = tryParse(withoutSubMsFrac);
+  if (ms != null) {
+    return ms;
+  }
+  const spaceToT = s0.includes('T') ? s0 : s0.replace(' ', 'T');
+  return tryParse(spaceToT.replace(/(\.\d{3})\d+(?=[Zz]|[+-])/, '$1'));
+}
+
+function debateRowTimeMs(summary: DebateSummary): number | null {
+  return (
+    parseFeedTimestampMs(summary.created_at) ??
+    parseFeedTimestampMs(summary.updated_at)
+  );
+}
+
+function debateGeneratedWithinPastSixDays(
+  summary: DebateSummary,
+  nowMs: number,
+): boolean {
+  const rowMs = debateRowTimeMs(summary);
+  if (rowMs == null) {
+    return true;
+  }
+  return nowMs - rowMs <= FEED_MAX_AGE_MS;
+}
 
 type MainDebatesNavigation = NativeStackNavigationProp<
   DebatesStackParamList,
@@ -155,37 +205,66 @@ const MainDebatesScreen = () => {
 
   const {data, isLoading, isError, error, refetch, isRefetching} = query;
 
-  const {hero, votedList, isGuest} = useMemo(() => {
+  const [feedNowMs, setFeedNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setFeedNowMs(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const filteredFeed = useMemo((): UnifiedFeed | null => {
     if (!data) {
+      return null;
+    }
+    if (data.kind === 'public') {
+      return {
+        kind: 'public',
+        debates: data.debates.filter(s =>
+          debateGeneratedWithinPastSixDays(s, feedNowMs),
+        ),
+      };
+    }
+    return {
+      kind: 'auth',
+      new_debates: data.new_debates.filter(s =>
+        debateGeneratedWithinPastSixDays(s, feedNowMs),
+      ),
+      voted_debates: data.voted_debates.filter(s =>
+        debateGeneratedWithinPastSixDays(s, feedNowMs),
+      ),
+    };
+  }, [data, feedNowMs]);
+
+  const {hero, votedList, isGuest} = useMemo(() => {
+    if (!filteredFeed) {
       return {
         hero: null as DebateSummary | null,
         votedList: [] as DebateSummary[],
         isGuest: true,
       };
     }
-    if (data.kind === 'public') {
-      const list = data.debates;
+    if (filteredFeed.kind === 'public') {
+      const list = filteredFeed.debates;
       return {
         hero: list[0] ?? null,
         votedList: [],
         isGuest: true,
       };
     }
-    const n = data.new_debates;
+    const n = filteredFeed.new_debates;
     return {
       hero: n[0] ?? null,
-      votedList: data.voted_debates,
+      votedList: filteredFeed.voted_debates,
       isGuest: false,
     };
-  }, [data]);
+  }, [filteredFeed]);
 
   /** Warm cache for upcoming heroes (not shown in UI) so the next card does not flash loading. */
   useEffect(() => {
-    if (!data) return;
+    if (!filteredFeed) return;
     const ids =
-      data.kind === 'auth'
-        ? data.new_debates.slice(1, 6).map(s => s.id)
-        : data.debates.slice(1, 6).map(s => s.id);
+      filteredFeed.kind === 'auth'
+        ? filteredFeed.new_debates.slice(1, 6).map(s => s.id)
+        : filteredFeed.debates.slice(1, 6).map(s => s.id);
     for (const id of ids) {
       if (id > 0) {
         void queryClient.prefetchQuery({
@@ -194,7 +273,7 @@ const MainDebatesScreen = () => {
         });
       }
     }
-  }, [data, queryClient]);
+  }, [filteredFeed, queryClient]);
 
   const listSections = useMemo((): MainDebatesSection[] => {
     const newData: FeedRow[] =

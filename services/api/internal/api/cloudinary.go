@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 )
 
 const cloudinaryMaxUploadBytes = 5 * 1024 * 1024 // 5 MB
@@ -198,7 +200,7 @@ func (c *Config) postCloudinarySignature(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusBadRequest, "context must be avatar or player_profile")
 		return
 	}
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return

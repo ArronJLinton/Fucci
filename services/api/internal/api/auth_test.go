@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 )
 
 // fakeProfileUpdatePersistence records ExecUpdate and returns a canned UserResponse from LoadUserResponse.
@@ -48,7 +50,7 @@ func authTestRequest(method, path string, body interface{}, userID int32) *http.
 	} else {
 		r = httptest.NewRequest(method, path, nil)
 	}
-	ctx := context.WithValue(r.Context(), "user_id", userID)
+	ctx := auth.ContextWithClaims(r.Context(), &auth.JWTClaims{UserID: userID})
 	return r.WithContext(ctx)
 }
 

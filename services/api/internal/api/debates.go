@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 	"github.com/sqlc-dev/pqtype"
@@ -259,6 +260,25 @@ type VoteResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+func userSwipeVoteRowToResponse(v database.Votes) *VoteResponse {
+	if !v.DebateCardID.Valid || !v.UserID.Valid {
+		return nil
+	}
+	vr := &VoteResponse{
+		ID:           v.ID,
+		DebateCardID: v.DebateCardID.Int32,
+		UserID:       v.UserID.Int32,
+		VoteType:     v.VoteType,
+	}
+	if v.Emoji.Valid {
+		vr.Emoji = v.Emoji.String
+	}
+	if v.CreatedAt.Valid {
+		vr.CreatedAt = v.CreatedAt.Time
+	}
+	return vr
+}
+
 type CommentResponse struct {
 	ID              int32     `json:"id"`
 	DebateID        int32     `json:"debate_id"`
@@ -313,6 +333,8 @@ type DebateSummary struct {
 	SourceURL         *string                 `json:"source_url,omitempty"`
 	SourcePublishedAt *time.Time              `json:"source_published_at,omitempty"`
 	Teams             *DebateTeams            `json:"teams,omitempty"`
+	// MatchDate is kickoff from stored match_info (RFC3339 in JSON); clients hide pre_match after kickoff.
+	MatchDate *time.Time `json:"match_date,omitempty"`
 }
 
 // PublicDebateFeedResponse is GET /debates/public-feed (guest browse).
@@ -401,6 +423,14 @@ func buildDebateSummary(
 			EngagementScore: eng,
 		}
 	}
+	if mi := decodeMatchInfo(matchInfo); mi != nil {
+		if d := strings.TrimSpace(mi.Date); d != "" {
+			if tt, err := parseFixtureDate(d); err == nil {
+				t := tt.UTC()
+				s.MatchDate = &t
+			}
+		}
+	}
 	return s, nil
 }
 
@@ -466,7 +496,8 @@ func binaryConsensusFromRow(agreeIface, disagreeIface interface{}) DebateBinaryC
 	}
 }
 
-func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
+// decodeMatchInfo unmarshals debates.match_info JSON into MatchInfo when present.
+func decodeMatchInfo(matchInfo interface{}) *MatchInfo {
 	if matchInfo == nil {
 		return nil
 	}
@@ -495,6 +526,38 @@ func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
 	if err := json.Unmarshal(raw, &mi); err != nil {
 		return nil
 	}
+	return &mi
+}
+
+var fixtureDateLayouts = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05Z07:00",
+	"2006-01-02 15:04:05",
+	"2006-01-02",
+}
+
+func parseFixtureDate(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, fmt.Errorf("empty fixture date")
+	}
+	var firstErr error
+	for _, layout := range fixtureDateLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		} else if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return time.Time{}, fmt.Errorf("parse fixture date %q: %w", s, firstErr)
+}
+
+func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
+	mi := decodeMatchInfo(matchInfo)
+	if mi == nil {
+		return nil
+	}
 	teams := &DebateTeams{
 		Home: DebateTeamSide{
 			Name: mi.HomeTeam,
@@ -505,7 +568,7 @@ func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
 			Logo: mi.AwayTeamLogo,
 		},
 	}
-	if matchInfoShowsFullScoreline(mi) {
+	if matchInfoShowsFullScoreline(*mi) {
 		hs := mi.HomeScore
 		as := mi.AwayScore
 		teams.Home.Score = &hs
@@ -858,6 +921,27 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		var uvByCard map[int32]*VoteResponse
+		if userID, ok := auth.UserIDFromContext(ctx); ok && userID != 0 {
+			swipeRows, errUV := c.DB.GetUserSwipeVotesForCards(ctx, database.GetUserSwipeVotesForCardsParams{
+				UserID:         sql.NullInt32{Int32: userID, Valid: true},
+				DebateCardIds: cardIDs,
+			})
+			if errUV != nil {
+				log.Printf("[debates] GetUserSwipeVotesForCards debate_id=%d user_id=%d: %v", debate.ID, userID, errUV)
+			} else if len(swipeRows) > 0 {
+				uvByCard = make(map[int32]*VoteResponse, len(swipeRows))
+				for _, row := range swipeRows {
+					if !row.DebateCardID.Valid {
+						continue
+					}
+					if vr := userSwipeVoteRowToResponse(row); vr != nil {
+						uvByCard[row.DebateCardID.Int32] = vr
+					}
+				}
+			}
+		}
+
 		// Build card responses
 		for _, card := range cards {
 			cardResponse := DebateCardResponse{
@@ -870,6 +954,11 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 				CreatedAt:   card.CreatedAt.Time,
 				UpdatedAt:   card.UpdatedAt.Time,
 				VoteCounts:  voteCountsMap[card.ID],
+			}
+			if uvByCard != nil {
+				if uv, ok := uvByCard[card.ID]; ok {
+					cardResponse.UserVote = uv
+				}
 			}
 			response.Cards = append(response.Cards, cardResponse)
 		}
@@ -2064,8 +2153,7 @@ func (c *Config) getDebatesFeed(w http.ResponseWriter, r *http.Request) {
 		respondWithErrorCode(w, http.StatusInternalServerError, "database not configured", errCodeDebateDBNotConfigured)
 		return
 	}
-	uidVal := ctx.Value("user_id")
-	userID, ok := uidVal.(int32)
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		respondWithErrorCode(w, http.StatusUnauthorized, "authentication required", errCodeDebateAuthRequired)
 		return

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/go-chi/chi"
 )
@@ -211,7 +212,7 @@ type CreateDebateCommentRequest struct {
 func (c *Config) CreateDebateComment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -334,7 +335,7 @@ type SetCommentVoteRequest struct {
 func (c *Config) SetCommentVote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -415,7 +416,7 @@ type AddCommentReactionRequest struct {
 func (c *Config) AddCommentReaction(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
@@ -465,7 +466,7 @@ func (c *Config) AddCommentReaction(w http.ResponseWriter, r *http.Request) {
 func (c *Config) RemoveCommentReaction(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	userID, ok := r.Context().Value("user_id").(int32)
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || userID == 0 {
 		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return

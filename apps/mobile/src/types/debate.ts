@@ -5,6 +5,11 @@ export interface DebateStance {
   votes: number;
 }
 
+/** Present on GET /debates/:id when the API attaches the current user’s card vote (optional). */
+export interface DebateCardUserVote {
+  vote_type: 'upvote' | 'downvote';
+}
+
 export interface DebateCard {
   id?: number;
   debate_id?: number;
@@ -12,6 +17,7 @@ export interface DebateCard {
   title: string;
   description: string;
   vote_counts?: { upvotes: number; downvotes: number; emojis?: Record<string, number> };
+  user_vote?: DebateCardUserVote | null;
 }
 
 export interface DebateContent {
@@ -68,6 +74,8 @@ export interface DebateSummary {
   source_url?: string;
   source_published_at?: string;
   teams?: DebateTeams;
+  /** ISO kickoff from API when match_info includes fixture date; used to hide pre_match after kickoff. */
+  match_date?: string;
 }
 
 /** Guest browse — GET /debates/public-feed */

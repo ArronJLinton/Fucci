@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func playerProfileTestRequest(method, path string, body interface{}, userID int3
 	} else {
 		r = httptest.NewRequest(method, path, nil)
 	}
-	ctx := context.WithValue(r.Context(), "user_id", userID)
+	ctx := auth.ContextWithClaims(r.Context(), &auth.JWTClaims{UserID: userID})
 	return r.WithContext(ctx)
 }
 

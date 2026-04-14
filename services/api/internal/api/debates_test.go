@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -138,6 +140,208 @@ func TestDebateSummaryFromPublicFeedRowMapsAnalytics(t *testing.T) {
 	if s.Description != "D" || s.MatchID != "99" {
 		t.Fatalf("unexpected summary: %+v", s)
 	}
+}
+
+func TestBuildDebateSummary_MatchDate(t *testing.T) {
+	created := sql.NullTime{Time: time.Unix(100, 0).UTC(), Valid: true}
+	callBuild := func(matchInfo interface{}) (DebateSummary, error) {
+		return buildDebateSummary(
+			1, "m", "pre_match", "H",
+			sql.NullString{}, sql.NullBool{},
+			matchInfo,
+			created, sql.NullTime{},
+			sql.NullInt32{}, sql.NullInt32{},
+			sql.NullString{}, nil,
+		)
+	}
+
+	t.Run("RFC3339 UTC", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "2026-03-01T12:00:00Z"}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate == nil {
+			t.Fatal("expected MatchDate")
+		}
+		want := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+		if !s.MatchDate.Equal(want) {
+			t.Fatalf("got %v want %v", s.MatchDate, want)
+		}
+		if s.MatchDate.Location() != time.UTC {
+			t.Fatalf("location: %v", s.MatchDate.Location())
+		}
+	})
+
+	t.Run("offset normalized to UTC", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "2026-06-10T07:00:00-05:00"}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate == nil {
+			t.Fatal("expected MatchDate")
+		}
+		want := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+		if !s.MatchDate.Equal(want) {
+			t.Fatalf("got %v want %v", s.MatchDate.UTC(), want)
+		}
+	})
+
+	t.Run("date only YYYY-MM-DD", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "2026-01-15"}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate == nil {
+			t.Fatal("expected MatchDate")
+		}
+		want := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+		if !s.MatchDate.Equal(want) {
+			t.Fatalf("got %v want %v", s.MatchDate, want)
+		}
+	})
+
+	t.Run("RFC3339Nano", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "2026-04-01T09:30:00.5Z"}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate == nil {
+			t.Fatal("expected MatchDate")
+		}
+		want := time.Date(2026, 4, 1, 9, 30, 0, 500000000, time.UTC)
+		if !s.MatchDate.Equal(want) {
+			t.Fatalf("got %v want %v", s.MatchDate, want)
+		}
+	})
+
+	t.Run("space separated datetime", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "2026-05-20 14:00:00"}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate == nil {
+			t.Fatal("expected MatchDate")
+		}
+		tt, err := parseFixtureDate("2026-05-20 14:00:00")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := tt.UTC()
+		if !s.MatchDate.Equal(want) {
+			t.Fatalf("got %v want %v", s.MatchDate, want)
+		}
+	})
+
+	t.Run("nil match_info omits MatchDate", func(t *testing.T) {
+		t.Parallel()
+		s, err := callBuild(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate != nil {
+			t.Fatalf("MatchDate = %v", s.MatchDate)
+		}
+	})
+
+	t.Run("invalid JSON omits MatchDate", func(t *testing.T) {
+		t.Parallel()
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: []byte(`{`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate != nil {
+			t.Fatal("expected nil MatchDate")
+		}
+	})
+
+	t.Run("empty raw message omits MatchDate", func(t *testing.T) {
+		t.Parallel()
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: []byte{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate != nil {
+			t.Fatal("expected nil MatchDate")
+		}
+	})
+
+	t.Run("empty Date field omits MatchDate", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: ""}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate != nil {
+			t.Fatalf("MatchDate = %v", s.MatchDate)
+		}
+	})
+
+	t.Run("whitespace only Date omits MatchDate", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "   "}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate != nil {
+			t.Fatalf("MatchDate = %v", s.MatchDate)
+		}
+	})
+
+	t.Run("invalid date string omits MatchDate", func(t *testing.T) {
+		t.Parallel()
+		mi := MatchInfo{HomeTeam: "A", AwayTeam: "B", Date: "not-a-real-date"}
+		raw, err := json.Marshal(&mi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := callBuild(pqtype.NullRawMessage{Valid: true, RawMessage: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.MatchDate != nil {
+			t.Fatalf("MatchDate = %v", s.MatchDate)
+		}
+	})
 }
 
 func TestLastVotedAtFromSQLCIface(t *testing.T) {
@@ -476,7 +680,7 @@ func TestGetDebatesFeed_OKWithUserID(t *testing.T) {
 	c := &Config{DebatesFeedDB: mock}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
-	ctx := context.WithValue(req.Context(), "user_id", int32(7))
+	ctx := auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 7})
 	req = req.WithContext(ctx)
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusOK {
@@ -502,7 +706,7 @@ func TestGetDebatesFeed_LimitsClamped(t *testing.T) {
 	c := &Config{DebatesFeedDB: mock}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debates/feed?new_limit=999&voted_limit=888", nil)
-	ctx := context.WithValue(req.Context(), "user_id", int32(1))
+	ctx := auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 1})
 	req = req.WithContext(ctx)
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusOK {
@@ -518,7 +722,7 @@ func TestGetDebatesFeed_NewListError(t *testing.T) {
 	c := &Config{DebatesFeedDB: mock}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debates/feed", nil)
-	ctx := context.WithValue(req.Context(), "user_id", int32(1))
+	ctx := auth.ContextWithClaims(req.Context(), &auth.JWTClaims{UserID: 1})
 	req = req.WithContext(ctx)
 	c.getDebatesFeed(rec, req)
 	if rec.Code != http.StatusInternalServerError {
@@ -737,3 +941,166 @@ func TestGetDebatesPublicFeed_KeepsTeamsFromMatchInfoWithoutMatchesQuery(t *test
 		t.Fatalf("teams: %+v", teams)
 	}
 }
+
+// SQL strings must match internal/database/debates.sql.go (sqlc-generated, including -- name: lines) and loadDebateTeamsByMatchIDs.
+const (
+	testSQLGetDebate = `-- name: GetDebate :one
+SELECT id, match_id, debate_type, headline, description, ai_generated, deleted_at, created_at, updated_at, match_info FROM debates WHERE id = $1 AND deleted_at IS NULL`
+	testSQLGetDebateCards = `-- name: GetDebateCards :many
+SELECT id, debate_id, stance, title, description, ai_generated, created_at, updated_at FROM debate_cards WHERE debate_id = $1 ORDER BY stance`
+	testSQLGetDebateAnalytics = `-- name: GetDebateAnalytics :one
+SELECT id, debate_id, total_votes, total_comments, engagement_score, created_at, updated_at FROM debate_analytics WHERE debate_id = $1`
+	testSQLGetVoteCounts = `-- name: GetVoteCounts :many
+SELECT 
+    debate_card_id,
+    vote_type,
+    emoji,
+    COUNT(*) as count
+FROM votes 
+WHERE debate_card_id = ANY($1::int[])
+GROUP BY debate_card_id, vote_type, emoji`
+	testSQLGetUserSwipeVotesForCards = `-- name: GetUserSwipeVotesForCards :many
+SELECT id, debate_card_id, user_id, vote_type, emoji, created_at
+FROM votes
+WHERE user_id = $1
+  AND debate_card_id = ANY($2::int[])
+  AND emoji IS NULL
+  AND vote_type IN ('upvote', 'downvote')`
+	testSQLLoadDebateTeams = `
+SELECT m.external_match_id, ht.name, ht.logo_url, m.home_score, at.name, at.logo_url, m.away_score
+FROM matches m
+LEFT JOIN teams ht ON m.home_team_id = ht.id
+LEFT JOIN teams at ON m.away_team_id = at.id
+WHERE m.external_match_id IN ($1)
+`
+)
+
+func getDebateRequest(debateID string, userID *int32) *http.Request {
+	req := httptest.NewRequest(http.MethodGet, "/debates/"+debateID, nil)
+	ctx := req.Context()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", debateID)
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+	if userID != nil {
+		ctx = auth.ContextWithClaims(ctx, &auth.JWTClaims{UserID: *userID})
+	}
+	return req.WithContext(ctx)
+}
+
+// expectGetDebateDBMocks registers sqlmock expectations for getDebate: core queries plus optional swipe votes, then loadDebateTeams.
+func expectGetDebateDBMocks(t *testing.T, mock sqlmock.Sqlmock, authUID int32) {
+	t.Helper()
+
+	const (
+		debateID int32 = 7
+		cardID   int32 = 101
+	)
+	matchID := "ext-1"
+	ts := time.Unix(1700, 0).UTC()
+	mi := []byte(`{"HomeTeam":"Home","AwayTeam":"Away"}`)
+
+	debateRows := sqlmock.NewRows([]string{
+		"id", "match_id", "debate_type", "headline", "description", "ai_generated", "deleted_at", "created_at", "updated_at", "match_info",
+	}).AddRow(int64(debateID), matchID, "pre_match", "Headline", nil, false, nil, ts, ts, mi)
+
+	cardRows := sqlmock.NewRows([]string{
+		"id", "debate_id", "stance", "title", "description", "ai_generated", "created_at", "updated_at",
+	}).AddRow(int64(cardID), int64(debateID), "agree", "Card A", nil, false, ts, ts)
+
+	analyticsRows := sqlmock.NewRows([]string{
+		"id", "debate_id", "total_votes", "total_comments", "engagement_score", "created_at", "updated_at",
+	}).AddRow(int64(1), int64(debateID), int64(3), int64(1), "2.0", ts, ts)
+
+	voteCountCols := []string{"debate_card_id", "vote_type", "emoji", "count"}
+	voteCountRows := sqlmock.NewRows(voteCountCols).
+		AddRow(int64(cardID), "upvote", nil, int64(5))
+
+	teamCols := []string{"external_match_id", "hname", "hlogo", "home_score", "aname", "alogo", "away_score"}
+	emptyTeams := sqlmock.NewRows(teamCols)
+
+	mock.ExpectQuery(testSQLGetDebate).WithArgs(debateID).WillReturnRows(debateRows)
+	mock.ExpectQuery(testSQLGetDebateCards).WithArgs(sql.NullInt32{Int32: debateID, Valid: true}).WillReturnRows(cardRows)
+	mock.ExpectQuery(testSQLGetDebateAnalytics).WithArgs(sql.NullInt32{Int32: debateID, Valid: true}).WillReturnRows(analyticsRows)
+	mock.ExpectQuery(testSQLGetVoteCounts).WithArgs(sqlmock.AnyArg()).WillReturnRows(voteCountRows)
+
+	if authUID != 0 {
+		swipeRows := sqlmock.NewRows([]string{"id", "debate_card_id", "user_id", "vote_type", "emoji", "created_at"}).
+			AddRow(int64(9001), int64(cardID), int64(authUID), "upvote", nil, ts)
+		mock.ExpectQuery(testSQLGetUserSwipeVotesForCards).
+			WithArgs(sql.NullInt32{Int32: authUID, Valid: true}, sqlmock.AnyArg()).
+			WillReturnRows(swipeRows)
+	}
+
+	mock.ExpectQuery(testSQLLoadDebateTeams).WithArgs(matchID).WillReturnRows(emptyTeams)
+}
+
+func TestGetDebate_GuestDoesNotQueryUserSwipeVotes(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	expectGetDebateDBMocks(t, mock, 0)
+
+	c := &Config{DB: database.New(db), DBConn: db}
+	rec := httptest.NewRecorder()
+	c.getDebate(rec, getDebateRequest("7", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("db expectations: %v", err)
+	}
+
+	var out DebateResponse
+	if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Cards) != 1 {
+		t.Fatalf("cards: %+v", out.Cards)
+	}
+	if out.Cards[0].UserVote != nil {
+		t.Fatalf("guest should not get user_vote, got %+v", out.Cards[0].UserVote)
+	}
+}
+
+func TestGetDebate_AuthenticatedPopulatesUserVoteFromSwipeRows(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	const uid int32 = 42
+	expectGetDebateDBMocks(t, mock, uid)
+
+	c := &Config{DB: database.New(db), DBConn: db}
+	rec := httptest.NewRecorder()
+	c.getDebate(rec, getDebateRequest("7", ptrInt32(uid)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("db expectations: %v", err)
+	}
+
+	var out DebateResponse
+	if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Cards) != 1 {
+		t.Fatalf("cards: %+v", out.Cards)
+	}
+	uv := out.Cards[0].UserVote
+	if uv == nil {
+		t.Fatal("expected user_vote for authenticated request")
+	}
+	if uv.ID != 9001 || uv.DebateCardID != 101 || uv.UserID != uid || uv.VoteType != "upvote" {
+		t.Fatalf("user_vote: %+v", uv)
+	}
+}
+
+func ptrInt32(v int32) *int32 { return &v }
