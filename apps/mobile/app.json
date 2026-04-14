@@ -55,11 +55,11 @@
       ]
     ],
     "extra": {
-      "APP_ENV": "development",
+      "APP_ENV": "staging",
       "API_DEV_URL": "http://localhost:8080/v1/api",
       "API_STAGING_URL": "https://fucci-api.fly.dev/v1/api",
-      "API_BASE_URL": "http://localhost:8080/v1/api",
-      "APP_NAME": "Fucci",
+      "API_BASE_URL": "https://fucci-api.fly.dev/v1/api",
+      "APP_NAME": "Fucci Staging",
       "APP_VERSION": "1.0.1",
       "NODE_ENV": "development",
       "DEBUG": "true",
