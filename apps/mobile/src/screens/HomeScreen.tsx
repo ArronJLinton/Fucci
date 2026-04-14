@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   useWindowDimensions,
   View,
@@ -18,6 +18,7 @@ import {
 } from '../constants/leagues';
 import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
+import {resolveHomeScreenDefaultLeague} from '../services/matchesDefaultLeague';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -183,6 +184,23 @@ const HomeScreen = () => {
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
     DEFAULT_LEAGUE,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const league = await resolveHomeScreenDefaultLeague(new Date());
+        if (!cancelled) {
+          setSelectedLeague(league);
+        }
+      } catch {
+        /* keep DEFAULT_LEAGUE */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const dates = useMemo(() => {
     const now = new Date();
