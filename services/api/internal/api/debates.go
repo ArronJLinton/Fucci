@@ -923,8 +923,8 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 		var uvByCard map[int32]*VoteResponse
 		if userID, ok := auth.UserIDFromContext(ctx); ok && userID != 0 {
 			swipeRows, errUV := c.DB.GetUserSwipeVotesForCards(ctx, database.GetUserSwipeVotesForCardsParams{
-				UserID:  sql.NullInt32{Int32: userID, Valid: true},
-				Column2: cardIDs,
+				UserID:         sql.NullInt32{Int32: userID, Valid: true},
+				DebateCardIds: cardIDs,
 			})
 			if errUV != nil {
 				log.Printf("[debates] GetUserSwipeVotesForCards debate_id=%d user_id=%d: %v", debate.ID, userID, errUV)

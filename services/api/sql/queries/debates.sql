@@ -85,8 +85,8 @@ GROUP BY debate_card_id, vote_type, emoji;
 -- name: GetUserSwipeVotesForCards :many
 SELECT id, debate_card_id, user_id, vote_type, emoji, created_at
 FROM votes
-WHERE user_id = $1
-  AND debate_card_id = ANY($2::int[])
+WHERE user_id = sqlc.arg('user_id')
+  AND debate_card_id = ANY(sqlc.arg('debate_card_ids')::int[])
   AND emoji IS NULL
   AND vote_type IN ('upvote', 'downvote');
 

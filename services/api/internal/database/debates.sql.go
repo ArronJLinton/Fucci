@@ -632,12 +632,12 @@ WHERE user_id = $1
 `
 
 type GetUserSwipeVotesForCardsParams struct {
-	UserID  sql.NullInt32
-	Column2 []int32
+	UserID        sql.NullInt32
+	DebateCardIds []int32
 }
 
 func (q *Queries) GetUserSwipeVotesForCards(ctx context.Context, arg GetUserSwipeVotesForCardsParams) ([]Votes, error) {
-	rows, err := q.db.QueryContext(ctx, getUserSwipeVotesForCards, arg.UserID, pq.Array(arg.Column2))
+	rows, err := q.db.QueryContext(ctx, getUserSwipeVotesForCards, arg.UserID, pq.Array(arg.DebateCardIds))
 	if err != nil {
 		return nil, err
 	}

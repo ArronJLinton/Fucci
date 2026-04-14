@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -78,8 +79,11 @@ const MatchDebatePulse: React.FC<{cards: DebateCard[] | undefined}> = ({
 
   useEffect(() => {
     if (binaryCards.length === 0) {
+      cancelAnimation(glow);
+      glow.value = 1;
       return;
     }
+
     glow.value = withRepeat(
       withSequence(
         withTiming(0.82, {
@@ -94,6 +98,11 @@ const MatchDebatePulse: React.FC<{cards: DebateCard[] | undefined}> = ({
       -1,
       false,
     );
+
+    return () => {
+      cancelAnimation(glow);
+      glow.value = 1;
+    };
   }, [binaryCards.length, glow]);
 
   const pulseStyle = useAnimatedStyle(() => ({
