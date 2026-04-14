@@ -550,7 +550,7 @@ func parseFixtureDate(s string) (time.Time, error) {
 			firstErr = err
 		}
 	}
-	return time.Time{}, fmt.Errorf("parse fixture date %q: %v", s, firstErr)
+	return time.Time{}, fmt.Errorf("parse fixture date %q: %w", s, firstErr)
 }
 
 func teamsFromMatchInfoJSON(matchInfo interface{}) *DebateTeams {
