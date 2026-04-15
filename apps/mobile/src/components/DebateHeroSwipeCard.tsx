@@ -187,6 +187,8 @@ export default function DebateHeroSwipeCard({
   const overlayDir = useSharedValue(0);
   /** Mirrored for pan worklets — 1 only when swipe voting is allowed (logged in + binary cards). */
   const voteEnabledSV = useSharedValue(0);
+  /** One-shot per hero card: set when swipe crosses vote threshold so we do not double-POST or re-pan during fly-off. */
+  const swipeCommittedSV = useSharedValue(0);
 
   const debateQuery = useQuery({
     queryKey: ['debateHero', summary.id],
@@ -214,13 +216,15 @@ export default function DebateHeroSwipeCard({
   const authRequiredForVote = binaryVoteUiReady && (!isLoggedIn || !token);
 
   useEffect(() => {
-    voteEnabledSV.value = canSwipeVote ? 1 : 0;
-  }, [canSwipeVote, voteEnabledSV]);
-
-  useEffect(() => {
     translateX.value = 0;
     overlayDir.value = 0;
-  }, [summary.id]);
+    swipeCommittedSV.value = 0;
+  }, [summary.id, overlayDir, swipeCommittedSV, translateX]);
+
+  useEffect(() => {
+    voteEnabledSV.value =
+      canSwipeVote && swipeCommittedSV.value === 0 ? 1 : 0;
+  }, [canSwipeVote, voteEnabledSV, swipeCommittedSV]);
 
   const headline = summary.headline.toUpperCase();
   const votes = summary.analytics?.total_votes ?? 0;
@@ -419,8 +423,11 @@ export default function DebateHeroSwipeCard({
         .failOffsetY([-16, 16])
         .onUpdate(e => {
           if (voteEnabledSV.value === 0) {
-            translateX.value = 0;
-            overlayDir.value = 0;
+            // After commit, leave translateX alone so fly-off withTiming is not zeroed by a new pan.
+            if (swipeCommittedSV.value === 0) {
+              translateX.value = 0;
+              overlayDir.value = 0;
+            }
             return;
           }
           translateX.value = e.translationX;
@@ -439,6 +446,9 @@ export default function DebateHeroSwipeCard({
 
           const isTap = Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX;
           if (isTap) {
+            if (swipeCommittedSV.value === 1) {
+              return;
+            }
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
             return;
@@ -446,6 +456,9 @@ export default function DebateHeroSwipeCard({
 
           const ready = voteEnabledSV.value === 1;
           if (!ready) {
+            if (swipeCommittedSV.value === 1) {
+              return;
+            }
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
             return;
@@ -454,12 +467,16 @@ export default function DebateHeroSwipeCard({
           if (dx > SWIPE_THRESHOLD) {
             // Commit vote + optimistic update before fly-off so unmount/cancelled animation
             // cannot drop the vote (withTiming may report finished === false if interrupted).
+            swipeCommittedSV.value = 1;
+            voteEnabledSV.value = 0;
             runOnJS(handleSwipeCommit)('agree', dx, dy);
             translateX.value = withTiming(OFFSCREEN_X, {
               duration: 420,
               easing: Easing.bezier(0.22, 0.61, 0.36, 1),
             });
           } else if (dx < -SWIPE_THRESHOLD) {
+            swipeCommittedSV.value = 1;
+            voteEnabledSV.value = 0;
             runOnJS(handleSwipeCommit)('disagree', dx, dy);
             translateX.value = withTiming(-OFFSCREEN_X, {
               duration: 420,
@@ -470,7 +487,14 @@ export default function DebateHeroSwipeCard({
             runOnJS(handlePanEnd)(dx, dy);
           }
         }),
-    [translateX, overlayDir, handlePanEnd, handleSwipeCommit, voteEnabledSV],
+    [
+      translateX,
+      overlayDir,
+      handlePanEnd,
+      handleSwipeCommit,
+      voteEnabledSV,
+      swipeCommittedSV,
+    ],
   );
 
   const cardStyle = useAnimatedStyle(() => ({

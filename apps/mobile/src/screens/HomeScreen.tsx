@@ -101,7 +101,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
       return;
     }
 
-    if (cached) {
+    if (cached !== undefined) {
       setMatches(cached);
       setIsLoading(false);
       isLoadingRef.current = false;
@@ -123,7 +123,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
       }
 
       const hitWhileWaiting = matchesByKeyRef.current.get(currentCacheKey);
-      if (hitWhileWaiting) {
+      if (hitWhileWaiting !== undefined) {
         setMatches(hitWhileWaiting);
         isLoadingRef.current = false;
         setIsLoading(false);
