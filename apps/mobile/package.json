@@ -16,6 +16,7 @@
     "staging": "yarn env:staging && expo start",
     "prod": "yarn env:prod && expo start",
     "build:android": "yarn env:prod && eas build -p android --profile production",
+    "build:android-preview": "yarn env:staging && eas build -p android --profile preview",
     "build:ios": "yarn env:prod && eas build -p ios --profile production",
     "build:ios-preview": "yarn env:staging && npx eas-cli build -p ios --profile preview",
     "preflight:typecheck": "yarn type-check",

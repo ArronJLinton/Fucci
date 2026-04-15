@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -215,18 +215,19 @@ export default function DebateHeroSwipeCard({
   const canSwipeVote = binaryVoteUiReady && isLoggedIn && !!token;
   const authRequiredForVote = binaryVoteUiReady && (!isLoggedIn || !token);
 
-  useEffect(() => {
-    translateX.value = 0;
-    overlayDir.value = 0;
-    swipeCommittedSV.value = 0;
-    // Re-enable swipe for the new hero: swipeCommittedSV updates do not re-run other effects.
-    voteEnabledSV.value = canSwipeVote ? 1 : 0;
-  }, [summary.id, canSwipeVote, overlayDir, swipeCommittedSV, translateX, voteEnabledSV]);
+  /** Tracks hero identity so we reset pan/commit state only on debate change, not when canSwipeVote flips (e.g. prefetch). */
+  const prevHeroSummaryIdRef = useRef(summary.id);
 
   useEffect(() => {
+    if (prevHeroSummaryIdRef.current !== summary.id) {
+      prevHeroSummaryIdRef.current = summary.id;
+      translateX.value = 0;
+      overlayDir.value = 0;
+      swipeCommittedSV.value = 0;
+    }
     voteEnabledSV.value =
       canSwipeVote && swipeCommittedSV.value === 0 ? 1 : 0;
-  }, [canSwipeVote, voteEnabledSV, swipeCommittedSV]);
+  }, [summary.id, canSwipeVote, translateX, overlayDir, swipeCommittedSV, voteEnabledSV]);
 
   const headline = summary.headline.toUpperCase();
   const votes = summary.analytics?.total_votes ?? 0;
