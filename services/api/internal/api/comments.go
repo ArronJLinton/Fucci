@@ -23,6 +23,13 @@ const (
 	commentRateWindow = time.Minute
 )
 
+func sqlNullStringVal(ns sql.NullString) string {
+	if !ns.Valid {
+		return ""
+	}
+	return ns.String
+}
+
 type commentRateEntry struct {
 	count       int
 	windowStart time.Time
@@ -102,6 +109,13 @@ type DebateComment struct {
 type ReactionCount struct {
 	Emoji string `json:"emoji"`
 	Count int32  `json:"count"`
+}
+
+func sqlNullString(ns sql.NullString) string {
+	if !ns.Valid {
+		return ""
+	}
+	return ns.String
 }
 
 // ListDebateComments handles GET /api/debates/{debate_id}/comments.
@@ -510,10 +524,16 @@ func (c *Config) buildDebateCommentFromRowWithPreloaded(
 	if row.DisplayName.Valid && strings.TrimSpace(row.DisplayName.String) != "" {
 		displayName = strings.TrimSpace(row.DisplayName.String)
 	} else {
-		displayName = strings.TrimSpace(row.Firstname + " " + row.Lastname)
+		displayName = strings.TrimSpace(
+			sqlNullString(row.Firstname) + " " + sqlNullString(row.Lastname),
+		)
 	}
 	if displayName == "" {
-		displayName = "User"
+		if row.Seeded {
+			displayName = "Fucci"
+		} else {
+			displayName = "User"
+		}
 	}
 	var avatarURL *string
 	if row.AvatarUrl.Valid && strings.TrimSpace(row.AvatarUrl.String) != "" {

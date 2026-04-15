@@ -265,7 +265,7 @@ SELECT
     u.display_name,
     u.avatar_url
 FROM comments c
-JOIN users u ON c.user_id = u.id
+LEFT JOIN users u ON c.user_id = u.id
 WHERE c.id = $1
 `
 
@@ -278,8 +278,8 @@ type GetCommentRow struct {
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
 	Seeded          bool
-	Firstname       string
-	Lastname        string
+	Firstname       sql.NullString
+	Lastname        sql.NullString
 	DisplayName     sql.NullString
 	AvatarUrl       sql.NullString
 }
@@ -323,7 +323,7 @@ SELECT
     u.display_name,
     u.avatar_url
 FROM comments c
-JOIN users u ON c.user_id = u.id
+LEFT JOIN users u ON c.user_id = u.id
 WHERE c.debate_id = $1
 ORDER BY c.created_at ASC
 `
@@ -337,8 +337,8 @@ type GetCommentsRow struct {
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
 	Seeded          bool
-	Firstname       string
-	Lastname        string
+	Firstname       sql.NullString
+	Lastname        sql.NullString
 	DisplayName     sql.NullString
 	AvatarUrl       sql.NullString
 }
