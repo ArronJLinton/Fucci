@@ -299,7 +299,8 @@ export default function DebateHeroSwipeCard({
   );
 
   /**
-   * Pan worklet already started fly-off. Apply optimistic feed first, then POST in background.
+   * Called from pan onEnd as soon as swipe crosses threshold (before fly-off animation).
+   * Optimistic feed + vote POST must not depend on withTiming completing (can be cancelled).
    */
   const handleSwipeCommit = useCallback(
     (stance: 'agree' | 'disagree', dx: number, dy: number) => {
@@ -451,31 +452,19 @@ export default function DebateHeroSwipeCard({
           }
 
           if (dx > SWIPE_THRESHOLD) {
-            translateX.value = withTiming(
-              OFFSCREEN_X,
-              {
-                duration: 420,
-                easing: Easing.bezier(0.22, 0.61, 0.36, 1),
-              },
-              finished => {
-                if (finished) {
-                  runOnJS(handleSwipeCommit)('agree', dx, dy);
-                }
-              },
-            );
+            // Commit vote + optimistic update before fly-off so unmount/cancelled animation
+            // cannot drop the vote (withTiming may report finished === false if interrupted).
+            runOnJS(handleSwipeCommit)('agree', dx, dy);
+            translateX.value = withTiming(OFFSCREEN_X, {
+              duration: 420,
+              easing: Easing.bezier(0.22, 0.61, 0.36, 1),
+            });
           } else if (dx < -SWIPE_THRESHOLD) {
-            translateX.value = withTiming(
-              -OFFSCREEN_X,
-              {
-                duration: 420,
-                easing: Easing.bezier(0.22, 0.61, 0.36, 1),
-              },
-              finished => {
-                if (finished) {
-                  runOnJS(handleSwipeCommit)('disagree', dx, dy);
-                }
-              },
-            );
+            runOnJS(handleSwipeCommit)('disagree', dx, dy);
+            translateX.value = withTiming(-OFFSCREEN_X, {
+              duration: 420,
+              easing: Easing.bezier(0.22, 0.61, 0.36, 1),
+            });
           } else {
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
