@@ -2,8 +2,16 @@ import {fetchMatches} from './futbol';
 import {LEAGUES, UCL_LEAGUE_ID, seasonParamForMatchSearch} from '../constants/leagues';
 import type {League} from '../constants/leagues';
 
-const PREMIER_LEAGUE = LEAGUES.find(l => l.id === 39) as League;
-const UCL_LEAGUE = LEAGUES.find(l => l.id === UCL_LEAGUE_ID) as League;
+function requireLeague(id: number): League {
+  const league = LEAGUES.find(l => l.id === id);
+  if (league == null) {
+    throw new Error(`matchesDefaultLeague: expected league id ${id} in LEAGUES`);
+  }
+  return league;
+}
+
+const PREMIER_LEAGUE = requireLeague(39);
+const UCL_LEAGUE = requireLeague(UCL_LEAGUE_ID);
 
 function calendarDayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
