@@ -219,7 +219,9 @@ export default function DebateHeroSwipeCard({
     translateX.value = 0;
     overlayDir.value = 0;
     swipeCommittedSV.value = 0;
-  }, [summary.id, overlayDir, swipeCommittedSV, translateX]);
+    // Re-enable swipe for the new hero: swipeCommittedSV updates do not re-run other effects.
+    voteEnabledSV.value = canSwipeVote ? 1 : 0;
+  }, [summary.id, canSwipeVote, overlayDir, swipeCommittedSV, translateX, voteEnabledSV]);
 
   useEffect(() => {
     voteEnabledSV.value =
