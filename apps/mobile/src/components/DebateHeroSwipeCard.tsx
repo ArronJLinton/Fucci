@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import {LinearGradient} from 'expo-linear-gradient';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   runOnUI,
   useAnimatedStyle,
@@ -138,12 +139,19 @@ export type DebateHeroPanResult =
       absDx: number;
       threshold: number;
     };
-/** Passed when POST vote succeeded and counts were returned (swipe vote persisted). */
+/** Passed immediately when the user commits a swipe (optimistic feed update). */
 export type DebateHeroVoteSuccessDetail = {
   debateId: number;
   cardId: number;
   voteType: 'upvote' | 'downvote';
   /** Binary stance card that received the vote (for feed `binary_consensus` cache updates). */
+  stance: 'agree' | 'disagree';
+};
+
+/** When the vote API fails after an optimistic swipe — parent restores feed + shows toast. */
+export type DebateHeroVoteFailedDetail = {
+  debateId: number;
+  summary: DebateSummary;
   stance: 'agree' | 'disagree';
 };
 
@@ -153,8 +161,12 @@ export type DebateHeroSwipeCardProps = {
   token: string | null;
   /** Navigate to full debate detail */
   onOpen: () => void;
-  /** After a successful swipe vote (server accepted vote); use detail to confirm persistence. */
-  onVoteSuccess: (detail: DebateHeroVoteSuccessDetail) => void;
+  /** Called synchronously when swipe commits — advance hero / feed before API returns. */
+  onVoteOptimistic: (detail: DebateHeroVoteSuccessDetail) => void;
+  /** Optional: after server confirms vote (soft refresh). */
+  onVoteConfirmed?: () => void;
+  /** If POST fails — restore hero row client-side; parent shows error toast (no card spring-back). */
+  onVoteFailed?: (detail: DebateHeroVoteFailedDetail) => void;
   buildPlaceholderMatch: (summary: DebateSummary) => Match;
   /** Optional: parent can log each resolved pan (e.g. MainDebatesScreen). */
   onPanResolved?: (result: DebateHeroPanResult) => void;
@@ -165,7 +177,9 @@ export default function DebateHeroSwipeCard({
   isLoggedIn,
   token,
   onOpen,
-  onVoteSuccess,
+  onVoteOptimistic,
+  onVoteConfirmed,
+  onVoteFailed,
   buildPlaceholderMatch,
   onPanResolved,
 }: DebateHeroSwipeCardProps) {
@@ -173,7 +187,8 @@ export default function DebateHeroSwipeCard({
   const overlayDir = useSharedValue(0);
   /** Mirrored for pan worklets — 1 only when swipe voting is allowed (logged in + binary cards). */
   const voteEnabledSV = useSharedValue(0);
-  const voteBusySV = useSharedValue(0);
+  /** One-shot per hero card: set when swipe crosses vote threshold so we do not double-POST or re-pan during fly-off. */
+  const swipeCommittedSV = useSharedValue(0);
 
   const debateQuery = useQuery({
     queryKey: ['debateHero', summary.id],
@@ -200,20 +215,19 @@ export default function DebateHeroSwipeCard({
   const canSwipeVote = binaryVoteUiReady && isLoggedIn && !!token;
   const authRequiredForVote = binaryVoteUiReady && (!isLoggedIn || !token);
 
-  const [voteBusy, setVoteBusy] = useState(false);
+  /** Tracks hero identity so we reset pan/commit state only on debate change, not when canSwipeVote flips (e.g. prefetch). */
+  const prevHeroSummaryIdRef = useRef(summary.id);
 
   useEffect(() => {
-    voteEnabledSV.value = canSwipeVote ? 1 : 0;
-  }, [canSwipeVote, voteEnabledSV]);
-
-  useEffect(() => {
-    voteBusySV.value = voteBusy ? 1 : 0;
-  }, [voteBusy, voteBusySV]);
-
-  useEffect(() => {
-    translateX.value = 0;
-    overlayDir.value = 0;
-  }, [summary.id]);
+    if (prevHeroSummaryIdRef.current !== summary.id) {
+      prevHeroSummaryIdRef.current = summary.id;
+      translateX.value = 0;
+      overlayDir.value = 0;
+      swipeCommittedSV.value = 0;
+    }
+    voteEnabledSV.value =
+      canSwipeVote && swipeCommittedSV.value === 0 ? 1 : 0;
+  }, [summary.id, canSwipeVote, translateX, overlayDir, swipeCommittedSV, voteEnabledSV]);
 
   const headline = summary.headline.toUpperCase();
   const votes = summary.analytics?.total_votes ?? 0;
@@ -257,48 +271,26 @@ export default function DebateHeroSwipeCard({
     })();
   }, [translateX]);
 
-  const flyHeroCardOff = useCallback(
-    (direction: 'left' | 'right') => {
-      const target = direction === 'right' ? OFFSCREEN_X : -OFFSCREEN_X;
-      runOnUI(() => {
-        'worklet';
-        translateX.value = withTiming(target, {duration: 280});
-      })();
-    },
-    [translateX],
-  );
-
-  /** Swipe right → upvote agree card; swipe left → downvote disagree card (matches API binary_consensus). */
+  /** POST vote in background after optimistic feed update (no UI block on hero). */
   const performBinarySwipeVote = useCallback(
-    async (side: 'agree' | 'disagree'): Promise<boolean> => {
+    async (side: 'agree' | 'disagree') => {
       const card = side === 'agree' ? agreeCard : disagreeCard;
       const voteType = side === 'agree' ? 'upvote' : 'downvote';
       if (!debate?.id || card?.id == null) {
-        return false;
+        return;
       }
       if (!isLoggedIn || !token) {
-        return false;
+        return;
       }
-      if (voteBusy) {
-        return false;
-      }
-      setVoteBusy(true);
       try {
         const counts = await setCardVote(token, debate.id, card.id, voteType);
         if (counts) {
-          onVoteSuccess({
-            debateId: debate.id,
-            cardId: card.id,
-            voteType,
-            stance: side,
-          });
-          return true;
+          onVoteConfirmed?.();
+        } else {
+          onVoteFailed?.({debateId: debate.id, summary, stance: side});
         }
-        return false;
       } catch {
-        return false;
-      } finally {
-        setVoteBusy(false);
+        onVoteFailed?.({debateId: debate.id, summary, stance: side});
       }
     },
     [
@@ -307,8 +299,57 @@ export default function DebateHeroSwipeCard({
       disagreeCard?.id,
       isLoggedIn,
       token,
-      voteBusy,
-      onVoteSuccess,
+      summary,
+      onVoteConfirmed,
+      onVoteFailed,
+    ],
+  );
+
+  /**
+   * Called from pan onEnd as soon as swipe crosses threshold (before fly-off animation).
+   * Optimistic feed + vote POST must not depend on withTiming completing (can be cancelled).
+   */
+  const handleSwipeCommit = useCallback(
+    (stance: 'agree' | 'disagree', dx: number, dy: number) => {
+      const sid = summary.id;
+      if (stance === 'agree') {
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'swipe_right',
+          outcome: 'agree',
+          dx,
+          dy,
+        });
+      } else {
+        onPanResolved?.({
+          summaryId: sid,
+          kind: 'swipe_left',
+          outcome: 'disagree',
+          dx,
+          dy,
+        });
+      }
+      const card = stance === 'agree' ? agreeCard : disagreeCard;
+      const voteType = stance === 'agree' ? 'upvote' : 'downvote';
+      if (debate?.id == null || card?.id == null) {
+        return;
+      }
+      onVoteOptimistic({
+        debateId: debate.id,
+        cardId: card.id,
+        voteType,
+        stance,
+      });
+      void performBinarySwipeVote(stance);
+    },
+    [
+      summary.id,
+      debate?.id,
+      agreeCard?.id,
+      disagreeCard?.id,
+      onPanResolved,
+      onVoteOptimistic,
+      performBinarySwipeVote,
     ],
   );
 
@@ -318,16 +359,6 @@ export default function DebateHeroSwipeCard({
       if (Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX) {
         onPanResolved?.({summaryId: sid, kind: 'tap_open', dx, dy});
         onOpen();
-        return;
-      }
-      if (voteBusy) {
-        onPanResolved?.({
-          summaryId: sid,
-          kind: 'ignored',
-          reason: 'voteBusy',
-          dx,
-          dy,
-        });
         return;
       }
       if (!canSwipeVote) {
@@ -367,74 +398,39 @@ export default function DebateHeroSwipeCard({
         springHeroCardBack();
         return;
       }
-      if (dx > SWIPE_THRESHOLD) {
-        onPanResolved?.({
-          summaryId: sid,
-          kind: 'swipe_right',
-          outcome: 'agree',
-          dx,
-          dy,
-        });
-        void (async () => {
-          const ok = await performBinarySwipeVote('agree');
-          if (ok) {
-            flyHeroCardOff('right');
-          } else {
-            springHeroCardBack();
-          }
-        })();
-      } else if (dx < -SWIPE_THRESHOLD) {
-        onPanResolved?.({
-          summaryId: sid,
-          kind: 'swipe_left',
-          outcome: 'disagree',
-          dx,
-          dy,
-        });
-        void (async () => {
-          const ok = await performBinarySwipeVote('disagree');
-          if (ok) {
-            flyHeroCardOff('left');
-          } else {
-            springHeroCardBack();
-          }
-        })();
-      } else {
-        const absDx = Math.abs(dx);
-        onPanResolved?.({
-          summaryId: sid,
-          kind: 'swipe_incomplete',
-          dx,
-          dy,
-          absDx,
-          threshold: SWIPE_THRESHOLD,
-        });
-      }
+      const absDx = Math.abs(dx);
+      onPanResolved?.({
+        summaryId: sid,
+        kind: 'swipe_incomplete',
+        dx,
+        dy,
+        absDx,
+        threshold: SWIPE_THRESHOLD,
+      });
     },
     [
       summary.id,
       canSwipeVote,
       authRequiredForVote,
-      voteBusy,
       onOpen,
       onPanResolved,
       openAuthForSwipe,
-      performBinarySwipeVote,
       springHeroCardBack,
-      flyHeroCardOff,
     ],
   );
 
   const pan = useMemo(
     () =>
       Gesture.Pan()
-        .enabled(!voteBusy)
         .activeOffsetX([-12, 12])
         .failOffsetY([-16, 16])
         .onUpdate(e => {
           if (voteEnabledSV.value === 0) {
-            translateX.value = 0;
-            overlayDir.value = 0;
+            // After commit, leave translateX alone so fly-off withTiming is not zeroed by a new pan.
+            if (swipeCommittedSV.value === 0) {
+              translateX.value = 0;
+              overlayDir.value = 0;
+            }
             return;
           }
           translateX.value = e.translationX;
@@ -453,29 +449,55 @@ export default function DebateHeroSwipeCard({
 
           const isTap = Math.abs(dx) < TAP_MAX && Math.abs(dy) < TAP_MAX;
           if (isTap) {
+            if (swipeCommittedSV.value === 1) {
+              return;
+            }
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
             return;
           }
 
           const ready = voteEnabledSV.value === 1;
-          const busy = voteBusySV.value === 1;
-          if (!ready || busy) {
+          if (!ready) {
+            if (swipeCommittedSV.value === 1) {
+              return;
+            }
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
             return;
           }
 
           if (dx > SWIPE_THRESHOLD) {
-            runOnJS(handlePanEnd)(dx, dy);
+            // Commit vote + optimistic update before fly-off so unmount/cancelled animation
+            // cannot drop the vote (withTiming may report finished === false if interrupted).
+            swipeCommittedSV.value = 1;
+            voteEnabledSV.value = 0;
+            runOnJS(handleSwipeCommit)('agree', dx, dy);
+            translateX.value = withTiming(OFFSCREEN_X, {
+              duration: 420,
+              easing: Easing.bezier(0.22, 0.61, 0.36, 1),
+            });
           } else if (dx < -SWIPE_THRESHOLD) {
-            runOnJS(handlePanEnd)(dx, dy);
+            swipeCommittedSV.value = 1;
+            voteEnabledSV.value = 0;
+            runOnJS(handleSwipeCommit)('disagree', dx, dy);
+            translateX.value = withTiming(-OFFSCREEN_X, {
+              duration: 420,
+              easing: Easing.bezier(0.22, 0.61, 0.36, 1),
+            });
           } else {
             translateX.value = withSpring(0);
             runOnJS(handlePanEnd)(dx, dy);
           }
         }),
-    [voteBusy, translateX, overlayDir, handlePanEnd, voteEnabledSV, voteBusySV],
+    [
+      translateX,
+      overlayDir,
+      handlePanEnd,
+      handleSwipeCommit,
+      voteEnabledSV,
+      swipeCommittedSV,
+    ],
   );
 
   const cardStyle = useAnimatedStyle(() => ({

@@ -19,10 +19,10 @@ func TestResolveAPIFootballSeason_Domestic(t *testing.T) {
 }
 
 func TestResolveAPIFootballSeason_UCL(t *testing.T) {
-	// UEFA Champions League: calendar year of the fixture date
+	// UEFA Champions League: same Aug–July season year as other club competitions (API-Football `season` = start year).
 	apr2026 := time.Date(2026, time.April, 8, 0, 0, 0, 0, time.UTC)
-	if g := ResolveAPIFootballSeason(LeagueUEFAChampionsLeague, apr2026); g != 2026 {
-		t.Fatalf("UCL April 2026: got %d want 2026", g)
+	if g := ResolveAPIFootballSeason(LeagueUEFAChampionsLeague, apr2026); g != 2025 {
+		t.Fatalf("UCL April 2026: got %d want 2025 (2025/26)", g)
 	}
 	sept2025 := time.Date(2025, time.September, 15, 0, 0, 0, 0, time.UTC)
 	if g := ResolveAPIFootballSeason(LeagueUEFAChampionsLeague, sept2025); g != 2025 {

@@ -60,7 +60,7 @@ export interface LineupData {
 export const fetchMatches = async (
   date: Date,
   leagueId?: number,
-  /** When set (e.g. UCL), sent as `season` so API-Football returns the right competition year. */
+  /** Rare override for `season`; normally omitted — server resolves per league + date. */
   season?: number,
 ): Promise<Match[] | null> => {
   try {

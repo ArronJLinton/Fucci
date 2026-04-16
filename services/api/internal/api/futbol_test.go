@@ -956,7 +956,7 @@ func TestGetMatchesSeasonResolutionAndCache(t *testing.T) {
 		}
 	}
 
-	t.Run("computed season UCL uses calendar year of match date", func(t *testing.T) {
+	t.Run("computed season UCL uses club Aug–July season year", func(t *testing.T) {
 		var gotPath string
 		var existsKey, setKey string
 		srv := newMatchServer(t, func(path string) { gotPath = path })
@@ -973,10 +973,10 @@ func TestGetMatchesSeasonResolutionAndCache(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("code = %d, body=%s", rec.Code, rec.Body.String())
 		}
-		if !strings.Contains(gotPath, "league=2") || !strings.Contains(gotPath, "season=2026") {
-			t.Fatalf("upstream URL want league=2 and season=2026; got %q", gotPath)
+		if !strings.Contains(gotPath, "league=2") || !strings.Contains(gotPath, "season=2025") {
+			t.Fatalf("upstream URL want league=2 and season=2025; got %q", gotPath)
 		}
-		want := "matches:league:2:date:2026-04-09:season:2026"
+		want := "matches:league:2:date:2026-04-09:season:2025"
 		if existsKey != want || setKey != want {
 			t.Fatalf("cache keys: exists=%q set=%q want %q", existsKey, setKey, want)
 		}

@@ -5,7 +5,8 @@
  * @format
  */
 
-import React from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import {
   NavigationContainer,
   useNavigationState,
@@ -17,7 +18,7 @@ import {
   type BottomTabBarButtonProps,
 } from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {StatusBar} from 'react-native';
+import {Image, StatusBar, StyleSheet, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
@@ -48,6 +49,7 @@ import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
+import {prepareApp} from './src/bootstrap/prepareApp';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -145,15 +147,11 @@ const MainStack = () => {
       ? 'dark'
       : 'light';
 
-  const tabActiveTint =
-    tabChromeVariant === 'dark' ? TAB_LIME : '#007AFF';
+  const tabActiveTint = tabChromeVariant === 'dark' ? TAB_LIME : '#007AFF';
 
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: shellBg}}>
-      <StatusBar
-        barStyle={statusBarStyle}
-        backgroundColor={shellBg}
-      />
+      <StatusBar barStyle={statusBarStyle} backgroundColor={shellBg} />
       <TabNavigator
         initialRouteName="News"
         screenOptions={{
@@ -168,13 +166,14 @@ const MainStack = () => {
             marginTop: 2,
           },
           tabBarIconStyle: {marginBottom: 0},
-          tabBarButton: ({
-            ref: tabRef,
-            ...tabBtn
-          }: BottomTabBarButtonProps) => (
+          tabBarButton: ({ref: tabRef, ...tabBtn}: BottomTabBarButtonProps) => (
             <StyledTabBarButton
               {...tabBtn}
-              ref={tabRef as React.Ref<React.ComponentRef<typeof StyledTabBarButton>>}
+              ref={
+                tabRef as React.Ref<
+                  React.ComponentRef<typeof StyledTabBarButton>
+                >
+              }
               variant={tabChromeVariant}
             />
           ),
@@ -369,8 +368,53 @@ const DebatesStack = () => {
 };
 
 function App(): React.JSX.Element {
+  const [appIsReady, setAppIsReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        await prepareApp();
+      } catch (e) {
+        console.warn('[App] prepareApp failed:', e);
+      } finally {
+        if (!cancelled) {
+          setAppIsReady(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (!appIsReady) {
+      return;
+    }
+    try {
+      await SplashScreen.hideAsync();
+    } catch (e) {
+      console.warn('[App] SplashScreen.hideAsync:', e);
+    }
+  }, [appIsReady]);
+
+  // Expo Go shows its own “Downloading…” sheet over the native splash; keep this
+  // full-bleed image visible while prepareApp runs so splash-icon.png always appears.
+  if (!appIsReady) {
+    return (
+      <View style={styles.bootSplash}>
+        <Image
+          source={require('./assets/splash-icon.png')}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      </View>
+    );
+  }
+
   return (
-    <GestureHandlerRootView style={{flex: 1}}>
+    <GestureHandlerRootView style={{flex: 1}} onLayout={onLayoutRootView}>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <AuthProvider>
@@ -429,5 +473,12 @@ function App(): React.JSX.Element {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  bootSplash: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+});
 
 export default App;

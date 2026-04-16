@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useCallback, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,8 @@ type Props = {
 /**
  * Horizontal league badges with white inner tile (matches + news feeds).
  */
+const ALL_KEY = -1;
+
 export function LeagueHorizontalStrip({
   selectedLeague,
   onSelect,
@@ -32,9 +34,66 @@ export function LeagueHorizontalStrip({
   accentColor,
   mutedColor,
 }: Props) {
+  const scrollRef = useRef<ScrollView>(null);
+  /** Content-relative x for each league id (and ALL_KEY when includeAllOption). */
+  const itemXRef = useRef<Record<number, number>>({});
+
+  const scrollSelectedIntoView = useCallback((itemX: number) => {
+    const pad = 48;
+    scrollRef.current?.scrollTo({
+      x: Math.max(0, itemX - pad),
+      animated: true,
+    });
+  }, []);
+
+  useEffect(() => {
+    const targetId =
+      selectedLeague === null
+        ? includeAllOption
+          ? ALL_KEY
+          : null
+        : selectedLeague.id;
+    if (targetId === null) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const tryScroll = (): boolean => {
+      if (cancelled) {
+        return true;
+      }
+      const x = itemXRef.current[targetId];
+      if (x != null) {
+        scrollSelectedIntoView(x);
+        return true;
+      }
+      return false;
+    };
+
+    if (tryScroll()) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const t1 = setTimeout(() => {
+      tryScroll();
+    }, 50);
+    const t2 = setTimeout(() => {
+      tryScroll();
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [selectedLeague, includeAllOption, scrollSelectedIntoView]);
+
   return (
     <View style={styles.strip}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.content}>
@@ -42,8 +101,22 @@ export function LeagueHorizontalStrip({
           <TouchableOpacity
             style={styles.item}
             onPress={() => onSelect(null)}
-            activeOpacity={0.85}>
-            <View style={styles.iconWrap}>
+            activeOpacity={0.85}
+            onLayout={e => {
+              const x = e.nativeEvent.layout.x;
+              itemXRef.current[ALL_KEY] = x;
+              if (selectedLeague === null) {
+                scrollSelectedIntoView(x);
+              }
+            }}>
+            <View
+              style={[
+                styles.iconWrap,
+                selectedLeague === null && [
+                  styles.iconWrapSelected,
+                  {borderColor: accentColor},
+                ],
+              ]}>
               <View style={styles.iconInner}>
                 <Text style={styles.allGlyph}>∞</Text>
               </View>
@@ -72,8 +145,22 @@ export function LeagueHorizontalStrip({
               key={league.id}
               style={styles.item}
               onPress={() => onSelect(league)}
-              activeOpacity={0.85}>
-              <View style={styles.iconWrap}>
+              activeOpacity={0.85}
+              onLayout={e => {
+                const x = e.nativeEvent.layout.x;
+                itemXRef.current[league.id] = x;
+                if (isSelected) {
+                  scrollSelectedIntoView(x);
+                }
+              }}>
+              <View
+                style={[
+                  styles.iconWrap,
+                  isSelected && [
+                    styles.iconWrapSelected,
+                    {borderColor: accentColor},
+                  ],
+                ]}>
                 <View style={styles.iconInner}>
                   {league.logo ? (
                     <Image
@@ -135,6 +222,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
     padding: 3,
     marginBottom: 6,
+  },
+  iconWrapSelected: {
+    backgroundColor: 'rgba(198,255,0,0.14)',
+    borderWidth: 2,
+    shadowColor: '#C6FF00',
+    shadowOffset: {width: 0, height: 0},
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
   },
   iconInner: {
     width: 38,

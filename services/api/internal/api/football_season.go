@@ -5,9 +5,8 @@ import (
 )
 
 // LeagueUEFAChampionsLeague is API-Football v3 id for UEFA Champions League.
-// Fixtures for this competition use the calendar year of the match date as `season`
-// (e.g. April 2026 knockouts → season=2026) per product/API behavior; optional `season`
-// query on /futbol/matches overrides.
+// `season` is the competition starting year (e.g. 2025–26 → 2025), same August–July rule
+// as other club leagues; optional `season` query on /futbol/matches overrides.
 const LeagueUEFAChampionsLeague = 2
 
 // API-Football v3 league IDs for international tournaments (national teams).
@@ -42,14 +41,11 @@ func IsInternationalFootballLeague(leagueID int) bool {
 }
 
 // ResolveAPIFootballSeason returns the `season` query parameter for API-Football fixtures.
-// - UEFA Champions League: calendar year of the fixture date (aligns with requested match day).
+// - UEFA Champions League and domestic club leagues: European-style season starting year
+//   (Aug–Dec → year; Jan–Jul → year−1).
 // - International tournaments (national teams): calendar year of the fixture date.
-// - Other domestic/club leagues: European-style season starting year (Aug–Dec → year; Jan–Jul → year−1).
 func ResolveAPIFootballSeason(leagueID int, matchDate time.Time) int {
 	y, m, _ := matchDate.Date()
-	if leagueID == LeagueUEFAChampionsLeague {
-		return y
-	}
 	if IsInternationalFootballLeague(leagueID) {
 		return y
 	}

@@ -15,6 +15,7 @@ import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Ionicons} from '@expo/vector-icons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useAuth} from '../context/AuthContext';
 import {
   fetchDebatesPublicFeed,
@@ -27,6 +28,7 @@ import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import DebateHeroSwipeCard, {
+  type DebateHeroVoteFailedDetail,
   type DebateHeroVoteSuccessDetail,
 } from '../components/DebateHeroSwipeCard';
 
@@ -176,7 +178,18 @@ function withHeroVoteInBinaryConsensus(
 const MainDebatesScreen = () => {
   const navigation = useNavigation<MainDebatesNavigation>();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const {isLoggedIn, token, isReady, user} = useAuth();
+
+  const [voteErrorToast, setVoteErrorToast] = useState<string | null>(null);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  useEffect(() => {
+    if (!voteErrorToast) {
+      return;
+    }
+    const t = setTimeout(() => setVoteErrorToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [voteErrorToast]);
 
   /** Segment feed cache per account; avoids showing another user's feed after switch. */
   const mainDebatesFeedQueryKey = useMemo(
@@ -203,7 +216,16 @@ const MainDebatesScreen = () => {
     },
   });
 
-  const {data, isLoading, isError, error, refetch, isRefetching} = query;
+  const {data, isLoading, isError, error, refetch} = query;
+
+  const onPullRefresh = useCallback(async () => {
+    setIsPullRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsPullRefreshing(false);
+    }
+  }, [refetch]);
 
   const [feedNowMs, setFeedNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -308,6 +330,82 @@ const MainDebatesScreen = () => {
     [navigation],
   );
 
+  /** Immediate hero advance + consensus bump; next card shows without waiting for POST. */
+  const onHeroVoteOptimistic = useCallback(
+    (detail: DebateHeroVoteSuccessDetail) => {
+      queryClient.setQueryData<UnifiedFeed>(
+        mainDebatesFeedQueryKey,
+        old => {
+          if (!old || old.kind !== 'auth') {
+            return old;
+          }
+          const nextNew = old.new_debates.filter(
+            s => s.id !== detail.debateId,
+          );
+          const moved = old.new_debates.find(s => s.id === detail.debateId);
+          const movedWithConsensus = moved
+            ? withHeroVoteInBinaryConsensus(moved, detail.stance)
+            : undefined;
+          const nextVoted =
+            movedWithConsensus &&
+            !old.voted_debates.some(s => s.id === detail.debateId)
+              ? [movedWithConsensus, ...old.voted_debates]
+              : old.voted_debates;
+          return {
+            ...old,
+            new_debates: nextNew,
+            voted_debates: nextVoted,
+          };
+        },
+      );
+      const after = queryClient.getQueryData<UnifiedFeed>(
+        mainDebatesFeedQueryKey,
+      );
+      const nextHeroId =
+        after?.kind === 'auth' ? after.new_debates[0]?.id : undefined;
+      if (nextHeroId != null && nextHeroId !== detail.debateId) {
+        void queryClient.prefetchQuery({
+          queryKey: ['debateHero', nextHeroId],
+          queryFn: () => fetchDebateById(nextHeroId),
+        });
+      }
+    },
+    [queryClient, mainDebatesFeedQueryKey],
+  );
+
+  const onHeroVoteConfirmed = useCallback(() => {
+    void queryClient.invalidateQueries({queryKey: mainDebatesFeedQueryKey});
+  }, [queryClient, mainDebatesFeedQueryKey]);
+
+  const onHeroVoteFailed = useCallback(
+    (failed: DebateHeroVoteFailedDetail) => {
+      queryClient.setQueryData<UnifiedFeed>(
+        mainDebatesFeedQueryKey,
+        old => {
+          if (!old || old.kind !== 'auth') {
+            return old;
+          }
+          const voted = old.voted_debates.filter(
+            s => s.id !== failed.debateId,
+          );
+          const alreadyNew = old.new_debates.some(
+            s => s.id === failed.debateId,
+          );
+          const newDebates = alreadyNew
+            ? old.new_debates
+            : [failed.summary, ...old.new_debates];
+          return {
+            ...old,
+            new_debates: newDebates,
+            voted_debates: voted,
+          };
+        },
+      );
+      setVoteErrorToast('Vote failed. Please try again.');
+    },
+    [queryClient, mainDebatesFeedQueryKey],
+  );
+
   const newSectionEmpty = hero == null;
 
   const keyExtractor = useCallback((item: FeedRow) => {
@@ -365,47 +463,9 @@ const MainDebatesScreen = () => {
               isLoggedIn={isLoggedIn}
               token={token ?? null}
               onOpen={() => onOpenSummary(item.summary)}
-              onVoteSuccess={(detail: DebateHeroVoteSuccessDetail) => {
-                queryClient.setQueryData<UnifiedFeed>(
-                  mainDebatesFeedQueryKey,
-                  old => {
-                    if (!old || old.kind !== 'auth') return old;
-                    const nextNew = old.new_debates.filter(
-                      s => s.id !== detail.debateId,
-                    );
-                    const moved = old.new_debates.find(
-                      s => s.id === detail.debateId,
-                    );
-                    const movedWithConsensus = moved
-                      ? withHeroVoteInBinaryConsensus(moved, detail.stance)
-                      : undefined;
-                    const nextVoted =
-                      movedWithConsensus &&
-                      !old.voted_debates.some(s => s.id === detail.debateId)
-                        ? [movedWithConsensus, ...old.voted_debates]
-                        : old.voted_debates;
-                    return {
-                      ...old,
-                      new_debates: nextNew,
-                      voted_debates: nextVoted,
-                    };
-                  },
-                );
-                void queryClient.invalidateQueries({
-                  queryKey: mainDebatesFeedQueryKey,
-                });
-                const after = queryClient.getQueryData<UnifiedFeed>(
-                  mainDebatesFeedQueryKey,
-                );
-                const nextHeroId =
-                  after?.kind === 'auth' ? after.new_debates[0]?.id : undefined;
-                if (nextHeroId != null && nextHeroId !== detail.debateId) {
-                  void queryClient.prefetchQuery({
-                    queryKey: ['debateHero', nextHeroId],
-                    queryFn: () => fetchDebateById(nextHeroId),
-                  });
-                }
-              }}
+              onVoteOptimistic={onHeroVoteOptimistic}
+              onVoteConfirmed={onHeroVoteConfirmed}
+              onVoteFailed={onHeroVoteFailed}
               buildPlaceholderMatch={buildPlaceholderMatch}
             />
           );
@@ -462,8 +522,9 @@ const MainDebatesScreen = () => {
       isLoggedIn,
       token,
       onOpenSummary,
-      queryClient,
-      mainDebatesFeedQueryKey,
+      onHeroVoteOptimistic,
+      onHeroVoteConfirmed,
+      onHeroVoteFailed,
       newSectionEmpty,
       isGuest,
       votedList,
@@ -494,6 +555,20 @@ const MainDebatesScreen = () => {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={BG} />
+      {voteErrorToast ? (
+        <View
+          style={[
+            styles.voteToastWrap,
+            {paddingBottom: Math.max(insets.bottom, 12) + 8},
+          ]}
+          pointerEvents="box-none"
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert">
+          <View style={styles.voteToastInner}>
+            <Text style={styles.voteToastText}>{voteErrorToast}</Text>
+          </View>
+        </View>
+      ) : null}
       <SectionList<FeedRow, MainDebatesSection>
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -506,8 +581,8 @@ const MainDebatesScreen = () => {
         accessibilityLabel="Debates feed"
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
+            refreshing={isPullRefreshing}
+            onRefresh={onPullRefresh}
             tintColor={LIME}
             progressBackgroundColor={CARD}
           />
@@ -809,6 +884,29 @@ const styles = StyleSheet.create({
   },
   listFooterSpacer: {
     height: 32,
+  },
+  voteToastWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 0,
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  voteToastInner: {
+    backgroundColor: CARD,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.45)',
+    maxWidth: '100%',
+  },
+  voteToastText: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   ctaButton: {
     marginTop: 16,

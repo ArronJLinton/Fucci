@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   useWindowDimensions,
   View,
@@ -18,6 +18,7 @@ import {
 } from '../constants/leagues';
 import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
+import {resolveHomeScreenDefaultLeague} from '../services/matchesDefaultLeague';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -82,12 +83,25 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const matchesByKeyRef = React.useRef<Map<string, any[]>>(new Map());
 
   React.useEffect(() => {
-    if (!isSelected || !selectedLeague) {
+    if (!selectedLeague) {
       return;
     }
 
     const cached = matchesByKeyRef.current.get(cacheKey);
-    if (cached) {
+
+    /** Inactive tab: keep list in sync with (date + league) so we never flash another league after switching strip on a different day tab. */
+    if (!isSelected) {
+      if (cached !== undefined) {
+        setMatches(cached);
+      } else {
+        setMatches([]);
+      }
+      setIsLoading(false);
+      isLoadingRef.current = false;
+      return;
+    }
+
+    if (cached !== undefined) {
       setMatches(cached);
       setIsLoading(false);
       isLoadingRef.current = false;
@@ -102,11 +116,15 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     const currentLeague = selectedLeague;
 
     const timeoutId = setTimeout(() => {
-      if (
-        currentCacheKey !== cacheKey ||
-        !isSelected ||
-        matchesByKeyRef.current.has(currentCacheKey)
-      ) {
+      if (currentCacheKey !== cacheKey || !isSelected) {
+        isLoadingRef.current = false;
+        setIsLoading(false);
+        return;
+      }
+
+      const hitWhileWaiting = matchesByKeyRef.current.get(currentCacheKey);
+      if (hitWhileWaiting !== undefined) {
+        setMatches(hitWhileWaiting);
         isLoadingRef.current = false;
         setIsLoading(false);
         return;
@@ -166,6 +184,30 @@ const HomeScreen = () => {
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
     DEFAULT_LEAGUE,
   );
+  /** Set when the user picks a league from the strip; blocks async default from overwriting. */
+  const userChangedSelectionRef = useRef(false);
+
+  const handleLeagueSelect = useCallback((league: League | null) => {
+    userChangedSelectionRef.current = true;
+    setSelectedLeague(league);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const league = await resolveHomeScreenDefaultLeague(new Date());
+        if (!cancelled && !userChangedSelectionRef.current) {
+          setSelectedLeague(league);
+        }
+      } catch {
+        /* keep DEFAULT_LEAGUE */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const dates = useMemo(() => {
     const now = new Date();
@@ -251,7 +293,7 @@ const HomeScreen = () => {
                 <View style={styles.tabBody}>
                   <LeagueHorizontalStrip
                     selectedLeague={selectedLeague}
-                    onSelect={setSelectedLeague}
+                    onSelect={handleLeagueSelect}
                     includeAllOption={false}
                     accentColor={MATCHES_LIME}
                     mutedColor={MATCHES_MUTED}
