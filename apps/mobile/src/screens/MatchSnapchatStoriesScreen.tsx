@@ -181,9 +181,23 @@ export default function MatchSnapchatStoriesScreen() {
       <View style={[styles.root, styles.centered]}>
         <Text style={styles.errorTitle}>Couldn’t load stories</Text>
         <Text style={styles.errorBody}>{userFacingApiMessage(error)}</Text>
-        <Text style={styles.retry} onPress={() => void refetch()}>
-          {isRefetching ? 'Retrying…' : 'Retry'}
-        </Text>
+        <Pressable
+          onPress={() => void refetch()}
+          disabled={isRefetching}
+          style={({pressed}) => [
+            styles.retryPressable,
+            pressed && !isRefetching && styles.retryPressed,
+          ]}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{disabled: isRefetching}}
+          accessibilityLabel={
+            isRefetching ? 'Retrying to load stories' : 'Retry loading stories'
+          }>
+          <Text style={styles.retryLabel}>
+            {isRefetching ? 'Retrying…' : 'Retry'}
+          </Text>
+        </Pressable>
         <Pressable
           style={[styles.closeFab, {top: insets.top + 8}]}
           onPress={() => navigation.goBack()}
@@ -202,9 +216,23 @@ export default function MatchSnapchatStoriesScreen() {
         <Text style={styles.hint}>
           No story media for this account right now.
         </Text>
-        <Text style={styles.retry} onPress={() => void refetch()}>
-          Refresh
-        </Text>
+        <Pressable
+          onPress={() => void refetch()}
+          disabled={isRefetching}
+          style={({pressed}) => [
+            styles.retryPressable,
+            pressed && !isRefetching && styles.retryPressed,
+          ]}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{disabled: isRefetching}}
+          accessibilityLabel={
+            isRefetching ? 'Refreshing stories' : 'Refresh story list'
+          }>
+          <Text style={styles.retryLabel}>
+            {isRefetching ? 'Refreshing…' : 'Refresh'}
+          </Text>
+        </Pressable>
         <Pressable
           style={[styles.closeFab, {top: insets.top + 8}]}
           onPress={() => navigation.goBack()}
@@ -367,8 +395,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
-  retry: {
+  retryPressable: {
     marginTop: 16,
+    minHeight: 44,
+    minWidth: 48,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  retryPressed: {
+    opacity: 0.7,
+  },
+  retryLabel: {
     color: MATCH_CENTER_LIME,
     fontSize: 15,
     fontWeight: '600',
