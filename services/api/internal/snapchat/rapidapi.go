@@ -15,8 +15,9 @@ const (
 	rapidHost   = "snapchat6.p.rapidapi.com"
 	storiesPath = "/user/stories"
 
-	// maxUserStoriesBodyBytes caps the upstream JSON body; responses larger than this fail closed (no silent truncation).
-	maxUserStoriesBodyBytes = 1 << 24 // 16 MiB
+	// maxUserStoriesBodyBytes caps the upstream JSON body; responses larger than this fail closed
+	// (no silent truncation). Keep this limit small because successful responses may be cached downstream.
+	maxUserStoriesBodyBytes = 1 << 20 // 1 MiB
 
 	// SnapchatUsernameMaxRunes is the max length of the normalized username (a-z, 0-9, ., _, -).
 	SnapchatUsernameMaxRunes = 64
