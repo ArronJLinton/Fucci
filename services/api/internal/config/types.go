@@ -1,9 +1,11 @@
 package config
 
 type Config struct {
-	DB_URL                     string
-	FOOTBALL_API_KEY           string
-	RAPID_API_KEY              string
+	DB_URL           string
+	FOOTBALL_API_KEY string
+	RAPID_API_KEY    string
+	// NEWS_API_KEY is the X-API-Key for the Open Web Ninja realtime news HTTP client. If empty, RAPID_API_KEY is used.
+	NEWS_API_KEY string
 	// NEWS_BASE_URL is the full base URL for GET /search-style news requests (query string appended). Empty uses the client default.
 	NEWS_BASE_URL              string
 	GOOGLE_OAUTH_CLIENT_ID     string

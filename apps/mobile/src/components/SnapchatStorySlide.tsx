@@ -1,14 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  Linking,
-  Pressable,
-} from 'react-native';
-import { Video, ResizeMode, type AVPlaybackStatus } from 'expo-av';
-import type { SnapchatStoryItem } from '../services/snapchatStoriesApi';
+import React, {useCallback, useEffect, useRef} from 'react';
+import {View, Text, StyleSheet, Image, Linking, Pressable} from 'react-native';
+import {Video, ResizeMode, type AVPlaybackStatus} from 'expo-av';
+import type {SnapchatStoryItem} from '../services/snapchatStoriesApi';
 
 type Props = {
   story: SnapchatStoryItem;
@@ -91,7 +84,7 @@ export default function SnapchatStorySlide({
         <Video
           ref={videoRef}
           style={styles.media}
-          source={{ uri: mediaUrl }}
+          source={{uri: mediaUrl}}
           resizeMode={ResizeMode.COVER}
           shouldPlay={isActive}
           isLooping={false}
@@ -101,7 +94,7 @@ export default function SnapchatStorySlide({
         />
       ) : (
         <Image
-          source={{ uri: mediaUrl }}
+          source={{uri: mediaUrl}}
           style={styles.media}
           resizeMode="cover"
         />
@@ -112,14 +105,6 @@ export default function SnapchatStorySlide({
         <Text style={styles.title} numberOfLines={3}>
           {titleFor(story, profileTitle)}
         </Text>
-        <Pressable
-          onPress={openProfile}
-          style={styles.fallback}
-          hitSlop={8}
-          accessibilityRole="link"
-          accessibilityLabel="Open profile in Snapchat">
-          <Text style={styles.fallbackText}>View on Snapchat</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -165,6 +150,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 24,
   },
-  link: { alignSelf: 'center', marginTop: 8 },
-  linkText: { color: '#C6FF00', fontSize: 15, fontWeight: '600' },
+  link: {alignSelf: 'center', marginTop: 8},
+  linkText: {color: '#C6FF00', fontSize: 15, fontWeight: '600'},
 });

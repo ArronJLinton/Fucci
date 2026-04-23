@@ -67,8 +67,10 @@ type Config struct {
 	DB             *database.Queries
 	DBConn         *sql.DB
 	FootballAPIKey string
-	// RapidAPIKey is RAPID_API_KEY: used for Google News (RapidAPI host/headers in google.go) and for realtime news search (X-API-Key; news package).
-	RapidAPIKey             string
+	// RapidAPIKey is RAPID_API_KEY: used for Google News (RapidAPI host/headers in google.go), Snapchat stories, and as fallback for the news client if NewsAPIKey is empty.
+	RapidAPIKey string
+	// NewsAPIKey is NEWS_API_KEY: X-API-Key for the Open Web Ninja realtime news HTTP client (see newsXAPIKey).
+	NewsAPIKey              string
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string
 	GoogleOAuthRedirectURIs string // comma-separated list of allowed callback URIs
@@ -102,6 +104,14 @@ type Config struct {
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
+}
+
+// newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When NewsAPIKey is empty, falls back to RapidAPIKey.
+func (a *Config) newsXAPIKey() string {
+	if a.NewsAPIKey != "" {
+		return a.NewsAPIKey
+	}
+	return a.RapidAPIKey
 }
 
 func New(c *Config) http.Handler {

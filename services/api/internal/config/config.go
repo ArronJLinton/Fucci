@@ -82,6 +82,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 		DB_URL:                             viper.GetString("db_url"),
 		FOOTBALL_API_KEY:                   viper.GetString("football_api_key"),
 		RAPID_API_KEY:                      viper.GetString("rapid_api_key"),
+		NEWS_API_KEY:                       viper.GetString("news_api_key"),
 		NEWS_BASE_URL:                      viper.GetString("news_base_url"),
 		GOOGLE_OAUTH_CLIENT_ID:             viper.GetString("google_oauth_client_id"),
 		GOOGLE_OAUTH_CLIENT_SECRET:         googleOAuthClientSecret,

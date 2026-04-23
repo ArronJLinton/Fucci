@@ -33,9 +33,10 @@ func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create news client (optional custom base URL for tests)
-	newsClient := news.NewClient(c.RapidAPIKey)
+	k := c.newsXAPIKey()
+	newsClient := news.NewClient(k)
 	if c.NewsBaseURL != "" {
-		newsClient = news.NewClientWithBaseURL(c.RapidAPIKey, c.NewsBaseURL)
+		newsClient = news.NewClientWithBaseURL(k, c.NewsBaseURL)
 	}
 
 	todayAndHistoryResp, err := newsClient.FetchTodayAndHistoryNews(ctx)
@@ -124,9 +125,10 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create news client (optional custom base URL for tests)
-	newsClient := news.NewClient(c.RapidAPIKey)
+	k := c.newsXAPIKey()
+	newsClient := news.NewClient(k)
 	if c.NewsBaseURL != "" {
-		newsClient = news.NewClientWithBaseURL(c.RapidAPIKey, c.NewsBaseURL)
+		newsClient = news.NewClientWithBaseURL(k, c.NewsBaseURL)
 	}
 
 	// Fetch match news (combined query for both teams)
