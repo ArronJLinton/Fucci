@@ -104,6 +104,9 @@ type Config struct {
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
+
+	// SnapchatUserStoriesFetch when set, replaces snapchat.FetchUserStories (unit tests only; production leaves nil).
+	SnapchatUserStoriesFetch func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error)
 }
 
 // newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When NewsAPIKey is empty, falls back to RapidAPIKey.
