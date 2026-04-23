@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -53,5 +54,25 @@ func TestSnapchatMemRL_pruneIfNeededLocked_EvictsOldestOverCap(t *testing.T) {
 	}
 	if _, ok := m.byKey["a"]; ok {
 		t.Fatal("oldest (a) should be evicted")
+	}
+}
+
+func TestSnapchatRateLimitLogKey_sanitizes(t *testing.T) {
+	secret := "8.8.8.8-or-username"
+	userKey := snapchatRLKeyPrefixUser + secret
+	ipKey := snapchatRLKeyPrefixIP + secret
+	for _, k := range []string{userKey, ipKey} {
+		if strings.Contains(snapchatRateLimitLogKey(k), secret) {
+			t.Fatalf("log key should not contain raw value: in=%q out=%q", k, snapchatRateLimitLogKey(k))
+		}
+	}
+	lu := snapchatRateLimitLogKey(userKey)
+	li := snapchatRateLimitLogKey(ipKey)
+	if !strings.HasPrefix(lu, "user#") || !strings.HasPrefix(li, "ip#") {
+		t.Fatalf("want user#/ip# prefixes, got %q and %q", lu, li)
+	}
+	foo := "other:key:foo:bar"
+	if g := snapchatRateLimitLogKey(foo); !strings.HasPrefix(g, "key#") {
+		t.Fatalf("unknown key shape should use key# hash, got %q", g)
 	}
 }

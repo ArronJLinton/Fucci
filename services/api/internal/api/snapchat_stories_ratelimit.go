@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"net"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -103,6 +106,28 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+const (
+	snapchatRLKeyPrefixUser = "rl:snapchat:user:"
+	snapchatRLKeyPrefixIP   = "rl:snapchat:ip:"
+)
+
+// snapchatRateLimitLogKey returns a non-identifying label for logs (no raw IP or username in Redis key).
+func snapchatRateLimitLogKey(key string) string {
+	var kind string
+	var tail string
+	switch {
+	case strings.HasPrefix(key, snapchatRLKeyPrefixUser):
+		kind, tail = "user", key[len(snapchatRLKeyPrefixUser):]
+	case strings.HasPrefix(key, snapchatRLKeyPrefixIP):
+		kind, tail = "ip", key[len(snapchatRLKeyPrefixIP):]
+	default:
+		h := sha256.Sum256([]byte(key))
+		return "key#" + hex.EncodeToString(h[:4])
+	}
+	h := sha256.Sum256([]byte(tail))
+	return kind + "#" + hex.EncodeToString(h[:4])
+}
+
 // snapchatStoriesRateLimitAllow enforces per-username then per-IP fixed windows
 // using TTL-based counters in Redis when configured.
 func snapchatStoriesRateLimitAllow(ctx context.Context, c *Config, ip, userNorm string) bool {
@@ -112,33 +137,34 @@ func snapchatStoriesRateLimitAllow(ctx context.Context, c *Config, ip, userNorm 
 	if ip == "" {
 		ip = "unknown"
 	}
-	if !snapchatRateWindowAllow(ctx, c, "rl:snapchat:user:"+userNorm, snapchatStoriesUserLimitN) {
+	if !snapchatRateWindowAllow(ctx, c, snapchatRLKeyPrefixUser+userNorm, snapchatStoriesUserLimitN) {
 		return false
 	}
-	return snapchatRateWindowAllow(ctx, c, "rl:snapchat:ip:"+ip, snapchatStoriesIPLimitN)
+	return snapchatRateWindowAllow(ctx, c, snapchatRLKeyPrefixIP+ip, snapchatStoriesIPLimitN)
 }
 
 func snapchatRateWindowAllow(ctx context.Context, c *Config, key string, maxN int) bool {
 	if c != nil && c.Cache != nil {
 		n, err := c.Cache.Incr(ctx, key)
 		if err == nil {
+			lk := snapchatRateLimitLogKey(key)
 			if n == 1 {
 				if err := c.Cache.Expire(ctx, key, snapchatStoriesRateWindow); err != nil {
-					log.Printf("[snapchat] rate limit Expire %q: %v", key, err)
+					log.Printf("[snapchat] rate limit Expire %s: %v", lk, err)
 				}
 			} else {
 				ttl, err := c.Cache.TTL(ctx, key)
 				if err != nil {
-					log.Printf("[snapchat] rate limit TTL %q: %v", key, err)
+					log.Printf("[snapchat] rate limit TTL %s: %v", lk, err)
 				} else if ttl < 0 {
 					if err := c.Cache.Expire(ctx, key, snapchatStoriesRateWindow); err != nil {
-						log.Printf("[snapchat] rate limit fallback Expire %q: %v", key, err)
+						log.Printf("[snapchat] rate limit fallback Expire %s: %v", lk, err)
 					}
 				}
 			}
 			return n <= int64(maxN)
 		}
-		log.Printf("[snapchat] rate limit Incr %q: %v; using in-memory fallback", key, err)
+		log.Printf("[snapchat] rate limit Incr %s: %v; using in-memory fallback", snapchatRateLimitLogKey(key), err)
 	}
 	return snapchatStoryMem.allow(key, maxN, snapchatStoriesRateWindow)
 }
