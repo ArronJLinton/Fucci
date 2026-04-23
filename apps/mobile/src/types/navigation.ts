@@ -54,6 +54,11 @@ export type RootStackParamList = {
   MatchDetails: {
     match: Match;
   };
+  /** Match hero: team badge → Snapchat story rail (known accounts only). */
+  MatchSnapchatStories: {
+    snapchatUsername: string;
+    teamDisplayName: string;
+  };
   SingleDebate: {
     match: Match;
     debate: DebateResponse;

@@ -19,8 +19,18 @@ export class ApiRequestError extends Error {
 /** Short message for alerts / inline errors; uses status when available. */
 export function userFacingApiMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401 || error.status === 403) {
+    if (error.status === 401) {
       return 'Session expired. Please sign in again.';
+    }
+    // 403 is also returned by third-party proxies (e.g. RapidAPI key / subscription)
+    if (error.status === 403) {
+      if (
+        error.message &&
+        !/^Request failed \(403\)$/.test(error.message.trim())
+      ) {
+        return error.message;
+      }
+      return 'Access denied. If you’re the developer, verify RAPID_API_KEY and that this app is subscribed to the Snapchat API on RapidAPI.';
     }
     if (error.status === 408) {
       return 'Request timed out. Please try again.';
@@ -51,6 +61,25 @@ export function userFacingApiMessage(error: unknown): string {
 }
 
 /**
+ * `RequestInit.headers` may be a `Headers` instance, `[name, value][]`, or a plain
+ * object; only the latter is safe to spread. Normalize so merges never drop
+ * custom headers.
+ */
+function headersInitToRecord(
+  init: HeadersInit | undefined,
+): Record<string, string> {
+  if (init == null) {
+    return {};
+  }
+  const h = new Headers(init);
+  const out: Record<string, string> = {};
+  h.forEach((value, name) => {
+    out[name] = value;
+  });
+  return out;
+}
+
+/**
  * Unauthenticated API request helper.
  * Used by futbol and debate modules; also re-exported for any direct callers.
  */
@@ -59,25 +88,74 @@ export const makeApiRequest = async (
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
   options: RequestInit = {},
 ) => {
+  const {headers: optionsHeaders, ...restOptions} = options;
   const url = `${apiConfig.baseURL}${endpoint}`;
   try {
     const response = await fetch(url, {
+      ...restOptions,
       method,
       redirect: 'follow',
       headers: {
         ...apiConfig.headers,
-        ...options.headers,
+        ...headersInitToRecord(optionsHeaders),
       },
-      ...options,
     });
     if (!response.ok) {
-      throw new ApiRequestError(
-        `Request failed (${response.status})`,
-        response.status,
-      );
+      const text = await response.text();
+      let errMsg = `Request failed (${response.status})`;
+      if (text.trim()) {
+        try {
+          const errBody = JSON.parse(text) as Record<string, unknown>;
+          const m =
+            (typeof errBody.message === 'string' && errBody.message) ||
+            (typeof errBody.error === 'string' && errBody.error);
+          if (m) {
+            errMsg = m;
+          }
+        } catch {
+          if (text.length < 500) {
+            errMsg = text.trim();
+          }
+        }
+      }
+      throw new ApiRequestError(errMsg, response.status);
     }
-    return response.json();
+    if (response.status === 204 || response.status === 205) {
+      return undefined;
+    }
+    if (response.headers.get('content-length') === '0') {
+      return undefined;
+    }
+    try {
+      return await response.json();
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+        if (
+          /unexpected end|end of (data|input|json|the json input|file|stream)/.test(
+            msg,
+          ) ||
+          msg.includes('unterminated input')
+        ) {
+          return undefined;
+        }
+        throw new ApiRequestError(
+          BACKEND_UNAVAILABLE_MESSAGE,
+          response.status,
+        );
+      }
+      if (e instanceof TypeError) {
+        throw new ApiRequestError(
+          BACKEND_UNAVAILABLE_MESSAGE,
+          response.status,
+        );
+      }
+      throw e;
+    }
   } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
     console.error(`API request failed for ${url}:`, error);
     throw error;
   }
@@ -101,9 +179,7 @@ export const makeAuthRequest = async (
     headers: {
       ...apiConfig.headers,
       Authorization: `Bearer ${token}`,
-      ...(optionsHeaders && typeof optionsHeaders === 'object'
-        ? optionsHeaders
-        : {}),
+      ...headersInitToRecord(optionsHeaders),
     },
   });
   const text = await response.text();

@@ -48,9 +48,8 @@ const NewsWebViewScreen: React.FC = () => {
         style={[
           styles.closeBar,
           {
-            // Sit in the same band as typical site top nav (hamburger ~56px below status bar);
-            // pull up into that row so the chip covers the menu control.
-            paddingTop: Math.max(insets.top - 22, 2),
+            // Sit just under the status bar; offset tuned so the chip lines up with common site chrome.
+            paddingTop: Math.max(insets.top - 30, 2),
             paddingLeft: Math.max(10, insets.left),
           },
         ]}
@@ -105,7 +104,7 @@ const styles = StyleSheet.create({
   },
   /** Nudge up so the hit area overlaps fixed site headers (hamburger row). */
   closeButtonHoist: {
-    marginTop: -4,
+    marginTop: -8,
   },
   loadingContainer: {
     position: 'absolute',

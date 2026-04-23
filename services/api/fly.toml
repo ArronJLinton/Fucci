@@ -12,6 +12,9 @@ primary_region = 'iad'
 # Run DB migrations before switching to the new release (uses DB_URL from secrets)
 [deploy]
   release_command = "./migrate"
+  # Migrations + Fly machine teardown can exceed short CI --wait-timeout values
+  release_command_timeout = "10m"
+  wait_timeout = "10m"
 
 [env]
   ENVIRONMENT = 'production'
