@@ -106,7 +106,11 @@ export const makeApiRequest = async (
     if (!text.trim()) {
       return undefined;
     }
-    return JSON.parse(text);
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new ApiRequestError(BACKEND_UNAVAILABLE_MESSAGE, response.status);
+    }
   } catch (error) {
     if (error instanceof ApiRequestError) {
       throw error;
