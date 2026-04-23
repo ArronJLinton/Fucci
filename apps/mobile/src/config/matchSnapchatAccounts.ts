@@ -21,7 +21,7 @@ export const MATCH_TEAM_SNAPCHAT_USERNAMES: ReadonlyArray<{
   {teamNameKey: 'barcelona', snapchatUsername: 'fcbarcelona'},
   {teamNameKey: 'fc barcelona', snapchatUsername: 'fcbarcelona'},
   {
-    teamNameKey: 'FC Bayern Munich',
+    teamNameKey: 'fc bayern munich',
     snapchatUsername: 'fcbayern',
   },
   {
