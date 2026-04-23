@@ -97,21 +97,27 @@ export default function MatchSnapchatStoriesScreen() {
     if (story.snapMediaType !== SNAP_MEDIA_IMAGE) {
       return;
     }
-    if (p >= slides.length - 1) {
-      return;
-    }
     const t = setTimeout(() => {
       if (pageRef.current !== p) {
         return;
       }
-      pagerRef.current?.setPage(p + 1);
+      if (p < slides.length - 1) {
+        pagerRef.current?.setPage(p + 1);
+      } else {
+        navigation.goBack();
+      }
     }, PHOTO_STORY_SEC * 1000);
     return () => clearTimeout(t);
-  }, [page, slides]);
+  }, [page, slides, navigation]);
 
   const onVideoFinished = useCallback(() => {
+    const p = pageRef.current;
+    if (p >= slides.length - 1) {
+      navigation.goBack();
+      return;
+    }
     goToNext();
-  }, [goToNext]);
+  }, [goToNext, navigation, slides.length]);
 
   if (isPending) {
     return (
