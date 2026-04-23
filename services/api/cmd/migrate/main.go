@@ -4,7 +4,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/config"
 	"github.com/lib/pq"
@@ -51,12 +54,18 @@ func main() {
 	}
 	defer db.Close()
 
-	// Test connection
-	if err := db.Ping(); err != nil {
+	db.SetMaxOpenConns(1)
+	// Unbounded Ping can hang when Postgres is slow or routing fails; cap wait so the release machine exits.
+	pingCtx, cancelPing := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancelPing()
+	if err := db.PingContext(pingCtx); err != nil {
 		errStr := err.Error()
 		hint := "Hint: use a single-line postgres URL; URL-encode special characters in the password; " +
 			"remove accidental quotes or line breaks from secrets."
-		if strings.Contains(errStr, "network is unreachable") || strings.Contains(errStr, "no route to host") {
+		if errors.Is(err, context.DeadlineExceeded) {
+			hint = "Hint: no TCP connection to Postgres within 2 minutes. Check DB_URL, firewall, and that the " +
+				"database allows connections from Fly (release_command runs on Fly, not in GitHub Actions)."
+		} else if strings.Contains(errStr, "network is unreachable") || strings.Contains(errStr, "no route to host") {
 			hint = "Hint: IPv6 or routing issue — GitHub Actions runners often cannot reach IPv6-only DB endpoints. " +
 				"Run migrations on Fly (release_command) or use a Supabase pooler / connection string that resolves to IPv4."
 		}
