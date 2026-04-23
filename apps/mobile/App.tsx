@@ -46,7 +46,6 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
-import TestYouTubeScreen from './src/screens/TestYouTubeScreen';
 import MatchSnapchatStoriesScreen from './src/screens/MatchSnapchatStoriesScreen';
 
 // Types
@@ -102,7 +101,7 @@ const MainStack = () => {
         ? SHELL_PROFILE_BG
         : focusedTab === 'News'
           ? NEWS_BG
-          : focusedTab === 'Home' || focusedTab === 'Test'
+          : focusedTab === 'Home'
             ? SHELL_MATCHES_BG
             : '#fff';
 
@@ -110,7 +109,6 @@ const MainStack = () => {
     focusedTab === 'Debates' ||
     focusedTab === 'Profile' ||
     focusedTab === 'Home' ||
-    focusedTab === 'Test' ||
     focusedTab === 'News'
       ? 'light-content'
       : 'dark-content';
@@ -122,7 +120,7 @@ const MainStack = () => {
         ? SHELL_PROFILE_BG
         : focusedTab === 'News'
           ? NEWS_BG
-          : focusedTab === 'Home' || focusedTab === 'Test'
+          : focusedTab === 'Home'
             ? SHELL_MATCHES_BG
             : '#fff';
 
@@ -130,7 +128,6 @@ const MainStack = () => {
     focusedTab === 'Debates' ||
     focusedTab === 'Profile' ||
     focusedTab === 'Home' ||
-    focusedTab === 'Test' ||
     focusedTab === 'News'
       ? 'rgba(255,255,255,0.12)'
       : '#e0e0e0';
@@ -139,7 +136,6 @@ const MainStack = () => {
     focusedTab === 'Debates' ||
     focusedTab === 'Profile' ||
     focusedTab === 'Home' ||
-    focusedTab === 'Test' ||
     focusedTab === 'News'
       ? '#8E8E93'
       : '#666';
@@ -148,7 +144,6 @@ const MainStack = () => {
     focusedTab === 'Debates' ||
     focusedTab === 'Profile' ||
     focusedTab === 'Home' ||
-    focusedTab === 'Test' ||
     focusedTab === 'News'
       ? 'dark'
       : 'light';
@@ -242,22 +237,6 @@ const MainStack = () => {
             tabBarIcon: ({color, size, focused}) => (
               <Ionicons
                 name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-            title: '',
-          }}
-        />
-        <Tab.Screen
-          name="Test"
-          component={TestYouTubeScreen}
-          options={{
-            headerShown: false,
-            tabBarLabel: 'Test',
-            tabBarIcon: ({color, size, focused}) => (
-              <Ionicons
-                name={focused ? 'flask' : 'flask-outline'}
                 size={size}
                 color={color}
               />
