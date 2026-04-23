@@ -109,12 +109,13 @@ type Config struct {
 	SnapchatUserStoriesFetch func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error)
 }
 
-// newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When NewsAPIKey is empty, falls back to RapidAPIKey.
+// newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When trimmed NewsAPIKey
+// is empty (unset or whitespace-only), falls back to trimmed RapidAPIKey.
 func (a *Config) newsXAPIKey() string {
-	if a.NewsAPIKey != "" {
-		return a.NewsAPIKey
+	if news := strings.TrimSpace(a.NewsAPIKey); news != "" {
+		return news
 	}
-	return a.RapidAPIKey
+	return strings.TrimSpace(a.RapidAPIKey)
 }
 
 func New(c *Config) http.Handler {
