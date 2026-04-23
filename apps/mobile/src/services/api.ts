@@ -83,8 +83,8 @@ export const makeApiRequest = async (
           : {}),
       },
     });
-    const text = await response.text();
     if (!response.ok) {
+      const text = await response.text();
       let errMsg = `Request failed (${response.status})`;
       if (text.trim()) {
         try {
@@ -103,13 +103,37 @@ export const makeApiRequest = async (
       }
       throw new ApiRequestError(errMsg, response.status);
     }
-    if (!text.trim()) {
+    if (response.status === 204 || response.status === 205) {
+      return undefined;
+    }
+    if (response.headers.get('content-length') === '0') {
       return undefined;
     }
     try {
-      return JSON.parse(text);
-    } catch {
-      throw new ApiRequestError(BACKEND_UNAVAILABLE_MESSAGE, response.status);
+      return await response.json();
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+        if (
+          /unexpected end|end of (data|input|json|the json input|file|stream)/.test(
+            msg,
+          ) ||
+          msg.includes('unterminated input')
+        ) {
+          return undefined;
+        }
+        throw new ApiRequestError(
+          BACKEND_UNAVAILABLE_MESSAGE,
+          response.status,
+        );
+      }
+      if (e instanceof TypeError) {
+        throw new ApiRequestError(
+          BACKEND_UNAVAILABLE_MESSAGE,
+          response.status,
+        );
+      }
+      throw e;
     }
   } catch (error) {
     if (error instanceof ApiRequestError) {
