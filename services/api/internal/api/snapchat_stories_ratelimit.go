@@ -103,7 +103,8 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
-// snapchatStoriesRateLimitAllow enforces per-username then per-IP sliding windows (Redis when configured).
+// snapchatStoriesRateLimitAllow enforces per-username then per-IP fixed windows
+// using TTL-based counters in Redis when configured.
 func snapchatStoriesRateLimitAllow(ctx context.Context, c *Config, ip, userNorm string) bool {
 	if userNorm == "" {
 		userNorm = "_"
