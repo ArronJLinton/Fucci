@@ -28,6 +28,90 @@ export const MATCH_TEAM_SNAPCHAT_USERNAMES: ReadonlyArray<{
     teamNameKey: 'atletico madrid',
     snapchatUsername: 'atleti',
   },
+  {
+    teamNameKey: 'real madrid',
+    snapchatUsername: 'realmadrid',
+  },
+  {
+    teamNameKey: 'manchester city',
+    snapchatUsername: 'mancityofficial',
+  },
+  {
+    teamNameKey: 'chelsea',
+    snapchatUsername: 'chelseafc',
+  },
+  {
+    teamNameKey: 'liverpool',
+    snapchatUsername: 'lfc',
+  },
+  {
+    teamNameKey: 'manchester united',
+    snapchatUsername: 'manutd',
+  },
+  {
+    teamNameKey: 'tottenham hotspur',
+    snapchatUsername: 'spursofficial',
+  },
+  {
+    teamNameKey: 'arsenal',
+    snapchatUsername: 'arsenal',
+  },
+  {
+    teamNameKey: 'west ham united',
+    snapchatUsername: 'whufcofficial',
+  },
+  {
+    teamNameKey: 'aston villa',
+    snapchatUsername: 'avfc',
+  },
+  {
+    teamNameKey: 'everton',
+    snapchatUsername: 'everton',
+  },
+  {
+    teamNameKey: 'leicester city',
+    snapchatUsername: 'lcfcofficial',
+  },
+  {
+    teamNameKey: 'newcastle united',
+    snapchatUsername: 'nufc',
+  },
+  {
+    teamNameKey: 'southampton',
+    snapchatUsername: 'southamptonfc',
+  },
+  {
+    teamNameKey: 'west bromwich albion',
+    snapchatUsername: 'wba',
+  },
+  {
+    teamNameKey: 'wolverhampton wanderers',
+    snapchatUsername: 'wolves',
+  },
+  {
+    teamNameKey: 'crystal palace',
+    snapchatUsername: 'cpfc',
+  },
+  {
+    teamNameKey: 'leeds united',
+    snapchatUsername: 'lufc',
+  },
+  {
+    teamNameKey: 'norwich city',
+    snapchatUsername: 'norwichcityfc',
+  },
+  {
+    teamNameKey: 'juventus',
+    snapchatUsername: 'juventus',
+  },
+  {
+    teamNameKey: 'inter milan',
+    snapchatUsername: 'interoffcial',
+  },
+  {
+    teamNameKey: 'as roma',
+    snapchatUsername: 'officialasroma',
+  },
 ];
 
 export function snapchatUsernameForTeamName(teamName: string): string | null {
