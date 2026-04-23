@@ -6,7 +6,8 @@ import (
 )
 
 func TestSnapchatMemRL_pruneIfNeededLocked_DropsExpired(t *testing.T) {
-	t.Parallel()
+	// Do not use t.Parallel: this test and EvictsOldestOverCap mutate package-level
+	// snapchatMemPruneAt / snapchatMemMaxKeys, which would race and flake.
 	w := time.Minute
 	now := time.Date(2020, 1, 1, 12, 0, 0, 0, time.UTC)
 	m := &snapchatMemRL{
@@ -31,7 +32,7 @@ func TestSnapchatMemRL_pruneIfNeededLocked_DropsExpired(t *testing.T) {
 }
 
 func TestSnapchatMemRL_pruneIfNeededLocked_EvictsOldestOverCap(t *testing.T) {
-	t.Parallel()
+	// See DropsExpired: shared prune globals are not safe with t.Parallel.
 	w := time.Minute
 	now := time.Date(2020, 1, 1, 12, 0, 0, 0, time.UTC)
 	m := &snapchatMemRL{byKey: make(map[string]snapchatMemRateEntry)}
