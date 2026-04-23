@@ -21,11 +21,13 @@ import {
   fetchSnapchatUserStories,
   type SnapchatStoryItem,
 } from '../services/snapchatStoriesApi';
+import {
+  MATCH_CENTER_BG,
+  MATCH_CENTER_LIME,
+} from '../constants/matchCenterUi';
 import type {RootStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 
-const BG = '#0B0E14';
-const LIME = '#C6FF00';
 /** Photo snaps auto-advance after this many seconds. */
 const PHOTO_STORY_SEC = 5;
 const SNAP_MEDIA_IMAGE = 0;
@@ -60,6 +62,49 @@ export default function MatchSnapchatStoriesScreen() {
       .filter(s => Boolean(s?.snapUrls?.mediaUrl))
       .sort((a, b) => a.snapIndex - b.snapIndex);
   }, [data?.stories]);
+
+  /** Same identity string as PagerView `key` — when it changes the pager remounts; keep React page state in sync. */
+  const pagerIdentityKey = useMemo(
+    () =>
+      slides
+        .map(s => String(s.snapIndex) + (s.snapUrls?.mediaUrl ?? ''))
+        .join(','),
+    [slides],
+  );
+
+  useEffect(() => {
+    if (slides.length === 0) {
+      pageRef.current = 0;
+      setPage(0);
+      return;
+    }
+    setPage(prev => {
+      const maxIdx = slides.length - 1;
+      if (prev <= maxIdx) {
+        pageRef.current = prev;
+        return prev;
+      }
+      const clamped = maxIdx;
+      pageRef.current = clamped;
+      requestAnimationFrame(() => {
+        pagerRef.current?.setPage(clamped);
+      });
+      return clamped;
+    });
+  }, [slides.length]);
+
+  /** When slide set / order changes (PagerView `key`), remount starts at page 0 — align React state and pager. */
+  useEffect(() => {
+    if (slides.length === 0) {
+      return;
+    }
+    pageRef.current = 0;
+    setPage(0);
+    const id = requestAnimationFrame(() => {
+      pagerRef.current?.setPage(0);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pagerIdentityKey]);
 
   const profileTitle = data?.user?.name ?? teamDisplayName;
   const profileUser = data?.user?.username ?? snapchatUsername;
@@ -122,7 +167,7 @@ export default function MatchSnapchatStoriesScreen() {
   if (isPending) {
     return (
       <View style={[styles.root, styles.centered]}>
-        <ActivityIndicator size="large" color={LIME} />
+        <ActivityIndicator size="large" color={MATCH_CENTER_LIME} />
         <Text style={styles.hint}>Loading Snapchat…</Text>
       </View>
     );
@@ -199,9 +244,7 @@ export default function MatchSnapchatStoriesScreen() {
           orientation="vertical"
           onPageSelected={onPageSelected}
           overdrag
-          key={slides
-            .map(s => String(s.snapIndex) + s.snapUrls?.mediaUrl)
-            .join(',')}>
+          key={pagerIdentityKey}>
           {slides.map((story, index) => (
             <View
               key={`${story.snapIndex}-${story.snapUrls?.mediaUrl ?? ''}`}
@@ -247,7 +290,7 @@ export default function MatchSnapchatStoriesScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BG,
+    backgroundColor: MATCH_CENTER_BG,
   },
   centered: {
     justifyContent: 'center',
@@ -323,7 +366,7 @@ const styles = StyleSheet.create({
   },
   retry: {
     marginTop: 16,
-    color: LIME,
+    color: MATCH_CENTER_LIME,
     fontSize: 15,
     fontWeight: '600',
   },

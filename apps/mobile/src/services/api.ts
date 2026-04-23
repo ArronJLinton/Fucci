@@ -69,16 +69,19 @@ export const makeApiRequest = async (
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
   options: RequestInit = {},
 ) => {
+  const {headers: optionsHeaders, ...restOptions} = options;
   const url = `${apiConfig.baseURL}${endpoint}`;
   try {
     const response = await fetch(url, {
+      ...restOptions,
       method,
       redirect: 'follow',
       headers: {
         ...apiConfig.headers,
-        ...options.headers,
+        ...(optionsHeaders && typeof optionsHeaders === 'object'
+          ? optionsHeaders
+          : {}),
       },
-      ...options,
     });
     const text = await response.text();
     if (!response.ok) {

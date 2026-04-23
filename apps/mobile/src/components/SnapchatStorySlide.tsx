@@ -136,15 +136,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  fallback: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-  },
-  fallbackText: {
-    color: '#C6FF00',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   muted: {
     color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
