@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -52,16 +51,11 @@ func (m *snapchatMemRL) allow(key string, maxN int, window time.Duration) bool {
 	return e.count <= maxN
 }
 
+// clientIP returns the TCP peer host for rate limiting. We intentionally do not read
+// X-Forwarded-For or X-Real-IP: without a trusted reverse proxy that strips/spoofs those,
+// clients could forge them and bypass per-IP limits. Behind one or more proxies, ensure
+// the platform overwrites RemoteAddr (or add middleware that sets it from trusted hops only).
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i >= 0 {
-			return strings.TrimSpace(xff[:i])
-		}
-		return strings.TrimSpace(xff)
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
