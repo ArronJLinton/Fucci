@@ -61,6 +61,25 @@ export function userFacingApiMessage(error: unknown): string {
 }
 
 /**
+ * `RequestInit.headers` may be a `Headers` instance, `[name, value][]`, or a plain
+ * object; only the latter is safe to spread. Normalize so merges never drop
+ * custom headers.
+ */
+function headersInitToRecord(
+  init: HeadersInit | undefined,
+): Record<string, string> {
+  if (init == null) {
+    return {};
+  }
+  const h = new Headers(init);
+  const out: Record<string, string> = {};
+  h.forEach((value, name) => {
+    out[name] = value;
+  });
+  return out;
+}
+
+/**
  * Unauthenticated API request helper.
  * Used by futbol and debate modules; also re-exported for any direct callers.
  */
@@ -78,9 +97,7 @@ export const makeApiRequest = async (
       redirect: 'follow',
       headers: {
         ...apiConfig.headers,
-        ...(optionsHeaders && typeof optionsHeaders === 'object'
-          ? optionsHeaders
-          : {}),
+        ...headersInitToRecord(optionsHeaders),
       },
     });
     if (!response.ok) {
@@ -162,9 +179,7 @@ export const makeAuthRequest = async (
     headers: {
       ...apiConfig.headers,
       Authorization: `Bearer ${token}`,
-      ...(optionsHeaders && typeof optionsHeaders === 'object'
-        ? optionsHeaders
-        : {}),
+      ...headersInitToRecord(optionsHeaders),
     },
   });
   const text = await response.text();

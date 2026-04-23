@@ -1,4 +1,10 @@
-import { makeApiRequest } from './api';
+import {makeApiRequest} from './api';
+
+/** Aligned with server Redis TTL (`internal/cache.SnapchatUserStoriesTTL` = 3m). */
+export const SNAPCHAT_USER_STORIES_STALE_MS = 3 * 60 * 1000;
+
+export const snapchatUserStoriesQueryKey = (username: string) =>
+  ['snapchatUserStories', username] as const;
 
 export type SnapchatUserStoriesResponse = {
   user?: {

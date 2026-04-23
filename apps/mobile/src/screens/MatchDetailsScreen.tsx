@@ -45,6 +45,8 @@ import {snapchatUsernameForTeamName} from '../config/matchSnapchatAccounts';
 import {
   fetchSnapchatUserStories,
   hasRenderableSnapchatStories,
+  SNAPCHAT_USER_STORIES_STALE_MS,
+  snapchatUserStoriesQueryKey,
 } from '../services/snapchatStoriesApi';
 
 const MAX_PRELOAD_KEYS = 64;
@@ -180,9 +182,10 @@ const MatchDetailsScreen = () => {
         return;
       }
       try {
-        const data = await queryClient.fetchQuery({
-          queryKey: ['snapchatUserStories', username],
+        const data = await queryClient.ensureQueryData({
+          queryKey: snapchatUserStoriesQueryKey(username),
           queryFn: () => fetchSnapchatUserStories(username),
+          staleTime: SNAPCHAT_USER_STORIES_STALE_MS,
         });
         if (cancelled || !isMountedRef.current) {
           return;

@@ -19,6 +19,8 @@ import {Ionicons} from '@expo/vector-icons';
 import SnapchatStorySlide from '../components/SnapchatStorySlide';
 import {
   fetchSnapchatUserStories,
+  SNAPCHAT_USER_STORIES_STALE_MS,
+  snapchatUserStoriesQueryKey,
   type SnapchatStoryItem,
 } from '../services/snapchatStoriesApi';
 import {
@@ -52,8 +54,9 @@ export default function MatchSnapchatStoriesScreen() {
   }, [page]);
 
   const {data, isPending, isError, error, refetch, isRefetching} = useQuery({
-    queryKey: ['snapchatUserStories', snapchatUsername],
+    queryKey: snapchatUserStoriesQueryKey(snapchatUsername),
     queryFn: () => fetchSnapchatUserStories(snapchatUsername),
+    staleTime: SNAPCHAT_USER_STORIES_STALE_MS,
   });
 
   const slides: SnapchatStoryItem[] = useMemo(() => {
