@@ -30,3 +30,11 @@ export function fetchSnapchatUserStories(
   const q = new URLSearchParams({ username: snapchatUsername });
   return makeApiRequest(`/snapchat/stories?${q.toString()}`, 'GET');
 }
+
+/** True when the API returned at least one story with a usable media URL (same filter as the stories UI). */
+export function hasRenderableSnapchatStories(
+  res: SnapchatUserStoriesResponse | null | undefined,
+): boolean {
+  const stories = res?.stories ?? [];
+  return stories.some(s => Boolean(s?.snapUrls?.mediaUrl));
+}

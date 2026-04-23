@@ -241,7 +241,7 @@ export default function MatchSnapchatStoriesScreen() {
           ref={pagerRef}
           style={styles.pager}
           initialPage={0}
-          orientation="vertical"
+          orientation="horizontal"
           onPageSelected={onPageSelected}
           overdrag
           key={pagerIdentityKey}>

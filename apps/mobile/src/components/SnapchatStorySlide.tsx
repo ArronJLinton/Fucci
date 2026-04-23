@@ -1,5 +1,11 @@
 import React, {useCallback, useEffect, useRef} from 'react';
 import {View, Text, StyleSheet, Image, Linking, Pressable} from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {Video, ResizeMode, type AVPlaybackStatus} from 'expo-av';
 import type {SnapchatStoryItem} from '../services/snapchatStoriesApi';
 
@@ -35,10 +41,26 @@ export default function SnapchatStorySlide({
   const isVideo = story.snapMediaType !== SNAP_IMAGE;
   const videoRef = useRef<Video | null>(null);
   const hasEndedRef = useRef(false);
+  const translateX = useSharedValue(isActive ? 0 : 36);
 
   useEffect(() => {
     hasEndedRef.current = false;
   }, [story.snapIndex, mediaUrl]);
+
+  useEffect(() => {
+    if (isActive) {
+      translateX.value = withTiming(0, {
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+      });
+    } else {
+      translateX.value = 36;
+    }
+  }, [isActive, mediaUrl, story.snapIndex]);
+
+  const mediaAnimStyle = useAnimatedStyle(() => ({
+    transform: [{translateX: translateX.value}],
+  }));
 
   useEffect(() => {
     return () => {
@@ -80,32 +102,34 @@ export default function SnapchatStorySlide({
 
   return (
     <View style={styles.container}>
-      {isVideo ? (
-        <Video
-          ref={videoRef}
-          style={styles.media}
-          source={{uri: mediaUrl}}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay={isActive}
-          isLooping={false}
-          isMuted
-          useNativeControls={false}
-          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        />
-      ) : (
-        <Image
-          source={{uri: mediaUrl}}
-          style={styles.media}
-          resizeMode="cover"
-        />
-      )}
+      <Animated.View style={[styles.mediaColumn, mediaAnimStyle]}>
+        {isVideo ? (
+          <Video
+            ref={videoRef}
+            style={styles.media}
+            source={{uri: mediaUrl}}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={isActive}
+            isLooping={false}
+            isMuted
+            useNativeControls={false}
+            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+          />
+        ) : (
+          <Image
+            source={{uri: mediaUrl}}
+            style={styles.media}
+            resizeMode="cover"
+          />
+        )}
 
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Text style={styles.channel}>{profileUsername}</Text>
-        <Text style={styles.title} numberOfLines={3}>
-          {titleFor(story, profileTitle)}
-        </Text>
-      </View>
+        <View style={styles.overlay} pointerEvents="box-none">
+          <Text style={styles.channel}>{profileUsername}</Text>
+          <Text style={styles.title} numberOfLines={3}>
+            {titleFor(story, profileTitle)}
+          </Text>
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -115,6 +139,9 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     backgroundColor: '#000',
+  },
+  mediaColumn: {
+    ...StyleSheet.absoluteFillObject,
   },
   media: {
     ...StyleSheet.absoluteFillObject,
