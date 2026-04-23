@@ -3,6 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/snapchat"
@@ -23,7 +24,8 @@ func snapchatStoriesCacheKey(usernameNormalized string) string {
 // Upstream non-200 (e.g. 403/429) is passed through and not cached.
 func (c *Config) getSnapchatUserStories(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if c.RapidAPIKey == "" {
+	rapidKey := strings.TrimSpace(c.RapidAPIKey)
+	if rapidKey == "" {
 		respondWithError(w, http.StatusServiceUnavailable, "Snapchat stories are not configured (missing RAPID_API_KEY).")
 		return
 	}
@@ -67,7 +69,7 @@ func (c *Config) getSnapchatUserStories(w http.ResponseWriter, r *http.Request) 
 	if c.SnapchatUserStoriesFetch != nil {
 		fetch = c.SnapchatUserStoriesFetch
 	}
-	body, status, err := fetch(ctx, c.RapidAPIKey, userNorm)
+	body, status, err := fetch(ctx, rapidKey, userNorm)
 	if err != nil {
 		code := snapchat.HTTPStatusForFetchError(err)
 		respondWithError(w, code, err.Error())

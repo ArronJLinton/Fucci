@@ -36,6 +36,46 @@ func TestGetSnapchatUserStories_MissingRapidAPIKey(t *testing.T) {
 	}
 }
 
+func TestGetSnapchatUserStories_WhitespaceOnlyRapidKey(t *testing.T) {
+	fetchCalls := 0
+	cfg := &Config{
+		RapidAPIKey: "  \t  ",
+		SnapchatUserStoriesFetch: func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error) {
+			fetchCalls++
+			return []byte(`{}`), http.StatusOK, nil
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/snapchat/stories?username=psg", nil)
+	rec := httptest.NewRecorder()
+	cfg.getSnapchatUserStories(rec, req)
+	if fetchCalls != 0 {
+		t.Fatalf("fetch should not run for whitespace-only key, got %d calls", fetchCalls)
+	}
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, rec.Code)
+	}
+}
+
+func TestGetSnapchatUserStories_TrimmedRapidKeyPassedToFetch(t *testing.T) {
+	var gotKey string
+	cfg := &Config{
+		RapidAPIKey: "  trimmed-key  ",
+		SnapchatUserStoriesFetch: func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error) {
+			gotKey = rapidAPIKey
+			return []byte(`{}`), http.StatusOK, nil
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/snapchat/stories?username=psg", nil)
+	rec := httptest.NewRecorder()
+	cfg.getSnapchatUserStories(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+	}
+	if gotKey != "trimmed-key" {
+		t.Fatalf("fetch key: want %q, got %q", "trimmed-key", gotKey)
+	}
+}
+
 func TestGetSnapchatUserStories_MissingUsername(t *testing.T) {
 	cfg := &Config{RapidAPIKey: "rapid-key"}
 	req := httptest.NewRequest(http.MethodGet, "/snapchat/stories", nil)
