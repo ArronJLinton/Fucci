@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,8 +105,30 @@ func TestGetSnapchatUserStories_InvalidUsername_NoNetwork(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode JSON: %v", err)
 	}
-	if body.Error == "" {
-		t.Fatal("expected error for invalid username")
+	if got := body.Error; got != "invalid Snapchat username" {
+		t.Fatalf("error: want %q, got %q", "invalid Snapchat username", got)
+	}
+}
+
+func TestGetSnapchatUserStories_UsernameQueryTooLong(t *testing.T) {
+	fetchCalls := 0
+	cfg := &Config{
+		RapidAPIKey: "rapid-key",
+		SnapchatUserStoriesFetch: func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error) {
+			fetchCalls++
+			return []byte(`{}`), http.StatusOK, nil
+		},
+	}
+	long := strings.Repeat("a", snapchat.SnapchatUsernameMaxQueryBytes+1)
+	req := httptest.NewRequest(http.MethodGet, "/snapchat/stories?username="+long, nil)
+	rec := httptest.NewRecorder()
+	cfg.getSnapchatUserStories(rec, req)
+
+	if fetchCalls != 0 {
+		t.Fatalf("fetch should not run for oversized username, got %d calls", fetchCalls)
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }
 

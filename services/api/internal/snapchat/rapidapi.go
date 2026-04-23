@@ -17,6 +17,11 @@ const (
 
 	// maxUserStoriesBodyBytes caps the upstream JSON body; responses larger than this fail closed (no silent truncation).
 	maxUserStoriesBodyBytes = 1 << 24 // 16 MiB
+
+	// SnapchatUsernameMaxRunes is the max length of the normalized username (a-z, 0-9, ., _, -).
+	SnapchatUsernameMaxRunes = 64
+	// SnapchatUsernameMaxQueryBytes caps the raw query value length before TrimSpace (rejects abuse before allocating keys).
+	SnapchatUsernameMaxQueryBytes = 256
 )
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -27,8 +32,8 @@ func FetchUserStories(ctx context.Context, rapidAPIKey, username string) (body [
 	if strings.TrimSpace(rapidAPIKey) == "" {
 		return nil, 0, MisconfiguredError("empty RapidAPI key")
 	}
-	u := strings.ToLower(strings.TrimSpace(username))
-	if u == "" || !isPlausibleUsername(u) {
+	u, ok := NormalizeSnapchatUsername(username)
+	if !ok {
 		return nil, 0, InvalidInputError("invalid Snapchat username")
 	}
 	escaped := url.QueryEscape(u)
@@ -61,8 +66,22 @@ func FetchUserStories(ctx context.Context, rapidAPIKey, username string) (body [
 	return b, res.StatusCode, nil
 }
 
+// NormalizeSnapchatUsername returns the lowercased trimmed username if it is non-empty, within length limits,
+// and uses only characters allowed by the upstream Snapchat username rules. Use for cache keys, rate limits,
+// and outbound requests before touching Redis or the network.
+func NormalizeSnapchatUsername(raw string) (string, bool) {
+	if len(raw) > SnapchatUsernameMaxQueryBytes {
+		return "", false
+	}
+	u := strings.ToLower(strings.TrimSpace(raw))
+	if u == "" || !isPlausibleUsername(u) {
+		return "", false
+	}
+	return u, true
+}
+
 func isPlausibleUsername(s string) bool {
-	if len(s) > 64 {
+	if len(s) > SnapchatUsernameMaxRunes {
 		return false
 	}
 	for _, r := range s {

@@ -3,7 +3,6 @@ package api
 import (
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/snapchat"
@@ -35,7 +34,12 @@ func (c *Config) getSnapchatUserStories(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userNorm := strings.ToLower(strings.TrimSpace(username))
+	userNorm, ok := snapchat.NormalizeSnapchatUsername(username)
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "invalid Snapchat username")
+		return
+	}
+
 	if !snapchatStoriesRateLimitAllow(ctx, c, clientIP(r), userNorm) {
 		respondWithError(w, http.StatusTooManyRequests, "Rate limit exceeded; try again later")
 		return
@@ -63,7 +67,7 @@ func (c *Config) getSnapchatUserStories(w http.ResponseWriter, r *http.Request) 
 	if c.SnapchatUserStoriesFetch != nil {
 		fetch = c.SnapchatUserStoriesFetch
 	}
-	body, status, err := fetch(ctx, c.RapidAPIKey, username)
+	body, status, err := fetch(ctx, c.RapidAPIKey, userNorm)
 	if err != nil {
 		code := snapchat.HTTPStatusForFetchError(err)
 		respondWithError(w, code, err.Error())
