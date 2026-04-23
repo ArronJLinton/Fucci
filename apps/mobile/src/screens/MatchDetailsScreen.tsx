@@ -40,6 +40,7 @@ import {
   HERO_COLLAPSE_SCROLL_RANGE,
 } from '../constants/matchCenterUi';
 import type {Match} from '../types/match';
+import {snapchatUsernameForTeamName} from '../config/matchSnapchatAccounts';
 
 const MAX_PRELOAD_KEYS = 64;
 const preloadFiredFor = new Set<string>();
@@ -197,6 +198,27 @@ const MatchDetailsScreen = () => {
   const statusLabel = statusPillLabel(match);
   const live = isLiveStatus(match.fixture.status.short);
 
+  const homeSnapUser = useMemo(
+    () => snapchatUsernameForTeamName(match.teams.home.name),
+    [match.teams.home.name],
+  );
+  const awaySnapUser = useMemo(
+    () => snapchatUsernameForTeamName(match.teams.away.name),
+    [match.teams.away.name],
+  );
+
+  const openTeamSnapchatStories = (side: 'home' | 'away') => {
+    const u = side === 'home' ? homeSnapUser : awaySnapUser;
+    if (!u) {
+      return;
+    }
+    navigation.navigate('MatchSnapchatStories', {
+      snapchatUsername: u,
+      teamDisplayName:
+        side === 'home' ? match.teams.home.name : match.teams.away.name,
+    });
+  };
+
   const MatchHero = () => (
     <Animated.View style={[styles.heroOuter, heroAnimatedStyle]}>
       <ImageBackground
@@ -205,85 +227,113 @@ const MatchDetailsScreen = () => {
         resizeMode="cover">
         <View style={styles.heroScrim} pointerEvents="none" />
         <View style={styles.heroInner}>
-        <View style={styles.heroTopRow}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
-            accessibilityRole="button"
-            accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={26} color={MATCH_CENTER_LIME} />
-          </TouchableOpacity>
-          <View pointerEvents="none">
-            <Ionicons
-              name="ellipsis-vertical"
-              size={22}
-              color={MATCH_CENTER_LIME}
-            />
-          </View>
-        </View>
-
-        <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
-          <View style={[styles.teamBlock, styles.teamBlockSide]}>
-            {!homeLogoError && match.teams.home.logo ? (
-              <Image
-                source={{uri: match.teams.home.logo}}
-                style={styles.badge}
-                resizeMode="contain"
-                onError={() => {
-                  if (isMountedRef.current) setHomeLogoError(true);
-                }}
+          <View style={styles.heroTopRow}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+              accessibilityRole="button"
+              accessibilityLabel="Go back">
+              <Ionicons
+                name="chevron-back"
+                size={26}
+                color={MATCH_CENTER_LIME}
               />
-            ) : (
-              <View style={[styles.badge, styles.badgePlaceholder]} />
-            )}
-            <Text style={styles.teamName} numberOfLines={2}>
-              {match.teams.home.name.toUpperCase()}
-            </Text>
-          </View>
-
-          <View style={[styles.scoreMid, styles.scoreMidCenter]}>
-            <Text style={styles.scoreText}>
-              {match.goals.home ?? 0} - {match.goals.away ?? 0}
-            </Text>
-            <View style={[styles.statusPill, live && styles.statusPillLive]}>
-              <Text
-                style={[
-                  styles.statusPillText,
-                  live && styles.statusPillTextLive,
-                ]}>
-                {statusLabel}
-              </Text>
+            </TouchableOpacity>
+            <View pointerEvents="none">
+              <Ionicons
+                name="ellipsis-vertical"
+                size={22}
+                color={MATCH_CENTER_LIME}
+              />
             </View>
           </View>
 
-          <View style={[styles.teamBlock, styles.teamBlockSide]}>
-            {!awayLogoError && match.teams.away.logo ? (
-              <Image
-                source={{uri: match.teams.away.logo}}
-                style={styles.badge}
-                resizeMode="contain"
-                onError={() => {
-                  if (isMountedRef.current) setAwayLogoError(true);
-                }}
-              />
-            ) : (
-              <View style={[styles.badge, styles.badgePlaceholder]} />
-            )}
-            <Text style={styles.teamName} numberOfLines={2}>
-              {match.teams.away.name.toUpperCase()}
-            </Text>
-          </View>
-        </Animated.View>
+          <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
+            <TouchableOpacity
+              style={[styles.teamBlock, styles.teamBlockSide]}
+              activeOpacity={homeSnapUser ? 0.88 : 1}
+              disabled={!homeSnapUser}
+              onPress={() => openTeamSnapchatStories('home')}
+              hitSlop={homeSnapUser ? {top: 8, bottom: 8, left: 4, right: 4} : undefined}
+              accessibilityRole="button"
+              accessibilityLabel={
+                homeSnapUser
+                  ? `Open ${match.teams.home.name} Snapchat story`
+                  : `Home team ${match.teams.home.name}`
+              }>
+              {!homeLogoError && match.teams.home.logo ? (
+                <Image
+                  source={{uri: match.teams.home.logo}}
+                  style={styles.badge}
+                  resizeMode="contain"
+                  onError={() => {
+                    if (isMountedRef.current) setHomeLogoError(true);
+                  }}
+                />
+              ) : (
+                <View style={[styles.badge, styles.badgePlaceholder]} />
+              )}
+              <Text style={styles.teamName} numberOfLines={2}>
+                {match.teams.home.name.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
 
-        <Animated.View style={[styles.heroCompactRow, heroCompactOpacityStyle]}>
-          <Text style={styles.heroCompactScore} numberOfLines={1}>
-            {match.teams.home.name.slice(0, 3).toUpperCase()}{' '}
-            <Text style={styles.heroCompactNums}>
-              {match.goals.home ?? 0}-{match.goals.away ?? 0}
-            </Text>{' '}
-            {match.teams.away.name.slice(0, 3).toUpperCase()}
-          </Text>
-        </Animated.View>
+            <View style={[styles.scoreMid, styles.scoreMidCenter]}>
+              <Text style={styles.scoreText}>
+                {match.goals.home ?? 0} - {match.goals.away ?? 0}
+              </Text>
+              <View style={[styles.statusPill, live && styles.statusPillLive]}>
+                <Text
+                  style={[
+                    styles.statusPillText,
+                    live && styles.statusPillTextLive,
+                  ]}>
+                  {statusLabel}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.teamBlock, styles.teamBlockSide]}
+              activeOpacity={awaySnapUser ? 0.88 : 1}
+              disabled={!awaySnapUser}
+              onPress={() => openTeamSnapchatStories('away')}
+              hitSlop={awaySnapUser ? {top: 8, bottom: 8, left: 4, right: 4} : undefined}
+              accessibilityRole="button"
+              accessibilityLabel={
+                awaySnapUser
+                  ? `Open ${match.teams.away.name} Snapchat story`
+                  : `Away team ${match.teams.away.name}`
+              }>
+              {!awayLogoError && match.teams.away.logo ? (
+                <Image
+                  source={{uri: match.teams.away.logo}}
+                  style={styles.badge}
+                  resizeMode="contain"
+                  onError={() => {
+                    if (isMountedRef.current) setAwayLogoError(true);
+                  }}
+                />
+              ) : (
+                <View style={[styles.badge, styles.badgePlaceholder]} />
+              )}
+              <Text style={styles.teamName} numberOfLines={2}>
+                {match.teams.away.name.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[styles.heroCompactRow, heroCompactOpacityStyle]}
+            pointerEvents="none">
+            <Text style={styles.heroCompactScore} numberOfLines={1}>
+              {match.teams.home.name.slice(0, 3).toUpperCase()}{' '}
+              <Text style={styles.heroCompactNums}>
+                {match.goals.home ?? 0}-{match.goals.away ?? 0}
+              </Text>{' '}
+              {match.teams.away.name.slice(0, 3).toUpperCase()}
+            </Text>
+          </Animated.View>
         </View>
       </ImageBackground>
     </Animated.View>

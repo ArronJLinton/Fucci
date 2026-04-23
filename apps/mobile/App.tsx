@@ -47,6 +47,7 @@ import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
 import TestYouTubeScreen from './src/screens/TestYouTubeScreen';
+import MatchSnapchatStoriesScreen from './src/screens/MatchSnapchatStoriesScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -302,6 +303,16 @@ const HomeStack = () => {
         component={MatchDetailsScreen}
         options={{
           headerShown: false,
+        }}
+      />
+      <StackScreen
+        name="MatchSnapchatStories"
+        component={MatchSnapchatStoriesScreen}
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
         }}
       />
       <StackScreen

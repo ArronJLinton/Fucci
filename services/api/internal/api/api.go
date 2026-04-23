@@ -176,6 +176,9 @@ func New(c *Config) http.Handler {
 	newsRouter.Get("/football/match", c.getMatchNews)
 	newsRouter.Get("/football", c.getFootballNews)
 
+	snapchatRouter := chi.NewRouter()
+	snapchatRouter.Get("/stories", c.getSnapchatUserStories)
+
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)
 	debateRouter.Get("/public-feed", c.getDebatesPublicFeed)
@@ -236,6 +239,7 @@ func New(c *Config) http.Handler {
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)
 	router.Mount("/news", newsRouter)
+	router.Mount("/snapchat", snapchatRouter)
 	router.Mount("/debates", debateRouter)
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)

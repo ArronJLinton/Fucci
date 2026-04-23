@@ -19,8 +19,18 @@ export class ApiRequestError extends Error {
 /** Short message for alerts / inline errors; uses status when available. */
 export function userFacingApiMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401 || error.status === 403) {
+    if (error.status === 401) {
       return 'Session expired. Please sign in again.';
+    }
+    // 403 is also returned by third-party proxies (e.g. RapidAPI key / subscription)
+    if (error.status === 403) {
+      if (
+        error.message &&
+        !/^Request failed \(403\)$/.test(error.message.trim())
+      ) {
+        return error.message;
+      }
+      return 'Access denied. If you’re the developer, verify RAPID_API_KEY and that this app is subscribed to the Snapchat API on RapidAPI.';
     }
     if (error.status === 408) {
       return 'Request timed out. Please try again.';
@@ -70,14 +80,34 @@ export const makeApiRequest = async (
       },
       ...options,
     });
+    const text = await response.text();
     if (!response.ok) {
-      throw new ApiRequestError(
-        `Request failed (${response.status})`,
-        response.status,
-      );
+      let errMsg = `Request failed (${response.status})`;
+      if (text.trim()) {
+        try {
+          const errBody = JSON.parse(text) as Record<string, unknown>;
+          const m =
+            (typeof errBody.message === 'string' && errBody.message) ||
+            (typeof errBody.error === 'string' && errBody.error);
+          if (m) {
+            errMsg = m;
+          }
+        } catch {
+          if (text.length < 500) {
+            errMsg = text.trim();
+          }
+        }
+      }
+      throw new ApiRequestError(errMsg, response.status);
     }
-    return response.json();
+    if (!text.trim()) {
+      return undefined;
+    }
+    return JSON.parse(text);
   } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
     console.error(`API request failed for ${url}:`, error);
     throw error;
   }
