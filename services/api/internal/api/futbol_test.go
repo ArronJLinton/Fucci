@@ -1121,6 +1121,73 @@ func TestGetMatchesSeasonResolutionAndCache(t *testing.T) {
 			t.Fatalf("cache should not be used, got %d Exists calls", cacheCalls)
 		}
 	})
+
+	t.Run("upstream 503 returns 200 empty fixtures when cache has no data", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"errors":"slow"}`))
+		}))
+		defer srv.Close()
+		config := &Config{
+			Cache:              mockCacheMiss(t, nil, nil),
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-04-24&league_id=2"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		var got GetMatchesAPIResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if got.Results != 0 || len(got.Response) != 0 {
+			t.Fatalf("want empty response, got results=%d len(response)=%d", got.Results, len(got.Response))
+		}
+		if got.Parameters.Date != "2026-04-24" {
+			t.Fatalf("want parameters.date 2026-04-24, got %#v", got.Parameters)
+		}
+	})
+
+	t.Run("upstream 503 returns 200 cached fixtures when Get yields data", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer srv.Close()
+		mc := &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return json.Unmarshal([]byte(testGetMatchesFixtureOK), value)
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				return nil
+			},
+		}
+		config := &Config{
+			Cache:              mc,
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-04-24&league_id=2"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		var got GetMatchesAPIResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if got.Results != 1 {
+			t.Fatalf("want cached results=1, got %d", got.Results)
+		}
+	})
 }
 
 // TestGetMatchesQueryValidation ensures league_id and season are validated before cache or upstream calls.

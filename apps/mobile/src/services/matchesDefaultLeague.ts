@@ -56,8 +56,7 @@ export async function resolveHomeScreenDefaultLeague(
     UCL_LEAGUE_ID,
     seasonParamForMatchSearch(UCL_LEAGUE, today),
   );
-  const league =
-    rows != null && rows.length > 0 ? UCL_LEAGUE : PREMIER_LEAGUE;
+  const league = rows.length > 0 ? UCL_LEAGUE : PREMIER_LEAGUE;
   sessionDefaultLeagueByDay = {dayKey, league};
   return league;
 }

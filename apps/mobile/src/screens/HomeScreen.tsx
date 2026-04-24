@@ -135,11 +135,13 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
         currentLeague.id,
         seasonParamForMatchSearch(currentLeague, date),
       )
-        .then(data => {
-          if (currentCacheKey === cacheKey && data) {
-            matchesByKeyRef.current.set(currentCacheKey, data);
-            setMatches(data);
+        .then(rows => {
+          if (currentCacheKey !== cacheKey) {
+            return;
           }
+          const list = Array.isArray(rows) ? rows : [];
+          matchesByKeyRef.current.set(currentCacheKey, list);
+          setMatches(list);
         })
         .catch(error => {
           console.error('Error loading matches:', error);

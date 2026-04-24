@@ -107,14 +107,14 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Filtering matches by league_id: %d, season: %d\n", leagueIDNum, seasonNum)
 	}
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
 	resp, err := HTTPRequest("GET", url, headers, nil)
 	if err != nil {
 		log.Printf("ERROR: HTTPRequest failed: %v\n", err)
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
+		c.respondMatchesUpstreamFailure(w, ctx, cacheKey, dateCanonical, "request_failed")
 		return
 	}
 	defer resp.Body.Close()
@@ -123,7 +123,17 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	rawBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("ERROR: Failed to read response body: %v\n", err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to read response body: %s", err))
+		c.respondMatchesUpstreamFailure(w, ctx, cacheKey, dateCanonical, "read_body_failed")
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodySnippet := string(rawBody)
+		if len(bodySnippet) > 500 {
+			bodySnippet = bodySnippet[:500] + "…"
+		}
+		log.Printf("Football API fixtures returned status %d: %s\n", resp.StatusCode, bodySnippet)
+		c.respondMatchesUpstreamFailure(w, ctx, cacheKey, dateCanonical, fmt.Sprintf("http_%d", resp.StatusCode))
 		return
 	}
 
@@ -132,7 +142,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("ERROR: JSON unmarshal failed: %v\n", err)
 		log.Printf("Full raw response: %s\n", string(rawBody))
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse response from football api service: %s", err))
+		c.respondMatchesUpstreamFailure(w, ctx, cacheKey, dateCanonical, "json_unmarshal_failed")
 		return
 	}
 
@@ -169,6 +179,38 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, data)
 }
 
+// newEmptyMatchesAPIResponse returns a valid 200 JSON shape when API-Football is unreachable,
+// so mobile clients do not hang on 4xx/5xx from this handler.
+func newEmptyMatchesAPIResponse(dateCanonical string) GetMatchesAPIResponse {
+	var out GetMatchesAPIResponse
+	out.Get = "fixtures"
+	out.Parameters.Date = dateCanonical
+	out.Errors = json.RawMessage(`[]`)
+	out.Results = 0
+	out.Paging.Current = 1
+	out.Paging.Total = 1
+	return out
+}
+
+// respondMatchesUpstreamFailure serves cached fixtures when present (e.g. concurrent fill),
+// otherwise a well-formed empty fixtures payload with HTTP 200.
+func (c *Config) respondMatchesUpstreamFailure(
+	w http.ResponseWriter,
+	ctx context.Context,
+	cacheKey, dateCanonical, reason string,
+) {
+	var cached GetMatchesAPIResponse
+	if c != nil && c.Cache != nil {
+		if err := c.Cache.Get(ctx, cacheKey, &cached); err == nil && (cached.Results > 0 || len(cached.Response) > 0) {
+			log.Printf("matches: upstream failure (%s) — returning cached data (%d results)\n", reason, cached.Results)
+			respondWithJSON(w, http.StatusOK, cached)
+			return
+		}
+	}
+	log.Printf("matches: upstream failure (%s) — returning empty fixtures for key=%s\n", reason, cacheKey)
+	respondWithJSON(w, http.StatusOK, newEmptyMatchesAPIResponse(dateCanonical))
+}
+
 func (c *Config) getMatch(w http.ResponseWriter, r *http.Request) {
 }
 
@@ -192,7 +234,7 @@ func (c *Config) FetchLineupData(ctx context.Context, matchID string) (*GetLineU
 	}
 	url := fmt.Sprintf("%s/fixtures/lineups?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -246,7 +288,7 @@ func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetF
 	}
 	url := fmt.Sprintf("%s/fixtures/statistics?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -492,7 +534,7 @@ func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse,
 	}
 
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
@@ -564,7 +606,7 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 	}
 	url := fmt.Sprintf("%s/leagues?season=%d", baseURL, currentYear)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -640,7 +682,7 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 	}
 	url := fmt.Sprintf("%s/standings?season=%d&team=%s", baseURL, currentYear, teamId)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -686,7 +728,7 @@ func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season st
 	}
 	url := fmt.Sprintf("%s/standings?league=%s&season=%s", baseURL, leagueID, season)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
@@ -770,7 +812,7 @@ func (c *Config) FetchHeadToHead(ctx context.Context, homeTeamID, awayTeamID int
 	}
 	u := fmt.Sprintf("%s/fixtures/headtohead?h2h=%d-%d&last=10", baseURL, homeTeamID, awayTeamID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 

@@ -62,7 +62,7 @@ export const fetchMatches = async (
   leagueId?: number,
   /** Rare override for `season`; normally omitted — server resolves per league + date. */
   season?: number,
-): Promise<Match[] | null> => {
+): Promise<Match[]> => {
   try {
     const formattedDate = `${date.getFullYear()}-${String(
       date.getMonth() + 1,
@@ -77,10 +77,11 @@ export const fetchMatches = async (
     }
 
     const data = await makeApiRequest(endpoint, 'GET');
-    return data.response;
+    const rows = data?.response;
+    return Array.isArray(rows) ? rows : [];
   } catch (error) {
     console.error('Error fetching matches:', error);
-    return null;
+    return [];
   }
 };
 
