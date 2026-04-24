@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useMemo, useRef, useEffect} from 'react';
+import React, {useState, useCallback, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Image,
   ImageBackground,
   Dimensions,
+  Alert,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {useQuery} from '@tanstack/react-query';
@@ -42,14 +43,17 @@ const PAGE_PAD = 16;
 const GRID_GAP = 10;
 const GRID_COL_W = (SCREEN_W - PAGE_PAD * 2 - GRID_GAP) / 2;
 
+const SNAP_STORIES_UNAVAILABLE_MSG =
+  'Stories are not available for this league.';
+
 const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NewsStackNavigationProp>();
   const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const [stripSelectedLeague, setStripSelectedLeague] = useState<League | null>(
-    null,
-  );
-  const {data: leagueSnapAvailability} = useQuery({
+  const {
+    data: leagueSnapAvailability,
+    isPending: leagueSnapAvailabilityPending,
+  } = useQuery({
     queryKey: snapchatLeagueAvailabilityQueryKey,
     queryFn: fetchLeagueSnapchatAvailability,
     staleTime: SNAPCHAT_USER_STORIES_STALE_MS,
@@ -84,17 +88,6 @@ const NewsScreen: React.FC = () => {
     [todayArticles, historyArticles],
   );
 
-  const snapUsernameByLeagueId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const row of leagueSnapAvailability?.leagues ?? []) {
-      const u = (row.snapchat_username ?? '').trim();
-      if (u) {
-        m.set(row.league_id, u);
-      }
-    }
-    return m;
-  }, [leagueSnapAvailability]);
-
   const snapStoryRingByLeagueId = useMemo(() => {
     const out: Partial<Record<number, boolean>> = {};
     for (const row of leagueSnapAvailability?.leagues ?? []) {
@@ -107,34 +100,28 @@ const NewsScreen: React.FC = () => {
 
   const handleLeagueStripSelect = useCallback(
     (league: League | null) => {
-      setStripSelectedLeague(league);
-      if (league == null) {
-        const allUser = snapUsernameByLeagueId.get(NEWS_STRIP_ALL_LEAGUE_ID);
-        if (!allUser) {
-          return;
-        }
-        navigation.navigate('MatchSnapchatStories', {
-          snapchatUsername: allUser,
-          teamDisplayName: 'All',
-        });
+      if (leagueSnapAvailabilityPending && !leagueSnapAvailability) {
         return;
       }
-      const username = snapUsernameByLeagueId.get(league.id);
-      if (!username) {
+      const targetId = league == null ? NEWS_STRIP_ALL_LEAGUE_ID : league.id;
+      const row = leagueSnapAvailability?.leagues.find(
+        r => r.league_id === targetId,
+      );
+      if (
+        !row?.has_renderable_stories ||
+        !(row.snapchat_username ?? '').trim()
+      ) {
+        Alert.alert(SNAP_STORIES_UNAVAILABLE_MSG);
         return;
       }
+      const snapchatUsername = row.snapchat_username.trim();
       navigation.navigate('MatchSnapchatStories', {
-        snapchatUsername: username,
-        teamDisplayName: league.name,
+        snapchatUsername,
+        teamDisplayName: league == null ? 'All' : league.name,
       });
     },
-    [navigation, snapUsernameByLeagueId],
+    [navigation, leagueSnapAvailability, leagueSnapAvailabilityPending],
   );
-
-  // Keep the featured card in view when filters change.
-  useEffect(() => {
-    scrollRef.current?.scrollTo({y: 0, animated: true});
-  }, [stripSelectedLeague?.id]);
 
   const featured = merged[0];
   const gridArticles = merged.slice(1);
@@ -293,9 +280,10 @@ const NewsScreen: React.FC = () => {
           />
         }>
         <LeagueHorizontalStrip
-          selectedLeague={stripSelectedLeague}
+          selectedLeague={null}
           onSelect={handleLeagueStripSelect}
           includeAllOption
+          showSelectionHighlight={false}
           accentColor={NEWS_ACCENT}
           mutedColor={NEWS_MUTED}
           snapStoryRingByLeagueId={snapStoryRingByLeagueId}

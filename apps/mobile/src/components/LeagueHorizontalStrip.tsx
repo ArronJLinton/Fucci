@@ -25,6 +25,8 @@ type Props = {
   snapStoryRingByLeagueId?: Partial<Record<number, boolean>>;
   /** Border + glow color for `snapStoryRingByLeagueId`; defaults to `accentColor`. */
   snapRingColor?: string;
+  /** When false, no pill underline / lime border on the active league (e.g. News tap opens stories only). */
+  showSelectionHighlight?: boolean;
 };
 
 /**
@@ -38,6 +40,7 @@ export function LeagueHorizontalStrip({
   mutedColor,
   snapStoryRingByLeagueId,
   snapRingColor,
+  showSelectionHighlight = true,
 }: Props) {
   const ringTint = snapRingColor ?? accentColor;
   const scrollRef = useRef<ScrollView>(null);
@@ -48,6 +51,11 @@ export function LeagueHorizontalStrip({
     Boolean(includeAllOption) &&
     Boolean(snapStoryRingByLeagueId?.[NEWS_STRIP_ALL_LEAGUE_ID]);
 
+  const allHighlighted =
+    showSelectionHighlight &&
+    includeAllOption &&
+    selectedLeague === null;
+
   const scrollSelectedIntoView = useCallback((itemX: number) => {
     const pad = 48;
     scrollRef.current?.scrollTo({
@@ -57,6 +65,9 @@ export function LeagueHorizontalStrip({
   }, []);
 
   useEffect(() => {
+    if (!showSelectionHighlight) {
+      return;
+    }
     const targetId =
       selectedLeague === null
         ? includeAllOption
@@ -98,7 +109,7 @@ export function LeagueHorizontalStrip({
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [selectedLeague, includeAllOption, scrollSelectedIntoView]);
+  }, [selectedLeague, includeAllOption, scrollSelectedIntoView, showSelectionHighlight]);
 
   return (
     <View style={styles.strip}>
@@ -115,7 +126,7 @@ export function LeagueHorizontalStrip({
             onLayout={e => {
               const x = e.nativeEvent.layout.x;
               itemXRef.current[NEWS_STRIP_ALL_LEAGUE_ID] = x;
-              if (selectedLeague === null) {
+              if (allHighlighted) {
                 scrollSelectedIntoView(x);
               }
             }}>
@@ -128,7 +139,7 @@ export function LeagueHorizontalStrip({
                 <View
                   style={[
                     styles.iconWrap,
-                    selectedLeague === null && [
+                    allHighlighted && [
                       styles.iconWrapSelected,
                       {borderColor: accentColor},
                     ],
@@ -143,7 +154,7 @@ export function LeagueHorizontalStrip({
                 style={[
                   styles.iconWrap,
                   styles.iconWrapMarginBottom,
-                  selectedLeague === null && [
+                  allHighlighted && [
                     styles.iconWrapSelected,
                     {borderColor: accentColor},
                   ],
@@ -157,12 +168,12 @@ export function LeagueHorizontalStrip({
               style={[
                 styles.label,
                 {color: mutedColor},
-                selectedLeague === null && {color: accentColor},
+                allHighlighted && {color: accentColor},
               ]}
               numberOfLines={1}>
               ALL
             </Text>
-            {selectedLeague === null ? (
+            {allHighlighted ? (
               <View style={[styles.underline, {backgroundColor: accentColor}]} />
             ) : (
               <View style={styles.underlinePlaceholder} />
@@ -171,7 +182,9 @@ export function LeagueHorizontalStrip({
         )}
         {LEAGUES.map(league => {
           const isSelected =
-            selectedLeague !== null && selectedLeague.id === league.id;
+            showSelectionHighlight &&
+            selectedLeague !== null &&
+            selectedLeague.id === league.id;
           const showSnapRing = Boolean(snapStoryRingByLeagueId?.[league.id]);
           const logoBlock = (
             <View
