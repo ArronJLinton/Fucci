@@ -16,6 +16,21 @@ export type ReturnToDebateParams = {
   pendingAction?: AuthPendingAction;
 };
 
+/** Params for `MatchSnapchatStoriesScreen` (Home stack + News stack). */
+export type MatchSnapchatStoriesParams = {
+  snapchatUsername: string;
+  teamDisplayName: string;
+};
+
+/** Stack inside the News tab */
+export type NewsStackParamList = {
+  NewsFeed: undefined;
+  NewsWebView: {
+    url: string;
+  };
+  MatchSnapchatStories: MatchSnapchatStoriesParams;
+};
+
 /** Stack inside the Debates tab (mirrors HomeStack: list → detail) */
 export type DebatesStackParamList = {
   MainDebates: undefined;
@@ -55,10 +70,7 @@ export type RootStackParamList = {
     match: Match;
   };
   /** Match hero: team badge → Snapchat story rail (known accounts only). */
-  MatchSnapchatStories: {
-    snapchatUsername: string;
-    teamDisplayName: string;
-  };
+  MatchSnapchatStories: MatchSnapchatStoriesParams;
   SingleDebate: {
     match: Match;
     debate: DebateResponse;
@@ -84,3 +96,6 @@ export type RootStackParamList = {
 };
 
 export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+export type NewsStackNavigationProp =
+  NativeStackNavigationProp<NewsStackParamList>;

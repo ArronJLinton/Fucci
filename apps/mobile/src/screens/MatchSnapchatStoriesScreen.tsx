@@ -27,18 +27,23 @@ import {
   MATCH_CENTER_BG,
   MATCH_CENTER_LIME,
 } from '../constants/matchCenterUi';
-import type {RootStackParamList} from '../types/navigation';
+import type {MatchSnapchatStoriesParams} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 
 /** Photo snaps auto-advance after this many seconds. */
 const PHOTO_STORY_SEC = 5;
 const SNAP_MEDIA_IMAGE = 0;
 
+/** Same screen is mounted on Home stack and News stack; params are the only contract. */
+type MatchSnapchatStoriesRouteList = {
+  MatchSnapchatStories: MatchSnapchatStoriesParams;
+};
+
 type Nav = NativeStackNavigationProp<
-  RootStackParamList,
+  MatchSnapchatStoriesRouteList,
   'MatchSnapchatStories'
 >;
-type R = RouteProp<RootStackParamList, 'MatchSnapchatStories'>;
+type R = RouteProp<MatchSnapchatStoriesRouteList, 'MatchSnapchatStories'>;
 
 export default function MatchSnapchatStoriesScreen() {
   const navigation = useNavigation<Nav>();
@@ -261,9 +266,6 @@ export default function MatchSnapchatStoriesScreen() {
         pointerEvents="none">
         <Text style={styles.pageLabel}>
           {page + 1} / {slides.length}
-        </Text>
-        <Text style={styles.hint} numberOfLines={2}>
-          @{profileUser} · {teamDisplayName}
         </Text>
       </View>
 

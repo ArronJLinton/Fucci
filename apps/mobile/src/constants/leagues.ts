@@ -9,6 +9,12 @@ export interface League {
 export const UCL_LEAGUE_ID = 2;
 
 /**
+ * Sentinel `league_id` for the News strip “ALL” pill; must match
+ * `GET /snapchat/league-availability` first row (`allarounnd` aggregate stories).
+ */
+export const NEWS_STRIP_ALL_LEAGUE_ID = -1;
+
+/**
  * Optional `season` for GET /futbol/matches. Omitted so the API resolves the correct
  * API-Football season (competition start year, including UCL) from league + date.
  */

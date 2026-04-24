@@ -12,54 +12,48 @@ import {
   Dimensions,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
+import {useQuery} from '@tanstack/react-query';
 import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
-import type {NavigationProp} from '../types/navigation';
+import type {NewsStackNavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
-import type {League} from '../constants/leagues';
+import {NEWS_STRIP_ALL_LEAGUE_ID, type League} from '../constants/leagues';
 import {
   NEWS_BG,
   NEWS_CARD,
   NEWS_CARD_BORDER,
   NEWS_ACCENT,
-  NEWS_CYAN,
   NEWS_TEXT,
   NEWS_MUTED,
   NEWS_EXCLUSIVE,
 } from '../constants/newsUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
-import {
-  type NewsCategoryId,
-  mergeAndSortArticles,
-  filterByCategory,
-  filterByLeague,
-  articleCategoryLabel,
-} from '../utils/newsFilters';
+import {mergeAndSortArticles, articleCategoryLabel} from '../utils/newsFilters';
 import {userFacingApiMessage} from '../services/api';
+import {
+  fetchLeagueSnapchatAvailability,
+  SNAPCHAT_USER_STORIES_STALE_MS,
+  snapchatLeagueAvailabilityQueryKey,
+} from '../services/snapchatStoriesApi';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 const PAGE_PAD = 16;
 const GRID_GAP = 10;
 const GRID_COL_W = (SCREEN_W - PAGE_PAD * 2 - GRID_GAP) / 2;
 
-const STORY_RINGS: {
-  key: string;
-  label: string;
-  category: NewsCategoryId;
-  name: React.ComponentProps<typeof Ionicons>['name'];
-}[] = [
-  {key: 'goals', label: 'TOP GOALS', category: 'match', name: 'football'},
-  {key: 'rumours', label: 'RUMOURS', category: 'transfers', name: 'people'},
-  {key: 'matchday', label: 'MATCH DAY', category: 'match', name: 'flash'},
-];
-
 const NewsScreen: React.FC = () => {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<NewsStackNavigationProp>();
   const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const [category, setCategory] = useState<NewsCategoryId>('all');
-  const [leagueFilter, setLeagueFilter] = useState<League | null>(null);
+  const [stripSelectedLeague, setStripSelectedLeague] = useState<League | null>(
+    null,
+  );
+  const {data: leagueSnapAvailability} = useQuery({
+    queryKey: snapchatLeagueAvailabilityQueryKey,
+    queryFn: fetchLeagueSnapchatAvailability,
+    staleTime: SNAPCHAT_USER_STORIES_STALE_MS,
+  });
   const {
     todayArticles,
     historyArticles,
@@ -90,23 +84,60 @@ const NewsScreen: React.FC = () => {
     [todayArticles, historyArticles],
   );
 
-  const filteredArticles = useMemo(() => {
-    let list = filterByCategory(merged, category);
-    list = filterByLeague(list, leagueFilter);
-    return list;
-  }, [merged, category, leagueFilter]);
+  const snapUsernameByLeagueId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const row of leagueSnapAvailability?.leagues ?? []) {
+      const u = (row.snapchat_username ?? '').trim();
+      if (u) {
+        m.set(row.league_id, u);
+      }
+    }
+    return m;
+  }, [leagueSnapAvailability]);
+
+  const snapStoryRingByLeagueId = useMemo(() => {
+    const out: Partial<Record<number, boolean>> = {};
+    for (const row of leagueSnapAvailability?.leagues ?? []) {
+      if (row.has_renderable_stories) {
+        out[row.league_id] = true;
+      }
+    }
+    return out;
+  }, [leagueSnapAvailability]);
+
+  const handleLeagueStripSelect = useCallback(
+    (league: League | null) => {
+      setStripSelectedLeague(league);
+      if (league == null) {
+        const allUser = snapUsernameByLeagueId.get(NEWS_STRIP_ALL_LEAGUE_ID);
+        if (!allUser) {
+          return;
+        }
+        navigation.navigate('MatchSnapchatStories', {
+          snapchatUsername: allUser,
+          teamDisplayName: 'All',
+        });
+        return;
+      }
+      const username = snapUsernameByLeagueId.get(league.id);
+      if (!username) {
+        return;
+      }
+      navigation.navigate('MatchSnapchatStories', {
+        snapchatUsername: username,
+        teamDisplayName: league.name,
+      });
+    },
+    [navigation, snapUsernameByLeagueId],
+  );
 
   // Keep the featured card in view when filters change.
   useEffect(() => {
     scrollRef.current?.scrollTo({y: 0, animated: true});
-  }, [category, leagueFilter?.id]);
+  }, [stripSelectedLeague?.id]);
 
-  const featured = filteredArticles[0];
-  const gridArticles = filteredArticles.slice(1);
-
-  const onStoryPress = (s: (typeof STORY_RINGS)[0]) => {
-    setCategory(s.category);
-  };
+  const featured = merged[0];
+  const gridArticles = merged.slice(1);
 
   const renderFeatured = (article: NewsArticle) => {
     const imgOk = Boolean(article.imageUrl && !failedImageIds.has(article.id));
@@ -261,62 +292,24 @@ const NewsScreen: React.FC = () => {
             tintColor={NEWS_ACCENT}
           />
         }>
-        {/* Story rings */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storyRow}>
-          {STORY_RINGS.map(s => {
-            return (
-              <TouchableOpacity
-                key={s.key}
-                style={styles.storyItem}
-                onPress={() => onStoryPress(s)}
-                activeOpacity={0.88}>
-                <LinearGradient
-                  colors={[NEWS_ACCENT, NEWS_CYAN]}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.storyGradient}>
-                  <View style={styles.storyInner}>
-                    <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                  </View>
-                </LinearGradient>
-                <Text style={styles.storyLabel}>{s.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
         <LeagueHorizontalStrip
-          selectedLeague={leagueFilter}
-          onSelect={setLeagueFilter}
+          selectedLeague={stripSelectedLeague}
+          onSelect={handleLeagueStripSelect}
           includeAllOption
           accentColor={NEWS_ACCENT}
           mutedColor={NEWS_MUTED}
+          snapStoryRingByLeagueId={snapStoryRingByLeagueId}
+          snapRingColor={NEWS_ACCENT}
         />
 
-        {filteredArticles.length === 0 ? (
-          <View style={styles.emptyFilter}>
-            <Text style={styles.emptyFilterText}>
-              No articles match these filters
-            </Text>
-            <Text style={styles.emptyFilterHint}>
-              Try another story ring or league
-            </Text>
-          </View>
-        ) : (
-          <>
-            {featured ? renderFeatured(featured) : null}
-            <View style={styles.grid}>
-              {gridArticles.map(a => (
-                <View key={a.id} style={{width: GRID_COL_W}}>
-                  {renderGridCard(a)}
-                </View>
-              ))}
+        {featured ? renderFeatured(featured) : null}
+        <View style={styles.grid}>
+          {gridArticles.map(a => (
+            <View key={a.id} style={{width: GRID_COL_W}}>
+              {renderGridCard(a)}
             </View>
-          </>
-        )}
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -334,42 +327,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 32,
     paddingTop: 4,
-  },
-  storyRow: {
-    paddingHorizontal: PAGE_PAD,
-    paddingTop: 8,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  storyItem: {
-    alignItems: 'center',
-    marginRight: 14,
-    width: 78,
-  },
-  storyGradient: {
-    borderRadius: 18,
-    padding: 3,
-  },
-  storyGradientActive: {
-    opacity: 1,
-  },
-  storyInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 15,
-    backgroundColor: NEWS_CARD,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  storyLabel: {
-    marginTop: 8,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    color: NEWS_TEXT,
-    textAlign: 'center',
   },
   latestRow: {
     flexDirection: 'row',
@@ -568,22 +525,6 @@ const styles = StyleSheet.create({
     color: NEWS_ACCENT,
     fontSize: 16,
     fontWeight: '700',
-  },
-  emptyFilter: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  emptyFilterText: {
-    color: NEWS_TEXT,
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  emptyFilterHint: {
-    color: NEWS_MUTED,
-    fontSize: 13,
-    marginTop: 8,
-    textAlign: 'center',
   },
 });
 

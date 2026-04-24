@@ -192,6 +192,7 @@ func New(c *Config) http.Handler {
 
 	snapchatRouter := chi.NewRouter()
 	snapchatRouter.Get("/stories", c.getSnapchatUserStories)
+	snapchatRouter.Get("/league-availability", c.getSnapchatLeagueStoriesAvailability)
 
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import {
   LEAGUES,
+  NEWS_STRIP_ALL_LEAGUE_ID,
   leagueStripLabel,
   type League,
 } from '../constants/leagues';
@@ -20,23 +21,32 @@ type Props = {
   includeAllOption?: boolean;
   accentColor: string;
   mutedColor: string;
+  /** When true for a league id, draw a lime-style ring around the badge (Snapchat stories available). */
+  snapStoryRingByLeagueId?: Partial<Record<number, boolean>>;
+  /** Border + glow color for `snapStoryRingByLeagueId`; defaults to `accentColor`. */
+  snapRingColor?: string;
 };
 
 /**
  * Horizontal league badges with white inner tile (matches + news feeds).
  */
-const ALL_KEY = -1;
-
 export function LeagueHorizontalStrip({
   selectedLeague,
   onSelect,
   includeAllOption = false,
   accentColor,
   mutedColor,
+  snapStoryRingByLeagueId,
+  snapRingColor,
 }: Props) {
+  const ringTint = snapRingColor ?? accentColor;
   const scrollRef = useRef<ScrollView>(null);
-  /** Content-relative x for each league id (and ALL_KEY when includeAllOption). */
+  /** Content-relative x for each league id (and `NEWS_STRIP_ALL_LEAGUE_ID` when includeAllOption). */
   const itemXRef = useRef<Record<number, number>>({});
+
+  const showSnapRingAll =
+    Boolean(includeAllOption) &&
+    Boolean(snapStoryRingByLeagueId?.[NEWS_STRIP_ALL_LEAGUE_ID]);
 
   const scrollSelectedIntoView = useCallback((itemX: number) => {
     const pad = 48;
@@ -50,7 +60,7 @@ export function LeagueHorizontalStrip({
     const targetId =
       selectedLeague === null
         ? includeAllOption
-          ? ALL_KEY
+          ? NEWS_STRIP_ALL_LEAGUE_ID
           : null
         : selectedLeague.id;
     if (targetId === null) {
@@ -104,23 +114,45 @@ export function LeagueHorizontalStrip({
             activeOpacity={0.85}
             onLayout={e => {
               const x = e.nativeEvent.layout.x;
-              itemXRef.current[ALL_KEY] = x;
+              itemXRef.current[NEWS_STRIP_ALL_LEAGUE_ID] = x;
               if (selectedLeague === null) {
                 scrollSelectedIntoView(x);
               }
             }}>
-            <View
-              style={[
-                styles.iconWrap,
-                selectedLeague === null && [
-                  styles.iconWrapSelected,
-                  {borderColor: accentColor},
-                ],
-              ]}>
-              <View style={styles.iconInner}>
-                <Text style={styles.allGlyph}>∞</Text>
+            {showSnapRingAll ? (
+              <View
+                style={[
+                  styles.snapRingOuter,
+                  {borderColor: ringTint, shadowColor: ringTint},
+                ]}>
+                <View
+                  style={[
+                    styles.iconWrap,
+                    selectedLeague === null && [
+                      styles.iconWrapSelected,
+                      {borderColor: accentColor},
+                    ],
+                  ]}>
+                  <View style={styles.iconInner}>
+                    <Text style={styles.allGlyph}>∞</Text>
+                  </View>
+                </View>
               </View>
-            </View>
+            ) : (
+              <View
+                style={[
+                  styles.iconWrap,
+                  styles.iconWrapMarginBottom,
+                  selectedLeague === null && [
+                    styles.iconWrapSelected,
+                    {borderColor: accentColor},
+                  ],
+                ]}>
+                <View style={styles.iconInner}>
+                  <Text style={styles.allGlyph}>∞</Text>
+                </View>
+              </View>
+            )}
             <Text
               style={[
                 styles.label,
@@ -140,6 +172,32 @@ export function LeagueHorizontalStrip({
         {LEAGUES.map(league => {
           const isSelected =
             selectedLeague !== null && selectedLeague.id === league.id;
+          const showSnapRing = Boolean(snapStoryRingByLeagueId?.[league.id]);
+          const logoBlock = (
+            <View
+              style={[
+                styles.iconWrap,
+                !showSnapRing && styles.iconWrapMarginBottom,
+                isSelected && [
+                  styles.iconWrapSelected,
+                  {borderColor: accentColor},
+                ],
+              ]}>
+              <View style={styles.iconInner}>
+                {league.logo ? (
+                  <Image
+                    source={{uri: league.logo}}
+                    style={styles.iconImg}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text style={styles.fallback}>
+                    {leagueStripLabel(league.name).slice(0, 2)}
+                  </Text>
+                )}
+              </View>
+            </View>
+          );
           return (
             <TouchableOpacity
               key={league.id}
@@ -153,28 +211,17 @@ export function LeagueHorizontalStrip({
                   scrollSelectedIntoView(x);
                 }
               }}>
-              <View
-                style={[
-                  styles.iconWrap,
-                  isSelected && [
-                    styles.iconWrapSelected,
-                    {borderColor: accentColor},
-                  ],
-                ]}>
-                <View style={styles.iconInner}>
-                  {league.logo ? (
-                    <Image
-                      source={{uri: league.logo}}
-                      style={styles.iconImg}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <Text style={styles.fallback}>
-                      {leagueStripLabel(league.name).slice(0, 2)}
-                    </Text>
-                  )}
+              {showSnapRing ? (
+                <View
+                  style={[
+                    styles.snapRingOuter,
+                    {borderColor: ringTint, shadowColor: ringTint},
+                  ]}>
+                  {logoBlock}
                 </View>
-              </View>
+              ) : (
+                logoBlock
+              )}
               <Text
                 style={[
                   styles.label,
@@ -213,6 +260,17 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     minWidth: 64,
   },
+  snapRingOuter: {
+    padding: 2,
+    borderRadius: 10,
+    borderWidth: 2,
+    marginBottom: 6,
+    alignSelf: 'center',
+    shadowOffset: {width: 0, height: 0},
+    shadowOpacity: 0.85,
+    shadowRadius: 14,
+    elevation: 12,
+  },
   iconWrap: {
     width: 44,
     height: 44,
@@ -221,6 +279,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     padding: 3,
+  },
+  iconWrapMarginBottom: {
     marginBottom: 6,
   },
   iconWrapSelected: {

@@ -108,7 +108,7 @@ export default function SnapchatStorySlide({
             ref={videoRef}
             style={styles.media}
             source={{uri: mediaUrl}}
-            resizeMode={ResizeMode.COVER}
+            resizeMode={ResizeMode.CONTAIN}
             shouldPlay={isActive}
             isLooping={false}
             isMuted
@@ -119,7 +119,7 @@ export default function SnapchatStorySlide({
           <Image
             source={{uri: mediaUrl}}
             style={styles.media}
-            resizeMode="cover"
+            resizeMode="contain"
           />
         )}
 

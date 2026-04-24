@@ -37,6 +37,24 @@ export function fetchSnapchatUserStories(
   return makeApiRequest(`/snapchat/stories?${q.toString()}`, 'GET');
 }
 
+export const snapchatLeagueAvailabilityQueryKey = [
+  'snapchatLeagueAvailability',
+] as const;
+
+export type LeagueSnapchatAvailabilityRow = {
+  league_id: number;
+  snapchat_username: string;
+  has_renderable_stories: boolean;
+};
+
+export type LeagueSnapchatAvailabilityResponse = {
+  leagues: LeagueSnapchatAvailabilityRow[];
+};
+
+export function fetchLeagueSnapchatAvailability(): Promise<LeagueSnapchatAvailabilityResponse> {
+  return makeApiRequest('/snapchat/league-availability', 'GET');
+}
+
 /** True when the API returned at least one story with a usable media URL (same filter as the stories UI). */
 export function hasRenderableSnapchatStories(
   res: SnapchatUserStoriesResponse | null | undefined,

@@ -33,6 +33,14 @@ export const MATCH_TEAM_SNAPCHAT_USERNAMES: ReadonlyArray<{
     snapchatUsername: 'realmadrid',
   },
   {
+    teamNameKey: 'real sociedad',
+    snapchatUsername: 'realsociedad',
+  },
+  {
+    teamNameKey: 'rc celta',
+    snapchatUsername: 'rccelta',
+  },
+  {
     teamNameKey: 'manchester city',
     snapchatUsername: 'mancityofficial',
   },
