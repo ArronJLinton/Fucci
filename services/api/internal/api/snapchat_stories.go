@@ -151,9 +151,9 @@ type leagueSnapchatAvailabilityResponse struct {
 	Leagues []leagueSnapchatAvailabilityRow `json:"leagues"`
 }
 
-// GET /api/snapchat/league-availability — batch probe for renderable Snapchat stories on
+// GET /v1/api/snapchat/league-availability — batch probe for renderable Snapchat stories on
 // official league accounts used by the news league strip. Reuses the same Redis cache and
-// rate limits as GET /snapchat/stories.
+// rate limits as GET /v1/api/snapchat/stories.
 func (c *Config) getSnapchatLeagueStoriesAvailability(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rapidKey := strings.TrimSpace(c.RapidAPIKey)
