@@ -20,7 +20,7 @@
     "dev:mobile": "yarn workspace fucci dev",
     "dev:workers": "cd services/workers && go run main.go",
     "dev:admin": "yarn workspace fucci-admin dev",
-    "dev:api-mobile": "concurrently --kill-others-on-fail --prefix-colors \"red,blue\" --names \"BACKEND,FRONTEND\" --raw \"cd services/api && go run main.go\" \"cd apps/mobile && yarn dev\"",
+    "dev:full": "concurrently --kill-others-on-fail --prefix-colors \"red,blue\" --names \"BACKEND,FRONTEND\" --raw \"cd services/api && go run main.go\" \"cd apps/mobile && yarn dev\"",
     "mobile:android": "yarn workspace fucci android",
     "mobile:ios": "yarn workspace fucci ios",
     "mobile:web": "yarn workspace fucci web",
