@@ -417,7 +417,7 @@ function App(): React.JSX.Element {
       <View style={styles.bootSplash}>
         <Image
           source={require('./assets/splash-icon.png')}
-          style={StyleSheet.absoluteFillObject}
+          style={styles.bootSplashImage}
           resizeMode="cover"
         />
       </View>
@@ -486,9 +486,15 @@ function App(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
+  // Root may not give flex children a full window on first frame; pin to screen like native splash.
   bootSplash: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#0f172a',
+  },
+  bootSplashImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
 });
 
