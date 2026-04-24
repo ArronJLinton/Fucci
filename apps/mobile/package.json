@@ -1,6 +1,6 @@
 {
   "name": "fucciexpo",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -18,6 +18,7 @@
     "build:android": "yarn env:prod && eas build -p android --profile production",
     "build:android-preview": "yarn env:staging && eas build -p android --profile preview",
     "build:ios": "yarn env:prod && eas build -p ios --profile production",
+    "build:ios-staging": "yarn env:staging && eas build -p ios --profile preview",
     "build:ios-preview": "yarn env:staging && npx eas-cli build -p ios --profile preview",
     "preflight:typecheck": "yarn type-check",
     "preflight:doctor": "npx expo-doctor",
