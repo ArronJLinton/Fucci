@@ -237,6 +237,95 @@ func (m *MockCache) SetNX(ctx context.Context, key string, ttl time.Duration) (b
 	return true, nil
 }
 
+func TestGetMatchLineupWithEmptySquadResponses(t *testing.T) {
+	mockAPIKey := "mock-api-key"
+	mockLineupResponse := `{
+		"get": "fixtures/lineups",
+		"response": [
+			{
+				"team": {"id": 1},
+				"startXI": [
+					{"player": {"id": 11, "name": "Home Starter", "number": 1, "pos": "G", "grid": "1:1"}}
+				],
+				"substitutes": [
+					{"player": {"id": 12, "name": "Home Sub", "number": 12, "pos": "M", "grid": null}}
+				]
+			},
+			{
+				"team": {"id": 2},
+				"startXI": [
+					{"player": {"id": 21, "name": "Away Starter", "number": 1, "pos": "G", "grid": "1:1"}}
+				],
+				"substitutes": [
+					{"player": {"id": 22, "name": "Away Sub", "number": 12, "pos": "M", "grid": null}}
+				]
+			}
+		]
+	}`
+	mockEmptySquadResponse := `{"get":"players/squads","response":[]}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-apisports-key") != mockAPIKey {
+			t.Errorf("Expected API key %s, got %s", mockAPIKey, r.Header.Get("x-apisports-key"))
+		}
+
+		if strings.Contains(r.URL.Path, "lineups") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(mockLineupResponse))
+			return
+		}
+		if strings.Contains(r.URL.Path, "players/squads") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(mockEmptySquadResponse))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	config := &Config{
+		Cache: &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) {
+				return false, nil
+			},
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("cache miss")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				return nil
+			},
+		},
+		FootballAPIKey:     mockAPIKey,
+		APIFootballBaseURL: server.URL,
+	}
+
+	req := httptest.NewRequest("GET", "/fixtures/lineups?match_id=12345", nil)
+	rec := httptest.NewRecorder()
+
+	config.getMatchLineup(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	var response struct {
+		Home Lineup `json:"home"`
+		Away Lineup `json:"away"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %s", err)
+	}
+	if len(response.Home.Starters) != 1 || len(response.Away.Starters) != 1 {
+		t.Fatalf("Expected one starter for each team, got home=%d away=%d", len(response.Home.Starters), len(response.Away.Starters))
+	}
+	if response.Home.Starters[0].Name != "Home Starter" || response.Away.Starters[0].Name != "Away Starter" {
+		t.Fatalf("Lineup players were not preserved: home=%+v away=%+v", response.Home.Starters[0], response.Away.Starters[0])
+	}
+	if response.Home.Starters[0].Photo != "" || response.Away.Starters[0].Photo != "" {
+		t.Fatalf("Expected empty photos without squad data, got home=%q away=%q", response.Home.Starters[0].Photo, response.Away.Starters[0].Photo)
+	}
+}
+
 func TestGetLeagueStandings(t *testing.T) {
 	// Skip if no Redis connection
 	redisURL := "redis://localhost:6379"

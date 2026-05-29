@@ -107,7 +107,7 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Filtering matches by league_id: %d, season: %d\n", leagueIDNum, seasonNum)
 	}
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
@@ -192,7 +192,7 @@ func (c *Config) FetchLineupData(ctx context.Context, matchID string) (*GetLineU
 	}
 	url := fmt.Sprintf("%s/fixtures/lineups?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -246,7 +246,7 @@ func (c *Config) FetchMatchStatsData(ctx context.Context, matchID string) (*GetF
 	}
 	url := fmt.Sprintf("%s/fixtures/statistics?fixture=%s", baseURL, matchID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -361,8 +361,9 @@ func processPlayers(players []struct {
 	Player Player `json:"player"`
 }, squad *GetSquadResponse) []Player {
 	result := make([]Player, 0, len(players))
+	squadPlayers := playersFromSquad(squad)
 	for _, p := range players {
-		squadPlayer := filterByName(squad.Response[0].Players, p.Player)
+		squadPlayer := filterByName(squadPlayers, p.Player)
 		p := Player{
 			ID:     p.Player.ID,
 			Name:   p.Player.Name,
@@ -387,8 +388,9 @@ func processSubstitutes(substitutes []struct {
 	} `json:"player"`
 }, squad *GetSquadResponse) []Player {
 	result := make([]Player, 0, len(substitutes))
+	squadPlayers := playersFromSquad(squad)
 	for _, p := range substitutes {
-		squadPlayer := filterByName(squad.Response[0].Players, Player{
+		squadPlayer := filterByName(squadPlayers, Player{
 			ID:     p.Player.ID,
 			Name:   p.Player.Name,
 			Number: p.Player.Number,
@@ -405,6 +407,13 @@ func processSubstitutes(substitutes []struct {
 		result = append(result, p)
 	}
 	return result
+}
+
+func playersFromSquad(squad *GetSquadResponse) []Player {
+	if squad == nil || len(squad.Response) == 0 {
+		return nil
+	}
+	return squad.Response[0].Players
 }
 
 func filterByName(items []Player, player Player) Player {
@@ -492,7 +501,7 @@ func (c *Config) getTeamSquad(id int32, ctx context.Context) (*GetSquadResponse,
 	}
 
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
@@ -564,7 +573,7 @@ func (c *Config) getLeagues(w http.ResponseWriter, r *http.Request) {
 	}
 	url := fmt.Sprintf("%s/leagues?season=%d", baseURL, currentYear)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -640,7 +649,7 @@ func (c *Config) getLeagueStandingsByTeamId(w http.ResponseWriter, r *http.Reque
 	}
 	url := fmt.Sprintf("%s/standings?season=%d&team=%s", baseURL, currentYear, teamId)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 	resp, err := HTTPRequest("GET", url, headers, nil)
@@ -686,7 +695,7 @@ func (c *Config) GetLeagueStandingsData(ctx context.Context, leagueID, season st
 	}
 	url := fmt.Sprintf("%s/standings?league=%s&season=%s", baseURL, leagueID, season)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
@@ -770,7 +779,7 @@ func (c *Config) FetchHeadToHead(ctx context.Context, homeTeamID, awayTeamID int
 	}
 	u := fmt.Sprintf("%s/fixtures/headtohead?h2h=%d-%d&last=10", baseURL, homeTeamID, awayTeamID)
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
