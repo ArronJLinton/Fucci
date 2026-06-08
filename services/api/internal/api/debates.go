@@ -58,6 +58,8 @@ const (
 	errCodeBuildResponse    = "DEBATE_RESPONSE_BUILD_FAILED"
 	errCodeDelete           = "DEBATE_DELETE_FAILED"
 	errCodeRestore          = "DEBATE_RESTORE_FAILED"
+	errCodeAdminRequired    = "DEBATE_ADMIN_REQUIRED"
+	errCodeAdminVerify      = "DEBATE_ADMIN_VERIFY_FAILED"
 	errCodeAINotConfigured  = "DEBATE_AI_NOT_CONFIGURED"
 	errCodeGenPromptInvalid = "DEBATE_GENERATION_INVALID_PROMPT"
 	errCodeNoValidCards     = "DEBATE_NO_VALID_CARDS"
@@ -924,7 +926,7 @@ func (c *Config) getDebate(w http.ResponseWriter, r *http.Request) {
 		var uvByCard map[int32]*VoteResponse
 		if userID, ok := auth.UserIDFromContext(ctx); ok && userID != 0 {
 			swipeRows, errUV := c.DB.GetUserSwipeVotesForCards(ctx, database.GetUserSwipeVotesForCardsParams{
-				UserID:         sql.NullInt32{Int32: userID, Valid: true},
+				UserID:        sql.NullInt32{Int32: userID, Valid: true},
 				DebateCardIds: cardIDs,
 			})
 			if errUV != nil {
@@ -2324,8 +2326,9 @@ func (c *Config) hardDeleteDebate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Add admin authentication check here
-	// For now, we'll allow the operation but log it
+	if !c.requireDebateAdmin(w, r) {
+		return
+	}
 
 	// Hard delete the debate
 	err = c.DB.DeleteDebate(ctx, int32(debateID))
@@ -2354,6 +2357,10 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !c.requireDebateAdmin(w, r) {
+		return
+	}
+
 	// Restore the debate
 	err = c.DB.RestoreDebate(ctx, int32(debateID))
 	if err != nil {
@@ -2367,6 +2374,34 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Restored debate ID: %d\n", debateID)
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Debate restored successfully"})
+}
+
+func (c *Config) requireDebateAdmin(w http.ResponseWriter, r *http.Request) bool {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		respondWithErrorCode(w, http.StatusUnauthorized, "Authentication required", errCodeDebateAuthRequired)
+		return false
+	}
+	if c.DB == nil {
+		logErrorAndRespond500(w, "verify debate admin", fmt.Errorf("database not configured"), errCodeDebateDBNotConfigured)
+		return false
+	}
+
+	user, err := c.DB.GetUser(r.Context(), userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithErrorCode(w, http.StatusUnauthorized, "Account not found. Please log in again.", errCodeDebateAuthRequired)
+			return false
+		}
+		logErrorAndRespond500(w, "verify debate admin", err, errCodeAdminVerify)
+		return false
+	}
+	if user.IsAdmin || (user.Role.Valid && user.Role.UserRole == database.UserRoleAdmin) {
+		return true
+	}
+
+	respondWithErrorCode(w, http.StatusForbidden, "Admin privileges required", errCodeAdminRequired)
+	return false
 }
 
 // MatchInfo represents detailed information about a match

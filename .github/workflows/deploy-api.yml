@@ -93,6 +93,39 @@ jobs:
       # Migrations run on Fly only: fly.toml [deploy] release_command = ./migrate (GitHub runners often
       # cannot reach IPv6 Postgres hosts — "network is unreachable"). Use yarn migrate locally when needed.
 
+      # Validate that the database host in DB_URL resolves before we hand off to Fly.io, so that
+      # a stale or paused-project DB_URL produces an actionable error here rather than an opaque
+      # failure buried inside the Fly release_command logs.
+      - name: Validate database host resolves
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+        run: |
+          # Extract the hostname from the Postgres URL (handles user:pass@host:port/db).
+          DB_HOST=$(echo "$DB_URL" | sed -n 's|.*@\([^/:?]*\).*|\1|p')
+          if [ -z "$DB_HOST" ]; then
+            echo "ERROR: Could not extract hostname from DB_URL. Ensure DB_URL is a valid postgres:// connection string."
+            exit 1
+          fi
+          echo "Checking DNS for database host: $DB_HOST"
+          if ! getent hosts "$DB_HOST" >/dev/null 2>&1 && ! host "$DB_HOST" >/dev/null 2>&1; then
+            echo ""
+            echo "ERROR: DNS resolution failed for '$DB_HOST'."
+            echo ""
+            echo "Likely causes:"
+            echo "  1. Supabase free-tier project is PAUSED — resume it at https://supabase.com/dashboard"
+            echo "     (free-tier projects pause after 7 days of inactivity and their DNS record is removed)."
+            echo "  2. The DB_URL secret contains a stale project reference."
+            echo ""
+            echo "Recommended fix:"
+            echo "  Update the DB_URL GitHub secret to a valid Supabase connection string."
+            echo "  For reliability, use the session-pooler URL:"
+            echo "    postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres"
+            echo "  The pooler endpoint resolves even while the project is waking up."
+            echo ""
+            exit 1
+          fi
+          echo "Database host '$DB_HOST' resolves OK."
+
       - name: Deploy to Fly.io
         working-directory: ./services/api
         env:
