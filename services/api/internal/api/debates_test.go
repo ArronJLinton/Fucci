@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -966,6 +967,12 @@ WHERE user_id = $1
   AND debate_card_id = ANY($2::int[])
   AND emoji IS NULL
   AND vote_type IN ('upvote', 'downvote')`
+	testSQLGetUserForDebateAdmin = `-- name: GetUser :one
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE id = $1`
+	testSQLDeleteDebate = `-- name: DeleteDebate :exec
+DELETE FROM debates WHERE id = $1`
+	testSQLRestoreDebate = `-- name: RestoreDebate :exec
+UPDATE debates SET deleted_at = NULL WHERE id = $1`
 	testSQLLoadDebateTeams = `
 SELECT m.external_match_id, ht.name, ht.logo_url, m.home_score, at.name, at.logo_url, m.away_score
 FROM matches m
@@ -1101,6 +1108,150 @@ func TestGetDebate_AuthenticatedPopulatesUserVoteFromSwipeRows(t *testing.T) {
 	if uv.ID != 9001 || uv.DebateCardID != 101 || uv.UserID != uid || uv.VoteType != "upvote" {
 		t.Fatalf("user_vote: %+v", uv)
 	}
+}
+
+func TestDebateAdminRoutesRequireAuthentication(t *testing.T) {
+	h := New(&Config{})
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "hard delete", method: http.MethodDelete, path: "/debates/7/hard"},
+		{name: "restore", method: http.MethodPost, path: "/debates/7/restore"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("code=%d body=%s, want 401", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestDebateAdminRoutesRejectNonAdmins(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "hard delete", method: http.MethodDelete, path: "/debates/7/hard"},
+		{name: "restore", method: http.MethodPost, path: "/debates/7/restore"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+
+			const uid int32 = 42
+			mock.ExpectQuery(testSQLGetUserForDebateAdmin).
+				WithArgs(uid).
+				WillReturnRows(debateAdminUserRows(uid, false, database.UserRoleFan))
+
+			h := New(&Config{DB: database.New(db), DBConn: db})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer "+debateAdminTestToken(t, uid, string(database.UserRoleAdmin)))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("code=%d body=%s, want 403", rec.Code, rec.Body.String())
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("db expectations: %v", err)
+			}
+		})
+	}
+}
+
+func TestDebateAdminRoutesAllowAdmins(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		method   string
+		path     string
+		execSQL  string
+		wantBody string
+	}{
+		{
+			name:     "hard delete",
+			method:   http.MethodDelete,
+			path:     "/debates/7/hard",
+			execSQL:  testSQLDeleteDebate,
+			wantBody: "Debate permanently deleted",
+		},
+		{
+			name:     "restore",
+			method:   http.MethodPost,
+			path:     "/debates/7/restore",
+			execSQL:  testSQLRestoreDebate,
+			wantBody: "Debate restored successfully",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+
+			const uid int32 = 7
+			mock.ExpectQuery(testSQLGetUserForDebateAdmin).
+				WithArgs(uid).
+				WillReturnRows(debateAdminUserRows(uid, false, database.UserRoleAdmin))
+			mock.ExpectExec(tc.execSQL).
+				WithArgs(int32(7)).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+
+			h := New(&Config{DB: database.New(db), DBConn: db})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer "+debateAdminTestToken(t, uid, string(database.UserRoleAdmin)))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("code=%d body=%s, want 200", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tc.wantBody) {
+				t.Fatalf("body=%s, want message containing %q", rec.Body.String(), tc.wantBody)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("db expectations: %v", err)
+			}
+		})
+	}
+}
+
+func debateAdminTestToken(t *testing.T, userID int32, role string) string {
+	t.Helper()
+	if err := auth.InitJWTAuth("debate-admin-test-secret"); err != nil {
+		t.Fatal(err)
+	}
+	token, err := auth.GenerateToken(userID, "admin-test@example.com", role, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
+}
+
+func debateAdminUserRows(userID int32, isAdmin bool, role database.UserRole) *sqlmock.Rows {
+	now := time.Unix(1700, 0).UTC()
+	return sqlmock.NewRows([]string{
+		"id", "firstname", "lastname", "email", "created_at", "updated_at", "is_admin",
+		"display_name", "avatar_url", "google_id", "auth_provider", "locale", "last_login_at",
+		"is_verified", "is_active", "role",
+	}).AddRow(
+		userID, "Debate", "Admin", "debate-admin@example.com", now, now, isAdmin,
+		nil, nil, nil, "local", nil, nil, true, true, string(role),
+	)
 }
 
 func ptrInt32(v int32) *int32 { return &v }
