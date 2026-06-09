@@ -65,6 +65,13 @@ func main() {
 		if errors.Is(err, context.DeadlineExceeded) {
 			hint = "Hint: no TCP connection to Postgres within 2 minutes. Check DB_URL, firewall, and that the " +
 				"database allows connections from Fly (release_command runs on Fly, not in GitHub Actions)."
+		} else if strings.Contains(errStr, "no such host") || strings.Contains(errStr, "Name or service not known") {
+			hint = "Hint: DNS resolution failed for the database host. " +
+				"If using Supabase, the project may be paused (free-tier projects pause after 7 days of inactivity — " +
+				"resume it at https://supabase.com/dashboard) or the project ref in DB_URL may be wrong. " +
+				"Consider switching DB_URL to the Supabase session-pooler URL " +
+				"(postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres) " +
+				"which stays reachable even when the project is waking up."
 		} else if strings.Contains(errStr, "network is unreachable") || strings.Contains(errStr, "no route to host") {
 			hint = "Hint: IPv6 or routing issue — GitHub Actions runners often cannot reach IPv6-only DB endpoints. " +
 				"Run migrations on Fly (release_command) or use a Supabase pooler / connection string that resolves to IPv4."
