@@ -90,10 +90,11 @@ const fetchMatchesByUtcDate = async (
 };
 
 /**
- * Backward-compatible single-UTC-date fetch (kept for callers that don't care
- * about local-day bucketing, e.g. matchesDefaultLeague's "did UCL play today"
- * heuristic). For the user-facing YESTERDAY/TODAY/TOMORROW tabs use
- * fetchMatchesForLocalDate instead — see below.
+ * Backward-compatible single-date-param fetch (legacy): formats the query date
+ * using the device's local calendar day and issues one request.
+ *
+ * For the user-facing YESTERDAY/TODAY/TOMORROW tabs use fetchMatchesForLocalDate
+ * instead — it correctly handles local-day ↔ UTC bucketing.
  */
 export const fetchMatches = async (
   date: Date,
