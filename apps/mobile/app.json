@@ -8,11 +8,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#0f172a"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.magistridev.fucci",
@@ -46,7 +41,8 @@
         {
           "image": "./assets/splash-icon.png",
           "backgroundColor": "#0f172a",
-          "resizeMode": "cover"
+          "resizeMode": "cover",
+          "imageWidth": 1284
         }
       ],
       [
