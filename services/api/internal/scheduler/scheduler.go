@@ -47,9 +47,10 @@ type Scheduler struct {
 	job  Job
 	opts Options
 
-	stopOnce sync.Once
-	stopCh   chan struct{}
-	doneCh   chan struct{}
+	startOnce sync.Once
+	stopOnce  sync.Once
+	stopCh    chan struct{}
+	doneCh    chan struct{}
 }
 
 // New constructs a Scheduler. Call Start to begin ticking, Stop for graceful
