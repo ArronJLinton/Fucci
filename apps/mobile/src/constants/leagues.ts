@@ -8,6 +8,9 @@ export interface League {
 /** API-Football league id for UEFA Champions League. */
 export const UCL_LEAGUE_ID = 2;
 
+/** API-Football league id for the FIFA World Cup. */
+export const WORLD_CUP_LEAGUE_ID = 1;
+
 /**
  * Optional `season` for GET /futbol/matches. Omitted so the API resolves the correct
  * API-Football season (competition start year, including UCL) from league + date.
@@ -35,6 +38,17 @@ export const LEAGUES: League[] = [
 ];
 
 export const DEFAULT_LEAGUE = LEAGUES[0]; // Premier League
+
+/**
+ * Standalone "FIFA World Cup" entry used by Summer-2026 world-cup-only mode.
+ * Not added to `LEAGUES` so the existing strip / per-league flows are
+ * unchanged when the feature flag is flipped back off in August.
+ */
+export const WORLD_CUP_LEAGUE: League = {
+  id: WORLD_CUP_LEAGUE_ID,
+  name: 'FIFA World Cup',
+  logo: L(WORLD_CUP_LEAGUE_ID),
+};
 
 /** Short labels for horizontal league strips (PREMIER, LA LIGA, …). */
 export function leagueStripLabel(name: string): string {
