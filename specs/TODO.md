@@ -1,8 +1,10 @@
 # Fucci — Project TODO
 
-Project-wide backlog. Anything that doesn't yet have a dedicated `specs/NNN-*/`
-folder lives here. When an item grows into real work, promote it into its own
-Speckit spec folder and remove it from this list.
+Project-wide backlog. Items live here until they reach the planning phase;
+at that point we decide whether the item is small enough to ship directly
+(commit + delete the bullet) or large enough to warrant its own Speckit
+spec folder (`specs/NNN-feature/`) — promote it, link from the bullet, and
+drop the bullet once the spec is in place.
 
 ## How to use this file
 
@@ -12,7 +14,10 @@ Speckit spec folder and remove it from this list.
   now should be able to start without re-reading chat history.
 - Priority hint in brackets: `[P0]` blocker / urgent · `[P1]` important ·
   `[P2]` nice-to-have · `[P3]` future.
-- When something ships, delete it (git history is the audit log).
+- When planning starts, decide: ship-it-directly vs promote-to-Speckit. The
+  call is made then, not when the bullet is filed.
+- When something ships (either directly or via its Speckit spec), delete the
+  bullet (git history is the audit log).
 
 Sections (add new ones as needed):
 
@@ -42,7 +47,15 @@ Sections (add new ones as needed):
 
 ## Bug fixes
 
-- *(none currently tracked)*
+- **[P2] Apply local-tz date bucketing to `resolveHomeScreenDefaultLeague`.**
+  The "did UCL play today?" heuristic in
+  `apps/mobile/src/services/matchesDefaultLeague.ts` still calls the legacy
+  single-UTC-date `fetchMatches`. For non-UTC users at the edge of the day
+  this can miss late-night UCL fixtures and incorrectly default to EPL.
+  Same fix shape as the matches-tab bug: use `fetchMatchesForLocalDate` (or
+  a "did any match happen today" predicate built on top of it). Inactive
+  while `WORLD_CUP_ONLY_MODE` is on (this branch hard-codes the league), so
+  this only matters once WC mode is flipped off.
 
 ## Performance
 
@@ -116,6 +129,13 @@ Sections (add new ones as needed):
 
 ## Testing
 
+- **[P1] Wire up Jest in `apps/mobile`.** Existing test files
+  (`apps/mobile/src/__tests__/`, `apps/mobile/src/services/__tests__/`,
+  `apps/mobile/src/utils/__tests__/`) are authored but cannot execute — the
+  package has `jest.config.js` and `@types/jest` but no `jest`/`jest-expo`
+  installed and no `test` script in `package.json`. As a result, type-checks
+  validate test structure but no assertions actually run. Add the deps, add
+  a `"test": "jest"` script, and verify the existing + new test files pass.
 - **[P2] Direct unit test for `Config.FetchMatchesCached`.** Currently
   exercised indirectly via `TestGetMatchesSeasonResolutionAndCache` and
   `TestGetMatchesQueryValidation` (handler tests). Add a focused test that
