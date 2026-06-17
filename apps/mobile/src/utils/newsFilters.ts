@@ -73,6 +73,30 @@ export function filterByCategory(
   return articles.filter(a => needles.some(n => articleText(a).includes(n)));
 }
 
+/**
+ * Headline / snippet substrings used to attribute an article to a competition
+ * when the upstream feed only carries free-text. Lowercased; whole-word style
+ * spaces are intentional to avoid e.g. "england" matching "new england".
+ */
+export const WORLD_CUP_KEYWORDS: ReadonlyArray<string> = [
+  'world cup',
+  'fifa',
+  'group stage',
+  'round of 16',
+  'quarterfinal',
+  'quarter-final',
+  'quarter final',
+  'semifinal',
+  'semi-final',
+  'semi final',
+  ' final ',
+  ' usa ',
+  ' canada ',
+  ' mexico ',
+  'concacaf',
+  'fan zone',
+];
+
 const LEAGUE_KEYWORDS: Record<number, string[]> = {
   39: ['premier league', 'epl', 'english premier', ' england '],
   140: ['la liga', 'laliga', ' spain ', 'spanish'],
@@ -80,6 +104,7 @@ const LEAGUE_KEYWORDS: Record<number, string[]> = {
   78: ['bundesliga', ' germany ', 'german'],
   61: ['ligue 1', ' ligue  ', ' france ', 'french'],
   2: ['champions league', ' ucl ', 'european'],
+  1: [...WORLD_CUP_KEYWORDS],
   0: [
     'world cup',
     'international',
@@ -90,6 +115,19 @@ const LEAGUE_KEYWORDS: Record<number, string[]> = {
     'africa cup',
   ],
 };
+
+/**
+ * True when `text` mentions World Cup–related terms. Used by both the news
+ * feed (filterByLeague with WORLD_CUP_LEAGUE) and the debates feed during
+ * world-cup-only mode.
+ */
+export function worldCupKeywordMatch(text: string | null | undefined): boolean {
+  if (!text) {
+    return false;
+  }
+  const haystack = ` ${text.toLowerCase()} `;
+  return WORLD_CUP_KEYWORDS.some(k => haystack.includes(k));
+}
 
 export function filterByLeague(
   articles: NewsArticle[],

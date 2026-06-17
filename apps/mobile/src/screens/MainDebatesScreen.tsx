@@ -27,6 +27,8 @@ import type {Match} from '../types/match';
 import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
+import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
+import {worldCupKeywordMatch} from '../utils/newsFilters';
 import DebateHeroSwipeCard, {
   type DebateHeroVoteFailedDetail,
   type DebateHeroVoteSuccessDetail,
@@ -89,6 +91,31 @@ function debateGeneratedWithinPastSixDays(
     return true;
   }
   return nowMs - rowMs <= FEED_MAX_AGE_MS;
+}
+
+/**
+ * Summer 2026 world-cup-only mode: keep a debate only if its headline,
+ * description, or sourced headline mentions a World Cup–related keyword.
+ */
+function debateIsWorldCupRelated(summary: DebateSummary): boolean {
+  return (
+    worldCupKeywordMatch(summary.headline) ||
+    worldCupKeywordMatch(summary.description) ||
+    worldCupKeywordMatch(summary.source_headline)
+  );
+}
+
+function debatePassesActiveFilters(
+  summary: DebateSummary,
+  nowMs: number,
+): boolean {
+  if (!debateGeneratedWithinPastSixDays(summary, nowMs)) {
+    return false;
+  }
+  if (WORLD_CUP_ONLY_MODE && !debateIsWorldCupRelated(summary)) {
+    return false;
+  }
+  return true;
 }
 
 type MainDebatesNavigation = NativeStackNavigationProp<
@@ -241,17 +268,17 @@ const MainDebatesScreen = () => {
       return {
         kind: 'public',
         debates: data.debates.filter(s =>
-          debateGeneratedWithinPastSixDays(s, feedNowMs),
+          debatePassesActiveFilters(s, feedNowMs),
         ),
       };
     }
     return {
       kind: 'auth',
       new_debates: data.new_debates.filter(s =>
-        debateGeneratedWithinPastSixDays(s, feedNowMs),
+        debatePassesActiveFilters(s, feedNowMs),
       ),
       voted_debates: data.voted_debates.filter(s =>
-        debateGeneratedWithinPastSixDays(s, feedNowMs),
+        debatePassesActiveFilters(s, feedNowMs),
       ),
     };
   }, [data, feedNowMs]);
