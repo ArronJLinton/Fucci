@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ArronJLinton/fucci-api/internal/ai"
+	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/news"
 )
 
@@ -116,8 +117,12 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 	// Set the enhanced stats
 	matchData.Stats = enhancedStats
 
-	// Fetch news headlines via news module (optional: continue with other sources if rate-limited or unavailable)
-	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.Status)
+	// Fetch news headlines via the shared per-match news cache. Hitting the same
+	// Redis key as GET /news/football/match means the pre-warm cron warms up the
+	// News tab "for free" and a manual MatchNewsScreen view warms the next debate
+	// generation in turn. Continue silently on failure so other context sources
+	// (lineups, stats, sentiment) still produce a debate.
+	headlines, err := dda.fetchNewsHeadlines(ctx, matchReq.MatchID, matchReq.HomeTeam, matchReq.AwayTeam, matchReq.Status)
 	if err != nil {
 		log.Printf("News headlines unavailable, continuing with other sources: %v", err)
 	} else {
@@ -321,22 +326,38 @@ func valueToInt(v interface{}) int {
 	}
 }
 
-// fetchNewsHeadlines gets match news via the news module's FetchMatchNews (Real-Time News Data API).
-func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, homeTeam, awayTeam, matchStatus string) ([]string, error) {
+// fetchNewsHeadlines returns match news headlines using the per-match cache key
+// shared with GET /news/football/match. Either side warms the cache for the other.
+//
+// matchEndTime is intentionally nil here: this path is invoked during debate
+// generation (pre_match) where the fixture has not ended; post_match callers
+// would naturally cache under a different status, keeping entries disjoint.
+func (dda *DebateDataAggregator) fetchNewsHeadlines(ctx context.Context, matchID, homeTeam, awayTeam, matchStatus string) ([]string, error) {
 	nk := dda.Config.newsXAPIKey()
 	newsClient := news.NewClient(nk)
 	if dda.Config.NewsBaseURL != "" {
 		newsClient = news.NewClientWithBaseURL(nk, dda.Config.NewsBaseURL)
 	}
 
-	limit := 10
-	resp, err := newsClient.FetchMatchNews(ctx, homeTeam, awayTeam, limit, matchStatus, nil)
+	const matchNewsLimit = 10
+	resp, fromCache, err := news.GetMatchNewsCached(
+		ctx,
+		dda.Config.Cache,
+		newsClient,
+		matchID, homeTeam, awayTeam, matchStatus, "",
+		nil,
+		matchNewsLimit,
+		cache.NewsTTL,
+	)
 	if err != nil {
 		return nil, err
 	}
+	if fromCache {
+		log.Printf("[debate] news headlines cache HIT match_id=%s", matchID)
+	}
 
-	headlines := make([]string, 0, len(resp.Data))
-	for _, article := range resp.Data {
+	headlines := make([]string, 0, len(resp.Articles))
+	for _, article := range resp.Articles {
 		if article.Title != "" {
 			headlines = append(headlines, article.Title)
 		}

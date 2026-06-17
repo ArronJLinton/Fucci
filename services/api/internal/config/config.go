@@ -47,6 +47,11 @@ func InitConfig(logger *otelzap.Logger) Config {
 	viper.SetDefault("system_user_email", "contact@magistri.dev")
 	viper.SetDefault("google_oauth_redirect_uris", "")
 	viper.SetDefault("google_oauth_callback_url", "")
+	// Default scope of the daily debate pre-warm: FIFA World Cup only (matches the
+	// mobile app's WORLD_CUP_ONLY_MODE flag for Summer 2026). Set
+	// PREWARM_LEAGUE_IDS="" to disable the scheduler entirely; set to a
+	// comma-separated list (e.g. "1,39,140,135,78,61,2") to extend coverage.
+	viper.SetDefault("prewarm_league_ids", "1")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -100,6 +105,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 		ENVIRONMENT:                        viper.GetString("environment"),
 		JWT_SECRET:                         viper.GetString("jwt_secret"),
 		SYSTEM_USER_EMAIL:                  viper.GetString("system_user_email"),
+		PREWARM_LEAGUE_IDS:                 viper.GetString("prewarm_league_ids"),
 	}
 
 	return cfg
