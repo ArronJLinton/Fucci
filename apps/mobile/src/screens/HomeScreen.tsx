@@ -10,7 +10,7 @@ import type {NavigationState} from '@react-navigation/native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
-import {fetchMatches} from '../services/api';
+import {fetchMatchesForLocalDate} from '../services/api';
 import {
   DEFAULT_LEAGUE,
   WORLD_CUP_LEAGUE,
@@ -132,7 +132,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
         return;
       }
 
-      fetchMatches(
+      fetchMatchesForLocalDate(
         date,
         currentLeague.id,
         seasonParamForMatchSearch(currentLeague, date),

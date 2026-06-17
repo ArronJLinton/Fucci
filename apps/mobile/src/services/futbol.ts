@@ -1,4 +1,9 @@
 import {makeApiRequest} from './api';
+import {
+  formatLocalDate,
+  isOnLocalDate,
+  utcDateStringsForLocalDate,
+} from '../utils/dateBuckets';
 
 export interface Standing {
   rank: number;
@@ -57,29 +62,103 @@ export interface LineupData {
   };
 }
 
-export const fetchMatches = async (
-  date: Date,
+/**
+ * Fetches fixtures for a single UTC calendar day. The `utcDate` string is
+ * passed through verbatim to API-Football's `/fixtures?date=...` which
+ * interprets it as UTC. Most callers should prefer fetchMatchesForLocalDate,
+ * which handles the local-tz ↔ UTC bucketing correctly.
+ */
+const fetchMatchesByUtcDate = async (
+  utcDate: string,
   leagueId?: number,
-  /** Rare override for `season`; normally omitted — server resolves per league + date. */
   season?: number,
 ): Promise<Match[] | null> => {
   try {
-    const formattedDate = `${date.getFullYear()}-${String(
-      date.getMonth() + 1,
-    ).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-    let endpoint = `/futbol/matches?date=${formattedDate}`;
+    let endpoint = `/futbol/matches?date=${utcDate}`;
     if (leagueId) {
       endpoint += `&league_id=${leagueId}`;
     }
     if (season !== undefined) {
       endpoint += `&season=${season}`;
     }
-
     const data = await makeApiRequest(endpoint, 'GET');
-    return data.response;
+    return data.response ?? null;
   } catch (error) {
     console.error('Error fetching matches:', error);
+    return null;
+  }
+};
+
+/**
+ * Backward-compatible single-UTC-date fetch (kept for callers that don't care
+ * about local-day bucketing, e.g. matchesDefaultLeague's "did UCL play today"
+ * heuristic). For the user-facing YESTERDAY/TODAY/TOMORROW tabs use
+ * fetchMatchesForLocalDate instead — see below.
+ */
+export const fetchMatches = async (
+  date: Date,
+  leagueId?: number,
+  /** Rare override for `season`; normally omitted — server resolves per league + date. */
+  season?: number,
+): Promise<Match[] | null> => {
+  return fetchMatchesByUtcDate(formatLocalDate(date), leagueId, season);
+};
+
+/**
+ * Returns fixtures whose kickoff falls on the given local calendar date, in
+ * the *device's* timezone. This is the function backing the
+ * YESTERDAY/TODAY/TOMORROW tabs.
+ *
+ * Why this exists: API-Football groups fixtures by UTC date, so a 9 PM ET
+ * Tuesday game (= 01:00 UTC Wednesday) gets returned for the Wednesday UTC
+ * bucket — and would show up under the wrong tab for any user east or west
+ * of UTC. We fix it by fetching every UTC date that overlaps the local day
+ * (1 or 2 days) and filtering client-side.
+ *
+ * The backend caches per (UTC date, league, season), so adjacent local-day
+ * tabs that need the same UTC date share a cache entry — no extra upstream
+ * cost beyond the second HTTP round-trip when the timezone straddles UTC
+ * midnight.
+ */
+export const fetchMatchesForLocalDate = async (
+  localDate: Date,
+  leagueId?: number,
+  season?: number,
+): Promise<Match[] | null> => {
+  const utcDates = utcDateStringsForLocalDate(localDate);
+  try {
+    const results = await Promise.all(
+      utcDates.map(utc => fetchMatchesByUtcDate(utc, leagueId, season)),
+    );
+
+    // Dedupe by fixture id (a game whose UTC date is e.g. Jun 17 will appear
+    // in BOTH the Jun 16 *and* Jun 17 UTC responses for an ET user whose
+    // local Jun 16 happens to include 01:00 UTC Jun 17; we only want it once).
+    const merged = new Map<number, Match>();
+    for (const arr of results) {
+      if (!arr) continue;
+      for (const m of arr) {
+        if (m?.fixture?.id != null) {
+          merged.set(m.fixture.id, m);
+        }
+      }
+    }
+
+    const filtered = Array.from(merged.values()).filter(m =>
+      m?.fixture?.date ? isOnLocalDate(m.fixture.date, localDate) : false,
+    );
+
+    // Stable chronological order so cards render kickoff-ascending regardless
+    // of which UTC fetch they came from.
+    filtered.sort((a, b) => {
+      const ta = new Date(a.fixture.date).getTime();
+      const tb = new Date(b.fixture.date).getTime();
+      return ta - tb;
+    });
+
+    return filtered;
+  } catch (error) {
+    console.error('Error fetching matches for local date:', error);
     return null;
   }
 };
