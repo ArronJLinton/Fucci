@@ -67,6 +67,17 @@ Sections (add new ones as needed):
 
 ## Infrastructure / DevOps
 
+- **[P2] Split production and staging backends.** Today
+  `apps/mobile/scripts/set-env.js` points both the `staging` and
+  `production` profiles at the same Fly app
+  (`https://fucci-api.fly.dev/v1/api`), so TestFlight and App Store
+  builds hit the same backend. As soon as real users land on the App
+  Store, spin up a dedicated production Fly app (e.g.
+  `fucci-api-prod.fly.dev`) so we can iterate on staging without
+  affecting production traffic. At that point also add a
+  `staging-store` EAS profile and probably a separate bundle ID variant
+  (`com.magistridev.fucci.staging`) so internal testers can run both
+  apps side-by-side.
 - **[P2] API-Football subscription.** Free tier only exposes seasons
   2022–2024, which is why World Cup 2026 fixture queries returned empty during
   testing on the `world-cup-only-mode` branch. Options:
