@@ -63,18 +63,24 @@ export interface LineupData {
 }
 
 /**
- * Fetches fixtures for a single UTC calendar day. The `utcDate` string is
- * passed through verbatim to API-Football's `/fixtures?date=...` which
- * interprets it as UTC. Most callers should prefer fetchMatchesForLocalDate,
- * which handles the local-tz ↔ UTC bucketing correctly.
+ * Fetches fixtures for a YYYY-MM-DD date string that is passed verbatim to
+ * API-Football's `/fixtures?date=...`, which the server interprets as a UTC
+ * calendar day.
+ *
+ * @param dateStr - A YYYY-MM-DD string. Callers that want results bucketed by
+ *   UTC day should pass a UTC-derived string (use `utcDateStringsForLocalDate`
+ *   for that). The legacy `fetchMatches` path intentionally passes a
+ *   local-calendar YYYY-MM-DD here as a known backward-compat trade-off —
+ *   prefer `fetchMatchesForLocalDate` for new code so that local-tz ↔ UTC
+ *   bucketing is handled correctly.
  */
 const fetchMatchesByUtcDate = async (
-  utcDate: string,
+  dateStr: string,
   leagueId?: number,
   season?: number,
 ): Promise<Match[] | null> => {
   try {
-    let endpoint = `/futbol/matches?date=${utcDate}`;
+    let endpoint = `/futbol/matches?date=${dateStr}`;
     if (leagueId) {
       endpoint += `&league_id=${leagueId}`;
     }
