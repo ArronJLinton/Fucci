@@ -648,24 +648,14 @@ export default function DebateHeroSwipeCard({
                 </TouchableOpacity>
               </View>
             ) : canSwipeVote ? (
-              <>
-                <View style={styles.swipeRow}>
-                  <View style={styles.swipeBtnRed} pointerEvents="none">
-                    <Ionicons name="close" size={22} color={TEXT} />
-                  </View>
-                  <View style={styles.swipeHint}>
-                    <View style={styles.swipeLine} />
-                    <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
-                  </View>
-                  <View style={styles.swipeBtnLime} pointerEvents="none">
-                    <Ionicons name="checkmark" size={22} color="#0B0E14" />
-                  </View>
+              <View style={styles.swipeRow}>
+                <Text style={styles.disagreeLabel}>DISAGREE</Text>
+                <View style={styles.swipeHint}>
+                  <View style={styles.swipeLine} />
+                  <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
                 </View>
-                <View style={styles.swipeLabels}>
-                  <Text style={styles.disagreeLabel}>DISAGREE</Text>
-                  <Text style={styles.agreeLabel}>AGREE</Text>
-                </View>
-              </>
+                <Text style={styles.agreeLabel}>AGREE</Text>
+              </View>
             ) : null}
           </View>
         </Animated.View>
@@ -833,24 +823,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 12,
     paddingHorizontal: 4,
-  },
-  swipeBtnRed: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: RED_X,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swipeBtnLime: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: LIME,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   swipeHint: {
     flex: 1,
@@ -870,26 +844,17 @@ const styles = StyleSheet.create({
     color: MUTED,
     letterSpacing: 1,
   },
-  swipeLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginTop: 6,
-    marginBottom: 4,
-  },
   disagreeLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: RED_X,
-    width: 72,
-    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: 'rgba(255,59,48,0.55)',
   },
   agreeLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: LIME,
-    width: 72,
-    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: 'rgba(198,255,0,0.6)',
   },
   swipeOverlay: {
     ...StyleSheet.absoluteFillObject,
