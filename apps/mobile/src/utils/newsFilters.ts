@@ -138,9 +138,10 @@ export function filterByLeague(
   }
   const extra = [league.name.toLowerCase()];
   const keywords = [...(LEAGUE_KEYWORDS[league.id] ?? []), ...extra];
-  return articles.filter(a =>
-    keywords.some(k => articleText(a).includes(k)),
-  );
+  return articles.filter(a => {
+    const haystack = ` ${articleText(a)} `;
+    return keywords.some(k => haystack.includes(k));
+  });
 }
 
 /** Small uppercase tag for the card (lime) */
