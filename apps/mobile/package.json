@@ -26,7 +26,8 @@
     "preflight:release": "yarn preflight:typecheck && yarn preflight:doctor && yarn preflight:eas",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf node_modules && yarn install",
-    "reset": "yarn clean && yarn env:dev"
+    "reset": "yarn clean && yarn env:dev",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -67,6 +68,8 @@
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.0",
+    "jest": "^29.7.0",
+    "jest-expo": "~54.0.0",
     "typescript": "~5.9.2"
   },
   "expo": {
