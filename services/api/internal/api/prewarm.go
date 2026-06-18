@@ -114,7 +114,7 @@ func (j *PrewarmJob) Run(ctx context.Context) error {
 	// Cross-machine dedup: first machine to SetNX wins; others noop for the day.
 	if j.Config.Cache != nil {
 		lockKey := "prewarm:debates:date:" + dateKey
-		const lockTTL = 23 * time.Hour
+		const lockTTL = 25 * time.Hour
 		acquired, err := j.Config.Cache.SetNX(ctx, lockKey, lockTTL)
 		if err != nil {
 			log.Printf("[prewarm] SetNX(%s) failed: %v — proceeding without cross-machine lock", lockKey, err)

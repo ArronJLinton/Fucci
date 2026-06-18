@@ -74,8 +74,13 @@ func GetMatchNewsCached(
 		} else if exists {
 			var cached MatchNewsAPIResponse
 			if getErr := cacheStore.Get(ctx, cacheKey, &cached); getErr == nil {
-				cached.Cached = true
-				return &cached, true, nil
+				if cached.CachedAt == "" {
+					// Cache.Get returns nil on redis.Nil (missing key); treat as miss.
+					log.Printf("news cache get returned empty payload for %s; treating as miss", cacheKey)
+				} else {
+					cached.Cached = true
+					return &cached, true, nil
+				}
 			} else {
 				log.Printf("news cache get error for %s: %v", cacheKey, getErr)
 			}

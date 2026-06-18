@@ -109,8 +109,13 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 			log.Printf("Cache check error: %v\n", err)
 		} else if exists {
 			if err := c.Cache.Get(ctx, cacheKey, &cached); err == nil {
-				log.Printf("Cache HIT: Returning cached data\n")
-				return &cached, nil
+				if len(cached.Response) == 0 {
+					// Cache.Get returns nil on redis.Nil (missing key); treat as miss.
+					log.Printf("Cache get returned empty payload for %s; treating as miss\n", cacheKey)
+				} else {
+					log.Printf("Cache HIT: Returning cached data\n")
+					return &cached, nil
+				}
 			} else {
 				log.Printf("Cache get error: %v\n", err)
 			}

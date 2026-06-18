@@ -130,9 +130,11 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		if c.Cache != nil {
 			if exists, _ := c.Cache.Exists(ctx, cacheKey); exists {
 				if getErr := c.Cache.Get(ctx, cacheKey, &stale); getErr == nil {
-					stale.Cached = true
-					respondWithJSON(w, http.StatusServiceUnavailable, stale)
-					return
+					if stale.CachedAt != "" {
+						stale.Cached = true
+						respondWithJSON(w, http.StatusServiceUnavailable, stale)
+						return
+					}
 				}
 			}
 		}
