@@ -45,7 +45,6 @@ func (s *Service) GetShortsForMediaChannel(ctx context.Context, lookupKey, chann
 	}
 
 	if !verified || channelID == "" || s.Fetcher == nil {
-		s.cacheEmpty(ctx, cacheKey)
 		return []Short{}
 	}
 
@@ -53,10 +52,10 @@ func (s *Service) GetShortsForMediaChannel(ctx context.Context, lookupKey, chann
 	if err != nil {
 		if IsQuotaExceeded(err) {
 			log.Printf("[youtube] quota exceeded for media %q: %v", lookupKey, err)
+			s.cacheEmpty(ctx, cacheKey)
 		} else {
 			log.Printf("[youtube] fetch media shorts for %q: %v", lookupKey, err)
 		}
-		s.cacheEmpty(ctx, cacheKey)
 		return []Short{}
 	}
 	if shorts == nil {

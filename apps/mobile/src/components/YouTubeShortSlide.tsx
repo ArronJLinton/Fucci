@@ -31,7 +31,15 @@ export default function YouTubeShortSlide({
   finishedRef.current = onFinished;
   onPlaybackStartRef.current = onPlaybackStart;
 
+  /** Guards against handleFinished firing more than once for the same video. */
+  const calledRef = useRef(false);
+  useEffect(() => {
+    calledRef.current = false;
+  }, [short.video_id]);
+
   const handleFinished = useCallback(() => {
+    if (calledRef.current) return;
+    calledRef.current = true;
     finishedRef.current();
   }, []);
 

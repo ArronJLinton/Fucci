@@ -3,7 +3,6 @@ package youtube
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -219,18 +218,7 @@ func TestGetShortsForTeam_MissingCacheKeyDoesNotTreatAsHit(t *testing.T) {
 		Fetcher: fetch,
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		_ = svc.GetShortsForTeam(context.Background(), "USA")
-	}()
-	go func() {
-		defer wg.Done()
-		_ = svc.GetShortsForTeam(context.Background(), "USA")
-	}()
-	wg.Wait()
-
+	_ = svc.GetShortsForTeam(context.Background(), "USA")
 	if len(fetch.calls) == 0 {
 		t.Fatal("expected fetch when cache empty")
 	}

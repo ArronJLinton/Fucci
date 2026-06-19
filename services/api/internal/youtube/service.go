@@ -55,7 +55,6 @@ func (s *Service) GetShortsForTeam(ctx context.Context, teamName string) []Short
 	}
 
 	if s.Channels == nil || s.Fetcher == nil {
-		s.cacheEmpty(ctx, cacheKey)
 		return []Short{}
 	}
 
@@ -69,10 +68,10 @@ func (s *Service) GetShortsForTeam(ctx context.Context, teamName string) []Short
 	if err != nil {
 		if IsQuotaExceeded(err) {
 			log.Printf("[youtube] quota exceeded for %q: %v", lookupKey, err)
+			s.cacheEmpty(ctx, cacheKey)
 		} else {
 			log.Printf("[youtube] fetch shorts for %q: %v", lookupKey, err)
 		}
-		s.cacheEmpty(ctx, cacheKey)
 		return []Short{}
 	}
 	if shorts == nil {

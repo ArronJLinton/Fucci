@@ -300,7 +300,8 @@ const HomeScreen = () => {
                         focused && styles.dateTabTextActive,
                       ]}
                       numberOfLines={1}
-                      allowFontScaling={false}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
                       includeFontPadding={false}>
                       {label}
                     </Text>
