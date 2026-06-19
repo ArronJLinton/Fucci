@@ -13,8 +13,8 @@ const (
 	StandingsTTL   = 6 * time.Hour
 	H2HTTL         = 6 * time.Hour    // Head-to-head fixtures cache
 	NewsTTL        = 15 * time.Minute // News feed cache TTL (matches frontend React Query gcTime/cache time)
-	// SnapchatUserStoriesTTL caches successful upstream JSON for GET /snapchat/stories (per username).
-	SnapchatUserStoriesTTL = 3 * time.Minute
+	// YouTubeShortsTTL caches team Shorts lists (per lookup_key, daily bucket).
+	YouTubeShortsTTL = 24 * time.Hour
 	DefaultTTL             = 1 * time.Hour
 )
 

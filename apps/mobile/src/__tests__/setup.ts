@@ -80,7 +80,7 @@ jest.mock('react-native-screens', () => ({
 }));
 
 // Silence the warning: Animated: `useNativeDriver` is not supported
-jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper');
+jest.mock('react-native/src/private/animated/NativeAnimatedHelper');
 
 // Global test timeout
 jest.setTimeout(10000);

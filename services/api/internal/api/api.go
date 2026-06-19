@@ -12,6 +12,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/ArronJLinton/fucci-api/internal/youtube"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 )
@@ -67,7 +68,7 @@ type Config struct {
 	DB             *database.Queries
 	DBConn         *sql.DB
 	FootballAPIKey string
-	// RapidAPIKey is RAPID_API_KEY: used for Google News (RapidAPI host/headers in google.go), Snapchat stories, and as fallback for the news client if NewsAPIKey is empty.
+	// RapidAPIKey is RAPID_API_KEY: used for Google News (RapidAPI host/headers in google.go), and as fallback for the news client if NewsAPIKey is empty.
 	RapidAPIKey string
 	// NewsAPIKey is NEWS_API_KEY: X-API-Key for the Open Web Ninja realtime news HTTP client (see newsXAPIKey).
 	NewsAPIKey              string
@@ -105,8 +106,16 @@ type Config struct {
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
 
-	// SnapchatUserStoriesFetch when set, replaces snapchat.FetchUserStories (unit tests only; production leaves nil).
-	SnapchatUserStoriesFetch func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error)
+	YouTubeAPIKey string
+	// YouTubeCacheTTLHours overrides Redis TTL for youtube:shorts:* keys (0 => 24h default).
+	YouTubeCacheTTLHours int
+	// YouTubeShortsService optional override for unit tests; nil => built from DB + Cache + YouTubeAPIKey.
+	YouTubeShortsService *youtube.Service
+	// YouTubeShortsFetcher optional fetcher override for unit tests.
+	YouTubeShortsFetcher youtube.ShortsFetcher
+
+	// MatchInfoLookup optional override for getMatchInfo (unit tests only).
+	MatchInfoLookup func(ctx context.Context, matchID string) (*MatchInfo, error)
 }
 
 // newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When trimmed NewsAPIKey
@@ -190,8 +199,8 @@ func New(c *Config) http.Handler {
 	newsRouter.Get("/football/match", c.getMatchNews)
 	newsRouter.Get("/football", c.getFootballNews)
 
-	snapchatRouter := chi.NewRouter()
-	snapchatRouter.Get("/stories", c.getSnapchatUserStories)
+	matchesRouter := chi.NewRouter()
+	matchesRouter.Get("/{matchId}/stories/shorts", c.getMatchYouTubeShorts)
 
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)
@@ -253,7 +262,7 @@ func New(c *Config) http.Handler {
 	router.Mount("/futbol", futbolRouter)
 	router.Mount("/google", googleRouter)
 	router.Mount("/news", newsRouter)
-	router.Mount("/snapchat", snapchatRouter)
+	router.Mount("/matches", matchesRouter)
 	router.Mount("/debates", debateRouter)
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)

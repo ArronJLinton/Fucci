@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
-import {useQueryClient} from '@tanstack/react-query';
+import {useQuery} from '@tanstack/react-query';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
@@ -41,13 +41,14 @@ import {
   HERO_COLLAPSE_SCROLL_RANGE,
 } from '../constants/matchCenterUi';
 import type {Match} from '../types/match';
-import {snapchatUsernameForTeamName} from '../config/matchSnapchatAccounts';
 import {
-  fetchSnapchatUserStories,
-  hasRenderableSnapchatStories,
-  SNAPCHAT_USER_STORIES_STALE_MS,
-  snapchatUserStoriesQueryKey,
-} from '../services/snapchatStoriesApi';
+  fetchMatchShorts,
+  hasTeamShorts,
+  MATCH_SHORTS_STALE_MS,
+  matchShortsQueryKey,
+} from '../services/matchShortsApi';
+
+const SHORT_RING_AMBER = '#F5A623';
 
 const MAX_PRELOAD_KEYS = 64;
 const preloadFiredFor = new Set<string>();
@@ -115,12 +116,19 @@ const MatchDetailsScreen = () => {
   const {width} = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const match = route.params.match;
-  const queryClient = useQueryClient();
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
-  const [homeSnapStoryRing, setHomeSnapStoryRing] = useState(false);
-  const [awaySnapStoryRing, setAwaySnapStoryRing] = useState(false);
   const isMountedRef = useRef(true);
+
+  const matchId = match.fixture.id;
+  const {data: matchShortsData} = useQuery({
+    queryKey: matchShortsQueryKey(matchId),
+    queryFn: () => fetchMatchShorts(matchId),
+    staleTime: MATCH_SHORTS_STALE_MS,
+  });
+
+  const homeHasShorts = hasTeamShorts(matchShortsData?.teams.home);
+  const awayHasShorts = hasTeamShorts(matchShortsData?.teams.away);
 
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
@@ -160,57 +168,18 @@ const MatchDetailsScreen = () => {
       });
   }, [match?.fixture?.id, match?.fixture?.status?.short]);
 
-  const homeSnapUser = useMemo(
-    () => snapchatUsernameForTeamName(match.teams.home.name),
-    [match.teams.home.name],
-  );
-  const awaySnapUser = useMemo(
-    () => snapchatUsernameForTeamName(match.teams.away.name),
-    [match.teams.away.name],
-  );
-
-  useEffect(() => {
-    setHomeSnapStoryRing(false);
-    setAwaySnapStoryRing(false);
-    let cancelled = false;
-
-    const prefetchSide = async (
-      username: string | null,
-      side: 'home' | 'away',
-    ) => {
-      if (!username) {
-        return;
-      }
-      try {
-        const data = await queryClient.ensureQueryData({
-          queryKey: snapchatUserStoriesQueryKey(username),
-          queryFn: () => fetchSnapchatUserStories(username),
-          staleTime: SNAPCHAT_USER_STORIES_STALE_MS,
-        });
-        if (cancelled || !isMountedRef.current) {
-          return;
-        }
-        if (hasRenderableSnapchatStories(data)) {
-          if (side === 'home') {
-            setHomeSnapStoryRing(true);
-          } else {
-            setAwaySnapStoryRing(true);
-          }
-        }
-      } catch {
-        /* offline / rate limit / proxy errors — no ring */
-      }
-    };
-
-    void Promise.all([
-      prefetchSide(homeSnapUser, 'home'),
-      prefetchSide(awaySnapUser, 'away'),
-    ]);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [queryClient, match.fixture.id, homeSnapUser, awaySnapUser]);
+  const openTeamShorts = (side: 'home' | 'away') => {
+    const team =
+      side === 'home' ? matchShortsData?.teams.home : matchShortsData?.teams.away;
+    if (!hasTeamShorts(team)) {
+      return;
+    }
+    navigation.navigate('MatchTeamShorts', {
+      shorts: team!.shorts,
+      teamDisplayName:
+        side === 'home' ? match.teams.home.name : match.teams.away.name,
+    });
+  };
 
   const heroAnimatedStyle = useAnimatedStyle(() => {
     const h = interpolate(
@@ -260,18 +229,6 @@ const MatchDetailsScreen = () => {
   const statusLabel = statusPillLabel(match);
   const live = isLiveStatus(match.fixture.status.short);
 
-  const openTeamSnapchatStories = (side: 'home' | 'away') => {
-    const u = side === 'home' ? homeSnapUser : awaySnapUser;
-    if (!u) {
-      return;
-    }
-    navigation.navigate('MatchSnapchatStories', {
-      snapchatUsername: u,
-      teamDisplayName:
-        side === 'home' ? match.teams.home.name : match.teams.away.name,
-    });
-  };
-
   const MatchHero = () => (
     <Animated.View style={[styles.heroOuter, heroAnimatedStyle]}>
       <ImageBackground
@@ -304,24 +261,24 @@ const MatchDetailsScreen = () => {
           <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
             <TouchableOpacity
               style={[styles.teamBlock, styles.teamBlockSide]}
-              activeOpacity={homeSnapUser ? 0.88 : 1}
-              disabled={!homeSnapUser}
-              onPress={() => openTeamSnapchatStories('home')}
+              activeOpacity={homeHasShorts ? 0.88 : 1}
+              disabled={!homeHasShorts}
+              onPress={() => openTeamShorts('home')}
               hitSlop={
-                homeSnapUser
+                homeHasShorts
                   ? {top: 8, bottom: 8, left: 4, right: 4}
                   : undefined
               }
               accessibilityRole="button"
               accessibilityLabel={
-                homeSnapUser
-                  ? `Open ${match.teams.home.name} Snapchat story`
+                homeHasShorts
+                  ? `Open ${match.teams.home.name} YouTube Shorts`
                   : `Home team ${match.teams.home.name}`
               }>
               <View
                 style={[
                   styles.badgeWrap,
-                  homeSnapStoryRing && styles.badgeSnapRingWrap,
+                  homeHasShorts && styles.badgeShortRingWrap,
                 ]}>
                 {!homeLogoError && match.teams.home.logo ? (
                   <Image
@@ -358,24 +315,24 @@ const MatchDetailsScreen = () => {
 
             <TouchableOpacity
               style={[styles.teamBlock, styles.teamBlockSide]}
-              activeOpacity={awaySnapUser ? 0.88 : 1}
-              disabled={!awaySnapUser}
-              onPress={() => openTeamSnapchatStories('away')}
+              activeOpacity={awayHasShorts ? 0.88 : 1}
+              disabled={!awayHasShorts}
+              onPress={() => openTeamShorts('away')}
               hitSlop={
-                awaySnapUser
+                awayHasShorts
                   ? {top: 8, bottom: 8, left: 4, right: 4}
                   : undefined
               }
               accessibilityRole="button"
               accessibilityLabel={
-                awaySnapUser
-                  ? `Open ${match.teams.away.name} Snapchat story`
+                awayHasShorts
+                  ? `Open ${match.teams.away.name} YouTube Shorts`
                   : `Away team ${match.teams.away.name}`
               }>
               <View
                 style={[
                   styles.badgeWrap,
-                  awaySnapStoryRing && styles.badgeSnapRingWrap,
+                  awayHasShorts && styles.badgeShortRingWrap,
                 ]}>
                 {!awayLogoError && match.teams.away.logo ? (
                   <Image
@@ -577,12 +534,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeSnapRingWrap: {
+  badgeShortRingWrap: {
     padding: 2,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: MATCH_CENTER_LIME,
-    shadowColor: MATCH_CENTER_LIME,
+    borderColor: SHORT_RING_AMBER,
+    shadowColor: SHORT_RING_AMBER,
     shadowOffset: {width: 0, height: 0},
     shadowOpacity: 0.85,
     shadowRadius: 14,

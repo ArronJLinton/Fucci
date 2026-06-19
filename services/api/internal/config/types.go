@@ -32,4 +32,8 @@ type Config struct {
 	// "1,39,140,135,78,61,2" to extend to club leagues when WC mode flips off).
 	// Empty or unset disables the pre-warm scheduler.
 	PREWARM_LEAGUE_IDS string
+	// YOUTUBE_API_KEY is the YouTube Data API v3 key for team Shorts on match details.
+	YOUTUBE_API_KEY string
+	// YOUTUBE_CACHE_TTL_HOURS overrides Redis TTL for youtube:shorts:* keys (default 24).
+	YOUTUBE_CACHE_TTL_HOURS int
 }

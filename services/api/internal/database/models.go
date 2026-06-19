@@ -207,6 +207,18 @@ type TeamManagers struct {
 	UpdatedAt  time.Time
 }
 
+type TeamYoutubeChannels struct {
+	ID            uuid.UUID
+	LookupKey     string
+	Country       string
+	ChannelID     string
+	ChannelHandle sql.NullString
+	IsActive      bool
+	IsVerified    bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type Teams struct {
 	ID          uuid.UUID
 	Name        string

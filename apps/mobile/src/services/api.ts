@@ -30,7 +30,7 @@ export function userFacingApiMessage(error: unknown): string {
       ) {
         return error.message;
       }
-      return 'Access denied. If you’re the developer, verify RAPID_API_KEY and that this app is subscribed to the Snapchat API on RapidAPI.';
+      return 'Access denied. Please try again later.';
     }
     if (error.status === 408) {
       return 'Request timed out. Please try again.';

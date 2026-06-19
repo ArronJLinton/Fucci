@@ -95,6 +95,8 @@ func main() {
 		OpenAIKey:                     c.OPENAI_API_KEY,
 		OpenAIBaseURL:                 c.OPENAI_BASE_URL,
 		SystemUserEmail:               c.SYSTEM_USER_EMAIL,
+		YouTubeAPIKey:                 c.YOUTUBE_API_KEY,
+		YouTubeCacheTTLHours:          c.YOUTUBE_CACHE_TTL_HOURS,
 	}
 	apiRouter := api.New(&apiCfg)
 	v1Router.Mount("/api", apiRouter)
