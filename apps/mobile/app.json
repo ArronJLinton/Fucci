@@ -8,15 +8,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#0f172a"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.magistridev.fucci",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Fucci to access your camera to take profile photos.",
         "NSPhotoLibraryUsageDescription": "Allow Fucci to access your photo library to choose profile photos.",
@@ -31,7 +26,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.magistridev.fucci",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
@@ -46,7 +41,8 @@
         {
           "image": "./assets/splash-icon.png",
           "backgroundColor": "#0f172a",
-          "resizeMode": "cover"
+          "resizeMode": "cover",
+          "imageWidth": 1284
         }
       ],
       [

@@ -18,7 +18,10 @@ import type {NavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
 import {WORLD_CUP_LEAGUE, type League} from '../constants/leagues';
-import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
+import {
+  NEWS_STORY_RINGS_ENABLED,
+  WORLD_CUP_ONLY_MODE,
+} from '../config/featureFlags';
 import {
   NEWS_BG,
   NEWS_CARD,
@@ -264,32 +267,33 @@ const NewsScreen: React.FC = () => {
             tintColor={NEWS_ACCENT}
           />
         }>
-        {/* Story rings */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storyRow}>
-          {STORY_RINGS.map(s => {
-            return (
-              <TouchableOpacity
-                key={s.key}
-                style={styles.storyItem}
-                onPress={() => onStoryPress(s)}
-                activeOpacity={0.88}>
-                <LinearGradient
-                  colors={[NEWS_ACCENT, NEWS_CYAN]}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.storyGradient}>
-                  <View style={styles.storyInner}>
-                    <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                  </View>
-                </LinearGradient>
-                <Text style={styles.storyLabel}>{s.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {NEWS_STORY_RINGS_ENABLED ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.storyRow}>
+            {STORY_RINGS.map(s => {
+              return (
+                <TouchableOpacity
+                  key={s.key}
+                  style={styles.storyItem}
+                  onPress={() => onStoryPress(s)}
+                  activeOpacity={0.88}>
+                  <LinearGradient
+                    colors={[NEWS_ACCENT, NEWS_CYAN]}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 1}}
+                    style={styles.storyGradient}>
+                    <View style={styles.storyInner}>
+                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
+                    </View>
+                  </LinearGradient>
+                  <Text style={styles.storyLabel}>{s.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         {WORLD_CUP_ONLY_MODE ? null : (
           <LeagueHorizontalStrip

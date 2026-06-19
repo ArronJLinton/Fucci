@@ -47,9 +47,10 @@ type Scheduler struct {
 	job  Job
 	opts Options
 
-	stopOnce sync.Once
-	stopCh   chan struct{}
-	doneCh   chan struct{}
+	startOnce sync.Once
+	stopOnce  sync.Once
+	stopCh    chan struct{}
+	doneCh    chan struct{}
 }
 
 // New constructs a Scheduler. Call Start to begin ticking, Stop for graceful
@@ -69,10 +70,10 @@ func New(job Job, opts Options) *Scheduler {
 	}
 }
 
-// Start launches the scheduler loop on a goroutine and returns immediately.
-// It is safe to call once per Scheduler; subsequent calls are no-ops.
 func (s *Scheduler) Start(ctx context.Context) {
-	go s.run(ctx)
+	s.startOnce.Do(func() {
+		go s.run(ctx)
+	})
 }
 
 // Stop signals the loop to exit and waits for the current iteration (if any)

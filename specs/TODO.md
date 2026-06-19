@@ -67,6 +67,17 @@ Sections (add new ones as needed):
 
 ## Infrastructure / DevOps
 
+- **[P2] Split production and staging backends.** Today
+  `apps/mobile/scripts/set-env.js` points both the `staging` and
+  `production` profiles at the same Fly app
+  (`https://fucci-api.fly.dev/v1/api`), so TestFlight and App Store
+  builds hit the same backend. As soon as real users land on the App
+  Store, spin up a dedicated production Fly app (e.g.
+  `fucci-api-prod.fly.dev`) so we can iterate on staging without
+  affecting production traffic. At that point also add a
+  `staging-store` EAS profile and probably a separate bundle ID variant
+  (`com.magistridev.fucci.staging`) so internal testers can run both
+  apps side-by-side.
 - **[P2] API-Football subscription.** Free tier only exposes seasons
   2022–2024, which is why World Cup 2026 fixture queries returned empty during
   testing on the `world-cup-only-mode` branch. Options:
@@ -117,11 +128,32 @@ Sections (add new ones as needed):
 
 ## Tech debt & refactors
 
+- **[P1] `yarn env:*` scripts rewrite the committed `app.json`.**
+  `apps/mobile/scripts/set-env.js` mutates `app.json` `extra.APP_ENV`,
+  `extra.API_BASE_URL`, and `extra.APP_NAME` in place. Running
+  `yarn env:staging` (e.g. before an EAS preview build) and then forgetting
+  to run `yarn env:prod` before the next TestFlight build would ship
+  production users an IPA pointing at the staging API. The convention
+  (committed default = development; build scripts chain `env:prod &&
+  eas build`) only works as long as nobody commits the mutated file.
+  Options: (a) stop writing into `app.json` and rely solely on a `.env`
+  file consumed by `app.config.ts`; (b) generate `app.json` from a
+  template and gitignore the generated file; (c) add a pre-commit hook
+  that blocks committing `app.json` when `extra.APP_ENV != "development"`.
+  Until fixed: always run `git diff apps/mobile/app.json` before any
+  TestFlight or store build.
 - **[P1] Flip `WORLD_CUP_ONLY_MODE` back off in August.** Set
   `WORLD_CUP_ONLY_MODE = false` in `apps/mobile/src/config/featureFlags.ts`.
   Once the next full season is underway, consider removing the flag and the
   surrounding `if (WORLD_CUP_ONLY_MODE)` branches entirely (search for
   `WORLD_CUP_ONLY_MODE` references across `apps/mobile/src/`).
+- **[P2] Decide on `NEWS_STORY_RINGS_ENABLED` long-term.** Flag added
+  on 2026-06-17 to hide the News screen's category ring header (TOP
+  GOALS / RUMOURS / MATCH DAY) for the TestFlight release. Either bring
+  it back once the news taxonomy / category filtering is reliable, or
+  delete the supporting code (`STORY_RINGS`, `onStoryPress`, `storyRow`/
+  `storyItem`/`storyGradient`/`storyInner`/`storyLabel` styles in
+  `apps/mobile/src/screens/NewsScreen.tsx`).
 - **[P3] Simplify `getMatchNews` stale-cache fallback.** The 503-with-cached-
   payload branch is documented as unreachable in
   `services/api/internal/api/news_test.go`; either delete the dead code or

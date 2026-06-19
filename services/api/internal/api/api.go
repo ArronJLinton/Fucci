@@ -210,8 +210,8 @@ func New(c *Config) http.Handler {
 	debateRouter.Get("/{debateId}/comments", c.ListDebateComments)
 	debateRouter.With(auth.RequireAuth).Post("/{debateId}/comments", c.CreateDebateComment)
 	// Admin routes for soft delete management
-	debateRouter.Delete("/{id}/hard", c.hardDeleteDebate) // Permanent deletion
-	debateRouter.Post("/{id}/restore", c.restoreDebate)   // Restore soft-deleted debate
+	debateRouter.With(auth.RequireAuth).Delete("/{id}/hard", c.hardDeleteDebate) // Permanent deletion
+	debateRouter.With(auth.RequireAuth).Post("/{id}/restore", c.restoreDebate)   // Restore soft-deleted debate
 
 	// Teams routes
 	teamsRouter := chi.NewRouter()

@@ -143,7 +143,7 @@ func main() {
 		log.Printf("[main] shutdown signal received; stopping scheduler and HTTP server")
 		schedCancel()
 		if prewarmScheduler != nil {
-			prewarmScheduler.Stop()
+			go prewarmScheduler.Stop()
 		}
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
