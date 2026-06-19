@@ -10,15 +10,17 @@ import type {NavigationState} from '@react-navigation/native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
-import {fetchMatches} from '../services/api';
+import {fetchMatchesForLocalDate} from '../services/api';
 import {
   DEFAULT_LEAGUE,
+  WORLD_CUP_LEAGUE,
   seasonParamForMatchSearch,
   type League,
 } from '../constants/leagues';
 import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 import {resolveHomeScreenDefaultLeague} from '../services/matchesDefaultLeague';
+import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -130,7 +132,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
         return;
       }
 
-      fetchMatches(
+      fetchMatchesForLocalDate(
         date,
         currentLeague.id,
         seasonParamForMatchSearch(currentLeague, date),
@@ -182,7 +184,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
 const HomeScreen = () => {
   const {width} = useWindowDimensions();
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
-    DEFAULT_LEAGUE,
+    WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : DEFAULT_LEAGUE,
   );
   /** Set when the user picks a league from the strip; blocks async default from overwriting. */
   const userChangedSelectionRef = useRef(false);
@@ -193,6 +195,9 @@ const HomeScreen = () => {
   }, []);
 
   useEffect(() => {
+    if (WORLD_CUP_ONLY_MODE) {
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -291,13 +296,15 @@ const HomeScreen = () => {
               }}>
               {() => (
                 <View style={styles.tabBody}>
-                  <LeagueHorizontalStrip
-                    selectedLeague={selectedLeague}
-                    onSelect={handleLeagueSelect}
-                    includeAllOption={false}
-                    accentColor={MATCHES_LIME}
-                    mutedColor={MATCHES_MUTED}
-                  />
+                  {WORLD_CUP_ONLY_MODE ? null : (
+                    <LeagueHorizontalStrip
+                      selectedLeague={selectedLeague}
+                      onSelect={handleLeagueSelect}
+                      includeAllOption={false}
+                      accentColor={MATCHES_LIME}
+                      mutedColor={MATCHES_MUTED}
+                    />
+                  )}
                   <View style={styles.dateContent}>
                     <DateTabScreen
                       date={date}

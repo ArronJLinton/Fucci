@@ -1,16 +1,21 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/api"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/config"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/ArronJLinton/fucci-api/internal/scheduler"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
 	_ "github.com/lib/pq"
@@ -111,8 +116,42 @@ func main() {
 		Addr:    serverAddr,
 	}
 
+	// Daily 04:00 UTC pre-match debate generator (+ news cache warm). Runs as a
+	// goroutine in this process; cross-machine deduplication uses Redis SetNX
+	// inside the job so multi-machine deploys still only generate once per day.
+	// See services/api/internal/api/prewarm.go for the job body, and the
+	// PREWARM_LEAGUE_IDS env var to extend or disable.
+	schedCtx, schedCancel := context.WithCancel(context.Background())
+	var prewarmScheduler *scheduler.Scheduler
+	if leagueIDs := api.ParsePrewarmLeagueIDs(c.PREWARM_LEAGUE_IDS); len(leagueIDs) > 0 {
+		prewarmJob := api.NewPrewarmJob(&apiCfg, leagueIDs, port)
+		prewarmScheduler = scheduler.New(prewarmJob, scheduler.Options{
+			DailyAtUTC: time.Date(0, 1, 1, 4, 0, 0, 0, time.UTC),
+			RunOnStart: true,
+		})
+		prewarmScheduler.Start(schedCtx)
+		log.Printf("[main] pre-warm scheduler started (leagues=%v)", leagueIDs)
+	} else {
+		log.Printf("[main] PREWARM_LEAGUE_IDS empty; pre-match debate scheduler disabled")
+	}
+
+	// Trap SIGINT/SIGTERM so we can stop the scheduler and drain HTTP cleanly.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		log.Printf("[main] shutdown signal received; stopping scheduler and HTTP server")
+		schedCancel()
+		if prewarmScheduler != nil {
+			go prewarmScheduler.Stop()
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}()
+
 	err = server.ListenAndServe()
-	if err != nil {
+	if err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }

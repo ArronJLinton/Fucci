@@ -27,4 +27,9 @@ type Config struct {
 	ENVIRONMENT                        string
 	JWT_SECRET                         string
 	SYSTEM_USER_EMAIL                  string // Email for Fucci system user (006 seeded comments); default contact@magistri.dev
+	// PREWARM_LEAGUE_IDS is a comma-separated list of API-Football league ids the
+	// daily pre-match debate generator should scan (e.g. "1" for FIFA World Cup;
+	// "1,39,140,135,78,61,2" to extend to club leagues when WC mode flips off).
+	// Empty or unset disables the pre-warm scheduler.
+	PREWARM_LEAGUE_IDS string
 }

@@ -17,7 +17,11 @@ import {LinearGradient} from 'expo-linear-gradient';
 import type {NavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
-import type {League} from '../constants/leagues';
+import {WORLD_CUP_LEAGUE, type League} from '../constants/leagues';
+import {
+  NEWS_STORY_RINGS_ENABLED,
+  WORLD_CUP_ONLY_MODE,
+} from '../config/featureFlags';
 import {
   NEWS_BG,
   NEWS_CARD,
@@ -59,7 +63,9 @@ const NewsScreen: React.FC = () => {
   const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [category, setCategory] = useState<NewsCategoryId>('all');
-  const [leagueFilter, setLeagueFilter] = useState<League | null>(null);
+  const [leagueFilter, setLeagueFilter] = useState<League | null>(
+    WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : null,
+  );
   const {
     todayArticles,
     historyArticles,
@@ -261,48 +267,55 @@ const NewsScreen: React.FC = () => {
             tintColor={NEWS_ACCENT}
           />
         }>
-        {/* Story rings */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storyRow}>
-          {STORY_RINGS.map(s => {
-            return (
-              <TouchableOpacity
-                key={s.key}
-                style={styles.storyItem}
-                onPress={() => onStoryPress(s)}
-                activeOpacity={0.88}>
-                <LinearGradient
-                  colors={[NEWS_ACCENT, NEWS_CYAN]}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.storyGradient}>
-                  <View style={styles.storyInner}>
-                    <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                  </View>
-                </LinearGradient>
-                <Text style={styles.storyLabel}>{s.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {NEWS_STORY_RINGS_ENABLED ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.storyRow}>
+            {STORY_RINGS.map(s => {
+              return (
+                <TouchableOpacity
+                  key={s.key}
+                  style={styles.storyItem}
+                  onPress={() => onStoryPress(s)}
+                  activeOpacity={0.88}>
+                  <LinearGradient
+                    colors={[NEWS_ACCENT, NEWS_CYAN]}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 1}}
+                    style={styles.storyGradient}>
+                    <View style={styles.storyInner}>
+                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
+                    </View>
+                  </LinearGradient>
+                  <Text style={styles.storyLabel}>{s.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
-        <LeagueHorizontalStrip
-          selectedLeague={leagueFilter}
-          onSelect={setLeagueFilter}
-          includeAllOption
-          accentColor={NEWS_ACCENT}
-          mutedColor={NEWS_MUTED}
-        />
+        {WORLD_CUP_ONLY_MODE ? null : (
+          <LeagueHorizontalStrip
+            selectedLeague={leagueFilter}
+            onSelect={setLeagueFilter}
+            includeAllOption
+            accentColor={NEWS_ACCENT}
+            mutedColor={NEWS_MUTED}
+          />
+        )}
 
         {filteredArticles.length === 0 ? (
           <View style={styles.emptyFilter}>
             <Text style={styles.emptyFilterText}>
-              No articles match these filters
+              {WORLD_CUP_ONLY_MODE
+                ? 'No World Cup articles right now'
+                : 'No articles match these filters'}
             </Text>
             <Text style={styles.emptyFilterHint}>
-              Try another story ring or league
+              {WORLD_CUP_ONLY_MODE
+                ? 'Pull down to refresh'
+                : 'Try another story ring or league'}
             </Text>
           </View>
         ) : (

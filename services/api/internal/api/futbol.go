@@ -39,71 +39,103 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid date format: %s. Expected YYYY-MM-DD", date))
 		return
 	}
-	dateCanonical := matchDate.Format("2006-01-02")
 
-	// Validate inputs once before cache lookup so keys and upstream URLs use the same normalized values.
-	var cacheKey string
-	var leagueIDNum int
-	var seasonNum int
-	haveLeague := leagueIDStr != ""
-
-	if !haveLeague {
-		cacheKey = fmt.Sprintf("matches:date:%s", dateCanonical)
-	} else {
+	// Validate query inputs *before* hitting the shared fetcher so error messages
+	// stay HTTP-specific (4xx with the exact field name) instead of leaking from
+	// FetchMatchesCached's internal errors.
+	var leagueIDPtr *int
+	var seasonPtr *int
+	if leagueIDStr != "" {
 		lid, err := strconv.Atoi(leagueIDStr)
 		if err != nil {
 			respondWithError(w, http.StatusBadRequest, "league_id must be numeric")
 			return
 		}
-		leagueIDNum = lid
-
+		leagueIDPtr = &lid
 		if seasonStr != "" {
 			s, err := strconv.Atoi(seasonStr)
 			if err != nil || s < 2000 || s > 2100 {
 				respondWithError(w, http.StatusBadRequest, "season must be a valid year (e.g. 2026)")
 				return
 			}
-			seasonNum = s
+			seasonPtr = &s
+		}
+	}
+
+	data, err := c.FetchMatchesCached(ctx, matchDate, leagueIDPtr, seasonPtr)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, data)
+}
+
+// FetchMatchesCached returns API-Football fixtures for a date, optionally
+// filtered by league/season, going through the same Redis cache key the
+// public GET /futbol/matches handler uses (so HTTP callers, the
+// matches-default-league resolver, and the daily debate pre-warm scheduler
+// all share one entry).
+//
+// leagueID and season are optional pointers so callers can pass either both,
+// neither, or just leagueID (season auto-resolves via ResolveAPIFootballSeason).
+// Returns the parsed GetMatchesAPIResponse even when API-Football returned an
+// empty `response` array (so callers can distinguish "no fixtures" from "API
+// down" by checking `data.Results`).
+func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, leagueID, season *int) (*GetMatchesAPIResponse, error) {
+	dateCanonical := matchDate.Format("2006-01-02")
+
+	var cacheKey string
+	var leagueIDNum, seasonNum int
+	haveLeague := leagueID != nil
+
+	if !haveLeague {
+		cacheKey = fmt.Sprintf("matches:date:%s", dateCanonical)
+	} else {
+		leagueIDNum = *leagueID
+		if season != nil {
+			seasonNum = *season
 		} else {
-			seasonNum = ResolveAPIFootballSeason(lid, matchDate)
+			seasonNum = ResolveAPIFootballSeason(leagueIDNum, matchDate)
 		}
 		cacheKey = fmt.Sprintf("matches:league:%d:date:%s:season:%d", leagueIDNum, dateCanonical, seasonNum)
 	}
-	log.Printf("Cache key: %s (league_id=%q)\n", cacheKey, leagueIDStr)
+	log.Printf("Cache key: %s (league_id_set=%v)\n", cacheKey, haveLeague)
 
-	// Try to get from cache first
-	var data GetMatchesAPIResponse
-	exists, err := c.Cache.Exists(ctx, cacheKey)
-	if err != nil {
-		log.Printf("Cache check error: %v\n", err)
-	} else if exists {
-		err = c.Cache.Get(ctx, cacheKey, &data)
-		if err == nil {
-			log.Printf("Cache HIT: Returning cached data\n")
-			respondWithJSON(w, http.StatusOK, data)
-			return
+	if c.Cache != nil {
+		var cached GetMatchesAPIResponse
+		exists, err := c.Cache.Exists(ctx, cacheKey)
+		if err != nil {
+			log.Printf("Cache check error: %v\n", err)
+		} else if exists {
+			if err := c.Cache.Get(ctx, cacheKey, &cached); err == nil {
+				if len(cached.Response) == 0 {
+					// Cache.Get returns nil on redis.Nil (missing key); treat as miss.
+					log.Printf("Cache get returned empty payload for %s; treating as miss\n", cacheKey)
+				} else {
+					log.Printf("Cache HIT: Returning cached data\n")
+					return &cached, nil
+				}
+			} else {
+				log.Printf("Cache get error: %v\n", err)
+			}
+		} else {
+			log.Printf("Cache MISS: Fetching from API\n")
 		}
-		log.Printf("Cache get error: %v\n", err)
-	} else {
-		log.Printf("Cache MISS: Fetching from API\n")
 	}
 
-	footballAPIKey := c.FootballAPIKey
-	if footballAPIKey == "" {
-		log.Printf("ERROR: Football API key is missing")
-		respondWithError(w, http.StatusBadRequest, "Football API key is required")
-		return
+	if c.FootballAPIKey == "" {
+		return nil, fmt.Errorf("Football API key is required")
 	}
-	// If not in cache or error occurred, fetch from API
-	// Build URL with optional league filter
+
 	baseURL := c.APIFootballBaseURL
 	if baseURL == "" {
 		baseURL = "https://v3.football.api-sports.io"
 	}
-	url := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, dateCanonical)
+	reqURL := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, dateCanonical)
 	if haveLeague {
-		url = fmt.Sprintf("%s&league=%d&season=%d", url, leagueIDNum, seasonNum)
-		log.Printf("URL: %s\n", url)
+		reqURL = fmt.Sprintf("%s&league=%d&season=%d", reqURL, leagueIDNum, seasonNum)
+		log.Printf("URL: %s\n", reqURL)
 		log.Printf("Filtering matches by league_id: %d, season: %d\n", leagueIDNum, seasonNum)
 	}
 	headers := map[string]string{
@@ -111,62 +143,47 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 		"x-apisports-key": c.FootballAPIKey,
 	}
 
-	resp, err := HTTPRequest("GET", url, headers, nil)
+	resp, err := HTTPRequest("GET", reqURL, headers, nil)
 	if err != nil {
-		log.Printf("ERROR: HTTPRequest failed: %v\n", err)
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error creating http request: %s", err))
-		return
+		return nil, fmt.Errorf("Error creating http request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read the raw response body for debugging
 	rawBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("ERROR: Failed to read response body: %v\n", err)
-		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to read response body: %s", err))
-		return
+		return nil, fmt.Errorf("Failed to read response body: %w", err)
 	}
 
-	// Create a new reader from the raw body for JSON decoding
-	err = json.Unmarshal(rawBody, &data)
-	if err != nil {
-		log.Printf("ERROR: JSON unmarshal failed: %v\n", err)
+	var data GetMatchesAPIResponse
+	if err := json.Unmarshal(rawBody, &data); err != nil {
 		log.Printf("Full raw response: %s\n", string(rawBody))
-		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse response from football api service: %s", err))
-		return
+		return nil, fmt.Errorf("Failed to parse response from football api service: %w", err)
 	}
 
-	// Check if response is empty or invalid before caching
 	if data.Results == 0 || len(data.Response) == 0 {
 		log.Printf("WARNING: API returned empty response (results=%d, response items=%d), skipping cache\n", data.Results, len(data.Response))
 		log.Printf("Response data: get=%s, errors=%v\n", data.Get, data.Errors)
-		respondWithJSON(w, http.StatusOK, data)
-		return
+		return &data, nil
 	}
 
-	// Determine cache TTL based on match statuses
+	// Pick the most conservative TTL across the fixtures in the response
+	// (live games shorten everything).
 	ttl := cache.DefaultTTL
-	if len(data.Response) > 0 {
-		// Check if any matches are live
-		for _, match := range data.Response {
-			status := match.Fixture.Status.Short
-			matchTTL := cache.GetMatchTTL(status)
-			// Use the shortest TTL found (most conservative)
-			if matchTTL < ttl {
-				ttl = matchTTL
-			}
+	for _, match := range data.Response {
+		if mt := cache.GetMatchTTL(match.Fixture.Status.Short); mt < ttl {
+			ttl = mt
 		}
 	}
 
-	// Store in cache with determined TTL (only if we have valid data)
-	err = c.Cache.Set(ctx, cacheKey, data, ttl)
-	if err != nil {
-		log.Printf("Cache set error: %v\n", err)
-	} else {
-		log.Printf("Cached data with TTL: %v (results=%d)\n", ttl, data.Results)
+	if c.Cache != nil {
+		if err := c.Cache.Set(ctx, cacheKey, data, ttl); err != nil {
+			log.Printf("Cache set error: %v\n", err)
+		} else {
+			log.Printf("Cached data with TTL: %v (results=%d)\n", ttl, data.Results)
+		}
 	}
 
-	respondWithJSON(w, http.StatusOK, data)
+	return &data, nil
 }
 
 func (c *Config) getMatch(w http.ResponseWriter, r *http.Request) {

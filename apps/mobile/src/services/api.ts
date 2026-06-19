@@ -227,6 +227,7 @@ export {
 // Re-export futbol module
 export {
   fetchMatches,
+  fetchMatchesForLocalDate,
   fetchLineup,
   fetchStandings,
   createMatch,

@@ -48,6 +48,10 @@
       "android": {
         "track": "internal",
         "changesNotSentForReview": false
+      },
+      "ios": {
+        "ascAppId": "6737203534",
+        "appleTeamId": "WU39T2VA3M"
       }
     }
   }
