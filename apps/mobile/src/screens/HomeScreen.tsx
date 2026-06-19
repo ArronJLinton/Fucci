@@ -30,6 +30,13 @@ const Tab = createMaterialTopTabNavigator<RootTabParamList>();
 const TabNavigator = Tab.Navigator as any;
 const TabScreen = Tab.Screen as any;
 
+const TAB_DAY_OFFSETS = [-2, -1, 0, 1, 2] as const;
+
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
+
+const formatCalendarDay = (date: Date): string =>
+  `${WEEKDAY_LABELS[date.getDay()]} ${date.getDate()}`;
+
 const getTabLabel = (date: Date): string => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -52,8 +59,7 @@ const getTabLabel = (date: Date): string => {
     return 'TOMORROW';
   }
 
-  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-  return `${days[date.getDay()]} ${date.getDate()}`;
+  return formatCalendarDay(date);
 };
 
 type DateTabScreenProps = {
@@ -182,7 +188,8 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
 };
 
 const HomeScreen = () => {
-  const {width} = useWindowDimensions();
+  const {width: screenWidth} = useWindowDimensions();
+  const tabWidth = screenWidth / TAB_DAY_OFFSETS.length;
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
     WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : DEFAULT_LEAGUE,
   );
@@ -217,7 +224,7 @@ const HomeScreen = () => {
   const dates = useMemo(() => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return [-1, 0, 1].map(offset => {
+    return TAB_DAY_OFFSETS.map(offset => {
       const d = new Date(today);
       d.setDate(today.getDate() + offset);
       return d;
@@ -231,7 +238,7 @@ const HomeScreen = () => {
   }, [dates]);
 
   const initialRoute = useMemo(() => {
-    const initialDate = dates[todayIndex !== -1 ? todayIndex : 1];
+    const initialDate = dates[todayIndex !== -1 ? todayIndex : 2];
     return `date-${initialDate.toISOString()}`;
   }, [dates, todayIndex]);
 
@@ -242,7 +249,9 @@ const HomeScreen = () => {
         screenOptions={{
           tabBarScrollEnabled: false,
           tabBarItemStyle: {
-            width: width / 3,
+            width: tabWidth,
+            paddingHorizontal: 0,
+            marginHorizontal: 0,
           },
           tabBarStyle: {
             backgroundColor: MATCHES_BG,
@@ -250,6 +259,8 @@ const HomeScreen = () => {
             shadowOpacity: 0,
             borderBottomWidth: 1,
             borderBottomColor: 'rgba(255,255,255,0.08)',
+            minHeight: 44,
+            width: screenWidth,
           },
           tabBarIndicatorStyle: {
             height: 0,
@@ -287,7 +298,10 @@ const HomeScreen = () => {
                       style={[
                         styles.dateTabText,
                         focused && styles.dateTabTextActive,
-                      ]}>
+                      ]}
+                      numberOfLines={1}
+                      allowFontScaling={false}
+                      includeFontPadding={false}>
                       {label}
                     </Text>
                   </View>
@@ -328,20 +342,23 @@ const styles = StyleSheet.create({
     backgroundColor: MATCHES_BG,
   },
   dateTabInner: {
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 2,
+    borderRadius: 5,
     overflow: 'hidden',
-    minWidth: '100%',
+    width: '100%',
+    minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dateTabText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 0.9,
+    letterSpacing: 0,
     color: MATCHES_MUTED,
     zIndex: 1,
+    textAlign: 'center',
+    width: '100%',
   },
   dateTabTextActive: {
     color: '#0B0E14',

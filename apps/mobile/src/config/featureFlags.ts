@@ -21,8 +21,11 @@
 export const WORLD_CUP_ONLY_MODE = true;
 
 /**
- * News screen media-outlet YouTube Shorts story rings (FOX SPORTS, ESPN FC, etc.).
+ * Media-outlet YouTube Shorts story rings (FOX SPORTS, ESPN FC, etc.).
  *
- * When false the horizontal ring header is hidden on the News screen.
+ * Shown on News and Matches screens. When false the ring headers are hidden.
  */
-export const NEWS_STORY_RINGS_ENABLED = true;
+export const MEDIA_STORY_RINGS_ENABLED = true;
+
+/** @deprecated Use MEDIA_STORY_RINGS_ENABLED */
+export const NEWS_STORY_RINGS_ENABLED = MEDIA_STORY_RINGS_ENABLED;
