@@ -19,7 +19,7 @@ func ParseISO8601DurationSeconds(iso string) int {
 	return h*3600 + min*60 + sec
 }
 
-// IsShortDuration returns true when duration is at most maxSeconds (true Shorts cap).
+// IsShortDuration returns true when duration is at most maxSeconds (YouTube Shorts cap).
 func IsShortDuration(iso string, maxSeconds int) bool {
 	sec := ParseISO8601DurationSeconds(iso)
 	return sec > 0 && sec <= maxSeconds

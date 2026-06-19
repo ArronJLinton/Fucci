@@ -15,7 +15,7 @@ const (
 	searchPath  = "/youtube/v3/search"
 	videosPath  = "/youtube/v3/videos"
 	apiBaseURL  = "https://www.googleapis.com"
-	maxShortSec = 90
+	maxShortSec = 180 // 3 minutes — YouTube Shorts max length
 	searchMax   = 10
 	lookbackDays = 7
 )

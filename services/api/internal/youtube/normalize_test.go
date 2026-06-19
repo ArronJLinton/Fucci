@@ -44,10 +44,14 @@ func TestParseISO8601DurationSeconds(t *testing.T) {
 }
 
 func TestIsShortDuration(t *testing.T) {
-	if !IsShortDuration("PT58S", 90) {
+	const capSec = 180
+	if !IsShortDuration("PT58S", capSec) {
 		t.Fatal("expected PT58S to be short")
 	}
-	if IsShortDuration("PT2M", 90) {
-		t.Fatal("expected PT2M to exceed cap")
+	if !IsShortDuration("PT2M1S", capSec) {
+		t.Fatal("expected PT2M1S to be within 3-minute cap")
+	}
+	if IsShortDuration("PT3M1S", capSec) {
+		t.Fatal("expected PT3M1S to exceed cap")
 	}
 }
