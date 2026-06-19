@@ -16,7 +16,9 @@ import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
 import type {NavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
+import {useMediaShorts} from '../hooks/useMediaShorts';
 import type {NewsArticle} from '../types/news';
+import type {MediaOutletShorts} from '../services/mediaShortsApi';
 import {WORLD_CUP_LEAGUE, type League} from '../constants/leagues';
 import {
   NEWS_STORY_RINGS_ENABLED,
@@ -34,9 +36,7 @@ import {
 } from '../constants/newsUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 import {
-  type NewsCategoryId,
   mergeAndSortArticles,
-  filterByCategory,
   filterByLeague,
   articleCategoryLabel,
 } from '../utils/newsFilters';
@@ -47,22 +47,15 @@ const PAGE_PAD = 16;
 const GRID_GAP = 10;
 const GRID_COL_W = (SCREEN_W - PAGE_PAD * 2 - GRID_GAP) / 2;
 
-const STORY_RINGS: {
-  key: string;
-  label: string;
-  category: NewsCategoryId;
-  name: React.ComponentProps<typeof Ionicons>['name'];
-}[] = [
-  {key: 'goals', label: 'TOP GOALS', category: 'match', name: 'football'},
-  {key: 'rumours', label: 'RUMOURS', category: 'transfers', name: 'people'},
-  {key: 'matchday', label: 'MATCH DAY', category: 'match', name: 'flash'},
-];
+const STORY_RING_SIZE = 72;
 
 const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const [category, setCategory] = useState<NewsCategoryId>('all');
+  const [failedStoryThumbs, setFailedStoryThumbs] = useState<Set<string>>(
+    new Set(),
+  );
   const [leagueFilter, setLeagueFilter] = useState<League | null>(
     WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : null,
   );
@@ -74,13 +67,20 @@ const NewsScreen: React.FC = () => {
     refreshing,
     invalidateCache,
   } = useNews();
+  const {data: mediaShortsData} = useMediaShorts();
+  const mediaOutlets = mediaShortsData?.outlets ?? [];
 
   const handleImageError = useCallback((articleId: string) => {
     setFailedImageIds(prev => new Set(prev).add(articleId));
   }, []);
 
+  const handleStoryThumbError = useCallback((lookupKey: string) => {
+    setFailedStoryThumbs(prev => new Set(prev).add(lookupKey));
+  }, []);
+
   const handleRefresh = () => {
     setFailedImageIds(new Set());
+    setFailedStoryThumbs(new Set());
     invalidateCache();
   };
 
@@ -97,21 +97,72 @@ const NewsScreen: React.FC = () => {
   );
 
   const filteredArticles = useMemo(() => {
-    let list = filterByCategory(merged, category);
-    list = filterByLeague(list, leagueFilter);
-    return list;
-  }, [merged, category, leagueFilter]);
+    return filterByLeague(merged, leagueFilter);
+  }, [merged, leagueFilter]);
 
-  // Keep the featured card in view when filters change.
   useEffect(() => {
     scrollRef.current?.scrollTo({y: 0, animated: true});
-  }, [category, leagueFilter?.id]);
+  }, [leagueFilter?.id]);
 
   const featured = filteredArticles[0];
   const gridArticles = filteredArticles.slice(1);
 
-  const onStoryPress = (s: (typeof STORY_RINGS)[0]) => {
-    setCategory(s.category);
+  const onMediaStoryPress = (outlet: MediaOutletShorts) => {
+    navigation.navigate('MatchTeamShorts', {
+      shorts: outlet.shorts ?? [],
+      teamDisplayName: outlet.display_name,
+    });
+  };
+
+  const renderStoryRing = (outlet: MediaOutletShorts) => {
+    const thumbOk =
+      Boolean(outlet.thumbnail_url) &&
+      !failedStoryThumbs.has(outlet.lookup_key);
+    const active = outlet.has_shorts;
+
+    const inner = thumbOk ? (
+      <Image
+        source={{uri: outlet.thumbnail_url}}
+        style={styles.storyThumb}
+        resizeMode="cover"
+        onError={() => handleStoryThumbError(outlet.lookup_key)}
+      />
+    ) : (
+      <View style={styles.storyInner}>
+        <Ionicons
+          name="logo-youtube"
+          size={28}
+          color={active ? NEWS_TEXT : NEWS_MUTED}
+        />
+      </View>
+    );
+
+    return (
+      <TouchableOpacity
+        key={outlet.lookup_key}
+        style={styles.storyItem}
+        onPress={() => onMediaStoryPress(outlet)}
+        activeOpacity={0.88}>
+        {active ? (
+          <LinearGradient
+            colors={[NEWS_ACCENT, NEWS_CYAN]}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 1}}
+            style={styles.storyGradient}>
+            <View style={styles.storyInnerClip}>{inner}</View>
+          </LinearGradient>
+        ) : (
+          <View style={[styles.storyGradient, styles.storyGradientMuted]}>
+            <View style={styles.storyInnerClip}>{inner}</View>
+          </View>
+        )}
+        <Text
+          style={[styles.storyLabel, !active && styles.storyLabelMuted]}
+          numberOfLines={2}>
+          {outlet.display_name}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   const renderFeatured = (article: NewsArticle) => {
@@ -267,31 +318,12 @@ const NewsScreen: React.FC = () => {
             tintColor={NEWS_ACCENT}
           />
         }>
-        {NEWS_STORY_RINGS_ENABLED ? (
+        {NEWS_STORY_RINGS_ENABLED && mediaOutlets.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.storyRow}>
-            {STORY_RINGS.map(s => {
-              return (
-                <TouchableOpacity
-                  key={s.key}
-                  style={styles.storyItem}
-                  onPress={() => onStoryPress(s)}
-                  activeOpacity={0.88}>
-                  <LinearGradient
-                    colors={[NEWS_ACCENT, NEWS_CYAN]}
-                    start={{x: 0, y: 0}}
-                    end={{x: 1, y: 1}}
-                    style={styles.storyGradient}>
-                    <View style={styles.storyInner}>
-                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                    </View>
-                  </LinearGradient>
-                  <Text style={styles.storyLabel}>{s.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            {mediaOutlets.map(renderStoryRing)}
           </ScrollView>
         ) : null}
 
@@ -315,7 +347,7 @@ const NewsScreen: React.FC = () => {
             <Text style={styles.emptyFilterHint}>
               {WORLD_CUP_ONLY_MODE
                 ? 'Pull down to refresh'
-                : 'Try another story ring or league'}
+                : 'Try another league filter'}
             </Text>
           </View>
         ) : (
@@ -364,17 +396,29 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 3,
   },
-  storyGradientActive: {
-    opacity: 1,
+  storyGradientMuted: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  storyInnerClip: {
+    width: STORY_RING_SIZE,
+    height: STORY_RING_SIZE,
+    borderRadius: 15,
+    overflow: 'hidden',
   },
   storyInner: {
-    width: 72,
-    height: 72,
+    width: STORY_RING_SIZE,
+    height: STORY_RING_SIZE,
     borderRadius: 15,
     backgroundColor: NEWS_CARD,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  storyThumb: {
+    width: STORY_RING_SIZE,
+    height: STORY_RING_SIZE,
   },
   storyLabel: {
     marginTop: 8,
@@ -383,6 +427,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: NEWS_TEXT,
     textAlign: 'center',
+  },
+  storyLabelMuted: {
+    color: NEWS_MUTED,
   },
   latestRow: {
     flexDirection: 'row',

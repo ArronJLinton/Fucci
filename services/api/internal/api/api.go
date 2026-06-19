@@ -116,6 +116,9 @@ type Config struct {
 
 	// MatchInfoLookup optional override for getMatchInfo (unit tests only).
 	MatchInfoLookup func(ctx context.Context, matchID string) (*MatchInfo, error)
+
+	// MediaYouTubeChannelStore optional override for news media Shorts (unit tests only).
+	MediaYouTubeChannelStore youtube.MediaChannelStore
 }
 
 // newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When trimmed NewsAPIKey
@@ -198,6 +201,7 @@ func New(c *Config) http.Handler {
 	// Register more specific route first to avoid route conflicts
 	newsRouter.Get("/football/match", c.getMatchNews)
 	newsRouter.Get("/football", c.getFootballNews)
+	newsRouter.Get("/stories/shorts", c.getNewsMediaYouTubeShorts)
 
 	matchesRouter := chi.NewRouter()
 	matchesRouter.Get("/{matchId}/stories/shorts", c.getMatchYouTubeShorts)

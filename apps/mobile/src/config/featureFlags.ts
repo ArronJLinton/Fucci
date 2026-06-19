@@ -21,14 +21,8 @@
 export const WORLD_CUP_ONLY_MODE = true;
 
 /**
- * News screen "story rings" header (TOP GOALS / RUMOURS / MATCH DAY chips).
+ * News screen media-outlet YouTube Shorts story rings (FOX SPORTS, ESPN FC, etc.).
  *
- * When false the horizontal ring header is hidden on the News screen but all
- * supporting code (rings array, onStoryPress handler, styles) stays in place
- * so flipping the flag back to true re-enables it without a refactor.
- *
- * Currently disabled for the WC-only release: with the feed filtered to a
- * single competition the category chips don't meaningfully change the result
- * set. Re-enable once the news taxonomy / category filtering is reliable.
+ * When false the horizontal ring header is hidden on the News screen.
  */
-export const NEWS_STORY_RINGS_ENABLED = false;
+export const NEWS_STORY_RINGS_ENABLED = true;

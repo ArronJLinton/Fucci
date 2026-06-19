@@ -159,6 +159,19 @@ type Media struct {
 	UpdatedAt time.Time
 }
 
+type MediaYoutubeChannels struct {
+	ID            uuid.UUID
+	LookupKey     string
+	DisplayName   string
+	ChannelID     string
+	ChannelHandle sql.NullString
+	SortOrder     int32
+	IsActive      bool
+	IsVerified    bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type PlayerProfile struct {
 	ID          int32
 	UserID      int32

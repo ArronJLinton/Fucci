@@ -339,6 +339,16 @@ const NewsStack = () => {
           gestureEnabled: true,
         }}
       />
+      <StackScreen
+        name="MatchTeamShorts"
+        component={MatchTeamShortsScreen}
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+        }}
+      />
     </StackNavigator>
   );
 };
