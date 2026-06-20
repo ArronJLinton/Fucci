@@ -94,11 +94,16 @@ func (m *snapchatMemRL) pruneIfNeededLocked(now time.Time, window time.Duration)
 	}
 }
 
-// clientIP returns the TCP peer host for rate limiting. We intentionally do not read
-// X-Forwarded-For or X-Real-IP: without a trusted reverse proxy that strips/spoofs those,
-// clients could forge them and bypass per-IP limits. Behind one or more proxies, ensure
-// the platform overwrites RemoteAddr (or add middleware that sets it from trusted hops only).
+// clientIP returns the client host used for rate limiting. Fly.io sets Fly-Client-IP
+// at the trusted edge; otherwise fall back to the TCP peer host. We intentionally do
+// not read X-Forwarded-For or X-Real-IP because clients can spoof them unless every
+// trusted proxy hop is configured explicitly.
 func clientIP(r *http.Request) string {
+	if flyClientIP := strings.TrimSpace(r.Header.Get("Fly-Client-IP")); flyClientIP != "" {
+		if ip := net.ParseIP(flyClientIP); ip != nil {
+			return ip.String()
+		}
+	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

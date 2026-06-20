@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -74,5 +75,25 @@ func TestSnapchatRateLimitLogKey_sanitizes(t *testing.T) {
 	foo := "other:key:foo:bar"
 	if g := snapchatRateLimitLogKey(foo); !strings.HasPrefix(g, "key#") {
 		t.Fatalf("unknown key shape should use key# hash, got %q", g)
+	}
+}
+
+func TestClientIPUsesFlyClientIP(t *testing.T) {
+	req := httptest.NewRequest("GET", "/snapchat/stories?username=psg", nil)
+	req.RemoteAddr = "172.19.0.10:44321"
+	req.Header.Set("Fly-Client-IP", "203.0.113.44")
+
+	if got := clientIP(req); got != "203.0.113.44" {
+		t.Fatalf("clientIP: want Fly-Client-IP, got %q", got)
+	}
+}
+
+func TestClientIPIgnoresInvalidFlyClientIP(t *testing.T) {
+	req := httptest.NewRequest("GET", "/snapchat/stories?username=psg", nil)
+	req.RemoteAddr = "172.19.0.10:44321"
+	req.Header.Set("Fly-Client-IP", "not an ip")
+
+	if got := clientIP(req); got != "172.19.0.10" {
+		t.Fatalf("clientIP: want RemoteAddr fallback, got %q", got)
 	}
 }

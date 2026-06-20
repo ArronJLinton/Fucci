@@ -295,6 +295,51 @@ func TestGetSnapchatUserStories_CacheHit(t *testing.T) {
 	}
 }
 
+func TestGetSnapchatUserStories_CacheHitDoesNotConsumeRateLimit(t *testing.T) {
+	const wantKey = "snapchat_stories:v1:psg"
+	wantBody := []byte(`{"from":"cache"}`)
+	incrCalls := 0
+	mock := &MockCache{
+		existsFunc: func(ctx context.Context, key string) (bool, error) {
+			return key == wantKey, nil
+		},
+		getFunc: func(ctx context.Context, key string, value interface{}) error {
+			if key != wantKey {
+				return nil
+			}
+			if ptr, ok := value.(*snapchatStoriesCached); ok {
+				*ptr = snapchatStoriesCached{HTTPStatus: http.StatusOK, Body: wantBody}
+			}
+			return nil
+		},
+		incrFunc: func(ctx context.Context, key string) (int64, error) {
+			incrCalls++
+			return int64(snapchatStoriesIPLimitN + snapchatStoriesUserLimitN + 1), nil
+		},
+	}
+	cfg := &Config{
+		Cache:       mock,
+		RapidAPIKey: "k",
+		SnapchatUserStoriesFetch: func(ctx context.Context, rapidAPIKey, username string) ([]byte, int, error) {
+			t.Fatal("fetch should not run on cache hit")
+			return nil, 0, nil
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/snapchat/stories?username=psg", nil)
+	rec := httptest.NewRecorder()
+	cfg.getSnapchatUserStories(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if incrCalls != 0 {
+		t.Fatalf("cache hit should not consume rate-limit counters, got %d Incr calls", incrCalls)
+	}
+	if rec.Body.String() != string(wantBody) {
+		t.Fatalf("body: %s", rec.Body.String())
+	}
+}
+
 func TestGetSnapchatUserStories_RateLimit429(t *testing.T) {
 	resetSnapchatStoryMemRLForTest()
 	oldIP, oldUser := snapchatStoriesIPLimitN, snapchatStoriesUserLimitN

@@ -42,11 +42,6 @@ func (c *Config) getSnapchatUserStories(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if !snapchatStoriesRateLimitAllow(ctx, c, clientIP(r), userNorm) {
-		respondWithError(w, http.StatusTooManyRequests, "Rate limit exceeded; try again later")
-		return
-	}
-
 	if c.Cache != nil {
 		cacheKey := snapchatStoriesCacheKey(userNorm)
 		exists, err := c.Cache.Exists(ctx, cacheKey)
@@ -63,6 +58,11 @@ func (c *Config) getSnapchatUserStories(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 		}
+	}
+
+	if !snapchatStoriesRateLimitAllow(ctx, c, clientIP(r), userNorm) {
+		respondWithError(w, http.StatusTooManyRequests, "Rate limit exceeded; try again later")
+		return
 	}
 
 	fetch := snapchat.FetchUserStories
