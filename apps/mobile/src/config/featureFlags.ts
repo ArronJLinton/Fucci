@@ -21,7 +21,7 @@
 export const WORLD_CUP_ONLY_MODE = true;
 
 /**
- * Media-outlet YouTube Shorts story rings (FOX SPORTS, ESPN FC, etc.).
+ * Media-outlet YouTube Shorts story rings (FOX SPORTS, ESPN FC, Telemundo Deportes, etc.).
  *
  * Shown on News and Matches screens. When false the ring headers are hidden.
  */

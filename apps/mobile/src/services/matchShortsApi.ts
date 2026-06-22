@@ -87,6 +87,26 @@ export function youtubeShortPlayerHtml(videoId: string): string {
       tag.src = 'https://www.youtube.com/iframe_api';
       document.head.appendChild(tag);
       var player;
+      function post(type, extra) {
+        var payload = { type: type };
+        if (extra) {
+          for (var key in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, key)) {
+              payload[key] = extra[key];
+            }
+          }
+        }
+        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+      }
+      function startPlayback() {
+        if (!player || !player.playVideo) return;
+        try {
+          if (player.unMute) player.unMute();
+          if (player.setVolume) player.setVolume(100);
+          player.playVideo();
+        } catch (e) {}
+      }
+      window.startYouTubePlayback = startPlayback;
       function onYouTubeIframeAPIReady() {
         var w = window.innerWidth;
         var h = window.innerHeight;
@@ -103,19 +123,30 @@ export function youtubeShortPlayerHtml(videoId: string): string {
             fs: 0,
             iv_load_policy: 3,
             disablekb: 1,
+            origin: window.location.origin,
           },
           events: {
             onReady: function () {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
-              player.playVideo();
+              startPlayback();
+              setTimeout(startPlayback, 200);
+              setTimeout(startPlayback, 600);
             },
             onStateChange: function (e) {
+              if (e.data === YT.PlayerState.PLAYING) {
+                post('playing');
+              }
+              if (
+                e.data === YT.PlayerState.CUED ||
+                e.data === YT.PlayerState.UNSTARTED
+              ) {
+                startPlayback();
+              }
               if (e.data === YT.PlayerState.ENDED) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ended' }));
+                post('ended');
               }
             },
             onError: function (e) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', code: e.data }));
+              post('error', { code: e.data });
             },
           },
         });

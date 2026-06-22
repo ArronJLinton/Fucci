@@ -220,15 +220,15 @@ export default function MatchTeamShortsScreen() {
             styles.tapZones,
             {top: insets.top + 52, bottom: 100},
           ]}
-          pointerEvents="box-none">
+          pointerEvents={playbackStarted ? 'box-none' : 'none'}>
           <Pressable
-            style={styles.tapHalf}
+            style={styles.tapEdgeLeft}
             onPress={goToPrev}
             accessibilityRole="button"
             accessibilityLabel="Previous short"
           />
           <Pressable
-            style={styles.tapHalf}
+            style={styles.tapEdgeRight}
             onPress={goToNext}
             accessibilityRole="button"
             accessibilityLabel="Next short"
@@ -257,10 +257,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 5,
-    flexDirection: 'row',
   },
-  tapHalf: {
-    flex: 1,
+  tapEdgeLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '32%',
+  },
+  tapEdgeRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '32%',
   },
   closeFab: {
     position: 'absolute',

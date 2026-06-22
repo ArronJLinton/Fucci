@@ -66,9 +66,10 @@ describe('matchShortsApi', () => {
       const html = youtubeShortPlayerHtml('Jf3zdhWWfe4');
       expect(html).toContain("videoId: 'Jf3zdhWWfe4'");
       expect(html).toContain('youtube.com/iframe_api');
-      expect(html).toContain("type: 'ready'");
-      expect(html).toContain("type: 'ended'");
+      expect(html).toContain("post('playing')");
+      expect(html).toContain("post('ended')");
       expect(html).toContain('autoplay: 1');
+      expect(html).not.toContain('mute: 1');
       expect(html).toContain('controls: 0');
     });
 

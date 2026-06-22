@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef} from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -13,6 +13,15 @@ import {
 } from '../services/matchShortsApi';
 import {MATCH_CENTER_LIME} from '../constants/matchCenterUi';
 
+const START_PLAYBACK_JS = `
+  (function () {
+    if (window.startYouTubePlayback) {
+      window.startYouTubePlayback();
+    }
+  })();
+  true;
+`;
+
 type Props = {
   short: YouTubeShort;
   isActive: boolean;
@@ -26,6 +35,7 @@ export default function YouTubeShortSlide({
   onFinished,
   onPlaybackStart,
 }: Props) {
+  const webViewRef = useRef<WebView>(null);
   const finishedRef = useRef(onFinished);
   const onPlaybackStartRef = useRef(onPlaybackStart);
   finishedRef.current = onFinished;
@@ -54,11 +64,28 @@ export default function YouTubeShortSlide({
     return () => clearTimeout(timer);
   }, [handleFinished, isActive, short.duration, short.video_id]);
 
+  const requestPlayback = useCallback(() => {
+    webViewRef.current?.injectJavaScript(START_PLAYBACK_JS);
+  }, []);
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    requestPlayback();
+    const retry = setInterval(requestPlayback, 500);
+    const stopRetry = setTimeout(() => clearInterval(retry), 4000);
+    return () => {
+      clearInterval(retry);
+      clearTimeout(stopRetry);
+    };
+  }, [isActive, requestPlayback, short.video_id]);
+
   const onMessage = useCallback(
     (event: {nativeEvent: {data: string}}) => {
       try {
         const msg = JSON.parse(event.nativeEvent.data) as {type?: string};
-        if (msg.type === 'ready') {
+        if (msg.type === 'playing') {
           onPlaybackStartRef.current?.();
         }
         if (msg.type === 'ended') {
@@ -71,6 +98,10 @@ export default function YouTubeShortSlide({
     [handleFinished],
   );
 
+  const onWebViewLoadEnd = useCallback(() => {
+    requestPlayback();
+  }, [requestPlayback]);
+
   if (!isActive) {
     return <View style={styles.inactive} />;
   }
@@ -78,20 +109,24 @@ export default function YouTubeShortSlide({
   return (
     <View style={styles.root}>
       <WebView
+        ref={webViewRef}
         key={short.video_id}
         source={{
           html: youtubeShortPlayerHtml(short.video_id),
           baseUrl: YOUTUBE_SHORT_PLAYER_BASE_URL,
         }}
         style={styles.webview}
-        originWhitelist={['https://*']}
+        originWhitelist={['https://*', 'about:blank']}
         allowsInlineMediaPlayback
         allowsFullscreenVideo={false}
         mediaPlaybackRequiresUserAction={false}
+        allowsProtectedMedia
+        sharedCookiesEnabled
         javaScriptEnabled
         domStorageEnabled
         scrollEnabled={false}
         bounces={false}
+        onLoadEnd={onWebViewLoadEnd}
         onMessage={onMessage}
         startInLoadingState
         renderLoading={() => (
