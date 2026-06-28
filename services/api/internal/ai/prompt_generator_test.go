@@ -77,3 +77,60 @@ func TestExtractJSONFromContent_StripsMarkdownFences(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildUserPrompt_IncludesRoundAndNewsGuidance(t *testing.T) {
+	pg := &PromptGenerator{}
+	matchData := MatchData{
+		MatchID:       "100",
+		HomeTeam:      "Brazil",
+		AwayTeam:      "Japan",
+		Date:          "2026-06-28T19:00:00Z",
+		Status:        "NS",
+		Round:         "Round of 32",
+		NewsHeadlines: []string{"Endrick set to start for Brazil in knockout clash"},
+	}
+	prompt := pg.buildUserPrompt(matchData, "pre_match")
+	if !strings.Contains(prompt, "Round/Stage: Round of 32") {
+		t.Error("prompt should contain round/stage")
+	}
+	if !strings.Contains(prompt, "NEWS HEADLINES (use these") {
+		t.Error("prompt should emphasize news headlines")
+	}
+	if !strings.Contains(prompt, "Endrick set to start") {
+		t.Error("prompt should include news headline text")
+	}
+	if !strings.Contains(prompt, "Avoid generic 'who wins the showdown'") {
+		t.Error("prompt should discourage generic showdown framing")
+	}
+}
+
+func TestBuildSystemPrompt_IncludesRelevanceGuidelines(t *testing.T) {
+	pg := &PromptGenerator{}
+	pre := pg.buildSystemPrompt("pre_match")
+	post := pg.buildSystemPrompt("post_match")
+	for _, prompt := range []string{pre, post} {
+		if !strings.Contains(prompt, "MATCH-SPECIFIC RELEVANCE") {
+			t.Error("system prompt should include match-specific relevance guidelines")
+		}
+		if !strings.Contains(prompt, "NEWS HEADLINES") {
+			t.Error("system prompt should instruct use of news headlines")
+		}
+		if !strings.Contains(prompt, "Classic giants or rising stars") {
+			t.Error("system prompt should ban lazy generic framing examples")
+		}
+	}
+	if !strings.Contains(pre, "knockout rounds") {
+		t.Error("pre-match prompt should mention knockout round guidance")
+	}
+}
+
+func TestBuildSystemPromptForSet_IncludesRelevanceGuidelines(t *testing.T) {
+	pg := &PromptGenerator{}
+	prompt := pg.buildSystemPromptForSet("pre_match", 3)
+	if !strings.Contains(prompt, "MATCH-SPECIFIC RELEVANCE") {
+		t.Error("set system prompt should include relevance guidelines")
+	}
+	if !strings.Contains(prompt, "at least one debate in the set must spring directly from a headline") {
+		t.Error("set system prompt should require headline-driven debate in set")
+	}
+}

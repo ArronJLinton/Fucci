@@ -34,6 +34,7 @@ type MatchData struct {
 	Venue              string           `json:"venue,omitempty"`
 	League             string           `json:"league,omitempty"`
 	Season             string           `json:"season,omitempty"`
+	Round              string           `json:"round,omitempty"` // e.g. "Round of 32", "Group Stage - 3"
 	HeadToHeadSummary  string           `json:"head_to_head_summary,omitempty"`
 	LeagueTableSummary string           `json:"league_table_summary,omitempty"`
 }
@@ -286,44 +287,91 @@ func extractJSONArrayFromContent(content string) string {
 	return strings.TrimSpace(s)
 }
 
+// debateRelevanceGuidelines returns shared instructions for match-specific, practical debates.
+func debateRelevanceGuidelines(phase string) string {
+	stageNote := ""
+	if phase == "pre_match" {
+		stageNote = `
+PRE-MATCH relevance:
+- Frame stakes for THIS fixture only — not the whole season or tournament arc.
+- In knockout rounds (Round of 16, Round of 32, quarterfinal, etc.): sudden-death pressure, one bad night ends it, favorite vs underdog — NOT "can they win the World Cup?"
+- In group stage: qualification math, must-win pressure, rotation risks — NOT premature title-contender coronations.
+- It is too early in a tournament to treat any team as a proven champion or long-run favorite unless the user message explicitly supports that with current-round context.`
+	} else {
+		stageNote = `
+POST-MATCH relevance:
+- Debate what happened in THIS match — a call, a player, a moment, a tactical choice.
+- Do not pivot to generic "they're winning it all" or season-long hype unless directly tied to this result.`
+	}
+
+	return `
+MATCH-SPECIFIC RELEVANCE (critical — use the user message data for THIS fixture):
+
+DO NOT generate lazy, generic debates such as:
+- "Team A vs Team B: who wins this showdown?"
+- "Classic giants or rising stars"
+- "Can [team] go all the way?" / title-favorite / golden-generation hype when the round does not warrant it
+- Vague narratives that could apply to any match between these teams
+
+DO generate practical, scroll-stopping debates anchored in THIS match:
+- Named players: should X start or be benched? injury return risk? key matchup? (use LINEUPS when provided)
+- Head-to-head history and what past meetings imply for tonight
+- Upset alerts, underdog cases, favorite pressure, knockout nerves
+- Specific concerns: missing players, defensive holes, set pieces, manager calls, fatigue, travel
+- When NEWS HEADLINES are provided in the user message: ground the debate in at least one recent headline — cite the storyline (injury news, selection drama, quotes, form piece) in the headline or description. Do not ignore headlines.
+
+Headlines should name players, tactical choices, or concrete storylines — not just two flags facing off.
+Descriptions should explain why NOW: the round/stage, a news item, a H2H fact, or a lineup question.` + stageNote
+}
+
 func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
+	reference := ReferenceDebatesPromptSection()
+	relevance := debateRelevanceGuidelines(promptType)
 	if promptType == "pre_match" {
-		return `You are a football debate prompt generator for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
+		return `You are Fucci's elite football debate producer for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
 
 IMPORTANT: PRE-MATCH — the match has NOT happened yet. No final scores or post-match outcomes.
 
-The headline must read as a clear and plain language statement or question fans can answer YES or NO to (agree vs disagree). Frame it so "agree" and "disagree" are natural opposites.
+Quality bar: headlines must be bold, specific, and polarizing — the kind of take that stops a fan mid-scroll. Descriptions should raise stakes with real context tied to this fixture. Study the reference corpus below for tone; adapt it to THIS match's players, round, news, and H2H — do not copy generic "who wins" framing.` + relevance + `
+
+The headline must read as a clear plain-language statement or question fans can answer YES or NO to (agree vs disagree). Frame it so "agree" and "disagree" are natural opposites.
 
 Respond with ONLY one JSON object (no markdown, no code fences, no extra text). Exact shape:
 {
-  "headline": "Bold, controversial line fans can agree or disagree with (e.g. claim or polarizing question)",
+  "headline": "Bold, controversial line fans can agree or disagree with",
   "description": "Short context that raises the stakes (why it matters for this fixture)",
   "cards": [
-    { "stance": "agree", "title": "Short label for the YES / agree side (e.g. how you'd vote if you buy the headline)" },
-    { "stance": "disagree", "title": "Short label for the NO / disagree side (e.g. how you'd vote if you reject the headline)" }
+    { "stance": "agree", "title": "Short label for the YES / agree side" },
+    { "stance": "disagree", "title": "Short label for the NO / disagree side" }
   ],
   "comments": [
-    "First comment: passionate fan voice backing the agree side",
-    "Second comment: passionate fan voice backing the disagree side",
-    "Third comment: spicy wildcard / hot-take or angle that still fits the debate (not analyst-speak)"
+    "Fucci's Take 1: passionate fan voice backing the agree side",
+    "Fucci's Take 2: passionate fan voice backing the disagree side",
+    "Fucci's Take 3: spicy wildcard / hot-take that still fits the debate"
   ]
 }
 
 Rules:
 - Exactly two cards: only "agree" and "disagree". No wildcard card. No third card.
 - Card objects use only "stance" and "title" (no per-card description field).
-- Exactly three strings in "comments". They seed the comments section before real users post.
-- Comments must sound like real supporters in the stands or group chat: emotional, direct, maybe messy, NEVER like a polished TV pundit. Avoid jargon stacks (e.g. don't lean on "low block", "xG", "progressive carries" unless a normal fan would say it). Short clauses, heat, banter, and belief are good.
+- Exactly three strings in "comments". These become pre-seeded "Fucci's Take" comments before real users post.
+- Comments must sound like real supporters in the stands or group chat: emotional, direct, maybe messy, NEVER like a polished TV pundit. Avoid jargon stacks unless a normal fan would say it. Short clauses, heat, banter, and belief are good.
 - Keep everything PG-13: no slurs, threats, hate, or harassment.
 
-Topic angles for pre-match:
-- Lineups, form, pressure, predictions, rivalries, manager calls, expectations.
+Strong pre-match angles (pick what fits THIS match — do not force all):
+- Lineup/selection calls, player starts and benches, injury returns
+- H2H history and psychological edge
+- Knockout upset potential or favorite vulnerability
+- Tactical matchup concerns (set pieces, press, pace, etc.)
+- Recent news-driven storylines from the provided headlines
 
-DO NOT reference final score or "after the match" facts.`
+DO NOT reference final score or "after the match" facts.` + reference
 	}
-	return `You are a football debate prompt generator for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
+	return `You are Fucci's elite football debate producer for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
 
 IMPORTANT: POST-MATCH — the match has finished. Use what happened; reference result and moments when useful.
+
+Quality bar: headlines must be bold, specific, and polarizing — tied to what actually happened in the match. Descriptions should fuel the argument with concrete moments, stats, or narratives. Study the reference corpus below for tone; keep debates anchored to THIS match, not generic season narratives.` + relevance + `
 
 The headline must read as a clear statement or question fans can answer YES or NO to. "Agree" and "disagree" must be direct opposites.
 
@@ -336,20 +384,20 @@ Respond with ONLY one JSON object (no markdown, no code fences, no extra text). 
     { "stance": "disagree", "title": "Short label for the NO / disagree side" }
   ],
   "comments": [
-    "Passionate fan comment supporting the agree side",
-    "Passionate fan comment supporting the disagree side",
-    "Wildcard / hot-take comment (still about this debate; fan voice not pundit voice)"
+    "Fucci's Take 1: passionate fan comment supporting the agree side",
+    "Fucci's Take 2: passionate fan comment supporting the disagree side",
+    "Fucci's Take 3: wildcard / hot-take comment (still about this debate; fan voice not pundit voice)"
   ]
 }
 
 Rules:
 - Exactly two cards: only "agree" and "disagree". No wildcard card.
 - Card objects: only "stance" and "title".
-- Exactly three "comments" strings for seeded replies.
+- Exactly three "comments" strings for pre-seeded "Fucci's Take" replies.
 - Comments: passionate fan energy, engaging, conversational; NOT polished analyst prose or heavy tactical jargon unless a fan would naturally say it.
 - PG-13 only.
 
-Good angles: turning points, calls, performances, blame, praise, narratives after the result.`
+Strong post-match angles: turning points, refereeing calls, individual performances, blame/praise, tactical switches, knockout consequences — always tied to events in THIS game.` + reference
 }
 
 func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType string) string {
@@ -369,6 +417,9 @@ func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType strin
 	}
 	if matchData.Season != "" {
 		prompt.WriteString(fmt.Sprintf("Season: %s\n", matchData.Season))
+	}
+	if matchData.Round != "" {
+		prompt.WriteString(fmt.Sprintf("Round/Stage: %s\n", matchData.Round))
 	}
 	prompt.WriteString("\n")
 
@@ -429,7 +480,7 @@ func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType strin
 	}
 
 	if len(matchData.NewsHeadlines) > 0 {
-		prompt.WriteString("NEWS HEADLINES:\n")
+		prompt.WriteString("NEWS HEADLINES (use these — anchor debates in recent match news when possible):\n")
 		for _, headline := range matchData.NewsHeadlines {
 			prompt.WriteString(fmt.Sprintf("- %s\n", headline))
 		}
@@ -456,7 +507,17 @@ func (pg *PromptGenerator) buildUserPrompt(matchData MatchData, promptType strin
 		prompt.WriteString("\n")
 	}
 
-	prompt.WriteString("Generate a compelling debate prompt based on this information. Return only valid JSON.")
+	prompt.WriteString("Generate a match-specific debate prompt from this data. ")
+	if len(matchData.NewsHeadlines) > 0 {
+		prompt.WriteString("At least one angle should clearly reflect a recent news headline above. ")
+	}
+	if matchData.HeadToHeadSummary != "" {
+		prompt.WriteString("Use head-to-head history where it sharpens the argument. ")
+	}
+	if matchData.Lineups != nil {
+		prompt.WriteString("Reference named players from the lineups when debating selections or matchups. ")
+	}
+	prompt.WriteString("Avoid generic 'who wins the showdown' framing. Return only valid JSON.")
 
 	return prompt.String()
 }
@@ -506,24 +567,30 @@ const maxTokensForDebateSet = 2800
 // buildSystemPromptForSet returns a system prompt that asks for an array of N debate prompts.
 func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int) string {
 	phase := "PRE-MATCH"
-	phaseNote := "The match has NOT happened yet. Focus on predictions, pressure, expectations, possible outcomes, tactical storylines, player narratives, and what is at stake."
+	phaseNote := "The match has NOT happened yet. Focus on this fixture: lineup calls, player matchups, H2H, upset potential, knockout stakes, and news-driven storylines — not generic season-long contender hype."
 	if promptType == "post_match" {
 		phase = "POST-MATCH"
-		phaseNote = "The match has already happened. Focus on what actually happened, who delivered, who failed, tactical consequences, emotional fallout, blame, praise, and legacy-defining takeaways."
+		phaseNote = "The match has already happened. Focus on what actually happened in this game: turning points, individual performances, calls, tactical choices, and knockout consequences."
 	}
 
-	return fmt.Sprintf(`You are an elite football debate producer for a mobile app: ONE vote per debate (agree vs disagree on a single proposition).
+	reference := ReferenceDebatesPromptSection()
+	relevance := debateRelevanceGuidelines(promptType)
+	return fmt.Sprintf(`You are Fucci's elite football debate producer for a mobile app: ONE vote per debate (agree vs disagree on a single proposition).
 
 	IMPORTANT: This is a %s debate. %s
+%s
+	Quality bar: headlines must be bold, specific, and polarizing — the kind of take that stops a fan mid-scroll. Study the reference corpus below for tone; every debate must feel written for THIS match, round, and news cycle.
 
-	Each debate is binary: a headline fans can agree or disagree with, two stance labels (agree/disagree), and three seeded comments in a passionate FAN voice (not polished pundit copy; avoid analyst jargon unless a normal supporter would say it). Comments should feel like stands or group-chat energy: short, heated, believable, PG-13.
+	Each debate is binary: a headline fans can agree or disagree with, two stance labels (agree/disagree), and three pre-seeded "Fucci's Take" comments in a passionate FAN voice (not polished pundit copy; avoid analyst jargon unless a normal supporter would say it). Comments should feel like stands or group-chat energy: short, heated, believable, PG-13.
 
 	JSON rules for EVERY object in the array:
 	- Exactly two cards: { "stance": "agree", "title": "..." } and { "stance": "disagree", "title": "..." } only. No wildcard card. No "description" on cards.
-	- "comments" must be an array of exactly three strings: (1) backs agree, (2) backs disagree, (3) wildcard/hot-take still tied to this debate.
+	- "comments" must be an array of exactly three strings: (1) Fucci's Take backing agree, (2) Fucci's Take backing disagree, (3) wildcard/hot-take still tied to this debate.
 	- Headline frames an agree/disagree split; description adds match-specific stakes.
+	- When NEWS HEADLINES appear in the user message, at least one debate in the set must spring directly from a headline.
+	- Prefer named players, selection drama, H2H angles, and upset/concern takes over generic "who wins" showdown titles.
 
-	Keep debates distinct: different angles, emotions, and stakes; no recycled headlines.
+	Keep debates distinct: different angles, emotions, and stakes; no recycled headlines; no lazy "Team A vs Team B" packaging.
 
 	Respond with ONLY a JSON array of exactly %d objects (no markdown, no code fences, no extra text).
 
@@ -535,10 +602,10 @@ func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int)
 		{ "stance": "agree", "title": "Short YES-side label" },
 		{ "stance": "disagree", "title": "Short NO-side label" }
 	],
-	"comments": ["fan comment pro-agree", "fan comment pro-disagree", "fan wildcard take"]
+	"comments": ["Fucci's Take pro-agree", "Fucci's Take pro-disagree", "Fucci's Take wildcard"]
 	}
 
-	Return only the JSON array.`, phase, phaseNote, count)
+	Return only the JSON array.%s`, phase, phaseNote, relevance, count, reference)
 }
 
 // GenerateDebateSetPrompt performs one AI call and returns multiple debate prompts (e.g. 3) for the given type.

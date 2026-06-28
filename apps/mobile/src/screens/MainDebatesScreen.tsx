@@ -44,7 +44,7 @@ const RED = '#FF3B30';
 const LIVE_DOT = '#3B82F6';
 
 /** NEW DEBATES and MY ACTIVITY use `created_at` within this window (generation time). */
-const FEED_MAX_AGE_MS = 6 * 24 * 60 * 60 * 1000;
+const FEED_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 /**
  * Go encodes `time.Time` as RFC3339Nano. `Date.parse` often returns NaN when fractional
@@ -82,7 +82,7 @@ function debateRowTimeMs(summary: DebateSummary): number | null {
   );
 }
 
-function debateGeneratedWithinPastSixDays(
+function debateGeneratedWithinPast48Hours(
   summary: DebateSummary,
   nowMs: number,
 ): boolean {
@@ -109,7 +109,7 @@ function debatePassesActiveFilters(
   summary: DebateSummary,
   nowMs: number,
 ): boolean {
-  if (!debateGeneratedWithinPastSixDays(summary, nowMs)) {
+  if (!debateGeneratedWithinPast48Hours(summary, nowMs)) {
     return false;
   }
   if (WORLD_CUP_ONLY_MODE && !debateIsWorldCupRelated(summary)) {
