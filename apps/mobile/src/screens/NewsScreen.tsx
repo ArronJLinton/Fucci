@@ -19,7 +19,7 @@ import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
 import {WORLD_CUP_LEAGUE, type League} from '../constants/leagues';
 import {
-  NEWS_STORY_RINGS_ENABLED,
+  MEDIA_STORY_RINGS_ENABLED,
   WORLD_CUP_ONLY_MODE,
 } from '../config/featureFlags';
 import {
@@ -27,16 +27,14 @@ import {
   NEWS_CARD,
   NEWS_CARD_BORDER,
   NEWS_ACCENT,
-  NEWS_CYAN,
   NEWS_TEXT,
   NEWS_MUTED,
   NEWS_EXCLUSIVE,
 } from '../constants/newsUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
+import {MediaStoryRings} from '../components/MediaStoryRings';
 import {
-  type NewsCategoryId,
   mergeAndSortArticles,
-  filterByCategory,
   filterByLeague,
   articleCategoryLabel,
 } from '../utils/newsFilters';
@@ -47,22 +45,10 @@ const PAGE_PAD = 16;
 const GRID_GAP = 10;
 const GRID_COL_W = (SCREEN_W - PAGE_PAD * 2 - GRID_GAP) / 2;
 
-const STORY_RINGS: {
-  key: string;
-  label: string;
-  category: NewsCategoryId;
-  name: React.ComponentProps<typeof Ionicons>['name'];
-}[] = [
-  {key: 'goals', label: 'TOP GOALS', category: 'match', name: 'football'},
-  {key: 'rumours', label: 'RUMOURS', category: 'transfers', name: 'people'},
-  {key: 'matchday', label: 'MATCH DAY', category: 'match', name: 'flash'},
-];
-
 const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const [category, setCategory] = useState<NewsCategoryId>('all');
   const [leagueFilter, setLeagueFilter] = useState<League | null>(
     WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : null,
   );
@@ -97,22 +83,15 @@ const NewsScreen: React.FC = () => {
   );
 
   const filteredArticles = useMemo(() => {
-    let list = filterByCategory(merged, category);
-    list = filterByLeague(list, leagueFilter);
-    return list;
-  }, [merged, category, leagueFilter]);
+    return filterByLeague(merged, leagueFilter);
+  }, [merged, leagueFilter]);
 
-  // Keep the featured card in view when filters change.
   useEffect(() => {
     scrollRef.current?.scrollTo({y: 0, animated: true});
-  }, [category, leagueFilter?.id]);
+  }, [leagueFilter?.id]);
 
   const featured = filteredArticles[0];
   const gridArticles = filteredArticles.slice(1);
-
-  const onStoryPress = (s: (typeof STORY_RINGS)[0]) => {
-    setCategory(s.category);
-  };
 
   const renderFeatured = (article: NewsArticle) => {
     const imgOk = Boolean(article.imageUrl && !failedImageIds.has(article.id));
@@ -267,32 +246,11 @@ const NewsScreen: React.FC = () => {
             tintColor={NEWS_ACCENT}
           />
         }>
-        {NEWS_STORY_RINGS_ENABLED ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.storyRow}>
-            {STORY_RINGS.map(s => {
-              return (
-                <TouchableOpacity
-                  key={s.key}
-                  style={styles.storyItem}
-                  onPress={() => onStoryPress(s)}
-                  activeOpacity={0.88}>
-                  <LinearGradient
-                    colors={[NEWS_ACCENT, NEWS_CYAN]}
-                    start={{x: 0, y: 0}}
-                    end={{x: 1, y: 1}}
-                    style={styles.storyGradient}>
-                    <View style={styles.storyInner}>
-                      <Ionicons name={s.name} size={28} color={NEWS_TEXT} />
-                    </View>
-                  </LinearGradient>
-                  <Text style={styles.storyLabel}>{s.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        {MEDIA_STORY_RINGS_ENABLED ? (
+          <MediaStoryRings
+            enabled={MEDIA_STORY_RINGS_ENABLED}
+            contentContainerStyle={{paddingHorizontal: PAGE_PAD}}
+          />
         ) : null}
 
         {WORLD_CUP_ONLY_MODE ? null : (
@@ -315,7 +273,7 @@ const NewsScreen: React.FC = () => {
             <Text style={styles.emptyFilterHint}>
               {WORLD_CUP_ONLY_MODE
                 ? 'Pull down to refresh'
-                : 'Try another story ring or league'}
+                : 'Try another league filter'}
             </Text>
           </View>
         ) : (
@@ -347,42 +305,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 32,
     paddingTop: 4,
-  },
-  storyRow: {
-    paddingHorizontal: PAGE_PAD,
-    paddingTop: 8,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  storyItem: {
-    alignItems: 'center',
-    marginRight: 14,
-    width: 78,
-  },
-  storyGradient: {
-    borderRadius: 18,
-    padding: 3,
-  },
-  storyGradientActive: {
-    opacity: 1,
-  },
-  storyInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 15,
-    backgroundColor: NEWS_CARD,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  storyLabel: {
-    marginTop: 8,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    color: NEWS_TEXT,
-    textAlign: 'center',
   },
   latestRow: {
     flexDirection: 'row',

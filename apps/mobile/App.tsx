@@ -46,7 +46,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
-import MatchSnapchatStoriesScreen from './src/screens/MatchSnapchatStoriesScreen';
+import MatchTeamShortsScreen from './src/screens/MatchTeamShortsScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -285,8 +285,8 @@ const HomeStack = () => {
         }}
       />
       <StackScreen
-        name="MatchSnapchatStories"
-        component={MatchSnapchatStoriesScreen}
+        name="MatchTeamShorts"
+        component={MatchTeamShortsScreen}
         options={{
           headerShown: false,
           presentation: 'fullScreenModal',
@@ -336,6 +336,16 @@ const NewsStack = () => {
           headerShown: false,
           presentation: 'card',
           animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
+      />
+      <StackScreen
+        name="MatchTeamShorts"
+        component={MatchTeamShortsScreen}
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal',
+          animation: 'slide_from_bottom',
           gestureEnabled: true,
         }}
       />

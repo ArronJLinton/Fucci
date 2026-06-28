@@ -20,6 +20,8 @@
     "build:ios": "yarn env:prod && eas build -p ios --profile production",
     "build:ios-staging": "yarn env:staging && eas build -p ios --profile preview",
     "build:ios-preview": "yarn env:staging && npx eas-cli build -p ios --profile preview",
+    "submit:ios": "eas submit -p ios --profile production --latest",
+    "submit:android": "eas submit -p android --profile production --latest",
     "preflight:typecheck": "yarn type-check",
     "preflight:doctor": "npx expo-doctor",
     "preflight:eas": "npx eas-cli whoami",

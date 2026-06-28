@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.magistridev.fucci",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Fucci to access your camera to take profile photos.",
         "NSPhotoLibraryUsageDescription": "Allow Fucci to access your photo library to choose profile photos.",
@@ -26,7 +26,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.magistridev.fucci",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
@@ -74,14 +74,14 @@
         "iosBundleIdentifier": "com.magistridev.fucci"
       },
       "eas": {
-        "projectId": "6ad17ac0-54c7-437b-be42-380c5323a07d"
+        "projectId": "c02a1675-224d-4ac5-bdb6-2ed00ff33963"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/6ad17ac0-54c7-437b-be42-380c5323a07d"
+      "url": "https://u.expo.dev/c02a1675-224d-4ac5-bdb6-2ed00ff33963"
     }
   }
 }

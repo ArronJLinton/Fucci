@@ -53,6 +53,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 	// "1,39,140,135,78,61,2" for broader coverage) to enable the scheduler
 	// in the target environment.
 	viper.SetDefault("prewarm_league_ids", "")
+	viper.SetDefault("youtube_cache_ttl_hours", 24)
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -107,6 +108,8 @@ func InitConfig(logger *otelzap.Logger) Config {
 		JWT_SECRET:                         viper.GetString("jwt_secret"),
 		SYSTEM_USER_EMAIL:                  viper.GetString("system_user_email"),
 		PREWARM_LEAGUE_IDS:                 viper.GetString("prewarm_league_ids"),
+		YOUTUBE_API_KEY:                    viper.GetString("youtube_api_key"),
+		YOUTUBE_CACHE_TTL_HOURS:            viper.GetInt("youtube_cache_ttl_hours"),
 	}
 
 	return cfg

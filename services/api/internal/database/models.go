@@ -159,6 +159,19 @@ type Media struct {
 	UpdatedAt time.Time
 }
 
+type MediaYoutubeChannels struct {
+	ID            uuid.UUID
+	LookupKey     string
+	DisplayName   string
+	ChannelID     string
+	ChannelHandle sql.NullString
+	SortOrder     int32
+	IsActive      bool
+	IsVerified    bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type PlayerProfile struct {
 	ID          int32
 	UserID      int32
@@ -205,6 +218,18 @@ type TeamManagers struct {
 	Bio        sql.NullString
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+type TeamYoutubeChannels struct {
+	ID            uuid.UUID
+	LookupKey     string
+	Country       string
+	ChannelID     string
+	ChannelHandle sql.NullString
+	IsActive      bool
+	IsVerified    bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Teams struct {
