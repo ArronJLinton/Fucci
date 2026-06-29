@@ -7,7 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
+)
+
+const (
+	expoMaxRetries     = 3
+	expoRetryBaseDelay = 500 * time.Millisecond
 )
 
 const expoPushURL = "https://exp.host/--/api/v2/push/send"
@@ -67,7 +73,20 @@ func (c *Client) httpClient() HTTPDoer {
 	return &http.Client{Timeout: timeout}
 }
 
+// retryAfterDelay parses the Retry-After header (integer seconds) and returns
+// the appropriate wait duration, falling back to base if the header is absent or invalid.
+func retryAfterDelay(header string, base time.Duration) time.Duration {
+	if header != "" {
+		if secs, err := strconv.Atoi(header); err == nil && secs > 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	return base
+}
+
 // Send delivers up to 100 messages per request (Expo limit).
+// Retries up to expoMaxRetries times on 429/5xx with exponential backoff,
+// honouring the Retry-After header when present.
 func (c *Client) Send(ctx context.Context, messages []Message) ([]SendResult, error) {
 	if len(messages) == 0 {
 		return nil, nil
@@ -79,54 +98,77 @@ func (c *Client) Send(ctx context.Context, messages []Message) ([]SendResult, er
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, expoPushURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
 
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
-		return nil, fmt.Errorf("expo push HTTP %d: %s", resp.StatusCode, string(raw))
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("expo push HTTP %d: %s", resp.StatusCode, string(raw))
-	}
+	nextDelay := expoRetryBaseDelay
+	var lastErr error
 
-	var parsed ticketResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil, fmt.Errorf("decode expo response: %w", err)
-	}
-
-	results := make([]SendResult, len(messages))
-	for i, msg := range messages {
-		results[i].Token = msg.To
-		if i >= len(parsed.Data) {
-			results[i].Status = "error"
-			results[i].Error = "missing ticket in response"
-			continue
-		}
-		t := parsed.Data[i]
-		results[i].Status = t.Status
-		results[i].TicketID = t.ID
-		if t.Status == "error" {
-			results[i].Error = t.Message
-			if t.Details != nil && t.Details.Error == "DeviceNotRegistered" {
-				results[i].DeviceNotRegistered = true
+	for attempt := 0; attempt <= expoMaxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(nextDelay):
 			}
 		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, expoPushURL, bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		if c.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.Token)
+		}
+
+		resp, err := c.httpClient().Do(req)
+		if err != nil {
+			lastErr = err
+			nextDelay *= 2
+			continue
+		}
+
+		raw, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = err
+			nextDelay *= 2
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("expo push HTTP %d: %s", resp.StatusCode, string(raw))
+			nextDelay = retryAfterDelay(resp.Header.Get("Retry-After"), nextDelay*2)
+			continue
+		}
+		if resp.StatusCode >= 400 {
+			return nil, fmt.Errorf("expo push HTTP %d: %s", resp.StatusCode, string(raw))
+		}
+
+		var parsed ticketResponse
+		if err := json.Unmarshal(raw, &parsed); err != nil {
+			return nil, fmt.Errorf("decode expo response: %w", err)
+		}
+
+		results := make([]SendResult, len(messages))
+		for i, msg := range messages {
+			results[i].Token = msg.To
+			if i >= len(parsed.Data) {
+				results[i].Status = "error"
+				results[i].Error = "missing ticket in response"
+				continue
+			}
+			t := parsed.Data[i]
+			results[i].Status = t.Status
+			results[i].TicketID = t.ID
+			if t.Status == "error" {
+				results[i].Error = t.Message
+				if t.Details != nil && t.Details.Error == "DeviceNotRegistered" {
+					results[i].DeviceNotRegistered = true
+				}
+			}
+		}
+		return results, nil
 	}
-	return results, nil
+	return nil, lastErr
 }

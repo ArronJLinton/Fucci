@@ -89,7 +89,7 @@ func (s *Service) SendToUser(ctx context.Context, req SendRequest) error {
 	}
 	localDate, err := localDateForTimezone(tz)
 	if err != nil {
-		localDate = time.Now().UTC()
+		localDate = time.Now().UTC().Truncate(24 * time.Hour)
 	}
 
 	if !req.SkipDedupe {

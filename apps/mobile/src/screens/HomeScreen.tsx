@@ -86,7 +86,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const isSelected = route.name === currentRoute;
 
   const leagueId = selectedLeague?.id ?? 0;
-  const {data: matches = [], isLoading} = useQuery({
+  const {data: matches = [], isLoading} = useQuery<Match[]>({
     queryKey: matchesForLocalDateQueryKey(date, leagueId),
     queryFn: async () => {
       if (!selectedLeague) {
@@ -121,7 +121,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     <DateScreen
       date={date}
       isSelected={isSelected}
-      matches={filteredMatches as unknown as Match[]}
+      matches={filteredMatches}
       isLoading={isLoading}
     />
   );
