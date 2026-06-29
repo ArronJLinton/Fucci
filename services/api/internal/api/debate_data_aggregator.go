@@ -40,6 +40,7 @@ type MatchDataRequest struct {
 	Venue           string `json:"venue"`
 	League          string `json:"league"`
 	Season          string `json:"season"`
+	Round           string `json:"round"`
 	LeagueID        int    `json:"league_id"`
 	SeasonYear      int    `json:"season_year"`
 	HomeTeamID      int    `json:"home_team_id"`
@@ -63,6 +64,7 @@ func (dda *DebateDataAggregator) AggregateMatchData(ctx context.Context, matchRe
 		Venue:    matchReq.Venue,
 		League:   matchReq.League,
 		Season:   matchReq.Season,
+		Round:    matchReq.Round,
 	}
 
 	// Create enhanced stats with the data we already have

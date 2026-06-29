@@ -1994,6 +1994,7 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 				ID     int    `json:"id"`
 				Name   string `json:"name"`
 				Season int    `json:"season"`
+				Round  string `json:"round"`
 			} `json:"league"`
 		} `json:"response"`
 	}
@@ -2057,6 +2058,7 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 		Venue:           match.Fixture.Venue.Name,
 		League:          match.League.Name,
 		Season:          fmt.Sprintf("%d", match.League.Season),
+		Round:           match.League.Round,
 		LeagueID:        match.League.ID,
 		SeasonYear:      match.League.Season,
 		HomeTeamID:      match.Teams.Home.ID,
@@ -2429,6 +2431,7 @@ type MatchInfo struct {
 	Venue           string
 	League          string
 	Season          string
+	Round           string
 	LeagueID        int
 	SeasonYear      int
 	HomeTeamID      int
@@ -2460,6 +2463,7 @@ func (c *Config) buildMatchDataRequest(matchID string, matchInfo *MatchInfo) Mat
 		Venue:           matchInfo.Venue,
 		League:          matchInfo.League,
 		Season:          matchInfo.Season,
+		Round:           matchInfo.Round,
 		LeagueID:        matchInfo.LeagueID,
 		SeasonYear:      matchInfo.SeasonYear,
 		HomeTeamID:      matchInfo.HomeTeamID,

@@ -492,9 +492,17 @@ const SingleDebateScreen = () => {
         </View>
         <View style={styles.commentBody}>
           <View style={styles.commentMetaRow}>
-            <Text style={styles.commentUsername}>
-              {c.user_display_name || 'User'}
-            </Text>
+            <View style={styles.commentMetaLeft}>
+              {c.is_fucci_take ? (
+                <View style={styles.fucciTakeBadge}>
+                  <Text style={styles.fucciTakeBadgeText}>Fucci's Take</Text>
+                </View>
+              ) : (
+                <Text style={styles.commentUsername}>
+                  {c.user_display_name || 'User'}
+                </Text>
+              )}
+            </View>
             <View style={styles.commentVoteRow}>
               <TouchableOpacity
                 onPress={() => handleCommentVote(c.id, 'upvote')}
@@ -1511,10 +1519,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
+  commentMetaLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginRight: 8,
+  },
   commentUsername: {
     fontSize: 14,
     fontWeight: '700',
     color: TEXT,
+  },
+  fucciTakeBadge: {
+    backgroundColor: 'rgba(190, 242, 100, 0.15)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  fucciTakeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: LIME,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   commentVoteRow: {
     flexDirection: 'row',

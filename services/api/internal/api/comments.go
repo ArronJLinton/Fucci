@@ -89,7 +89,7 @@ func checkCommentRateLimit(ctx context.Context, c *Config, userID int32) bool {
 	return defaultCommentRateLimiter.allow(userID)
 }
 
-// DebateComment is the public API shape for a comment (006 spec). Seeded flag is not exposed.
+// DebateComment is the public API shape for a comment (006 spec).
 type DebateComment struct {
 	ID              int32           `json:"id"`
 	DebateID        int32           `json:"debate_id"`
@@ -100,6 +100,7 @@ type DebateComment struct {
 	Content         string          `json:"content"`
 	CreatedAt       time.Time       `json:"created_at"`
 	NetScore        int32           `json:"net_score"`
+	IsFucciTake     bool            `json:"is_fucci_take"`
 	CurrentUserVote *string         `json:"current_user_vote,omitempty"` // "upvote" | "downvote" | null when unauthenticated
 	Reactions       []ReactionCount `json:"reactions"`
 	Subcomments     []DebateComment `json:"subcomments,omitempty"`
@@ -556,6 +557,7 @@ func (c *Config) buildDebateCommentFromRowWithPreloaded(
 		Content:         row.Content,
 		CreatedAt:       createdAt,
 		NetScore:        netScore,
+		IsFucciTake:     row.Seeded,
 		Reactions:       reactions,
 		CurrentUserVote: currentUserVote,
 	}

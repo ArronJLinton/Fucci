@@ -150,7 +150,7 @@ export interface ReactionCount {
   count: number;
 }
 
-/** Comment from GET /debates/:id/comments — top-level and subcomments, no stance/seeded in API */
+/** Comment from GET /debates/:id/comments — top-level and subcomments */
 export interface DebateComment {
   id: number;
   debate_id: number;
@@ -161,6 +161,7 @@ export interface DebateComment {
   content: string;
   created_at: string;
   net_score: number;
+  is_fucci_take?: boolean;
   current_user_vote?: 'upvote' | 'downvote' | null;
   reactions: ReactionCount[];
   subcomments?: DebateComment[];

@@ -52,8 +52,87 @@ export function parseYouTubeDurationSeconds(iso: string): number {
 export const YOUTUBE_SHORT_PLAYER_BASE_URL =
   'https://lonelycpp.github.io/react-native-youtube-iframe/';
 
+/** 9:16 — YouTube Shorts vertical aspect. */
+export const YOUTUBE_SHORT_VIDEO_ASPECT = 9 / 16;
+
 /**
- * Full-viewport YouTube IFrame API page for vertical Shorts (no 16:9 letterbox hack).
+ * Optional extra zoom after fit to trim Shorts iframe chrome (title, share).
+ * Set to 0 — chrome crop was clipping video content; YouTube has no hide API.
+ */
+export const YOUTUBE_SHORT_UI_CROP_RATIO = 0;
+
+/** Contain-fit layout — full Short frame visible, no edge crop. */
+export function youtubePlayerContainLayout(
+  viewportWidth: number,
+  viewportHeight: number,
+  videoAspect: number = YOUTUBE_SHORT_VIDEO_ASPECT,
+): {
+  baseWidth: number;
+  baseHeight: number;
+  scale: number;
+} {
+  const vw = Math.max(viewportWidth, 1);
+  const vh = Math.max(viewportHeight, 1);
+  const baseWidth = 360;
+  const baseHeight = Math.round(baseWidth / videoAspect);
+  const scale = Math.min(vw / baseWidth, vh / baseHeight);
+  return {baseWidth, baseHeight, scale};
+}
+
+/** Scale to cover viewport (fills screen; may crop edges). */
+export function youtubePlayerCoverLayout(
+  viewportWidth: number,
+  viewportHeight: number,
+  videoAspect: number = YOUTUBE_SHORT_VIDEO_ASPECT,
+  uiCropRatio: number = YOUTUBE_SHORT_UI_CROP_RATIO,
+): {
+  baseWidth: number;
+  baseHeight: number;
+  scale: number;
+} {
+  const vw = Math.max(viewportWidth, 1);
+  const vh = Math.max(viewportHeight, 1);
+  const baseWidth = 360;
+  const baseHeight = Math.round(baseWidth / videoAspect);
+  const coverScale = Math.max(vw / baseWidth, vh / baseHeight);
+  const crop = Math.min(Math.max(uiCropRatio, 0), 0.24);
+  const chromeZoom = crop > 0 ? 1 / (1 - 2 * crop) : 1;
+  return {baseWidth, baseHeight, scale: coverScale * chromeZoom};
+}
+
+/** Cover in landscape, contain in portrait — fullscreen rotate without portrait crop. */
+export function youtubePlayerShortsLayout(
+  viewportWidth: number,
+  viewportHeight: number,
+  videoAspect: number = YOUTUBE_SHORT_VIDEO_ASPECT,
+  uiCropRatio: number = YOUTUBE_SHORT_UI_CROP_RATIO,
+): {
+  baseWidth: number;
+  baseHeight: number;
+  scale: number;
+  isLandscape: boolean;
+} {
+  const vw = Math.max(viewportWidth, 1);
+  const vh = Math.max(viewportHeight, 1);
+  const isLandscape = vw > vh;
+  const baseWidth = 360;
+  const baseHeight = Math.round(baseWidth / videoAspect);
+  const fitScale = isLandscape
+    ? Math.max(vw / baseWidth, vh / baseHeight)
+    : Math.min(vw / baseWidth, vh / baseHeight);
+  const crop = Math.min(Math.max(uiCropRatio, 0), 0.24);
+  const chromeZoom = crop > 0 ? 1 / (1 - 2 * crop) : 1;
+  return {
+    baseWidth,
+    baseHeight,
+    scale: fitScale * chromeZoom,
+    isLandscape,
+  };
+}
+
+/**
+ * Full-viewport YouTube IFrame API page for vertical Shorts.
+ * Cover-fit in landscape (full screen); contain-fit in portrait (no video crop).
  */
 export function youtubeShortPlayerHtml(videoId: string): string {
   const safeId = videoId.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -74,9 +153,14 @@ export function youtubeShortPlayerHtml(videoId: string): string {
       }
       #player {
         position: fixed;
-        inset: 0;
-        width: 100%;
-        height: 100%;
+        left: 50%;
+        top: 50%;
+        transform-origin: center center;
+        overflow: hidden;
+      }
+      #player iframe {
+        width: 100% !important;
+        height: 100% !important;
       }
     </style>
   </head>
@@ -107,12 +191,48 @@ export function youtubeShortPlayerHtml(videoId: string): string {
         } catch (e) {}
       }
       window.startYouTubePlayback = startPlayback;
+      var VIDEO_ASPECT = ${YOUTUBE_SHORT_VIDEO_ASPECT};
+      var UI_CROP = ${YOUTUBE_SHORT_UI_CROP_RATIO};
+      function resizePlayer(optW, optH) {
+        var vw = (typeof optW === 'number' && optW > 0) ? optW : window.innerWidth;
+        var vh = (typeof optH === 'number' && optH > 0) ? optH : window.innerHeight;
+        var baseW = 360;
+        var baseH = Math.round(baseW / VIDEO_ASPECT);
+        var isLandscape = vw > vh;
+        var fitScale = isLandscape
+          ? Math.max(vw / baseW, vh / baseH)
+          : Math.min(vw / baseW, vh / baseH);
+        var crop = Math.min(Math.max(UI_CROP, 0), 0.24);
+        var scale = fitScale * (crop > 0 ? 1 / (1 - 2 * crop) : 1);
+        var el = document.getElementById('player');
+        if (el) {
+          el.style.width = baseW + 'px';
+          el.style.height = baseH + 'px';
+          el.style.marginLeft = (-baseW / 2) + 'px';
+          el.style.marginTop = (-baseH / 2) + 'px';
+          el.style.transform = 'scale(' + scale + ')';
+        }
+        if (player && player.setSize) {
+          try {
+            player.setSize(baseW, baseH);
+          } catch (e) {}
+        }
+      }
+      window.resizeYouTubePlayer = resizePlayer;
+      window.addEventListener('resize', resizePlayer);
+      window.addEventListener('orientationchange', function () {
+        setTimeout(function () { resizePlayer(); }, 150);
+        setTimeout(function () { resizePlayer(); }, 400);
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function () {
+          resizePlayer(window.visualViewport.width, window.visualViewport.height);
+        });
+      }
       function onYouTubeIframeAPIReady() {
-        var w = window.innerWidth;
-        var h = window.innerHeight;
         player = new YT.Player('player', {
-          width: w,
-          height: h,
+          width: 360,
+          height: Math.round(360 / VIDEO_ASPECT),
           videoId: '${safeId}',
           playerVars: {
             autoplay: 1,
@@ -122,11 +242,13 @@ export function youtubeShortPlayerHtml(videoId: string): string {
             modestbranding: 1,
             fs: 0,
             iv_load_policy: 3,
+            cc_load_policy: 0,
             disablekb: 1,
             origin: window.location.origin,
           },
           events: {
             onReady: function () {
+              resizePlayer();
               startPlayback();
               setTimeout(startPlayback, 200);
               setTimeout(startPlayback, 600);
