@@ -51,6 +51,7 @@ import MatchTeamShortsScreen from './src/screens/MatchTeamShortsScreen';
 // Types
 import type {RootStackParamList} from './src/types/navigation';
 import {prepareApp} from './src/bootstrap/prepareApp';
+import {useAppPortraitLock} from './src/hooks/useAppPortraitLock';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -390,6 +391,9 @@ const DebatesStack = () => {
 
 function App(): React.JSX.Element {
   const [appIsReady, setAppIsReady] = useState(false);
+  const [navState, setNavState] = useState<NavigationState | undefined>();
+
+  useAppPortraitLock(navState, appIsReady);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,6 +411,17 @@ function App(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const onNavigationStateChange = useCallback(
+    (state: NavigationState | undefined) => {
+      setNavState(state);
+    },
+    [],
+  );
+
+  const onNavigationReady = useCallback(() => {
+    setNavState(rootNavigationRef.current?.getRootState());
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
@@ -439,7 +454,10 @@ function App(): React.JSX.Element {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <AuthProvider>
-            <NavigationContainer ref={rootNavigationRef}>
+            <NavigationContainer
+              ref={rootNavigationRef}
+              onStateChange={onNavigationStateChange}
+              onReady={onNavigationReady}>
               <Stack.Navigator screenOptions={{headerShown: false}}>
                 <Stack.Screen name="Main" component={MainStack} />
                 <Stack.Screen

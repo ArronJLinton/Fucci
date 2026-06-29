@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef} from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {WebView} from 'react-native-webview';
@@ -22,6 +23,15 @@ const START_PLAYBACK_JS = `
   true;
 `;
 
+const RESIZE_PLAYER_JS = (width: number, height: number) => `
+  (function () {
+    if (window.resizeYouTubePlayer) {
+      window.resizeYouTubePlayer(${Math.round(width)}, ${Math.round(height)});
+    }
+  })();
+  true;
+`;
+
 type Props = {
   short: YouTubeShort;
   isActive: boolean;
@@ -35,6 +45,7 @@ export default function YouTubeShortSlide({
   onFinished,
   onPlaybackStart,
 }: Props) {
+  const {width, height} = useWindowDimensions();
   const webViewRef = useRef<WebView>(null);
   const finishedRef = useRef(onFinished);
   const onPlaybackStartRef = useRef(onPlaybackStart);
@@ -81,6 +92,22 @@ export default function YouTubeShortSlide({
     };
   }, [isActive, requestPlayback, short.video_id]);
 
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    const resize = () => {
+      webViewRef.current?.injectJavaScript(RESIZE_PLAYER_JS(width, height));
+    };
+    resize();
+    const retry = setTimeout(resize, 200);
+    const retryLate = setTimeout(resize, 500);
+    return () => {
+      clearTimeout(retry);
+      clearTimeout(retryLate);
+    };
+  }, [isActive, width, height]);
+
   const onMessage = useCallback(
     (event: {nativeEvent: {data: string}}) => {
       try {
@@ -115,10 +142,10 @@ export default function YouTubeShortSlide({
           html: youtubeShortPlayerHtml(short.video_id),
           baseUrl: YOUTUBE_SHORT_PLAYER_BASE_URL,
         }}
-        style={styles.webview}
+        style={[styles.webview, {width, height}]}
         originWhitelist={['https://*', 'about:blank']}
         allowsInlineMediaPlayback
-        allowsFullscreenVideo={false}
+        allowsFullscreenVideo
         mediaPlaybackRequiresUserAction={false}
         allowsProtectedMedia
         sharedCookiesEnabled
@@ -126,6 +153,8 @@ export default function YouTubeShortSlide({
         domStorageEnabled
         scrollEnabled={false}
         bounces={false}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         onLoadEnd={onWebViewLoadEnd}
         onMessage={onMessage}
         startInLoadingState

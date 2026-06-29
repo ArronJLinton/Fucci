@@ -3,12 +3,17 @@ import {Animated, Pressable, StyleSheet, Text, View} from 'react-native';
 import PagerView from 'react-native-pager-view';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
+  useFocusEffect,
   useNavigation,
   useRoute,
   type RouteProp,
 } from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Ionicons} from '@expo/vector-icons';
+import {
+  lockAppPortrait,
+  unlockAppOrientation,
+} from '../utils/screenOrientation';
 import YouTubeShortSlide from '../components/YouTubeShortSlide';
 import {
   parseYouTubeDurationSeconds,
@@ -18,6 +23,19 @@ import type {RootStackParamList} from '../types/navigation';
 
 const SHORT_RING_AMBER = '#F5A623';
 const PROGRESS_TRACK = 'rgba(255,255,255,0.35)';
+const PROGRESS_BAR_HEIGHT = 3;
+const HEADER_TOP_GAP = 8;
+const HEADER_SECTION_GAP = 10;
+const CLOSE_BUTTON_SIZE = 44;
+const HORIZONTAL_CHROME_INSET = 12;
+
+export function shortsHeaderLayout(insetsTop: number) {
+  const progressBarTop = insetsTop + HEADER_TOP_GAP;
+  const closeButtonTop =
+    progressBarTop + PROGRESS_BAR_HEIGHT + HEADER_SECTION_GAP;
+  const chromeBottom = closeButtonTop + CLOSE_BUTTON_SIZE;
+  return {progressBarTop, closeButtonTop, chromeBottom};
+}
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'MatchTeamShorts'>;
 type R = RouteProp<RootStackParamList, 'MatchTeamShorts'>;
@@ -27,6 +45,7 @@ export default function MatchTeamShortsScreen() {
   const {params} = useRoute<R>();
   const {shorts} = params;
   const insets = useSafeAreaInsets();
+  const headerLayout = shortsHeaderLayout(insets.top);
   const [page, setPage] = useState(0);
   const [playbackStarted, setPlaybackStarted] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -39,6 +58,13 @@ export default function MatchTeamShortsScreen() {
     const sec = parseYouTubeDurationSeconds(currentShort?.duration ?? '');
     return Math.max(sec * 1000, 3000);
   }, [currentShort?.duration, currentShort?.video_id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      unlockAppOrientation();
+      return lockAppPortrait;
+    }, []),
+  );
 
   useEffect(() => {
     progressAnim.setValue(0);
@@ -143,7 +169,13 @@ export default function MatchTeamShortsScreen() {
       <View style={[styles.root, styles.centered]}>
         <Text style={styles.hint}>No Shorts available right now.</Text>
         <Pressable
-          style={[styles.closeFab, {top: insets.top + 8}]}
+          style={[
+            styles.closeFab,
+            {
+              top: headerLayout.closeButtonTop,
+              left: HORIZONTAL_CHROME_INSET + insets.left,
+            },
+          ]}
           onPress={() => navigation.goBack()}
           hitSlop={12}
           accessibilityRole="button"
@@ -156,17 +188,15 @@ export default function MatchTeamShortsScreen() {
 
   return (
     <View style={styles.root} testID="MatchTeamShortsScreen">
-      <Pressable
-        style={[styles.closeFab, {top: insets.top + 8}]}
-        onPress={() => navigation.goBack()}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="Close">
-        <Ionicons name="close" size={26} color="#111" />
-      </Pressable>
-
       <View
-        style={[styles.progressBar, {top: insets.top + 10}]}
+        style={[
+          styles.progressBar,
+          {
+            top: headerLayout.progressBarTop,
+            left: HORIZONTAL_CHROME_INSET + insets.left,
+            right: HORIZONTAL_CHROME_INSET + insets.right,
+          },
+        ]}
         pointerEvents="none">
         {slides.map((_, i) => (
           <View key={i} style={styles.progressTrack}>
@@ -188,6 +218,21 @@ export default function MatchTeamShortsScreen() {
           </View>
         ))}
       </View>
+
+      <Pressable
+        style={[
+          styles.closeFab,
+          {
+            top: headerLayout.closeButtonTop,
+            left: HORIZONTAL_CHROME_INSET + insets.left,
+          },
+        ]}
+        onPress={() => navigation.goBack()}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Close">
+        <Ionicons name="close" size={26} color="#111" />
+      </Pressable>
 
       <View style={styles.pagerWrap}>
         <PagerView
@@ -218,7 +263,7 @@ export default function MatchTeamShortsScreen() {
         <View
           style={[
             styles.tapZones,
-            {top: insets.top + 52, bottom: 100},
+            {top: headerLayout.chromeBottom + 8, bottom: 100},
           ]}
           pointerEvents={playbackStarted ? 'box-none' : 'none'}>
           <Pressable
@@ -274,11 +319,10 @@ const styles = StyleSheet.create({
   },
   closeFab: {
     position: 'absolute',
-    left: 12,
     zIndex: 10,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: CLOSE_BUTTON_SIZE,
+    height: CLOSE_BUTTON_SIZE,
+    borderRadius: CLOSE_BUTTON_SIZE / 2,
     backgroundColor: 'rgba(255,255,255,0.94)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -290,15 +334,13 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     position: 'absolute',
-    left: 12,
-    right: 12,
     zIndex: 9,
     flexDirection: 'row',
     gap: 4,
   },
   progressTrack: {
     flex: 1,
-    height: 3,
+    height: PROGRESS_BAR_HEIGHT,
     borderRadius: 2,
     backgroundColor: PROGRESS_TRACK,
     overflow: 'hidden',

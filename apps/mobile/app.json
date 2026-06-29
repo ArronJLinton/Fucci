@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.magistridev.fucci",
       "buildNumber": "4",
       "infoPlist": {
@@ -56,6 +57,12 @@
         {
           "photosPermission": "Allow Fucci to access your photos so you can choose profile pictures.",
           "cameraPermission": "Allow Fucci to use your camera so you can take profile pictures."
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
         }
       ]
     ],
