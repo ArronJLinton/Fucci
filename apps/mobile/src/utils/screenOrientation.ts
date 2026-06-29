@@ -5,13 +5,13 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 export const ORIENTATION_UNLOCK_ROUTE = 'MatchTeamShorts';
 
 export function lockAppPortrait(): void {
-  void ScreenOrientation.lockAsync(
+  ScreenOrientation.lockAsync(
     ScreenOrientation.OrientationLock.PORTRAIT_UP,
-  );
+  ).catch(() => {});
 }
 
 export function unlockAppOrientation(): void {
-  void ScreenOrientation.unlockAsync();
+  ScreenOrientation.unlockAsync().catch(() => {});
 }
 
 export function getActiveRouteName(

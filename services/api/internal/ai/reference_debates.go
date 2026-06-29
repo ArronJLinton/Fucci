@@ -53,7 +53,7 @@ func ReferenceDebatesPromptSection() string {
 	var b strings.Builder
 	b.WriteString("\n\nREFERENCE CORPUS — FIFA World Cup debate style guide (1966–2026):\n")
 	b.WriteString("Match this tone: bold polarizing headlines, stakes-driven descriptions, and seeded \"Fucci's Take\" comments that sound like passionate fans in the stands — not TV pundits.\n")
-	b.WriteString("Headlines should be plain-language yes/no propositions. Descriptions should cite real controversy, records, or narratives.\n")
+	b.WriteString("Headlines should be plain-language yes/no propositions. Descriptions should draw on notable controversy, records, or narratives.\n")
 	b.WriteString("Each debate needs exactly three seeded comments labeled \"Fucci's Take\" in the app:\n")
 	b.WriteString("  (1) backs the agree side with heat and conviction\n")
 	b.WriteString("  (2) backs the disagree side with a sharp counter\n")
@@ -70,8 +70,12 @@ func ReferenceDebatesPromptSection() string {
 	}
 
 	b.WriteString("\nALL REFERENCE HEADLINES (match this quality and specificity when generating new debates):\n")
-	for _, d := range debates {
-		b.WriteString(fmt.Sprintf("- [%d] %s\n", d.ID, d.Headline))
+	headlineCount := 25
+	if len(debates) < headlineCount {
+		headlineCount = len(debates)
+	}
+	for i := 0; i < headlineCount; i++ {
+		b.WriteString(fmt.Sprintf("- [%d] %s\n", debates[i].ID, debates[i].Headline))
 	}
 
 	return b.String()

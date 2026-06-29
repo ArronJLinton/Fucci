@@ -16,13 +16,6 @@ export function useAppPortraitLock(
   const onShortsScreen = isOrientationUnlockRoute(navigationState);
 
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-    lockAppPortrait();
-  }, [enabled]);
-
-  useEffect(() => {
     if (!enabled || onShortsScreen) {
       return;
     }

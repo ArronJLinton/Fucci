@@ -345,9 +345,9 @@ Respond with ONLY one JSON object (no markdown, no code fences, no extra text). 
     { "stance": "disagree", "title": "Short label for the NO / disagree side" }
   ],
   "comments": [
-    "Fucci's Take 1: passionate fan voice backing the agree side",
-    "Fucci's Take 2: passionate fan voice backing the disagree side",
-    "Fucci's Take 3: spicy wildcard / hot-take that still fits the debate"
+    "passionate fan voice backing the agree side",
+    "passionate fan voice backing the disagree side",
+    "spicy wildcard / hot-take that still fits the debate"
   ]
 }
 
@@ -384,9 +384,9 @@ Respond with ONLY one JSON object (no markdown, no code fences, no extra text). 
     { "stance": "disagree", "title": "Short label for the NO / disagree side" }
   ],
   "comments": [
-    "Fucci's Take 1: passionate fan comment supporting the agree side",
-    "Fucci's Take 2: passionate fan comment supporting the disagree side",
-    "Fucci's Take 3: wildcard / hot-take comment (still about this debate; fan voice not pundit voice)"
+    "passionate fan comment supporting the agree side",
+    "passionate fan comment supporting the disagree side",
+    "wildcard / hot-take comment (still about this debate; fan voice not pundit voice)"
   ]
 }
 
@@ -585,7 +585,7 @@ func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int)
 
 	JSON rules for EVERY object in the array:
 	- Exactly two cards: { "stance": "agree", "title": "..." } and { "stance": "disagree", "title": "..." } only. No wildcard card. No "description" on cards.
-	- "comments" must be an array of exactly three strings: (1) Fucci's Take backing agree, (2) Fucci's Take backing disagree, (3) wildcard/hot-take still tied to this debate.
+	- "comments" must be an array of exactly three strings: (1) fan comment backing agree, (2) fan comment backing disagree, (3) wildcard/hot-take still tied to this debate.
 	- Headline frames an agree/disagree split; description adds match-specific stakes.
 	- When NEWS HEADLINES appear in the user message, at least one debate in the set must spring directly from a headline.
 	- Prefer named players, selection drama, H2H angles, and upset/concern takes over generic "who wins" showdown titles.
@@ -602,7 +602,7 @@ func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int)
 		{ "stance": "agree", "title": "Short YES-side label" },
 		{ "stance": "disagree", "title": "Short NO-side label" }
 	],
-	"comments": ["Fucci's Take pro-agree", "Fucci's Take pro-disagree", "Fucci's Take wildcard"]
+	"comments": ["fan comment backing agree", "fan comment backing disagree", "wildcard hot-take fan comment"]
 	}
 
 	Return only the JSON array.%s`, phase, phaseNote, relevance, count, reference)
