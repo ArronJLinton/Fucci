@@ -15,6 +15,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/config"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	pushpkg "github.com/ArronJLinton/fucci-api/internal/push"
 	"github.com/ArronJLinton/fucci-api/internal/scheduler"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
@@ -97,6 +98,8 @@ func main() {
 		SystemUserEmail:               c.SYSTEM_USER_EMAIL,
 		YouTubeAPIKey:                 c.YOUTUBE_API_KEY,
 		YouTubeCacheTTLHours:          c.YOUTUBE_CACHE_TTL_HOURS,
+		ExpoAccessToken:               c.EXPO_ACCESS_TOKEN,
+		Environment:                   c.ENVIRONMENT,
 	}
 	apiRouter := api.New(&apiCfg)
 	v1Router.Mount("/api", apiRouter)
@@ -137,6 +140,14 @@ func main() {
 		log.Printf("[main] PREWARM_LEAGUE_IDS empty; pre-match debate scheduler disabled")
 	}
 
+	pushScanCtx := schedCtx
+	pushSlotScanner := &pushpkg.SlotScanner{Cache: redisCache}
+	pushIntervalScheduler := scheduler.NewInterval(pushSlotScanner, scheduler.IntervalOptions{
+		Every: 15 * time.Minute,
+	})
+	pushIntervalScheduler.Start(pushScanCtx)
+	log.Printf("[main] push slot scanner started (every 15m, Phase 1 no-op)")
+
 	// Trap SIGINT/SIGTERM so we can stop the scheduler and drain HTTP cleanly.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -147,6 +158,7 @@ func main() {
 		if prewarmScheduler != nil {
 			go prewarmScheduler.Stop()
 		}
+		pushIntervalScheduler.Stop()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)

@@ -8,6 +8,7 @@ import {
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import type {NavigationState} from '@react-navigation/native';
 import {useNavigation, useRoute} from '@react-navigation/native';
+import {useQuery} from '@tanstack/react-query';
 import {LinearGradient} from 'expo-linear-gradient';
 import DateScreen from './DateScreen';
 import {fetchMatchesForLocalDate} from '../services/api';
@@ -21,6 +22,8 @@ import {MATCHES_BG, MATCHES_LIME, MATCHES_MUTED} from '../constants/matchesUi';
 import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 import {resolveHomeScreenDefaultLeague} from '../services/matchesDefaultLeague';
 import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
+import {matchesForLocalDateQueryKey} from '../queries/keys';
+import type {Match} from '../types/match';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -62,6 +65,8 @@ const getTabLabel = (date: Date): string => {
   return formatCalendarDay(date);
 };
 
+const MATCHES_STALE_MS = 5 * 60 * 1000;
+
 type DateTabScreenProps = {
   date: Date;
   searchQuery: string;
@@ -79,91 +84,26 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     (navigation.getState() as NavigationState).index
   ].name;
   const isSelected = route.name === currentRoute;
-  const [matches, setMatches] = React.useState<any[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const isLoadingRef = React.useRef(false);
 
-  const cacheKey = React.useMemo(
-    () => `${date.toISOString()}-${selectedLeague?.id || 'all'}`,
-    [date, selectedLeague?.id],
-  );
-  /** In-memory cache per date tab: (date ISO + league id) → matches. Survives league switching (e.g. EPL → La Liga → EPL). */
-  const matchesByKeyRef = React.useRef<Map<string, any[]>>(new Map());
-
-  React.useEffect(() => {
-    if (!selectedLeague) {
-      return;
-    }
-
-    const cached = matchesByKeyRef.current.get(cacheKey);
-
-    /** Inactive tab: keep list in sync with (date + league) so we never flash another league after switching strip on a different day tab. */
-    if (!isSelected) {
-      if (cached !== undefined) {
-        setMatches(cached);
-      } else {
-        setMatches([]);
+  const leagueId = selectedLeague?.id ?? 0;
+  const {data: matches = [], isLoading} = useQuery({
+    queryKey: matchesForLocalDateQueryKey(date, leagueId),
+    queryFn: async () => {
+      if (!selectedLeague) {
+        return [];
       }
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      return;
-    }
-
-    if (cached !== undefined) {
-      setMatches(cached);
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      return;
-    }
-
-    isLoadingRef.current = true;
-    setIsLoading(true);
-    setMatches([]);
-
-    const currentCacheKey = cacheKey;
-    const currentLeague = selectedLeague;
-
-    const timeoutId = setTimeout(() => {
-      if (currentCacheKey !== cacheKey || !isSelected) {
-        isLoadingRef.current = false;
-        setIsLoading(false);
-        return;
-      }
-
-      const hitWhileWaiting = matchesByKeyRef.current.get(currentCacheKey);
-      if (hitWhileWaiting !== undefined) {
-        setMatches(hitWhileWaiting);
-        isLoadingRef.current = false;
-        setIsLoading(false);
-        return;
-      }
-
-      fetchMatchesForLocalDate(
+      const rows = await fetchMatchesForLocalDate(
         date,
-        currentLeague.id,
-        seasonParamForMatchSearch(currentLeague, date),
-      )
-        .then(data => {
-          if (currentCacheKey === cacheKey && data) {
-            matchesByKeyRef.current.set(currentCacheKey, data);
-            setMatches(data);
-          }
-        })
-        .catch(error => {
-          console.error('Error loading matches:', error);
-        })
-        .finally(() => {
-          if (currentCacheKey === cacheKey) {
-            isLoadingRef.current = false;
-            setIsLoading(false);
-          }
-        });
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [isSelected, date, selectedLeague, cacheKey]);
+        selectedLeague.id,
+        seasonParamForMatchSearch(selectedLeague, date),
+      );
+      return rows ?? [];
+    },
+    enabled: Boolean(selectedLeague) && isSelected,
+    staleTime: MATCHES_STALE_MS,
+    gcTime: 15 * 60 * 1000,
+    placeholderData: previous => previous,
+  });
 
   const filteredMatches = React.useMemo(() => {
     if (!searchQuery) return matches;
@@ -181,7 +121,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     <DateScreen
       date={date}
       isSelected={isSelected}
-      matches={filteredMatches}
+      matches={filteredMatches as unknown as Match[]}
       isLoading={isLoading}
     />
   );

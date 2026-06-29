@@ -1,0 +1,150 @@
+openapi: 3.0.3
+info:
+  title: Fucci Push Notifications API
+  version: 0.1.0
+  description: Phase 1 — device registration and preferences (authenticated).
+
+paths:
+  /push/devices:
+    post:
+      summary: Register or update an Expo push device
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPushDeviceRequest'
+      responses:
+        '200':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushDevice'
+        '400':
+          description: Invalid token or payload
+        '401':
+          description: Unauthorized
+
+  /push/devices/{deviceId}:
+    delete:
+      summary: Unregister a push device
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found or not owned by user
+
+  /push/preferences:
+    get:
+      summary: Get push notification preferences
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushPreferences'
+    put:
+      summary: Update push notification preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePushPreferencesRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushPreferences'
+
+  /push/test:
+    post:
+      summary: Send a test notification to caller's devices (admin or staging)
+      security:
+        - bearerAuth: []
+      responses:
+        '202':
+          description: Accepted for delivery
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    RegisterPushDeviceRequest:
+      type: object
+      required:
+        - expo_push_token
+        - platform
+        - timezone
+      properties:
+        expo_push_token:
+          type: string
+          example: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+        platform:
+          type: string
+          enum: [ios, android]
+        timezone:
+          type: string
+          example: America/New_York
+        app_version:
+          type: string
+
+    PushDevice:
+      type: object
+      properties:
+        id:
+          type: integer
+        expo_push_token:
+          type: string
+        platform:
+          type: string
+        timezone:
+          type: string
+        enabled:
+          type: boolean
+        last_seen_at:
+          type: string
+          format: date-time
+
+    PushPreferences:
+      type: object
+      properties:
+        master_enabled:
+          type: boolean
+        debates_enabled:
+          type: boolean
+        news_enabled:
+          type: boolean
+        matches_enabled:
+          type: boolean
+
+    UpdatePushPreferencesRequest:
+      type: object
+      properties:
+        master_enabled:
+          type: boolean
+        debates_enabled:
+          type: boolean
+        news_enabled:
+          type: boolean
+        matches_enabled:
+          type: boolean

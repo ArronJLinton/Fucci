@@ -16,7 +16,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Fucci to access your camera to take profile photos.",
         "NSPhotoLibraryUsageDescription": "Allow Fucci to access your photo library to choose profile photos.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationsUsageDescription": "Allow Fucci to send match, news, and debate alerts you opt into."
       }
     },
     "android": {
@@ -63,6 +64,13 @@
         "expo-screen-orientation",
         {
           "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#c7f349"
         }
       ]
     ],

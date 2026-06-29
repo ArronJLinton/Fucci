@@ -9,6 +9,13 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/news"
 )
 
+func emptyMatchNewsResponse() news.MatchNewsAPIResponse {
+	return news.MatchNewsAPIResponse{
+		Articles: []news.NewsArticle{},
+		Cached:   false,
+	}
+}
+
 // getFootballNews handles GET /api/news/football
 // Fetches football news from the configured news provider with caching
 func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +102,12 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if c.newsXAPIKey() == "" {
+		log.Printf("match news: NEWS_API_KEY/RAPID_API_KEY not configured; returning empty articles for match %s", matchID)
+		respondWithJSON(w, http.StatusOK, emptyMatchNewsResponse())
+		return
+	}
+
 	// Parse matchEndTime for completed matches (optional; nil when missing or invalid)
 	var matchEndTime *time.Time
 	if matchEndTimeStr != "" {
@@ -122,24 +135,23 @@ func (c *Config) getMatchNews(w http.ResponseWriter, r *http.Request) {
 		cache.NewsTTL,
 	)
 	if err != nil {
-		log.Printf("Failed to fetch match news: %v", err)
+		log.Printf("Failed to fetch match news for match %s: %v", matchID, err)
 
-		// Attempt a last-ditch read of any stale cached payload so clients see *something*.
+		// Serve stale cache when upstream is down so match details still show prior headlines.
 		cacheKey := news.GenerateMatchCacheKey(matchID, matchStatus, matchEndTimeStr)
 		var stale news.MatchNewsAPIResponse
 		if c.Cache != nil {
 			if exists, _ := c.Cache.Exists(ctx, cacheKey); exists {
-				if getErr := c.Cache.Get(ctx, cacheKey, &stale); getErr == nil {
-					if stale.CachedAt != "" {
-						stale.Cached = true
-						respondWithJSON(w, http.StatusServiceUnavailable, stale)
-						return
-					}
+				if getErr := c.Cache.Get(ctx, cacheKey, &stale); getErr == nil && stale.CachedAt != "" {
+					stale.Cached = true
+					respondWithJSON(w, http.StatusOK, stale)
+					return
 				}
 			}
 		}
 
-		respondWithError(w, http.StatusInternalServerError, "Failed to fetch match news from external API")
+		log.Printf("match news: upstream unavailable for match %s; returning empty articles", matchID)
+		respondWithJSON(w, http.StatusOK, emptyMatchNewsResponse())
 		return
 	}
 

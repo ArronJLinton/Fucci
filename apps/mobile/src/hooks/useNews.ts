@@ -1,6 +1,7 @@
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {fetchFootballNews} from '../services/newsService';
 import type {NewsAPIResponse} from '../types/news';
+import {newsFootballQueryKey} from '../queries/keys';
 
 /**
  * Custom hook for fetching and managing news data
@@ -13,7 +14,7 @@ export function useNews() {
 
   const {data, isLoading, error, refetch, isRefetching} =
     useQuery<NewsAPIResponse>({
-      queryKey: ['news', 'football'],
+      queryKey: newsFootballQueryKey,
       queryFn: async () => {
         try {
           console.log('[useNews] Fetching football news...');
@@ -36,7 +37,7 @@ export function useNews() {
    * @param refetchAfterClear - If true, refetches data after clearing cache
    */
   const clearCache = async (refetchAfterClear: boolean = false) => {
-    queryClient.removeQueries({queryKey: ['news', 'football']});
+    queryClient.removeQueries({queryKey: newsFootballQueryKey});
     console.log('[useNews] Cleared news cache');
     if (refetchAfterClear) {
       await refetch();
@@ -47,7 +48,7 @@ export function useNews() {
    * Invalidate the news cache (marks as stale and triggers refetch)
    */
   const invalidateCache = () => {
-    queryClient.invalidateQueries({queryKey: ['news', 'football']});
+    queryClient.invalidateQueries({queryKey: newsFootballQueryKey});
     console.log('[useNews] Invalidated news cache');
   };
 

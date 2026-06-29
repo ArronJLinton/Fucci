@@ -1,0 +1,104 @@
+import {useCallback, useEffect, useState} from 'react';
+import {Alert} from 'react-native';
+import {useAuth} from '../context/AuthContext';
+import {
+  getPushPreferences,
+  updatePushPreferences,
+  firePushWelcomeTest,
+  type PushPreferences,
+} from '../services/pushApi';
+import {registerPushWithBackend} from '../services/pushRegistration';
+import {
+  defaultPushPreferences,
+  enabledPushPreferences,
+  setPushOptedIn,
+} from '../services/pushOptIn';
+import {userFacingApiMessage} from '../services/api';
+
+export function usePushPreferences() {
+  const {token, isLoggedIn} = useAuth();
+  const [prefs, setPrefs] = useState<PushPreferences>(defaultPushPreferences);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadPrefs = useCallback(async () => {
+    if (!token) {
+      setPrefs(defaultPushPreferences);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await getPushPreferences(token);
+      setPrefs(data);
+      await setPushOptedIn(data.master_enabled);
+    } catch (e) {
+      console.warn('[push] load preferences', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadPrefs();
+  }, [loadPrefs]);
+
+  const persistPrefs = useCallback(
+    async (next: PushPreferences) => {
+      if (!token) {
+        Alert.alert('Sign in', 'Log in to manage push notifications.');
+        return false;
+      }
+      setSaving(true);
+      try {
+        const saved = await updatePushPreferences(token, next);
+        setPrefs(saved);
+        await setPushOptedIn(saved.master_enabled);
+        return true;
+      } catch (e) {
+        Alert.alert('Notifications', userFacingApiMessage(e));
+        await loadPrefs();
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [token, loadPrefs],
+  );
+
+  const handleMasterToggle = useCallback(
+    async (enabled: boolean) => {
+      if (!token) {
+        Alert.alert('Sign in', 'Log in to manage push notifications.');
+        return;
+      }
+      if (enabled) {
+        const device = await registerPushWithBackend(token);
+        if (!device) {
+          Alert.alert(
+            'Permission required',
+            'Enable notifications in system settings to receive alerts.',
+          );
+          return;
+        }
+      }
+      const next: PushPreferences = enabled
+        ? enabledPushPreferences
+        : defaultPushPreferences;
+      setPrefs(next);
+      const ok = await persistPrefs(next);
+      if (ok && enabled) {
+        void firePushWelcomeTest(token);
+      }
+    },
+    [token, persistPrefs],
+  );
+
+  return {
+    prefs,
+    loading,
+    saving,
+    isLoggedIn,
+    loadPrefs,
+    handleMasterToggle,
+  };
+}

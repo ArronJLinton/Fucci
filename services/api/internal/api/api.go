@@ -12,6 +12,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/ArronJLinton/fucci-api/internal/push"
 	"github.com/ArronJLinton/fucci-api/internal/youtube"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
@@ -38,6 +39,19 @@ type DebatesFeedStore interface {
 	ListDebatesPublicFeed(ctx context.Context, limit int32) ([]database.ListDebatesPublicFeedRow, error)
 	ListDebatesFeedNewForUser(ctx context.Context, arg database.ListDebatesFeedNewForUserParams) ([]database.ListDebatesFeedNewForUserRow, error)
 	ListDebatesFeedVotedForUser(ctx context.Context, arg database.ListDebatesFeedVotedForUserParams) ([]database.ListDebatesFeedVotedForUserRow, error)
+}
+
+// PushStore is the DB surface for /push/* handlers.
+// *database.Queries implements it; PushDB on Config overrides for unit tests.
+type PushStore interface {
+	EnsurePushPreferences(ctx context.Context, userID int32) (database.PushPreferences, error)
+	ListPushDevicesForUser(ctx context.Context, userID int32) ([]database.PushDevices, error)
+	DeleteOldestPushDeviceForUser(ctx context.Context, userID int32) error
+	UpsertPushDevice(ctx context.Context, arg database.UpsertPushDeviceParams) (database.PushDevices, error)
+	GetPushDeviceByIDForUser(ctx context.Context, arg database.GetPushDeviceByIDForUserParams) (database.PushDevices, error)
+	DeletePushDeviceForUser(ctx context.Context, arg database.DeletePushDeviceForUserParams) error
+	GetPushPreferences(ctx context.Context, userID int32) (database.PushPreferences, error)
+	UpdatePushPreferences(ctx context.Context, arg database.UpdatePushPreferencesParams) (database.PushPreferences, error)
 }
 
 // PlayerProfileStore is the DB surface used by /api/player-profile handlers; *database.Queries implements it.
@@ -102,6 +116,7 @@ type Config struct {
 	CommentReader   CommentReader
 	DebatesFeedDB   DebatesFeedStore   // nil => use DB for debate feed GETs
 	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
+	PushDB          PushStore          // nil => use DB for /push/* routes
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
 	ProfileUpdateDB ProfileUpdatePersistence
@@ -119,6 +134,11 @@ type Config struct {
 
 	// MediaYouTubeChannelStore optional override for news media Shorts (unit tests only).
 	MediaYouTubeChannelStore youtube.MediaChannelStore
+
+	// Push notification pipeline (Phase 1).
+	ExpoAccessToken string
+	Environment     string
+	PushService     *push.Service // optional override for unit tests
 }
 
 // newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When trimmed NewsAPIKey
@@ -258,6 +278,14 @@ func New(c *Config) http.Handler {
 	commentsRouter.With(auth.RequireAuth).Post("/{commentId}/reactions", c.AddCommentReaction)
 	commentsRouter.With(auth.RequireAuth).Delete("/{commentId}/reactions", c.RemoveCommentReaction)
 
+	pushRouter := chi.NewRouter()
+	pushRouter.Use(auth.RequireAuth)
+	pushRouter.Post("/devices", c.handleRegisterPushDevice)
+	pushRouter.Delete("/devices/{deviceId}", c.handleDeletePushDevice)
+	pushRouter.Get("/preferences", c.handleGetPushPreferences)
+	pushRouter.Put("/preferences", c.handleUpdatePushPreferences)
+	pushRouter.Post("/test", c.handlePushTest)
+
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)
 	router.Mount("/player-profile", playerProfileRouter)
@@ -271,6 +299,7 @@ func New(c *Config) http.Handler {
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)
 	router.Mount("/leagues", leaguesRouter)
+	router.Mount("/push", pushRouter)
 	// Legacy /player-profiles and /verifications routes intentionally not mounted.
 	// Canonical profile surface is /player-profile (singular) + /player-profile/traits.
 
@@ -317,6 +346,17 @@ func (c *Config) googleVerifier() GoogleVerifier {
 func (c *Config) debatesFeedStore() DebatesFeedStore {
 	if c.DebatesFeedDB != nil {
 		return c.DebatesFeedDB
+	}
+	if c.DB == nil {
+		return nil
+	}
+	return c.DB
+}
+
+// pushStore returns the querier for push handlers (test mock or DB).
+func (c *Config) pushStore() PushStore {
+	if c.PushDB != nil {
+		return c.PushDB
 	}
 	if c.DB == nil {
 		return nil
