@@ -20,7 +20,6 @@ import {updateProfile} from '../services/auth';
 import {ApiRequestError, userFacingApiMessage} from '../services/api';
 import {uploadToCloudinary} from '../services/cloudinaryUpload';
 import ProfileGuestAuth from '../components/ProfileGuestAuth';
-import PushNotificationSettings from '../components/PushNotificationSettings';
 import {dispatchResetToMainProfileTab} from '../navigation/authNavigationActions';
 import type {ReturnToDebateParams} from '../types/navigation';
 
@@ -246,8 +245,6 @@ export default function AccountScreen({
               <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
           </View>
-
-          <PushNotificationSettings showHeader compact />
         </ScrollView>
       )}
     </>

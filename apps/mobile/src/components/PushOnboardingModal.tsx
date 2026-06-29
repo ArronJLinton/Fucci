@@ -80,7 +80,7 @@ export default function PushOnboardingModal({appIsReady}: Props) {
           <Text style={styles.title}>Never miss a moment</Text>
           <Text style={styles.body}>
             Get daily debate picks, breaking news, and match alerts during the
-            World Cup. You can change this anytime in Profile or Settings.
+            World Cup. You can change this anytime in Settings.
           </Text>
 
           <TouchableOpacity
