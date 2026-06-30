@@ -24,8 +24,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
+# Install ca-certificates for HTTPS and tzdata for IANA timezone validation (push registration)
+RUN apk --no-cache add ca-certificates tzdata
 
 # Copy the API binary and the migration binary
 COPY --from=builder /app/main .

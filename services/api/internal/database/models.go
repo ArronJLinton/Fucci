@@ -208,6 +208,48 @@ type PlayerProfileTrait struct {
 	TraitCode       string
 }
 
+type PushDeliveryLog struct {
+	ID           int32
+	UserID       int32
+	PushDeviceID sql.NullInt32
+	CampaignKey  string
+	Title        string
+	ExpoTicketID sql.NullString
+	Status       string
+	ErrorMessage sql.NullString
+	CreatedAt    time.Time
+}
+
+type PushDevices struct {
+	ID            int32
+	UserID        int32
+	ExpoPushToken string
+	Platform      string
+	Timezone      string
+	AppVersion    sql.NullString
+	Enabled       bool
+	LastSeenAt    time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type PushPreferences struct {
+	UserID         int32
+	MasterEnabled  bool
+	DebatesEnabled bool
+	NewsEnabled    bool
+	MatchesEnabled bool
+	UpdatedAt      time.Time
+}
+
+type PushSendLedger struct {
+	ID          int32
+	UserID      int32
+	CampaignKey string
+	LocalDate   time.Time
+	SentAt      time.Time
+}
+
 type TeamManagers struct {
 	ID         uuid.UUID
 	UserID     int32

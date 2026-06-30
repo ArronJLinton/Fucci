@@ -1,11 +1,10 @@
-import React, {useState, useCallback} from 'react';
+import React, {useCallback} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -16,6 +15,8 @@ import Constants from 'expo-constants';
 import {useAuth} from '../context/AuthContext';
 import {dispatchResetToMainProfileTab} from '../navigation/authNavigationActions';
 import type {RootStackParamList} from '../types/navigation';
+import PushNotificationSettings from '../components/PushNotificationSettings';
+import {logoutWithPushCleanup} from '../hooks/usePushNotifications';
 
 const LIME = '#c7f349';
 const CYAN = '#22d3ee';
@@ -24,7 +25,6 @@ const CARD = '#0b1224';
 const CARD_BORDER = '#1f2937';
 const MUTED = '#64748b';
 const TEXT = '#e2e8f0';
-const ORANGE = '#f97316';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,11 +32,7 @@ const APP_NAME = 'FUCCI';
 
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
-  const {logout: authLogout, isLoggedIn} = useAuth();
-  // const [displayMode, setDisplayMode] = useState<'dark' | 'light'>('dark');
-  // const [matchAlerts, setMatchAlerts] = useState(true);
-  // const [latestNews, setLatestNews] = useState(true);
-  // const [socialPing, setSocialPing] = useState(false);
+  const {logout: authLogout, isLoggedIn, token} = useAuth();
 
   const appVersion =
     Constants.expoConfig?.version ??
@@ -50,21 +46,13 @@ export default function SettingsScreen() {
         text: 'Log out',
         style: 'destructive',
         onPress: async () => {
-          await authLogout();
+          await logoutWithPushCleanup(token, authLogout);
           navigation.goBack();
           dispatchResetToMainProfileTab();
         },
       },
     ]);
-  }, [authLogout, navigation]);
-
-  // const handleTerminateAccount = useCallback(() => {
-  //   Alert.alert(
-  //     'Terminate account?',
-  //     'This would permanently remove your account and data. This action is not available in the app yet — contact support if you need to delete your account.',
-  //     [{text: 'OK', style: 'default'}],
-  //   );
-  // }, []);
+  }, [authLogout, navigation, token]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -90,7 +78,6 @@ export default function SettingsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        {/* Account settings */}
         <SectionHeader icon="person" label="ACCOUNT SETTINGS" />
         <View style={styles.card}>
           <SettingsRow
@@ -126,90 +113,8 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Prefs */}
-        {/* <SectionHeader icon="sliders-outline" label="PREFS" />
-        <View style={styles.card}>
-          <Text style={styles.fieldLabel}>DISPLAY MODE</Text>
-          <View style={styles.segment}>
-            <TouchableOpacity
-              style={[
-                styles.segmentBtn,
-                displayMode === 'dark' && styles.segmentBtnActive,
-              ]}
-              onPress={() => setDisplayMode('dark')}
-              activeOpacity={0.85}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  displayMode === 'dark' && styles.segmentTextActive,
-                ]}>
-                DARK
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.segmentBtn,
-                displayMode === 'light' && styles.segmentBtnActive,
-              ]}
-              onPress={() => {
-                setDisplayMode('light');
-                Alert.alert(
-                  'Light mode',
-                  'Full light theme support is coming in a future update.',
-                );
-              }}
-              activeOpacity={0.85}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  displayMode === 'light' && styles.segmentTextActive,
-                ]}>
-                LIGHT
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <PushNotificationSettings showHeader />
 
-          <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
-            INTERFACE LANGUAGE
-          </Text>
-          <TouchableOpacity
-            style={styles.dropdown}
-            onPress={() =>
-              Alert.alert('Language', 'Additional languages coming soon.', [
-                {text: 'OK'},
-              ])
-            }
-            activeOpacity={0.85}>
-            <Text style={styles.dropdownText}>English (UK)</Text>
-            <Ionicons name="chevron-down" size={18} color={MUTED} />
-          </TouchableOpacity>
-        </View> */}
-
-        {/* Notifications */}
-        {/* <SectionHeader icon="notifications" label="NOTIFICATIONS" />
-        <Text style={styles.sectionHint}>
-          Control the pulse of your experience
-        </Text>
-        <View style={styles.card}>
-          <ToggleRow
-            label="MATCH ALERTS"
-            value={matchAlerts}
-            onValueChange={setMatchAlerts}
-          />
-          <ToggleRow
-            label="LATEST NEWS"
-            value={latestNews}
-            onValueChange={setLatestNews}
-          />
-          <ToggleRow
-            label="SOCIAL PING"
-            value={socialPing}
-            onValueChange={setSocialPing}
-            last
-          />
-        </View> */}
-
-        {/* Support */}
         <SectionHeader icon="help-circle" label="SUPPORT" />
         <View style={styles.card}>
           <SupportRow
@@ -237,19 +142,6 @@ export default function SettingsScreen() {
           />
         </View>
         <Text style={styles.version}>VERSION {appVersion}-FUCCI_BETA</Text>
-
-        {/* Critical zone */}
-        {/* <Text style={styles.criticalTitle}>CRITICAL ZONE</Text>
-        <Text style={styles.criticalCopy}>
-          Deactivating your account will result in the permanent loss of all
-          player stats and achievements.
-        </Text> */}
-        {/* <TouchableOpacity
-          style={styles.terminateBtn}
-          onPress={handleTerminateAccount}
-          activeOpacity={0.85}>
-          <Text style={styles.terminateText}>TERMINATE ACCOUNT</Text>
-        </TouchableOpacity> */}
 
         {isLoggedIn ? (
           <TouchableOpacity
@@ -322,31 +214,6 @@ function SupportRow({
   );
 }
 
-function ToggleRow({
-  label,
-  value,
-  onValueChange,
-  last,
-}: {
-  label: string;
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-  last?: boolean;
-}) {
-  return (
-    <View style={[styles.toggleRow, !last && styles.rowBorder]}>
-      <Text style={styles.toggleLabel}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{false: '#334155', true: 'rgba(199,243,73,0.45)'}}
-        thumbColor={value ? LIME : '#94a3b8'}
-        ios_backgroundColor="#334155"
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -394,25 +261,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
   },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  heroTitleLight: {
-    color: TEXT,
-  },
-  heroTitleAccent: {
-    color: LIME,
-  },
-  heroSub: {
-    marginTop: 8,
-    marginBottom: 24,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    color: MUTED,
-  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -425,12 +273,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.6,
     color: LIME,
-  },
-  sectionHint: {
-    fontSize: 12,
-    color: MUTED,
-    marginBottom: 10,
-    marginTop: -4,
   },
   card: {
     backgroundColor: CARD,
@@ -469,104 +311,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: TEXT,
   },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    color: MUTED,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  fieldLabelSpaced: {
-    marginTop: 18,
-  },
-  segment: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#020617',
-  },
-  segmentBtnActive: {
-    backgroundColor: LIME,
-  },
-  segmentText: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
-    color: TEXT,
-  },
-  segmentTextActive: {
-    color: '#0f172a',
-  },
-  dropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#020617',
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  dropdownText: {
-    fontSize: 15,
-    color: TEXT,
-    fontWeight: '600',
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-  },
-  toggleLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    color: TEXT,
-  },
   version: {
     fontSize: 10,
     letterSpacing: 1,
     color: MUTED,
     textAlign: 'center',
     marginBottom: 20,
-  },
-  criticalTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: ORANGE,
-    marginBottom: 8,
-  },
-  criticalCopy: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: MUTED,
-    marginBottom: 12,
-  },
-  terminateBtn: {
-    borderWidth: 1.5,
-    borderColor: ORANGE,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  terminateText: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    color: ORANGE,
   },
   logoutCta: {
     flexDirection: 'row',

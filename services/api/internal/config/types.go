@@ -36,4 +36,6 @@ type Config struct {
 	YOUTUBE_API_KEY string
 	// YOUTUBE_CACHE_TTL_HOURS overrides Redis TTL for youtube:shorts:* keys (default 24).
 	YOUTUBE_CACHE_TTL_HOURS int
+	// EXPO_ACCESS_TOKEN is the Expo account token for push API rate limits.
+	EXPO_ACCESS_TOKEN string
 }

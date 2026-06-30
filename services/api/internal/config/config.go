@@ -110,6 +110,7 @@ func InitConfig(logger *otelzap.Logger) Config {
 		PREWARM_LEAGUE_IDS:                 viper.GetString("prewarm_league_ids"),
 		YOUTUBE_API_KEY:                    viper.GetString("youtube_api_key"),
 		YOUTUBE_CACHE_TTL_HOURS:            viper.GetInt("youtube_cache_ttl_hours"),
+		EXPO_ACCESS_TOKEN:                  viper.GetString("expo_access_token"),
 	}
 
 	return cfg

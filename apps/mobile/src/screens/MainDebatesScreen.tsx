@@ -29,6 +29,7 @@ import {userFacingApiMessage} from '../services/api';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
 import {worldCupKeywordMatch} from '../utils/newsFilters';
+import {mainDebatesFeedQueryKey} from '../queries/keys';
 import DebateHeroSwipeCard, {
   type DebateHeroVoteFailedDetail,
   type DebateHeroVoteSuccessDetail,
@@ -218,17 +219,13 @@ const MainDebatesScreen = () => {
     return () => clearTimeout(t);
   }, [voteErrorToast]);
 
-  /** Segment feed cache per account; avoids showing another user's feed after switch. */
-  const mainDebatesFeedQueryKey = useMemo(
-    (): readonly ['mainDebatesFeed', number | 'guest' | 'auth'] =>
-      token
-        ? ['mainDebatesFeed', user?.id ?? 'auth']
-        : ['mainDebatesFeed', 'guest'],
+  const debatesFeedQueryKey = useMemo(
+    () => mainDebatesFeedQueryKey(token, user?.id),
     [token, user?.id],
   );
 
   const query = useQuery({
-    queryKey: mainDebatesFeedQueryKey,
+    queryKey: debatesFeedQueryKey,
     enabled: isReady,
     queryFn: async (): Promise<UnifiedFeed> => {
       if (token) {
@@ -361,7 +358,7 @@ const MainDebatesScreen = () => {
   const onHeroVoteOptimistic = useCallback(
     (detail: DebateHeroVoteSuccessDetail) => {
       queryClient.setQueryData<UnifiedFeed>(
-        mainDebatesFeedQueryKey,
+        debatesFeedQueryKey,
         old => {
           if (!old || old.kind !== 'auth') {
             return old;
@@ -386,7 +383,7 @@ const MainDebatesScreen = () => {
         },
       );
       const after = queryClient.getQueryData<UnifiedFeed>(
-        mainDebatesFeedQueryKey,
+        debatesFeedQueryKey,
       );
       const nextHeroId =
         after?.kind === 'auth' ? after.new_debates[0]?.id : undefined;
@@ -397,17 +394,17 @@ const MainDebatesScreen = () => {
         });
       }
     },
-    [queryClient, mainDebatesFeedQueryKey],
+    [queryClient, debatesFeedQueryKey],
   );
 
   const onHeroVoteConfirmed = useCallback(() => {
-    void queryClient.invalidateQueries({queryKey: mainDebatesFeedQueryKey});
-  }, [queryClient, mainDebatesFeedQueryKey]);
+    void queryClient.invalidateQueries({queryKey: debatesFeedQueryKey});
+  }, [queryClient, debatesFeedQueryKey]);
 
   const onHeroVoteFailed = useCallback(
     (failed: DebateHeroVoteFailedDetail) => {
       queryClient.setQueryData<UnifiedFeed>(
-        mainDebatesFeedQueryKey,
+        debatesFeedQueryKey,
         old => {
           if (!old || old.kind !== 'auth') {
             return old;
@@ -430,7 +427,7 @@ const MainDebatesScreen = () => {
       );
       setVoteErrorToast('Vote failed. Please try again.');
     },
-    [queryClient, mainDebatesFeedQueryKey],
+    [queryClient, debatesFeedQueryKey],
   );
 
   const newSectionEmpty = hero == null;

@@ -195,12 +195,90 @@ func TestGetMatchNews_UpstreamNewsFailure_NoCache(t *testing.T) {
 
 	config.getMatchNews(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("expected status 500 when API fails and no cache, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 with empty articles when API fails and no cache, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body news.MatchNewsAPIResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body.Articles) != 0 {
+		t.Errorf("expected empty articles, got %d", len(body.Articles))
 	}
 }
 
-// Match-news 503 with cached fallback is similarly unreachable (same flow as football news).
+func TestGetMatchNews_MissingAPIKey(t *testing.T) {
+	config := &Config{Cache: &MockCache{}}
+	req := httptest.NewRequest(http.MethodGet, "/news/football/match", nil)
+	req.URL.RawQuery = "homeTeam=France&awayTeam=Sweden&matchId=1565177&matchStatus=NS"
+	rec := httptest.NewRecorder()
+
+	config.getMatchNews(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 when API key missing, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body news.MatchNewsAPIResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body.Articles) != 0 {
+		t.Errorf("expected empty articles when API key missing, got %d", len(body.Articles))
+	}
+}
+
+func TestGetMatchNews_UpstreamFailure_StaleCache(t *testing.T) {
+	matchID := "123"
+	matchStatus := "NS"
+	cacheKey := news.GenerateMatchCacheKey(matchID, matchStatus, "")
+	staleBody := news.MatchNewsAPIResponse{
+		Articles: []news.NewsArticle{{ID: "1", Title: "Stale Headline", SourceURL: "https://example.com", SourceName: "S", PublishedAt: "2025-01-01T12:00:00Z", RelativeTime: "1 hour ago"}},
+		CachedAt: "2025-01-01T12:00:00Z",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	mockCache := &MockCache{
+		existsFunc: func(ctx context.Context, key string) (bool, error) {
+			return key == cacheKey, nil
+		},
+		getFunc: func(ctx context.Context, key string, value interface{}) error {
+			if key != cacheKey {
+				return nil
+			}
+			if ptr, ok := value.(*news.MatchNewsAPIResponse); ok {
+				*ptr = staleBody
+			}
+			return nil
+		},
+		setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error { return nil },
+	}
+	config := &Config{Cache: mockCache, RapidAPIKey: "key", NewsBaseURL: server.URL}
+	req := httptest.NewRequest(http.MethodGet, "/news/football/match", nil)
+	req.URL.RawQuery = "homeTeam=TeamA&awayTeam=TeamB&matchId=" + matchID + "&matchStatus=" + matchStatus
+	rec := httptest.NewRecorder()
+
+	config.getMatchNews(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 with stale cache on upstream failure, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body news.MatchNewsAPIResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !body.Cached {
+		t.Error("expected cached=true when serving stale cache")
+	}
+	if len(body.Articles) != 1 || body.Articles[0].Title != "Stale Headline" {
+		t.Errorf("expected stale article, got %+v", body.Articles)
+	}
+}
+
+// Upstream failure with no cache returns 200 and an empty articles slice (graceful degradation).
 
 func TestGetMatchNews_CacheMiss_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

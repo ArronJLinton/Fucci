@@ -1,4 +1,5 @@
 import {QueryClient} from '@tanstack/react-query';
+import {newsFootballQueryKey} from '../queries/keys';
 
 /**
  * React Query client configuration for news feed caching
@@ -36,7 +37,7 @@ export const clearAllCache = () => {
  * This marks the data as stale and triggers a refetch
  */
 export const invalidateNewsCache = () => {
-  queryClient.invalidateQueries({queryKey: ['news', 'football']});
+  queryClient.invalidateQueries({queryKey: newsFootballQueryKey});
   console.log('[Cache] Invalidated news cache');
 };
 
@@ -45,7 +46,7 @@ export const invalidateNewsCache = () => {
  * This removes the data without refetching
  */
 export const removeNewsCache = () => {
-  queryClient.removeQueries({queryKey: ['news', 'football']});
+  queryClient.removeQueries({queryKey: newsFootballQueryKey});
   console.log('[Cache] Removed news cache');
 };
 

@@ -52,6 +52,9 @@ import MatchTeamShortsScreen from './src/screens/MatchTeamShortsScreen';
 import type {RootStackParamList} from './src/types/navigation';
 import {prepareApp} from './src/bootstrap/prepareApp';
 import {useAppPortraitLock} from './src/hooks/useAppPortraitLock';
+import {usePushNotifications} from './src/hooks/usePushNotifications';
+import {useAuthCacheWarm} from './src/hooks/useAuthCacheWarm';
+import {usePushOnboarding} from './src/hooks/usePushOnboarding';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -389,6 +392,17 @@ const DebatesStack = () => {
   );
 };
 
+function PushNotificationsBootstrap({
+  appIsReady,
+}: {
+  appIsReady: boolean;
+}): null {
+  usePushNotifications();
+  useAuthCacheWarm();
+  usePushOnboarding(appIsReady);
+  return null;
+}
+
 function App(): React.JSX.Element {
   const [appIsReady, setAppIsReady] = useState(false);
   const [navState, setNavState] = useState<NavigationState | undefined>();
@@ -454,6 +468,7 @@ function App(): React.JSX.Element {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <AuthProvider>
+            <PushNotificationsBootstrap appIsReady={appIsReady} />
             <NavigationContainer
               ref={rootNavigationRef}
               onStateChange={onNavigationStateChange}

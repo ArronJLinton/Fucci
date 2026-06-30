@@ -1,17 +1,10 @@
-import {fetchDebatesPublicFeed} from '../services/debate';
-import {fetchFootballNews} from '../services/newsService';
+import {queryClient} from '../config/queryClient';
+import {warmAppCache} from './warmAppCache';
 
 /**
  * Runs before first paint (while native splash is held).
- * Extend with expo-font / asset preloads when needed.
+ * Seeds React Query with news, matches, team Shorts, media Shorts, and guest debates.
  */
 export async function prepareApp(): Promise<void> {
-  await Promise.all([
-    fetchFootballNews().catch(err => {
-      console.warn('[prepareApp] football news prefetch failed:', err);
-    }),
-    fetchDebatesPublicFeed(12).catch(err => {
-      console.warn('[prepareApp] debates public-feed prefetch failed:', err);
-    }),
-  ]);
+  await warmAppCache(queryClient);
 }
