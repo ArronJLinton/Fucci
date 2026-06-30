@@ -172,6 +172,22 @@ func main() {
 	pushIntervalScheduler.Start(pushScanCtx)
 	log.Printf("[main] push slot dispatcher started (every %s)", pushpkg.ScanInterval.Truncate(time.Second))
 
+	matchLeagueIDs := api.ParsePrewarmLeagueIDs(c.PREWARM_LEAGUE_IDS)
+	matchFTJob := &pushpkg.MatchFTJob{
+		Matches:      pushpkg.MatchFetcherFunc(apiCfg.LeagueMatchFixtures),
+		Shorts:       pushpkg.MediaShortsFunc(apiCfg.MediaOutletsShortsForPush),
+		Service:      pushService,
+		Store:        dbQueries,
+		Lock:         redisCache,
+		LeagueIDs:    matchLeagueIDs,
+		DelayAfterFT: pushpkg.DefaultDelayAfterFT,
+	}
+	matchFTScheduler := scheduler.NewInterval(matchFTJob, scheduler.IntervalOptions{
+		Every: pushpkg.MatchFTScanInterval,
+	})
+	matchFTScheduler.Start(pushScanCtx)
+	log.Printf("[main] push match FT job started (every %s, leagues=%v)", pushpkg.MatchFTScanInterval.Truncate(time.Second), matchLeagueIDs)
+
 	// Trap SIGINT/SIGTERM so we can stop the scheduler and drain HTTP cleanly.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -183,6 +199,7 @@ func main() {
 			go prewarmScheduler.Stop()
 		}
 		pushIntervalScheduler.Stop()
+		matchFTScheduler.Stop()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)

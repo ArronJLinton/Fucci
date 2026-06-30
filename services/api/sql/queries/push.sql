@@ -91,3 +91,19 @@ INNER JOIN push_devices pd ON pd.user_id = pp.user_id AND pd.enabled = true
 WHERE pp.master_enabled = true
   AND (pp.debates_enabled OR pp.news_enabled OR pp.matches_enabled)
 ORDER BY pp.user_id, pd.last_seen_at DESC;
+
+-- name: ListMatchPushCandidates :many
+SELECT DISTINCT ON (pp.user_id)
+    pp.user_id,
+    pd.timezone
+FROM push_preferences pp
+INNER JOIN push_devices pd ON pd.user_id = pp.user_id AND pd.enabled = true
+WHERE pp.master_enabled = true AND pp.matches_enabled = true
+ORDER BY pp.user_id, pd.last_seen_at DESC;
+
+-- name: CountMatchPushSendsForUserOnDate :one
+SELECT COUNT(*)::bigint AS count
+FROM push_send_ledger
+WHERE user_id = $1
+  AND local_date = $2
+  AND campaign_key LIKE 'match:%';

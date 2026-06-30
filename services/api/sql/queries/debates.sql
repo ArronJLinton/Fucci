@@ -307,11 +307,20 @@ LEFT JOIN (
 ) bbin ON bbin.debate_id = d.id
 ORDER BY last_voted_at DESC NULLS LAST;
 
--- Top unvoted debate by engagement for daily push (48h window, binary cards only).
+-- Top unvoted debate by boosted engagement for daily push (48h window, binary cards only).
+-- Boost: +100 engagement for top-25 FIFA teams, +50 for ranks 26–50 (via match_info team ids).
 -- name: GetTopUnvotedDebateForPush :one
 SELECT d.id, d.headline, d.match_id
 FROM debates d
 LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN LATERAL (
+    SELECT MIN(nr.fifa_rank) AS best_rank
+    FROM national_team_rankings nr
+    WHERE nr.team_id IN (
+        NULLIF(d.match_info->>'HomeTeamID', '')::int,
+        NULLIF(d.match_info->>'AwayTeamID', '')::int
+    )
+) ranks ON true
 WHERE d.deleted_at IS NULL
   AND d.created_at >= CURRENT_TIMESTAMP - INTERVAL '48 hours'
   AND EXISTS (
@@ -326,5 +335,13 @@ WHERE d.deleted_at IS NULL
       AND v.emoji IS NULL
     WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
   )
-ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+ORDER BY
+    COALESCE(da.engagement_score, 0)
+    + CASE
+        WHEN ranks.best_rank IS NULL THEN 0
+        WHEN ranks.best_rank <= 25 THEN 100
+        WHEN ranks.best_rank <= 50 THEN 50
+        ELSE 0
+      END DESC NULLS LAST,
+    d.created_at DESC
 LIMIT 1;

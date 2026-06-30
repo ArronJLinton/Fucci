@@ -11,6 +11,26 @@ import (
 	"time"
 )
 
+const countMatchPushSendsForUserOnDate = `-- name: CountMatchPushSendsForUserOnDate :one
+SELECT COUNT(*)::bigint AS count
+FROM push_send_ledger
+WHERE user_id = $1
+  AND local_date = $2
+  AND campaign_key LIKE 'match:%'
+`
+
+type CountMatchPushSendsForUserOnDateParams struct {
+	UserID    int32
+	LocalDate time.Time
+}
+
+func (q *Queries) CountMatchPushSendsForUserOnDate(ctx context.Context, arg CountMatchPushSendsForUserOnDateParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countMatchPushSendsForUserOnDate, arg.UserID, arg.LocalDate)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countPushDevicesForUser = `-- name: CountPushDevicesForUser :one
 SELECT COUNT(*)::bigint FROM push_devices
 WHERE user_id = $1
@@ -200,6 +220,44 @@ func (q *Queries) ListEnabledPushDevicesForUser(ctx context.Context, userID int3
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMatchPushCandidates = `-- name: ListMatchPushCandidates :many
+SELECT DISTINCT ON (pp.user_id)
+    pp.user_id,
+    pd.timezone
+FROM push_preferences pp
+INNER JOIN push_devices pd ON pd.user_id = pp.user_id AND pd.enabled = true
+WHERE pp.master_enabled = true AND pp.matches_enabled = true
+ORDER BY pp.user_id, pd.last_seen_at DESC
+`
+
+type ListMatchPushCandidatesRow struct {
+	UserID   int32
+	Timezone string
+}
+
+func (q *Queries) ListMatchPushCandidates(ctx context.Context) ([]ListMatchPushCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMatchPushCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMatchPushCandidatesRow
+	for rows.Next() {
+		var i ListMatchPushCandidatesRow
+		if err := rows.Scan(&i.UserID, &i.Timezone); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
