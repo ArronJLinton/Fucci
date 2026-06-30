@@ -61,6 +61,7 @@ func (s *Service) SendToUser(ctx context.Context, req SendRequest) error {
 		return err
 	}
 	if len(devices) == 0 {
+		log.Printf("[push] SendToUser user=%d campaign=%s: no enabled devices registered", req.UserID, req.CampaignKey)
 		return nil
 	}
 

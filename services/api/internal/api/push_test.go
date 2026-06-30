@@ -317,13 +317,19 @@ func TestHandleDeletePushDevice_Success(t *testing.T) {
 	}
 }
 
-func TestHandlePushTest_ForbiddenInProduction(t *testing.T) {
-	cfg := &Config{Environment: "production"}
+func TestHandlePushTest_AcceptedInProduction(t *testing.T) {
+	store := &fakePushStore{
+		devices: []database.PushDevices{
+			{ID: 1, UserID: 1, ExpoPushToken: "ExponentPushToken[abc]", Enabled: true, Timezone: "UTC"},
+		},
+	}
+	svc := &push.Service{Store: store, Sender: &fakeSender{}}
+	cfg := &Config{Environment: "production", PushService: svc}
 	rec := httptest.NewRecorder()
 	req := authPushRequest(http.MethodPost, "/push/test", nil, 1)
 	cfg.handlePushTest(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", rec.Code)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

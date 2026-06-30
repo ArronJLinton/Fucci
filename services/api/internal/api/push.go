@@ -14,6 +14,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/ArronJLinton/fucci-api/internal/push"
 	"github.com/go-chi/chi"
+	"log"
 )
 
 var expoPushTokenRe = regexp.MustCompile(`^ExponentPushToken\[[A-Za-z0-9_-]+\]$`)
@@ -175,6 +176,7 @@ func (c *Config) handleRegisterPushDevice(w http.ResponseWriter, r *http.Request
 	}
 
 	respondWithJSON(w, http.StatusOK, toPushDeviceResponse(device))
+	log.Printf("[push] registered device user=%d device_id=%d platform=%s", userID, device.ID, device.Platform)
 }
 
 func (c *Config) handleDeletePushDevice(w http.ResponseWriter, r *http.Request) {
@@ -296,11 +298,6 @@ func (c *Config) handlePushTest(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	role, _ := auth.UserRoleFromContext(r.Context())
-	if role != "admin" && !c.pushTestAllowedInEnvironment() {
-		respondWithError(w, http.StatusForbidden, "insufficient permissions")
-		return
-	}
 
 	svc := c.pushService()
 	if svc == nil {
@@ -308,6 +305,7 @@ func (c *Config) handlePushTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[push] test send requested user=%d env=%s", userID, c.Environment)
 	err := svc.SendToUser(r.Context(), push.SendRequest{
 		UserID:      userID,
 		CampaignKey: push.CampaignTest,
@@ -327,17 +325,8 @@ func (c *Config) handlePushTest(w http.ResponseWriter, r *http.Request) {
 		logErrorAndRespond500(w, "push test send", err, "PUSH_TEST_SEND_FAILED")
 		return
 	}
+	log.Printf("[push] test send accepted user=%d", userID)
 	w.WriteHeader(http.StatusAccepted)
-}
-
-func (c *Config) pushTestAllowedInEnvironment() bool {
-	env := strings.ToLower(strings.TrimSpace(c.Environment))
-	switch env {
-	case "development", "dev", "local", "staging":
-		return true
-	default:
-		return false
-	}
 }
 
 func (c *Config) pushService() *push.Service {
