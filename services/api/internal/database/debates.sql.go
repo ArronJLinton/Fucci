@@ -622,6 +622,42 @@ func (q *Queries) GetTopDebates(ctx context.Context, limit int32) ([]GetTopDebat
 	return items, nil
 }
 
+const getTopUnvotedDebateForPush = `-- name: GetTopUnvotedDebateForPush :one
+SELECT d.id, d.headline, d.match_id
+FROM debates d
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+WHERE d.deleted_at IS NULL
+  AND d.created_at >= CURRENT_TIMESTAMP - INTERVAL '48 hours'
+  AND EXISTS (
+    SELECT 1 FROM debate_cards dc0
+    WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree')
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM debate_cards dc
+    INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
+      AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
+    WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+  )
+ORDER BY da.engagement_score DESC NULLS LAST, d.created_at DESC
+LIMIT 1
+`
+
+type GetTopUnvotedDebateForPushRow struct {
+	ID       int32
+	Headline string
+	MatchID  string
+}
+
+// Top unvoted debate by engagement for daily push (48h window, binary cards only).
+func (q *Queries) GetTopUnvotedDebateForPush(ctx context.Context, userID sql.NullInt32) (GetTopUnvotedDebateForPushRow, error) {
+	row := q.db.QueryRowContext(ctx, getTopUnvotedDebateForPush, userID)
+	var i GetTopUnvotedDebateForPushRow
+	err := row.Scan(&i.ID, &i.Headline, &i.MatchID)
+	return i, err
+}
+
 const getUserSwipeVotesForCards = `-- name: GetUserSwipeVotesForCards :many
 SELECT id, debate_card_id, user_id, vote_type, emoji, created_at
 FROM votes

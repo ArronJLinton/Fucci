@@ -253,6 +253,57 @@ func (q *Queries) ListPushDevicesForUser(ctx context.Context, userID int32) ([]P
 	return items, nil
 }
 
+const listSlotCampaignCandidates = `-- name: ListSlotCampaignCandidates :many
+SELECT DISTINCT ON (pp.user_id)
+    pp.user_id,
+    pd.timezone,
+    pp.debates_enabled,
+    pp.news_enabled,
+    pp.matches_enabled
+FROM push_preferences pp
+INNER JOIN push_devices pd ON pd.user_id = pp.user_id AND pd.enabled = true
+WHERE pp.master_enabled = true
+  AND (pp.debates_enabled OR pp.news_enabled OR pp.matches_enabled)
+ORDER BY pp.user_id, pd.last_seen_at DESC
+`
+
+type ListSlotCampaignCandidatesRow struct {
+	UserID         int32
+	Timezone       string
+	DebatesEnabled bool
+	NewsEnabled    bool
+	MatchesEnabled bool
+}
+
+func (q *Queries) ListSlotCampaignCandidates(ctx context.Context) ([]ListSlotCampaignCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSlotCampaignCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSlotCampaignCandidatesRow
+	for rows.Next() {
+		var i ListSlotCampaignCandidatesRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Timezone,
+			&i.DebatesEnabled,
+			&i.NewsEnabled,
+			&i.MatchesEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const tryInsertPushSendLedger = `-- name: TryInsertPushSendLedger :one
 INSERT INTO push_send_ledger (user_id, campaign_key, local_date)
 VALUES ($1, $2, $3)

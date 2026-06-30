@@ -134,11 +134,11 @@ func TestSendToUser_Success(t *testing.T) {
 
 func TestCategoryEnabled(t *testing.T) {
 	t.Parallel()
-	prefs := database.PushPreferences{MasterEnabled: true, MatchesEnabled: true}
-	if !categoryEnabled(prefs, "matches") {
+	prefs := userPrefView{MatchesEnabled: true}
+	if !categoryEnabled(prefs, CategoryMatches) {
 		t.Fatal("matches should be enabled")
 	}
-	if categoryEnabled(prefs, "news") {
+	if categoryEnabled(prefs, CategoryNews) {
 		t.Fatal("news should be disabled")
 	}
 	if !categoryEnabled(prefs, "") {

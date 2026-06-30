@@ -20,65 +20,19 @@ func emptyMatchNewsResponse() news.MatchNewsAPIResponse {
 // Fetches football news from the configured news provider with caching
 func (c *Config) getFootballNews(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// Generate cache key
-	cacheKey := news.GenerateCacheKey()
-
-	// Try to get from cache first
-	var cachedResponse news.NewsAPIResponse
-	exists, err := c.Cache.Exists(ctx, cacheKey)
-	if err != nil {
-		log.Printf("Cache check error: %v\n", err)
-	} else if exists {
-		err = c.Cache.Get(ctx, cacheKey, &cachedResponse)
-		if err == nil {
-			cachedResponse.Cached = true
-			respondWithJSON(w, http.StatusOK, cachedResponse)
-			return
-		}
-		log.Printf("Cache get error: %v\n", err)
-		exists = false // no usable cached data for fallback
-	}
-
-	// Create news client (optional custom base URL for tests)
 	k := c.newsXAPIKey()
 	newsClient := news.NewClient(k)
 	if c.NewsBaseURL != "" {
 		newsClient = news.NewClientWithBaseURL(k, c.NewsBaseURL)
 	}
 
-	todayAndHistoryResp, err := newsClient.FetchTodayAndHistoryNews(ctx)
+	transformedResponse, fromCache, err := news.GetFootballNewsCached(ctx, c.Cache, newsClient, cache.NewsTTL)
 	if err != nil {
 		log.Printf("Failed to fetch news: %v", err)
-
-		// If we have cached data, return it even if stale
-		if exists {
-			cachedResponse.Cached = true
-			respondWithJSON(w, http.StatusServiceUnavailable, cachedResponse)
-			return
-		}
-
-		// No cached data available, return error
 		respondWithError(w, http.StatusInternalServerError, "Failed to fetch news from external API")
 		return
 	}
-
-	// Transform both responses to internal format
-	transformedResponse, err := news.TransformTodayAndHistoryResponse(todayAndHistoryResp)
-	if err != nil {
-		log.Printf("Failed to transform news response: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to process news data")
-		return
-	}
-
-	// Cache the response for 15 minutes (store the original cached timestamp)
-	transformedResponse.CachedAt = time.Now().UTC().Format(time.RFC3339)
-	err = c.Cache.Set(ctx, cacheKey, transformedResponse, cache.NewsTTL)
-	if err != nil {
-		log.Printf("Cache set error: %v\n", err)
-		// Continue even if caching fails
-	}
-	// Return the response
-	transformedResponse.Cached = false
+	transformedResponse.Cached = fromCache
 	respondWithJSON(w, http.StatusOK, transformedResponse)
 }
 

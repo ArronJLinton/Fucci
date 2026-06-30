@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/config"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/ArronJLinton/fucci-api/internal/news"
 	pushpkg "github.com/ArronJLinton/fucci-api/internal/push"
 	"github.com/ArronJLinton/fucci-api/internal/scheduler"
 	"github.com/go-chi/chi"
@@ -141,12 +143,34 @@ func main() {
 	}
 
 	pushScanCtx := schedCtx
-	pushSlotScanner := &pushpkg.SlotScanner{Cache: redisCache}
-	pushIntervalScheduler := scheduler.NewInterval(pushSlotScanner, scheduler.IntervalOptions{
-		Every: 15 * time.Minute,
+	pushService := &pushpkg.Service{
+		Store:  dbQueries,
+		Sender: &pushpkg.Client{Token: c.EXPO_ACCESS_TOKEN},
+	}
+	newsKey := strings.TrimSpace(c.NEWS_API_KEY)
+	if newsKey == "" {
+		newsKey = strings.TrimSpace(c.RAPID_API_KEY)
+	}
+	newsClient := news.NewClient(newsKey)
+	if apiCfg.NewsBaseURL != "" {
+		newsClient = news.NewClientWithBaseURL(newsKey, apiCfg.NewsBaseURL)
+	}
+	newsFeed := news.NewRankedFeed(redisCache, newsClient, cache.NewsTTL, pushpkg.ScanInterval)
+	pushDispatcher := pushpkg.NewDispatcher(pushpkg.DispatcherConfig{
+		Service: pushService,
+		Store:   dbQueries,
+		Lock:    redisCache,
+		Campaigns: pushpkg.RegisteredCampaigns(pushpkg.CampaignDeps{
+			NewsFeed:  newsFeed,
+			NewsOpens: dbQueries,
+			Debates:   pushpkg.DebateDB{Q: dbQueries},
+		}),
+	})
+	pushIntervalScheduler := scheduler.NewInterval(pushDispatcher, scheduler.IntervalOptions{
+		Every: pushpkg.ScanInterval,
 	})
 	pushIntervalScheduler.Start(pushScanCtx)
-	log.Printf("[main] push slot scanner started (every 15m, Phase 1 no-op)")
+	log.Printf("[main] push slot dispatcher started (every %s)", pushpkg.ScanInterval.Truncate(time.Second))
 
 	// Trap SIGINT/SIGTERM so we can stop the scheduler and drain HTTP cleanly.
 	sigCh := make(chan os.Signal, 1)

@@ -285,6 +285,7 @@ func New(c *Config) http.Handler {
 	pushRouter.Get("/preferences", c.handleGetPushPreferences)
 	pushRouter.Put("/preferences", c.handleUpdatePushPreferences)
 	pushRouter.Post("/test", c.handlePushTest)
+	pushRouter.Post("/news/opens", c.handleRecordNewsArticleOpen)
 
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)

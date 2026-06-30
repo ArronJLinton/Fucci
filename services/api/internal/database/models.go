@@ -172,6 +172,12 @@ type MediaYoutubeChannels struct {
 	UpdatedAt     time.Time
 }
 
+type NewsArticleOpens struct {
+	UserID     int32
+	ArticleUrl string
+	OpenedAt   time.Time
+}
+
 type PlayerProfile struct {
 	ID          int32
 	UserID      int32
