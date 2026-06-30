@@ -39,12 +39,15 @@ describe('pushOptIn', () => {
   it('acceptPushOnboarding with auth token registers and enables all prefs', async () => {
     jest.spyOn(pushRegistration, 'requestPushPermission').mockResolvedValue(true);
     jest.spyOn(pushRegistration, 'registerPushWithBackend').mockResolvedValue({
-      id: 1,
-      expo_push_token: 'ExponentPushToken[abc]',
-      platform: 'ios',
-      timezone: 'UTC',
-      enabled: true,
-      last_seen_at: new Date().toISOString(),
+      ok: true,
+      device: {
+        id: 1,
+        expo_push_token: 'ExponentPushToken[abc]',
+        platform: 'ios',
+        timezone: 'UTC',
+        enabled: true,
+        last_seen_at: new Date().toISOString(),
+      },
     });
     jest.spyOn(pushApi, 'updatePushPreferences').mockResolvedValue(enabledPushPreferences);
     jest.spyOn(pushApi, 'firePushWelcomeTest').mockResolvedValue(undefined);

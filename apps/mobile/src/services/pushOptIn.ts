@@ -68,8 +68,8 @@ export async function enablePushForUser(
   if (!granted) {
     return false;
   }
-  const device = await registerPushWithBackend(authToken);
-  if (!device) {
+  const registration = await registerPushWithBackend(authToken);
+  if (!registration.ok) {
     return false;
   }
   await updatePushPreferences(authToken, prefs);
@@ -115,6 +115,6 @@ export async function completePendingPushOptIn(
   if (pending) {
     return enablePushForUser(authToken);
   }
-  const device = await registerPushWithBackend(authToken);
-  return device != null;
+  const registration = await registerPushWithBackend(authToken);
+  return registration.ok;
 }

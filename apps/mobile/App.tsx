@@ -54,7 +54,7 @@ import {prepareApp} from './src/bootstrap/prepareApp';
 import {useAppPortraitLock} from './src/hooks/useAppPortraitLock';
 import {usePushNotifications} from './src/hooks/usePushNotifications';
 import {useAuthCacheWarm} from './src/hooks/useAuthCacheWarm';
-import PushOnboardingModal from './src/components/PushOnboardingModal';
+import {usePushOnboarding} from './src/hooks/usePushOnboarding';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -396,10 +396,11 @@ function PushNotificationsBootstrap({
   appIsReady,
 }: {
   appIsReady: boolean;
-}): React.JSX.Element {
+}): null {
   usePushNotifications();
   useAuthCacheWarm();
-  return <PushOnboardingModal appIsReady={appIsReady} />;
+  usePushOnboarding(appIsReady);
+  return null;
 }
 
 function App(): React.JSX.Element {

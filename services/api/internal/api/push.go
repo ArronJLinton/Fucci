@@ -91,13 +91,20 @@ func validatePushPlatform(platform string) bool {
 	}
 }
 
-func validateTimezone(tz string) bool {
+// normalizeTimezone returns a valid IANA name for storage, or "UTC" if lookup fails.
+func normalizeTimezone(tz string) string {
 	tz = strings.TrimSpace(tz)
 	if tz == "" {
-		return false
+		return "UTC"
 	}
-	_, err := time.LoadLocation(tz)
-	return err == nil
+	if tz == "UTC" {
+		return "UTC"
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		log.Printf("[push] invalid or unknown timezone %q, defaulting to UTC: %v", tz, err)
+		return "UTC"
+	}
+	return tz
 }
 
 func (c *Config) handleRegisterPushDevice(w http.ResponseWriter, r *http.Request) {
@@ -124,10 +131,7 @@ func (c *Config) handleRegisterPushDevice(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusBadRequest, "platform must be ios or android")
 		return
 	}
-	if !validateTimezone(req.Timezone) {
-		respondWithError(w, http.StatusBadRequest, "invalid IANA timezone")
-		return
-	}
+	req.Timezone = normalizeTimezone(req.Timezone)
 	if c.pushStore() == nil {
 		respondWithError(w, http.StatusInternalServerError, "database unavailable")
 		return

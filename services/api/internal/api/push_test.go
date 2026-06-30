@@ -204,12 +204,15 @@ func TestValidatePushPlatform(t *testing.T) {
 	}
 }
 
-func TestValidateTimezone(t *testing.T) {
-	if !validateTimezone("America/New_York") {
-		t.Fatal("expected valid timezone")
+func TestNormalizeTimezone(t *testing.T) {
+	if got := normalizeTimezone("America/New_York"); got != "America/New_York" {
+		t.Fatalf("expected America/New_York, got %q", got)
 	}
-	if validateTimezone("Not/A_Real_Zone") {
-		t.Fatal("expected invalid timezone")
+	if got := normalizeTimezone("Not/A_Real_Zone"); got != "UTC" {
+		t.Fatalf("expected UTC for unknown zone, got %q", got)
+	}
+	if got := normalizeTimezone(""); got != "UTC" {
+		t.Fatalf("expected UTC for empty, got %q", got)
 	}
 }
 

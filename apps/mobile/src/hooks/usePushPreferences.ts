@@ -75,12 +75,9 @@ export function usePushPreferences() {
         return;
       }
       if (enabled) {
-        const device = await registerPushWithBackend(token);
-        if (!device) {
-          Alert.alert(
-            'Permission required',
-            'Enable notifications in system settings to receive alerts.',
-          );
+        const registration = await registerPushWithBackend(token);
+        if (!registration.ok) {
+          Alert.alert('Notifications', registration.message);
           return;
         }
       }
