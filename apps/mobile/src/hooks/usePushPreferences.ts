@@ -7,7 +7,10 @@ import {
   firePushWelcomeTest,
   type PushPreferences,
 } from '../services/pushApi';
-import {registerPushWithBackend} from '../services/pushRegistration';
+import {
+  registerPushWithBackend,
+  unregisterPushFromBackend,
+} from '../services/pushRegistration';
 import {
   defaultPushPreferences,
   enabledPushPreferences,
@@ -86,9 +89,14 @@ export function usePushPreferences() {
         : defaultPushPreferences;
       setPrefs(next);
       const ok = await persistPrefs(next);
-      if (ok && enabled) {
-        void firePushWelcomeTest(token);
+      if (!ok) {
+        return;
       }
+      if (enabled) {
+        void firePushWelcomeTest(token);
+        return;
+      }
+      await unregisterPushFromBackend(token);
     },
     [token, persistPrefs],
   );

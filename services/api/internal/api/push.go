@@ -318,8 +318,6 @@ func (c *Config) handlePushTest(w http.ResponseWriter, r *http.Request) {
 				"url": "https://www.fifa.com",
 			},
 		},
-		SkipPrefs:  true,
-		SkipDedupe: true,
 	})
 	if err != nil {
 		logErrorAndRespond500(w, "push test send", err, "PUSH_TEST_SEND_FAILED")

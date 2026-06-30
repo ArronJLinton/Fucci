@@ -349,6 +349,36 @@ func TestHandlePushTest_AcceptedInDevelopment(t *testing.T) {
 	}
 }
 
+func TestHandlePushTest_RespectsPrefsAndDedupe(t *testing.T) {
+	store := &fakePushStore{
+		devices: []database.PushDevices{
+			{ID: 1, UserID: 1, ExpoPushToken: "ExponentPushToken[abc]", Enabled: true, Timezone: "UTC"},
+		},
+		prefs: database.PushPreferences{UserID: 1, MasterEnabled: true},
+	}
+	svc := &push.Service{Store: store, Sender: &fakeSender{}}
+	cfg := &Config{Environment: "production", PushService: svc}
+
+	for i := 0; i < 2; i++ {
+		rec := httptest.NewRecorder()
+		req := authPushRequest(http.MethodPost, "/push/test", nil, 1)
+		cfg.handlePushTest(rec, req)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d body=%s", rec.Code, rec.Body.String())
+		}
+	}
+
+	if len(store.deliveryLog) != 2 {
+		t.Fatalf("expected 2 delivery log entries, got %+v", store.deliveryLog)
+	}
+	if store.deliveryLog[0].Status != "sent" {
+		t.Fatalf("expected first test push to send, got %+v", store.deliveryLog[0])
+	}
+	if store.deliveryLog[1].Status != "skipped_dedupe" {
+		t.Fatalf("expected second test push to dedupe, got %+v", store.deliveryLog[1])
+	}
+}
+
 func TestPushService_SkipsWhenMasterDisabled(t *testing.T) {
 	store := &fakePushStore{
 		devices: []database.PushDevices{
@@ -357,7 +387,7 @@ func TestPushService_SkipsWhenMasterDisabled(t *testing.T) {
 		prefs: database.PushPreferences{UserID: 7, MasterEnabled: false},
 	}
 	svc := &push.Service{
-		Store: store,
+		Store:  store,
 		Sender: &fakeSender{},
 	}
 	err := svc.SendToUser(context.Background(), push.SendRequest{

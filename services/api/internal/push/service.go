@@ -13,7 +13,6 @@ import (
 
 const (
 	CampaignTest = "test:manual"
-	maxDevicesPerUser = 5
 )
 
 // Store is the DB surface used by Service.
