@@ -180,7 +180,7 @@ func categoryEnabled(prefs database.PushPreferences, category string) bool {
 	case "":
 		return true
 	default:
-		return true
+		return false
 	}
 }
 

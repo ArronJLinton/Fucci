@@ -72,9 +72,13 @@ export async function enablePushForUser(
   if (!registration.ok) {
     return false;
   }
-  await updatePushPreferences(authToken, prefs);
-  await setPushOptedIn(true);
-  await setPushOptInPending(false);
+  try {
+    await updatePushPreferences(authToken, prefs);
+    await setPushOptedIn(true);
+    await setPushOptInPending(false);
+  } catch {
+    return false;
+  }
   void firePushWelcomeTest(authToken);
   return true;
 }

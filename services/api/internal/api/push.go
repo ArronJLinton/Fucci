@@ -1,13 +1,16 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
@@ -19,7 +22,69 @@ import (
 
 var expoPushTokenRe = regexp.MustCompile(`^ExponentPushToken\[[A-Za-z0-9_-]+\]$`)
 
-const maxPushDevicesPerUser = 5
+const (
+	maxPushDevicesPerUser    = 5
+	pushDeviceRateLimitN     = 10
+	pushDeviceRateWindow     = time.Minute
+)
+
+type pushDeviceRateEntry struct {
+	count       int
+	windowStart time.Time
+}
+
+// pushDeviceRateLimiter is an in-memory per-user rate limiter for device registration (fallback when Redis unavailable).
+type pushDeviceRateLimiter struct {
+	mu     sync.Mutex
+	byUser map[int32]pushDeviceRateEntry
+}
+
+func (r *pushDeviceRateLimiter) allow(userID int32) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.byUser == nil {
+		r.byUser = make(map[int32]pushDeviceRateEntry)
+	}
+	now := time.Now()
+	entry := r.byUser[userID]
+	if now.Sub(entry.windowStart) >= pushDeviceRateWindow {
+		entry.count = 0
+		entry.windowStart = now
+	}
+	entry.count++
+	r.byUser[userID] = entry
+	return entry.count <= pushDeviceRateLimitN
+}
+
+var defaultPushDeviceRateLimiter pushDeviceRateLimiter
+
+// checkPushDeviceRateLimit returns true if the user is within the device-registration rate limit (N per minute).
+// Uses Redis-backed Cache when available; falls back to in-memory per-process limiter.
+func checkPushDeviceRateLimit(ctx context.Context, c *Config, userID int32) bool {
+	if c.Cache != nil {
+		key := fmt.Sprintf("push_device_rate:%d", userID)
+		n, err := c.Cache.Incr(ctx, key)
+		if err == nil {
+			if n == 1 {
+				if err := c.Cache.Expire(ctx, key, pushDeviceRateWindow); err != nil {
+					log.Printf("[push] device rate limit Redis Expire failed: %v", err)
+				}
+			} else {
+				ttl, err := c.Cache.TTL(ctx, key)
+				if err != nil {
+					log.Printf("[push] device rate limit Redis TTL failed: %v", err)
+				} else if ttl < 0 {
+					if err := c.Cache.Expire(ctx, key, pushDeviceRateWindow); err != nil {
+						log.Printf("[push] device rate limit Redis fallback Expire failed: %v", err)
+					}
+				}
+			}
+			return n <= int64(pushDeviceRateLimitN)
+		}
+		log.Printf("[push] device rate limit Redis Incr failed: %v; using in-memory fallback", err)
+	}
+	return defaultPushDeviceRateLimiter.allow(userID)
+}
 
 type registerPushDeviceRequest struct {
 	ExpoPushToken string  `json:"expo_push_token"`
@@ -111,6 +176,11 @@ func (c *Config) handleRegisterPushDevice(w http.ResponseWriter, r *http.Request
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	if !checkPushDeviceRateLimit(r.Context(), c, userID) {
+		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded")
 		return
 	}
 
@@ -300,6 +370,11 @@ func (c *Config) handlePushTest(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	if strings.TrimSpace(c.Environment) == "production" {
+		respondWithError(w, http.StatusForbidden, "not available in production")
 		return
 	}
 

@@ -1,4 +1,4 @@
-import {useEffect} from 'react';
+import {useCallback} from 'react';
 import {useAuth} from '../context/AuthContext';
 import {
   acceptPushOnboarding,
@@ -6,25 +6,25 @@ import {
 } from '../services/pushOptIn';
 
 /**
- * On first app open, request notification permission via the native OS dialog only.
+ * Returns a `requestOnboarding` callback that callers should invoke from an
+ * explicit user action (e.g. an onboarding sheet button or a settings toggle).
+ * It will no-op if onboarding has already been completed.
  */
-export function usePushOnboarding(appIsReady: boolean): void {
+export function usePushOnboarding(appIsReady: boolean): {
+  requestOnboarding: () => Promise<void>;
+} {
   const {token, isReady: authReady} = useAuth();
 
-  useEffect(() => {
+  const requestOnboarding = useCallback(async () => {
     if (!appIsReady || !authReady) {
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      const done = await isPushOnboardingComplete();
-      if (cancelled || done) {
-        return;
-      }
-      await acceptPushOnboarding(token);
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const done = await isPushOnboardingComplete();
+    if (done) {
+      return;
+    }
+    await acceptPushOnboarding(token);
   }, [appIsReady, authReady, token]);
+
+  return {requestOnboarding};
 }

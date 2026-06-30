@@ -331,8 +331,8 @@ func TestHandlePushTest_AcceptedInProduction(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := authPushRequest(http.MethodPost, "/push/test", nil, 1)
 	cfg.handlePushTest(rec, req)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 in production, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -360,7 +360,7 @@ func TestHandlePushTest_RespectsPrefsAndDedupe(t *testing.T) {
 		prefs: database.PushPreferences{UserID: 1, MasterEnabled: true},
 	}
 	svc := &push.Service{Store: store, Sender: &fakeSender{}}
-	cfg := &Config{Environment: "production", PushService: svc}
+	cfg := &Config{Environment: "development", PushService: svc}
 
 	for i := 0; i < 2; i++ {
 		rec := httptest.NewRecorder()
