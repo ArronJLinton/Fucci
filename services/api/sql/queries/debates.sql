@@ -130,6 +130,10 @@ DELETE FROM comments WHERE id = $1;
 -- name: GetCommentCount :one
 SELECT COUNT(*) FROM comments WHERE debate_id = $1;
 
+-- name: CountSeededComments :one
+SELECT COUNT(*)::bigint FROM comments
+WHERE debate_id = $1 AND seeded = true AND parent_comment_id IS NULL;
+
 -- name: CreateDebateAnalytics :one
 INSERT INTO debate_analytics (debate_id, total_votes, total_comments, engagement_score)
 VALUES ($1, $2, $3, $4)

@@ -147,6 +147,8 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c.ensureSeededComments(ctx, int32(debateID), nil)
+
 	rows, err := debateReader.GetComments(ctx, sql.NullInt32{Int32: int32(debateID), Valid: true})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get comments: %v", err))

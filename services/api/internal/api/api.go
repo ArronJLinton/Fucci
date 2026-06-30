@@ -103,7 +103,7 @@ type Config struct {
 	OpenAIKey                     string
 	OpenAIBaseURL                 string
 	AIPromptGenerator             *ai.PromptGenerator
-	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default contact@magistri.dev
 	GoogleVerifier                GoogleVerifier
 
 	// lazyGoogleVerifier is the default *auth.GoogleOAuthVerifier when GoogleVerifier is nil (production).

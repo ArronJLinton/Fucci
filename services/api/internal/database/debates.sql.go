@@ -14,6 +14,18 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const countSeededComments = `-- name: CountSeededComments :one
+SELECT COUNT(*)::bigint FROM comments
+WHERE debate_id = $1 AND seeded = true AND parent_comment_id IS NULL
+`
+
+func (q *Queries) CountSeededComments(ctx context.Context, debateID sql.NullInt32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSeededComments, debateID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createComment = `-- name: CreateComment :one
 INSERT INTO comments (debate_id, parent_comment_id, user_id, content, seeded)
 VALUES ($1, $2, $3, $4, $5)

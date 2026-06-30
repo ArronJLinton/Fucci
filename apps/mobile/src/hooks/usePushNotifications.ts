@@ -2,6 +2,7 @@ import {useEffect, useRef} from 'react';
 import {AppState, type AppStateStatus} from 'react-native';
 import * as Notifications from 'expo-notifications';
 import {useAuth} from '../context/AuthContext';
+import {queryClient} from '../config/queryClient';
 import {
   registerPushWithBackend,
   unregisterPushFromBackend,
@@ -10,11 +11,12 @@ import {
   completePendingPushOptIn,
   isPushOptedIn,
 } from '../services/pushOptIn';
+import {normalizePushNotificationData} from '../navigation/pushLinking';
+import {prefetchPushContext, resolvePushNavigation} from '../navigation/prefetchPushContext';
 import {
-  resolvePushNavigation,
-  type PushNotificationData,
-} from '../navigation/pushLinking';
-import {rootNavigate} from '../navigation/rootNavigation';
+  navigatePushTarget,
+  waitForRootNavigationReady,
+} from '../navigation/navigatePushTarget';
 
 /**
  * Completes pending opt-in after login, refreshes token when opted in, handles notification taps.
@@ -22,6 +24,8 @@ import {rootNavigate} from '../navigation/rootNavigation';
 export function usePushNotifications(): void {
   const {token, isLoggedIn, isReady} = useAuth();
   const registeredRef = useRef(false);
+  const handledNotificationIdRef = useRef<string | null>(null);
+  const handlingRef = useRef(false);
 
   useEffect(() => {
     if (!isReady || !isLoggedIn || !token) {
@@ -51,29 +55,56 @@ export function usePushNotifications(): void {
   }, [isReady, isLoggedIn, token]);
 
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const raw = response.notification.request.content.data as PushNotificationData;
-        const target = resolvePushNavigation(raw);
-        if (!target) {
-          return;
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+      const notificationId = response.notification.request.identifier;
+      if (handledNotificationIdRef.current === notificationId || handlingRef.current) {
+        return;
+      }
+      handlingRef.current = true;
+      handledNotificationIdRef.current = notificationId;
+
+      void (async () => {
+        try {
+          await waitForRootNavigationReady();
+          const raw = response.notification.request.content.data;
+          const data = normalizePushNotificationData(
+            raw && typeof raw === 'object'
+              ? (raw as Record<string, unknown>)
+              : {},
+          );
+          const context = await prefetchPushContext(data, {
+            token,
+            queryClient,
+          });
+          const target = resolvePushNavigation(data, context);
+          if (target) {
+            navigatePushTarget(target);
+          }
+        } catch (e) {
+          console.warn('[push] deep link failed', e);
+        } finally {
+          handlingRef.current = false;
         }
-        if (target.screen === 'Main') {
-          rootNavigate('Main', target.params);
-        } else {
-          rootNavigate(target.screen, target.params);
-        }
-      },
-    );
+      })();
+    };
+
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponse);
+
+    void Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) {
+        handleResponse(response);
+      }
+    });
+
     return () => sub.remove();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     const onAppState = (state: AppStateStatus) => {
       if (state !== 'active' || !isLoggedIn || !token || !registeredRef.current) {
         return;
       }
-      void isPushOptedIn().then((optedIn) => {
+      void isPushOptedIn().then(optedIn => {
         if (optedIn) {
           registerPushWithBackend(token).catch(() => {});
         }
