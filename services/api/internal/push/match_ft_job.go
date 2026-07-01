@@ -28,16 +28,18 @@ type MediaShortsProvider interface {
 	MediaOutletsShorts(ctx context.Context) []youtube.MediaOutletShorts
 }
 
-// MatchFTJob scans finished marquee fixtures ~1h after FT and sends match pushes.
+// MatchFTJob scans finished marquee fixtures and sends staggered post-FT pushes:
+// highlights ~1h after FT when a Short exists; debates-live 30m later (or ~1h when no Short).
 type MatchFTJob struct {
-	Matches      MatchFetcher
-	Shorts       MediaShortsProvider
-	Service      *Service
-	Store        MatchPushStore
-	Lock         scanLocker
-	LeagueIDs    []int
-	DelayAfterFT time.Duration
-	Now          func() time.Time
+	Matches        MatchFetcher
+	Shorts         MediaShortsProvider
+	Service        *Service
+	Store          MatchPushStore
+	Lock           scanLocker
+	LeagueIDs      []int
+	DelayAfterFT   time.Duration // highlights delay; defaults to 1h
+	DebatesStagger time.Duration // gap after highlights when both send; defaults to 30m
+	Now            func() time.Time
 }
 
 func (j *MatchFTJob) Name() string { return "push-match-ft" }
@@ -47,10 +49,6 @@ func (j *MatchFTJob) Run(ctx context.Context) error {
 		return fmt.Errorf("match FT job not configured")
 	}
 	now := j.now()
-	delay := j.DelayAfterFT
-	if delay <= 0 {
-		delay = DefaultDelayAfterFT
-	}
 
 	marquee, err := j.loadMarquee(ctx)
 	if err != nil {
@@ -71,7 +69,7 @@ func (j *MatchFTJob) Run(ctx context.Context) error {
 	}
 
 	dates := []time.Time{now, now.Add(-24 * time.Hour)}
-	sentFixtures := 0
+	sentCampaigns := 0
 	for _, leagueID := range j.leagueIDs() {
 		for _, day := range dates {
 			fixtures, err := j.Matches.FetchLeagueMatches(ctx, day, leagueID)
@@ -83,27 +81,52 @@ func (j *MatchFTJob) Run(ctx context.Context) error {
 				if !marquee.IsMarquee(fx.HomeTeamID, fx.AwayTeamID) {
 					continue
 				}
-				if now.Before(fx.EstimatedEnd.Add(delay)) {
-					continue
-				}
-				if !j.acquireFixtureLock(ctx, fx.ID) {
-					continue
-				}
 
 				short := FindMatchHighlightShort(shorts, fx)
-				req := BuildMatchPushRequest(fx, short)
-				n := j.sendToCandidates(ctx, candidates, req, now)
-				if n > 0 {
-					sentFixtures++
-					log.Printf("[push-match-ft] fixture=%d campaign=%s sent=%d", fx.ID, req.CampaignKey, n)
+				schedule := scheduleMatchPushes(now, fx.EstimatedEnd, short, j.highlightsDelay(), j.debatesStagger())
+
+				if schedule.HighlightsReady {
+					if j.acquireFixtureCampaignLock(ctx, fx.ID, "highlights") {
+						req := BuildMatchHighlightsPushRequest(fx, short)
+						n := j.sendToCandidates(ctx, candidates, req, now)
+						if n > 0 {
+							sentCampaigns++
+							log.Printf("[push-match-ft] fixture=%d campaign=%s sent=%d", fx.ID, req.CampaignKey, n)
+						}
+					}
+				}
+
+				if schedule.DebatesReady {
+					if j.acquireFixtureCampaignLock(ctx, fx.ID, "debates_live") {
+						req := BuildMatchDebatesLivePushRequest(fx)
+						n := j.sendToCandidates(ctx, candidates, req, now)
+						if n > 0 {
+							sentCampaigns++
+							log.Printf("[push-match-ft] fixture=%d campaign=%s sent=%d", fx.ID, req.CampaignKey, n)
+						}
+					}
 				}
 			}
 		}
 	}
-	if sentFixtures > 0 {
-		log.Printf("[push-match-ft] tick sent for %d fixture(s)", sentFixtures)
+	if sentCampaigns > 0 {
+		log.Printf("[push-match-ft] tick sent %d campaign(s)", sentCampaigns)
 	}
 	return nil
+}
+
+func (j *MatchFTJob) highlightsDelay() time.Duration {
+	if j.DelayAfterFT > 0 {
+		return j.DelayAfterFT
+	}
+	return DefaultDelayAfterFT
+}
+
+func (j *MatchFTJob) debatesStagger() time.Duration {
+	if j.DebatesStagger > 0 {
+		return j.DebatesStagger
+	}
+	return DefaultDebatesStaggerAfterHighlights
 }
 
 func (j *MatchFTJob) leagueIDs() []int {
@@ -132,12 +155,12 @@ func (j *MatchFTJob) loadMarquee(ctx context.Context) (*Marquee, error) {
 	return NewMarquee(rankRows, MarqueeMaxFIFARank), nil
 }
 
-func (j *MatchFTJob) acquireFixtureLock(ctx context.Context, fixtureID int) bool {
+func (j *MatchFTJob) acquireFixtureCampaignLock(ctx context.Context, fixtureID int, campaign string) bool {
 	if j.Lock == nil {
 		return true
 	}
 	slot := CurrentScanSlot(j.now())
-	key := fmt.Sprintf("push:match:fixture:%d:%s", fixtureID, slot)
+	key := fmt.Sprintf("push:match:fixture:%d:%s:%s", fixtureID, campaign, slot)
 	ok, err := j.Lock.SetNX(ctx, key, ScanLockTTL)
 	if err != nil {
 		log.Printf("[push-match-ft] SetNX(%s) failed: %v — proceeding", key, err)

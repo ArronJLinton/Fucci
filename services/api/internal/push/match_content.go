@@ -78,20 +78,23 @@ func shortMentionsTeams(title string, homeTokens, awayTokens []string) bool {
 	return false
 }
 
-// BuildMatchPushRequest builds highlights or debates-live notification content.
-func BuildMatchPushRequest(fixture MatchFixture, short *ShortCandidate) SendRequest {
+// BuildMatchHighlightsPushRequest builds a Shorts highlights notification.
+func BuildMatchHighlightsPushRequest(fixture MatchFixture, short *ShortCandidate) SendRequest {
 	matchID := itoa(fixture.ID)
 	scoreline := formatScoreline(fixture.HomeTeamName, fixture.AwayTeamName, fixture.HomeGoals, fixture.AwayGoals)
-
-	if short != nil {
-		return SendRequest{
-			CampaignKey: CampaignMatchHighlights(fixture.ID),
-			Category:    CategoryMatches,
-			Title:       short.Title,
-			Body:        scoreline + " — watch the highlights",
-			Data:        matchPushData(matchID, short.VideoID),
-		}
+	return SendRequest{
+		CampaignKey: CampaignMatchHighlights(fixture.ID),
+		Category:    CategoryMatches,
+		Title:       short.Title,
+		Body:        scoreline + " — watch the highlights",
+		Data:        matchPushData(matchID, short.VideoID),
 	}
+}
+
+// BuildMatchDebatesLivePushRequest builds a post-FT debates notification.
+func BuildMatchDebatesLivePushRequest(fixture MatchFixture) SendRequest {
+	matchID := itoa(fixture.ID)
+	scoreline := formatScoreline(fixture.HomeTeamName, fixture.AwayTeamName, fixture.HomeGoals, fixture.AwayGoals)
 	return SendRequest{
 		CampaignKey: CampaignMatchDebatesLive(fixture.ID),
 		Category:    CategoryMatches,
@@ -99,6 +102,14 @@ func BuildMatchPushRequest(fixture MatchFixture, short *ShortCandidate) SendRequ
 		Body:        scoreline + " — join the debate",
 		Data:        matchPushData(matchID, ""),
 	}
+}
+
+// BuildMatchPushRequest builds highlights or debates-live (legacy helper).
+func BuildMatchPushRequest(fixture MatchFixture, short *ShortCandidate) SendRequest {
+	if short != nil {
+		return BuildMatchHighlightsPushRequest(fixture, short)
+	}
+	return BuildMatchDebatesLivePushRequest(fixture)
 }
 
 func itoa(n int) string {

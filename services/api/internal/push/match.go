@@ -15,6 +15,8 @@ const (
 	MarqueeMaxFIFARank   = 50
 
 	DefaultDelayAfterFT = time.Hour
+	// DefaultDebatesStaggerAfterHighlights is the gap between highlights and debates-live when both send.
+	DefaultDebatesStaggerAfterHighlights = 30 * time.Minute
 	MatchFTScanInterval = 10 * time.Minute
 )
 

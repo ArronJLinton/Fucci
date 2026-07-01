@@ -35,11 +35,11 @@ func TestBuildMatchPushRequest(t *testing.T) {
 		ID: 123, HomeTeamName: "USA", AwayTeamName: "Mexico", HomeGoals: 2, AwayGoals: 1,
 	}
 	short := &ShortCandidate{Title: "USA stun Mexico", VideoID: "abc"}
-	req := BuildMatchPushRequest(fx, short)
+	req := BuildMatchHighlightsPushRequest(fx, short)
 	if req.CampaignKey != CampaignMatchHighlights(123) {
 		t.Fatalf("got key %q", req.CampaignKey)
 	}
-	debates := BuildMatchPushRequest(fx, nil)
+	debates := BuildMatchDebatesLivePushRequest(fx)
 	if debates.CampaignKey != CampaignMatchDebatesLive(123) {
 		t.Fatalf("got debates key %q", debates.CampaignKey)
 	}
