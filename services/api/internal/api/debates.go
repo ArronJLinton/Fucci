@@ -184,69 +184,6 @@ type DebateCardResponse struct {
 	UserVote    *VoteResponse `json:"user_vote,omitempty"`
 }
 
-const defaultSystemUserEmail = "contact@magistri.dev"
-
-// getSystemUserID returns the system user (Fucci) ID for seeded comments. Uses Config.SystemUserEmail, or contact@magistri.dev if unset.
-func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
-	email := c.SystemUserEmail
-	if email == "" {
-		email = defaultSystemUserEmail
-	}
-	user, err := c.DB.GetUserByEmail(ctx, email)
-	if err != nil {
-		return 0, err
-	}
-	return user.ID, nil
-}
-
-// insertSeededComments inserts up to three thread starters from AI prompt.comments, with fallback to card titles.
-func (c *Config) insertSeededComments(ctx context.Context, debateID int32, prompt *ai.DebatePrompt) {
-	if prompt == nil {
-		return
-	}
-	systemUserID, err := c.getSystemUserID(ctx)
-	if err != nil {
-		log.Printf("[debate] seeded comments skipped: system user not found (set SYSTEM_USER_EMAIL to your system user email, e.g. contact@magistri.dev): %v", err)
-		return
-	}
-	var contents []string
-	for _, s := range prompt.Comments {
-		if t := strings.TrimSpace(s); t != "" && len(contents) < 3 {
-			contents = append(contents, t)
-		}
-	}
-	for _, card := range prompt.Cards {
-		if len(contents) >= 3 {
-			break
-		}
-		if card.Stance != "agree" && card.Stance != "disagree" {
-			continue
-		}
-		t := strings.TrimSpace(card.Description)
-		if t == "" {
-			t = strings.TrimSpace(card.Title)
-		}
-		if t != "" {
-			contents = append(contents, t)
-		}
-	}
-	for _, content := range contents {
-		if content == "" {
-			continue
-		}
-		_, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
-			DebateID:        sql.NullInt32{Int32: debateID, Valid: true},
-			ParentCommentID: sql.NullInt32{Valid: false},
-			UserID:          sql.NullInt32{Int32: systemUserID, Valid: true},
-			Content:         content,
-			Seeded:          true,
-		})
-		if err != nil {
-			log.Printf("[debate] insertSeededComments: %v", err)
-		}
-	}
-}
-
 type VoteCounts struct {
 	Upvotes   int            `json:"upvotes"`
 	Downvotes int            `json:"downvotes"`
@@ -1905,6 +1842,7 @@ func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID 
 		logErrorAndRespond500(w, "get debate", err, errCodeDebateGet)
 		return
 	}
+	c.ensureSeededComments(ctx, debate.ID, nil)
 
 	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err != nil {

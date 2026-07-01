@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   StyleSheet,
@@ -11,6 +11,8 @@ import type {NavigationProp} from '@react-navigation/native';
 import {Ionicons} from '@expo/vector-icons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {RootStackParamList} from '../types/navigation';
+import {useAuth} from '../context/AuthContext';
+import {fireNewsArticleOpen} from '../services/pushApi';
 
 type NewsWebViewRouteProp = RouteProp<RootStackParamList, 'NewsWebView'>;
 
@@ -21,6 +23,11 @@ const NewsWebViewScreen: React.FC = () => {
     useNavigation<NavigationProp<RootStackParamList, 'NewsWebView'>>();
   const [isLoading, setIsLoading] = React.useState(true);
   const {url} = route.params;
+  const {token} = useAuth();
+
+  useEffect(() => {
+    fireNewsArticleOpen(token, url);
+  }, [token, url]);
 
   const handleClose = () => {
     navigation.goBack();

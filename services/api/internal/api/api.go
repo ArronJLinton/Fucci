@@ -103,7 +103,7 @@ type Config struct {
 	OpenAIKey                     string
 	OpenAIBaseURL                 string
 	AIPromptGenerator             *ai.PromptGenerator
-	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default fucci@system.local
+	SystemUserEmail               string // Email for Fucci system user (006 seeded comments); default contact@magistri.dev
 	GoogleVerifier                GoogleVerifier
 
 	// lazyGoogleVerifier is the default *auth.GoogleOAuthVerifier when GoogleVerifier is nil (production).
@@ -285,6 +285,7 @@ func New(c *Config) http.Handler {
 	pushRouter.Get("/preferences", c.handleGetPushPreferences)
 	pushRouter.Put("/preferences", c.handleUpdatePushPreferences)
 	pushRouter.Post("/test", c.handlePushTest)
+	pushRouter.Post("/news/opens", c.handleRecordNewsArticleOpen)
 
 	router.Mount("/auth", authRouter)
 	router.Mount("/users", userRouter)

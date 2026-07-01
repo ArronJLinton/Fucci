@@ -7,12 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
-)
-
-const (
-	CampaignTest = "test:manual"
 )
 
 // Store is the DB surface used by Service.
@@ -77,7 +72,7 @@ func (s *Service) SendToUser(ctx context.Context, req SendRequest) error {
 			s.logSkipped(ctx, req, sql.NullInt32{}, "skipped_prefs", "master disabled")
 			return nil
 		}
-		if !categoryEnabled(prefs, req.Category) {
+		if !categoryEnabled(prefViewFromDB(prefs), req.Category) {
 			s.logSkipped(ctx, req, sql.NullInt32{}, "skipped_prefs", "category disabled")
 			return nil
 		}
@@ -169,21 +164,6 @@ func (s *Service) logSkipped(ctx context.Context, req SendRequest, deviceID sql.
 	})
 }
 
-func categoryEnabled(prefs database.PushPreferences, category string) bool {
-	switch category {
-	case "debates":
-		return prefs.DebatesEnabled
-	case "news":
-		return prefs.NewsEnabled
-	case "matches":
-		return prefs.MatchesEnabled
-	case "":
-		return true
-	default:
-		return false
-	}
-}
-
 func localDateForTimezone(tz string) (time.Time, error) {
 	if tz == "" {
 		return time.Now().UTC().Truncate(24 * time.Hour), nil
@@ -194,28 +174,4 @@ func localDateForTimezone(tz string) (time.Time, error) {
 	}
 	y, m, d := local.Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC), nil
-}
-
-// SlotScanner runs periodic no-op scans in Phase 1 (campaign dispatch in Phase 2).
-type SlotScanner struct {
-	Cache cache.CacheInterface
-}
-
-func (sc *SlotScanner) Name() string { return "push-slot-scanner" }
-
-func (sc *SlotScanner) Run(ctx context.Context) error {
-	slot := time.Now().UTC().Truncate(15 * time.Minute).Format("2006-01-02T15:04")
-	key := "push:scan:phase1:" + slot
-	if sc.Cache != nil {
-		ok, err := sc.Cache.SetNX(ctx, key, 20*time.Minute)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			log.Printf("[push-slot-scanner] skip duplicate slot %s", slot)
-			return nil
-		}
-	}
-	log.Printf("[push-slot-scanner] tick slot=%s (Phase 1 no-op; campaign selectors in Phase 2)", slot)
-	return nil
 }

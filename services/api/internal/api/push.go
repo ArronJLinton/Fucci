@@ -406,6 +406,42 @@ func (c *Config) handlePushTest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+type recordNewsArticleOpenRequest struct {
+	ArticleURL string `json:"article_url"`
+}
+
+func (c *Config) handleRecordNewsArticleOpen(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if c.DB == nil {
+		respondWithError(w, http.StatusInternalServerError, "database unavailable")
+		return
+	}
+
+	var req recordNewsArticleOpenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	url := strings.TrimSpace(req.ArticleURL)
+	if url == "" || (!strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://")) {
+		respondWithError(w, http.StatusBadRequest, "article_url must be an http(s) URL")
+		return
+	}
+
+	if err := c.DB.UpsertNewsArticleOpen(r.Context(), database.UpsertNewsArticleOpenParams{
+		UserID:     userID,
+		ArticleUrl: url,
+	}); err != nil {
+		logErrorAndRespond500(w, "push news open UpsertNewsArticleOpen", err, "NEWS_OPEN_UPSERT_FAILED")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (c *Config) pushService() *push.Service {
 	if c.PushService != nil {
 		return c.PushService

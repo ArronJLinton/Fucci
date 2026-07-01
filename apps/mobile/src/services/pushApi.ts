@@ -69,3 +69,24 @@ export async function firePushWelcomeTest(token: string): Promise<void> {
     console.warn('[push] welcome test notification failed:', e);
   }
 }
+
+/** Record that the user opened a news article (for push exclusion). Best-effort. */
+export async function recordNewsArticleOpen(
+  token: string,
+  articleUrl: string,
+): Promise<void> {
+  await makeAuthRequest(token, '/push/news/opens', 'POST', {
+    body: JSON.stringify({article_url: articleUrl}),
+    headers: {'Content-Type': 'application/json'},
+  });
+}
+
+/** Fire-and-forget article open tracking. */
+export function fireNewsArticleOpen(token: string | null, articleUrl: string): void {
+  if (!token || !articleUrl.startsWith('http')) {
+    return;
+  }
+  void recordNewsArticleOpen(token, articleUrl).catch(e => {
+    console.warn('[push] record news open failed:', e);
+  });
+}

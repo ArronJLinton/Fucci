@@ -187,7 +187,7 @@ type TodayAndHistoryResponse struct {
 func (c *Client) FetchTodayAndHistoryNews(ctx context.Context) (*TodayAndHistoryResponse, error) {
 	defaultOpts := FetchNewsOptions{
 		Lang:  "en",
-		Limit: 5,
+		Limit: 10,
 	}
 
 	// Fetch today's news

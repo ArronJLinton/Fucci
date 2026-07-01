@@ -1,30 +1,134 @@
-import type {RootStackParamList} from '../types/navigation';
 import type {Match} from '../types/match';
 import type {DebateResponse} from '../types/debate';
 
 export type PushNotificationData = {
   type?: 'debate' | 'match' | 'news';
-  route?: keyof RootStackParamList | string;
+  route?: string;
   params?: {
     debateId?: number;
     matchId?: number | string;
     url?: string;
+    shortVideoId?: string;
   };
 };
 
 export type PushNavigationTarget =
-  | {screen: 'NewsWebView'; params: RootStackParamList['NewsWebView']}
-  | {screen: 'SingleDebate'; params: RootStackParamList['SingleDebate']}
-  | {screen: 'MatchDetails'; params: RootStackParamList['MatchDetails']}
-  | {screen: 'Main'; params: RootStackParamList['Main']};
+  | {kind: 'news'; url: string}
+  | {kind: 'debate'; match: Match; debate: DebateResponse}
+  | {kind: 'match'; match: Match}
+  | {kind: 'debates_tab'}
+  | {kind: 'home_tab'};
 
-/** Maps Expo notification `data` to a root stack navigation target (Phase 1). */
+export type PushPrefetchContext = {
+  debate?: DebateResponse;
+  match?: Match;
+};
+
+/** Normalize Expo notification `data` (nested or flat params). */
+export function normalizePushNotificationData(
+  raw: Record<string, unknown>,
+): PushNotificationData {
+  const type = raw.type as PushNotificationData['type'] | undefined;
+  const route = typeof raw.route === 'string' ? raw.route : undefined;
+
+  let params: PushNotificationData['params'] = {};
+  if (raw.params != null && typeof raw.params === 'object') {
+    params = parsePushParams(raw.params as Record<string, unknown>);
+  } else {
+    params = parsePushParams(raw);
+  }
+
+  return {type, route, params};
+}
+
+function parsePushParams(
+  raw: Record<string, unknown>,
+): PushNotificationData['params'] {
+  const params: PushNotificationData['params'] = {};
+  if (raw.debateId != null && raw.debateId !== '') {
+    params.debateId = Number(raw.debateId);
+  }
+  if (raw.matchId != null && raw.matchId !== '') {
+    params.matchId =
+      typeof raw.matchId === 'number' ? raw.matchId : String(raw.matchId);
+  }
+  if (typeof raw.url === 'string') {
+    params.url = raw.url;
+  }
+  if (typeof raw.shortVideoId === 'string') {
+    params.shortVideoId = raw.shortVideoId;
+  }
+  return params;
+}
+
+export function parseMatchId(
+  value: number | string | undefined,
+): number | null {
+  if (value == null || value === '') {
+    return null;
+  }
+  const n = typeof value === 'number' ? value : parseInt(String(value), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Minimal match shell when fixture metadata is not yet loaded. */
+export function buildPlaceholderMatchFromId(
+  matchId: number,
+  opts?: {statusShort?: string; date?: string},
+): Match {
+  const statusShort = opts?.statusShort ?? 'NS';
+  const statusLong =
+    statusShort === 'FT' ? 'Full Time' : statusShort === 'NS' ? 'Not Started' : statusShort;
+  return {
+    fixture: {
+      id: matchId,
+      date: opts?.date ?? new Date().toISOString(),
+      status: {long: statusLong, short: statusShort, elapsed: 0},
+    },
+    league: {id: 0, name: '', logo: '', season: new Date().getFullYear()},
+    teams: {
+      home: {name: 'Home', logo: '', winner: null},
+      away: {name: 'Away', logo: '', winner: null},
+    },
+    goals: {home: null, away: null},
+  };
+}
+
+/** Build a Match from debate API fields (teams/score when present). */
+export function buildMatchFromDebate(debate: DebateResponse): Match {
+  const matchId = parseMatchId(debate.match_id) ?? 0;
+  const home = debate.teams?.home;
+  const away = debate.teams?.away;
+  return {
+    fixture: {
+      id: matchId,
+      date: debate.created_at ?? new Date().toISOString(),
+      status: {long: 'Full Time', short: 'FT', elapsed: 0},
+    },
+    league: {id: 0, name: '', logo: '', season: new Date().getFullYear()},
+    teams: {
+      home: {
+        name: home?.name ?? 'Home',
+        logo: home?.logo ?? '',
+        winner: null,
+      },
+      away: {
+        name: away?.name ?? 'Away',
+        logo: away?.logo ?? '',
+        winner: null,
+      },
+    },
+    goals: {
+      home: home?.score ?? null,
+      away: away?.score ?? null,
+    },
+  };
+}
+
+/** Maps notification `data` to a navigation target after optional prefetch. */
 export function resolvePushNavigation(
   data: PushNotificationData,
-  context?: {
-    debate?: DebateResponse;
-    match?: Match;
-  },
+  context?: PushPrefetchContext,
 ): PushNavigationTarget | null {
   const route = data.route ?? inferRouteFromType(data.type);
   const params = data.params ?? {};
@@ -32,7 +136,7 @@ export function resolvePushNavigation(
   if (route === 'NewsWebView' || data.type === 'news') {
     const url = params.url;
     if (typeof url === 'string' && url.startsWith('http')) {
-      return {screen: 'NewsWebView', params: {url}};
+      return {kind: 'news', url};
     }
     return null;
   }
@@ -40,18 +144,19 @@ export function resolvePushNavigation(
   if (route === 'SingleDebate' || data.type === 'debate') {
     if (context?.debate && context?.match) {
       return {
-        screen: 'SingleDebate',
-        params: {match: context.match, debate: context.debate},
+        kind: 'debate',
+        match: context.match,
+        debate: context.debate,
       };
     }
-    return {screen: 'Main', params: {screen: 'Debates'}};
+    return {kind: 'debates_tab'};
   }
 
   if (route === 'MatchDetails' || data.type === 'match') {
     if (context?.match) {
-      return {screen: 'MatchDetails', params: {match: context.match}};
+      return {kind: 'match', match: context.match};
     }
-    return {screen: 'Main', params: {screen: 'Home'}};
+    return {kind: 'home_tab'};
   }
 
   return null;

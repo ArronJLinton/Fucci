@@ -20,6 +20,7 @@ func TestGetFootballNews_CacheHit(t *testing.T) {
 		TodayArticles:   []news.NewsArticle{{ID: "1", Title: "Cached", SourceURL: "https://example.com", SourceName: "S", PublishedAt: "2025-01-01T12:00:00Z", RelativeTime: "1 hour ago"}},
 		HistoryArticles: []news.NewsArticle{},
 		Cached:          false,
+		CachedAt:        "2025-01-01T12:00:00Z",
 	}
 	mockCache := &MockCache{
 		existsFunc: func(ctx context.Context, key string) (bool, error) {

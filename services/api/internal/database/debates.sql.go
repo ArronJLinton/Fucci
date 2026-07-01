@@ -14,6 +14,18 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const countSeededComments = `-- name: CountSeededComments :one
+SELECT COUNT(*)::bigint FROM comments
+WHERE debate_id = $1 AND seeded = true AND parent_comment_id IS NULL
+`
+
+func (q *Queries) CountSeededComments(ctx context.Context, debateID sql.NullInt32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSeededComments, debateID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createComment = `-- name: CreateComment :one
 INSERT INTO comments (debate_id, parent_comment_id, user_id, content, seeded)
 VALUES ($1, $2, $3, $4, $5)
@@ -620,6 +632,59 @@ func (q *Queries) GetTopDebates(ctx context.Context, limit int32) ([]GetTopDebat
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTopUnvotedDebateForPush = `-- name: GetTopUnvotedDebateForPush :one
+SELECT d.id, d.headline, d.match_id
+FROM debates d
+LEFT JOIN debate_analytics da ON d.id = da.debate_id
+LEFT JOIN LATERAL (
+    SELECT MIN(nr.fifa_rank) AS best_rank
+    FROM national_team_rankings nr
+    WHERE nr.team_id IN (
+        NULLIF(d.match_info->>'HomeTeamID', '')::int,
+        NULLIF(d.match_info->>'AwayTeamID', '')::int
+    )
+) ranks ON true
+WHERE d.deleted_at IS NULL
+  AND d.created_at >= CURRENT_TIMESTAMP - INTERVAL '48 hours'
+  AND EXISTS (
+    SELECT 1 FROM debate_cards dc0
+    WHERE dc0.debate_id = d.id AND dc0.stance IN ('agree', 'disagree')
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM debate_cards dc
+    INNER JOIN votes v ON v.debate_card_id = dc.id AND v.user_id = $1
+      AND v.vote_type IN ('upvote', 'downvote')
+      AND v.emoji IS NULL
+    WHERE dc.debate_id = d.id AND dc.stance IN ('agree', 'disagree')
+  )
+ORDER BY
+    COALESCE(da.engagement_score, 0)
+    + CASE
+        WHEN ranks.best_rank IS NULL THEN 0
+        WHEN ranks.best_rank <= 25 THEN 100
+        WHEN ranks.best_rank <= 50 THEN 50
+        ELSE 0
+      END DESC NULLS LAST,
+    d.created_at DESC
+LIMIT 1
+`
+
+type GetTopUnvotedDebateForPushRow struct {
+	ID       int32
+	Headline string
+	MatchID  string
+}
+
+// Top unvoted debate by boosted engagement for daily push (48h window, binary cards only).
+// Boost: +100 engagement for top-25 FIFA teams, +50 for ranks 26–50 (via match_info team ids).
+func (q *Queries) GetTopUnvotedDebateForPush(ctx context.Context, userID sql.NullInt32) (GetTopUnvotedDebateForPushRow, error) {
+	row := q.db.QueryRowContext(ctx, getTopUnvotedDebateForPush, userID)
+	var i GetTopUnvotedDebateForPushRow
+	err := row.Scan(&i.ID, &i.Headline, &i.MatchID)
+	return i, err
 }
 
 const getUserSwipeVotesForCards = `-- name: GetUserSwipeVotesForCards :many

@@ -172,6 +172,21 @@ type MediaYoutubeChannels struct {
 	UpdatedAt     time.Time
 }
 
+type NationalTeamRankings struct {
+	TeamID      int32
+	FifaRank    int32
+	TeamName    string
+	CountryCode sql.NullString
+	RankingDate time.Time
+	UpdatedAt   time.Time
+}
+
+type NewsArticleOpens struct {
+	UserID     int32
+	ArticleUrl string
+	OpenedAt   time.Time
+}
+
 type PlayerProfile struct {
 	ID          int32
 	UserID      int32
