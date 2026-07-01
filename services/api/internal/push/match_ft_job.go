@@ -30,14 +30,14 @@ type MediaShortsProvider interface {
 
 // MatchFTJob scans finished marquee fixtures ~1h after FT and sends match pushes.
 type MatchFTJob struct {
-	Matches   MatchFetcher
-	Shorts    MediaShortsProvider
-	Service   *Service
-	Store     MatchPushStore
-	Lock      scanLocker
-	LeagueIDs []int
+	Matches      MatchFetcher
+	Shorts       MediaShortsProvider
+	Service      *Service
+	Store        MatchPushStore
+	Lock         scanLocker
+	LeagueIDs    []int
 	DelayAfterFT time.Duration
-	Now       func() time.Time
+	Now          func() time.Time
 }
 
 func (j *MatchFTJob) Name() string { return "push-match-ft" }
@@ -92,7 +92,7 @@ func (j *MatchFTJob) Run(ctx context.Context) error {
 
 				short := FindMatchHighlightShort(shorts, fx)
 				req := BuildMatchPushRequest(fx, short)
-				n := j.sendToCandidates(ctx, candidates, req)
+				n := j.sendToCandidates(ctx, candidates, req, now)
 				if n > 0 {
 					sentFixtures++
 					log.Printf("[push-match-ft] fixture=%d campaign=%s sent=%d", fx.ID, req.CampaignKey, n)
@@ -150,12 +150,17 @@ func (j *MatchFTJob) sendToCandidates(
 	ctx context.Context,
 	candidates []database.ListMatchPushCandidatesRow,
 	base SendRequest,
+	now time.Time,
 ) int {
 	sent := 0
 	for _, c := range candidates {
-		localDate, err := localDateForTimezone(c.Timezone)
+		local, err := LocalTimeInTimezoneAt(c.Timezone, now)
+		localDate := now.UTC().Truncate(24 * time.Hour)
 		if err != nil {
-			localDate = j.now().UTC().Truncate(24 * time.Hour)
+			log.Printf("[push-match-ft] local time user=%d tz=%q: %v", c.UserID, c.Timezone, err)
+		} else {
+			y, m, d := local.Date()
+			localDate = time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 		}
 		count, err := j.Store.CountMatchPushSendsForUserOnDate(ctx, database.CountMatchPushSendsForUserOnDateParams{
 			UserID:    c.UserID,

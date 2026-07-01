@@ -59,7 +59,7 @@ func NewDispatcher(cfg DispatcherConfig) *Dispatcher {
 	}
 }
 
-func (d *Dispatcher) Name() string { return "push-slot-scanner" }
+func (d *Dispatcher) Name() string { return "push-slot-dispatcher" }
 
 func (d *Dispatcher) Run(ctx context.Context) error {
 	if d.service == nil || d.store == nil {

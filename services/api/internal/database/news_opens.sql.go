@@ -12,6 +12,9 @@ import (
 const listOpenedArticleURLsForUser = `-- name: ListOpenedArticleURLsForUser :many
 SELECT article_url FROM news_article_opens
 WHERE user_id = $1
+  AND opened_at >= NOW() - INTERVAL '90 days'
+ORDER BY opened_at DESC
+LIMIT 500
 `
 
 func (q *Queries) ListOpenedArticleURLsForUser(ctx context.Context, userID int32) ([]string, error) {

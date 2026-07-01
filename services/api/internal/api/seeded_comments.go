@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	defaultSystemUserEmail = "contact@magistri.dev"
-	legacySystemUserEmail  = "fucci@system.local"
+	defaultSystemUserEmail  = "contact@magistri.dev"
+	legacySystemUserEmail   = "fucci@system.local"
 	seededCommentsPerDebate = 3
 )
 
@@ -130,6 +130,8 @@ func (c *Config) ensureSeededComments(ctx context.Context, debateID int32, promp
 	if c.DB == nil {
 		return
 	}
+	unlock := c.lockSeededComments(ctx, debateID)
+	defer unlock()
 
 	count, err := c.DB.CountSeededComments(ctx, sql.NullInt32{Int32: debateID, Valid: true})
 	if err != nil {
@@ -164,14 +166,12 @@ func (c *Config) ensureSeededComments(ctx context.Context, debateID int32, promp
 		return
 	}
 
-	var have map[string]struct{}
-	if count > 0 {
-		rows, rowErr := c.DB.GetComments(ctx, sql.NullInt32{Int32: debateID, Valid: true})
-		if rowErr != nil {
-			log.Printf("[debate] GetComments debate=%d: %v", debateID, rowErr)
-		} else {
-			have = existingSeededContents(rows)
-		}
+	have := map[string]struct{}{}
+	rows, rowErr := c.DB.GetComments(ctx, sql.NullInt32{Int32: debateID, Valid: true})
+	if rowErr != nil {
+		log.Printf("[debate] GetComments debate=%d: %v", debateID, rowErr)
+	} else {
+		have = existingSeededContents(rows)
 	}
 
 	inserted := int64(0)
@@ -179,10 +179,8 @@ func (c *Config) ensureSeededComments(ctx context.Context, debateID int32, promp
 		if count+inserted >= seededCommentsPerDebate {
 			break
 		}
-		if have != nil {
-			if _, exists := have[content]; exists {
-				continue
-			}
+		if _, exists := have[content]; exists {
+			continue
 		}
 		_, err := c.DB.CreateComment(ctx, database.CreateCommentParams{
 			DebateID:        sql.NullInt32{Int32: debateID, Valid: true},
@@ -195,7 +193,30 @@ func (c *Config) ensureSeededComments(ctx context.Context, debateID int32, promp
 			log.Printf("[debate] ensureSeededComments debate=%d: %v", debateID, err)
 			continue
 		}
+		have[content] = struct{}{}
 		inserted++
+	}
+}
+
+func (c *Config) lockSeededComments(ctx context.Context, debateID int32) func() {
+	if c.DBConn == nil {
+		return func() {}
+	}
+	conn, err := c.DBConn.Conn(ctx)
+	if err != nil {
+		log.Printf("[debate] seeded comments lock conn debate=%d: %v", debateID, err)
+		return func() {}
+	}
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", int64(debateID)); err != nil {
+		log.Printf("[debate] seeded comments lock acquire debate=%d: %v", debateID, err)
+		_ = conn.Close()
+		return func() {}
+	}
+	return func() {
+		if _, err := conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock($1)", int64(debateID)); err != nil {
+			log.Printf("[debate] seeded comments lock release debate=%d: %v", debateID, err)
+		}
+		_ = conn.Close()
 	}
 }
 

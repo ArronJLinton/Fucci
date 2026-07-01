@@ -57,6 +57,7 @@ ON CONFLICT (team_id) DO UPDATE SET
     fifa_rank = EXCLUDED.fifa_rank,
     team_name = EXCLUDED.team_name,
     country_code = EXCLUDED.country_code,
+    ranking_date = CURRENT_DATE,
     updated_at = NOW();
 
 -- +goose Down

@@ -1701,7 +1701,6 @@ func generateSetRespond(w http.ResponseWriter, debates []DebateResponse, code in
 func (c *Config) buildDebateResponsesFromDB(ctx context.Context, debates []database.Debates) []DebateResponse {
 	var out []DebateResponse
 	for _, d := range debates {
-		c.ensureSeededComments(ctx, d.ID, nil)
 		r := c.getDebateResponseByID(ctx, d.ID)
 		if r != nil {
 			out = append(out, *r)
@@ -1843,6 +1842,7 @@ func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID 
 		logErrorAndRespond500(w, "get debate", err, errCodeDebateGet)
 		return
 	}
+	c.ensureSeededComments(ctx, debate.ID, nil)
 
 	cards, err := c.DB.GetDebateCards(ctx, sql.NullInt32{Int32: debate.ID, Valid: true})
 	if err != nil {
