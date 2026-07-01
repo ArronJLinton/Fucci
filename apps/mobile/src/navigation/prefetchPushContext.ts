@@ -22,6 +22,7 @@ import {
   buildPlaceholderMatchFromId,
   normalizePushNotificationData,
   parseMatchId,
+  resolvePushNavigation,
   type PushNotificationData,
   type PushPrefetchContext,
 } from './pushLinking';
@@ -80,7 +81,11 @@ export async function resolveMatchForPush(
     let matches = queryClient.getQueryData<Match[] | null>(key);
     if (!matches) {
       try {
-        matches = await fetchMatchesForLocalDate(date, league.id, season);
+        matches = (await fetchMatchesForLocalDate(
+          date,
+          league.id,
+          season,
+        )) as unknown as Match[];
         queryClient.setQueryData(key, matches);
       } catch {
         continue;
@@ -161,6 +166,3 @@ export async function resolvePushNavigationFromRaw(
   const context = await prefetchPushContext(data, opts);
   return resolvePushNavigation(data, context);
 }
-
-// Re-export for callers that already import from pushLinking.
-export {resolvePushNavigation} from './pushLinking';

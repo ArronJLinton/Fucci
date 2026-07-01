@@ -31,15 +31,20 @@ export function navigatePushTarget(target: PushNavigationTarget): void {
     return;
   }
 
+  const navigate = rootNavigationRef.navigate as (
+    name: string,
+    params?: object,
+  ) => void;
+
   switch (target.kind) {
     case 'news':
-      rootNavigationRef.navigate('Main', {
+      navigate('Main', {
         screen: 'News',
         params: {screen: 'NewsWebView', params: {url: target.url}},
       });
       break;
     case 'debate':
-      rootNavigationRef.navigate('Main', {
+      navigate('Main', {
         screen: 'Debates',
         params: {
           screen: 'SingleDebate',
@@ -51,7 +56,7 @@ export function navigatePushTarget(target: PushNavigationTarget): void {
       });
       break;
     case 'match':
-      rootNavigationRef.navigate('Main', {
+      navigate('Main', {
         screen: 'Home',
         params: {
           screen: 'MatchDetails',
@@ -60,10 +65,10 @@ export function navigatePushTarget(target: PushNavigationTarget): void {
       });
       break;
     case 'debates_tab':
-      rootNavigationRef.navigate('Main', {screen: 'Debates'});
+      navigate('Main', {screen: 'Debates'});
       break;
     case 'home_tab':
-      rootNavigationRef.navigate('Main', {screen: 'Home'});
+      navigate('Main', {screen: 'Home'});
       break;
   }
 }

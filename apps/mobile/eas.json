@@ -23,6 +23,9 @@
       "env": {
         "APP_ENV": "staging"
       },
+      "ios": {
+        "distribution": "store"
+      },
       "android": {
         "buildType": "apk"
       }
