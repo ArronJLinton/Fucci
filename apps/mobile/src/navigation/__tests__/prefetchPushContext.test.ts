@@ -3,6 +3,7 @@ import {matchesForLocalDateQueryKey} from '../../queries/keys';
 import {fetchDebateById} from '../../services/debate';
 import {fetchMatchesForLocalDate} from '../../services/futbol';
 import {fetchMatchShorts} from '../../services/matchShortsApi';
+import type {Match} from '../../types/match';
 import {
   prefetchPushContext,
   resolveMatchForPush,
@@ -35,6 +36,9 @@ const mockFetchMatches = fetchMatchesForLocalDate as jest.MockedFunction<
 const mockFetchMatchShorts = fetchMatchShorts as jest.MockedFunction<
   typeof fetchMatchShorts
 >;
+type FetchMatchesForLocalDateResult = Awaited<
+  ReturnType<typeof fetchMatchesForLocalDate>
+>;
 
 function createQueryClient(): QueryClient {
   const {QueryClient} = require('@tanstack/react-query');
@@ -43,10 +47,32 @@ function createQueryClient(): QueryClient {
   });
 }
 
+function sampleMatch(id: number): Match {
+  return {
+    fixture: {
+      id,
+      date: '2026-06-29T18:00:00Z',
+      status: {long: 'Match Finished', short: 'FT', elapsed: 90},
+    },
+    league: {id: 1, name: 'WC', logo: '', season: 2026},
+    teams: {
+      home: {name: 'Home', logo: '', winner: true},
+      away: {name: 'Away', logo: '', winner: false},
+    },
+    goals: {home: 1, away: 0},
+  };
+}
+
 describe('prefetchPushContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetchMatchShorts.mockResolvedValue({teams: {home: null, away: null}});
+    mockFetchMatchShorts.mockResolvedValue({
+      match_id: '0',
+      teams: {
+        home: {lookup_key: 'home', has_shorts: false, shorts: []},
+        away: {lookup_key: 'away', has_shorts: false, shorts: []},
+      },
+    });
   });
 
   it('prefetches debate and match for debate pushes', async () => {
@@ -61,17 +87,8 @@ describe('prefetchPushContext', () => {
         away: {name: 'B'},
       },
     });
-    mockFetchMatches.mockResolvedValue([
-      {
-        fixture: {id: 99, date: '2026-06-29T18:00:00Z', status: {long: 'FT', short: 'FT', elapsed: 0}},
-        league: {id: 1, name: 'WC', logo: '', season: 2026},
-        teams: {
-          home: {name: 'A', logo: '', winner: true},
-          away: {name: 'B', logo: '', winner: false},
-        },
-        goals: {home: 1, away: 0},
-      },
-    ]);
+    const matches: FetchMatchesForLocalDateResult = [sampleMatch(99)];
+    mockFetchMatches.mockResolvedValue(matches);
 
     const queryClient = createQueryClient();
     const context = await prefetchPushContext(
@@ -82,21 +99,12 @@ describe('prefetchPushContext', () => {
     expect(mockFetchDebateById).toHaveBeenCalledWith(42, 'tok');
     expect(context.debate?.id).toBe(42);
     expect(context.match?.fixture.id).toBe(99);
-    expect(context.match?.teams.home.name).toBe('A');
+    expect(context.match?.teams.home.name).toBe('Home');
   });
 
   it('prefetches match and shorts for match pushes', async () => {
-    mockFetchMatches.mockResolvedValue([
-      {
-        fixture: {id: 7, date: '2026-06-29T18:00:00Z', status: {long: 'FT', short: 'FT', elapsed: 0}},
-        league: {id: 1, name: 'WC', logo: '', season: 2026},
-        teams: {
-          home: {name: 'X', logo: '', winner: null},
-          away: {name: 'Y', logo: '', winner: null},
-        },
-        goals: {home: 0, away: 0},
-      },
-    ]);
+    const matches: FetchMatchesForLocalDateResult = [sampleMatch(7)];
+    mockFetchMatches.mockResolvedValue(matches);
 
     const queryClient = createQueryClient();
     const context = await prefetchPushContext(
@@ -113,15 +121,7 @@ describe('resolveMatchForPush', () => {
   it('returns cached match when present in React Query', async () => {
     const queryClient = createQueryClient();
     const today = new Date(2026, 5, 30);
-    const cached = {
-      fixture: {id: 5, date: '2026-06-29T18:00:00Z', status: {long: 'FT', short: 'FT', elapsed: 0}},
-      league: {id: 1, name: 'WC', logo: '', season: 2026},
-      teams: {
-        home: {name: 'H', logo: '', winner: null},
-        away: {name: 'A', logo: '', winner: null},
-      },
-      goals: {home: null, away: null},
-    };
+    const cached = sampleMatch(5);
     queryClient.setQueryData(matchesForLocalDateQueryKey(today, 1), [cached]);
 
     const match = await resolveMatchForPush(queryClient, 5);

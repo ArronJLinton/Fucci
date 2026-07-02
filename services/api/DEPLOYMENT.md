@@ -94,7 +94,7 @@ flyctl secrets set \
 flyctl secrets set \
   OPENAI_BASE_URL="https://api.openai.com/v1" \
   PORT="8080" \
-  ENVIRONMENT="production" \
+  ENVIRONMENT="staging" \
   --app fucci-api
 ```
 
@@ -267,7 +267,7 @@ flyctl releases rollback <release-id> --app fucci-api
 | `JWT_SECRET`       | Yes      | Secret key for JWT tokens                                |
 | `OPENAI_BASE_URL`  | No       | OpenAI API base URL (default: https://api.openai.com/v1) |
 | `PORT`             | No       | Server port (default: 8080)                              |
-| `ENVIRONMENT`      | No       | Environment name (default: production)                   |
+| `ENVIRONMENT`      | No       | `staging` for fucci-api (Fly); `production` when prod app exists |
 
 ## Troubleshooting
 

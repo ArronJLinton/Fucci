@@ -4,6 +4,8 @@ import {
   isOnLocalDate,
   utcDateStringsForLocalDate,
 } from '../utils/dateBuckets';
+import type {Match} from '../types/match';
+export type {Match} from '../types/match';
 
 export interface Standing {
   rank: number;
@@ -24,31 +26,6 @@ export interface Standing {
     };
   };
   goalDifference: number;
-}
-
-export interface Match {
-  fixture: {
-    id: number;
-    date: string;
-    status: string;
-  };
-  teams: {
-    home: {
-      id: number;
-      name: string;
-      logo: string;
-    };
-    away: {
-      id: number;
-      name: string;
-      logo: string;
-    };
-  };
-  league: {
-    id: number;
-    name: string;
-    season: number;
-  };
 }
 
 export interface LineupData {

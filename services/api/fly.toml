@@ -17,7 +17,9 @@ primary_region = 'iad'
   wait_timeout = "10m"
 
 [env]
-  ENVIRONMENT = 'production'
+  # fucci-api is the staging deployment (mobile APP_ENV=staging → fucci-api.fly.dev).
+  # Production Fly app is not configured yet; use ENVIRONMENT=production only there.
+  ENVIRONMENT = 'staging'
   PORT = '8080'
 
 [http_service]

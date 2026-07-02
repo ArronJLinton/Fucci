@@ -11,8 +11,8 @@ import {
   completePendingPushOptIn,
   isPushOptedIn,
 } from '../services/pushOptIn';
-import {normalizePushNotificationData} from '../navigation/pushLinking';
-import {prefetchPushContext, resolvePushNavigation} from '../navigation/prefetchPushContext';
+import {normalizePushNotificationData, resolvePushNavigation} from '../navigation/pushLinking';
+import {prefetchPushContext} from '../navigation/prefetchPushContext';
 import {
   navigatePushTarget,
   waitForRootNavigationReady,

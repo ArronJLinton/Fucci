@@ -79,7 +79,8 @@ jobs:
           set -- \
             DB_URL="$DB_URL" \
             SUPABASE_URL="$SUPABASE_URL" \
-            SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY"
+            SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+            ENVIRONMENT="staging"
 
           if [ -n "$SUPABASE_ANON_KEY" ]; then
             set -- "$@" SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
