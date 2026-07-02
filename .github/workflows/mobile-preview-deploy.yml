@@ -52,7 +52,7 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add the secret to the repository or the staging environment to enable staging previews."
+            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add EXPO_TOKEN to the staging environment (or repository secrets) to enable staging previews."
             echo "has_token=false" >> "$GITHUB_OUTPUT"
           else
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \

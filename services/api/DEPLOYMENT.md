@@ -181,6 +181,16 @@ flyctl deploy
 
 **After merge to `main`:** mobile changes auto-submit to TestFlight; API deploy remains manual until you run **Deploy API** with `ref: main`.
 
+**iOS build numbers:** The `preview` profile uses EAS remote versioning with `autoIncrement: true` — EAS bumps `ios.buildNumber` on each preview/TestFlight build. Bump `expo.version` in `app.json` manually when you want a new user-facing version (e.g. `1.1.0` → `1.2.0`).
+
+One-time setup (sync current App Store / TestFlight build number with EAS):
+
+```bash
+cd apps/mobile
+eas build:version:set --platform ios
+# When prompted, confirm remote version source and enter the current build number (e.g. 6)
+```
+
 ## Health Checks
 
 The app includes a health check endpoint at `/v1/api/health`. Fly.io is configured to check this endpoint automatically.
