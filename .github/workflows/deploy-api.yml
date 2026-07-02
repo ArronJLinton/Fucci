@@ -29,13 +29,14 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
         github.event.label.name == 'deploy-staging' &&
+        github.event.pull_request.state == 'open' &&
         github.event.pull_request.head.repo.full_name == github.repository)
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.event.pull_request.head.sha }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -152,5 +153,5 @@ jobs:
         if: always()
         run: |
           echo "## API deploy (staging)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
