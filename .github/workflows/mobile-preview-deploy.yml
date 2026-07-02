@@ -1,0 +1,91 @@
+# Staging mobile preview — manual dispatch or PR label deploy-staging (environment approval).
+name: Mobile EAS preview (staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build (branch, tag, or SHA)
+        required: true
+        default: main
+  pull_request:
+    types:
+      - labeled
+    branches:
+      - main
+
+concurrency:
+  group: mobile-preview-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios-preview:
+    name: EAS iOS preview build
+    runs-on: ubuntu-latest
+    environment: staging
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        github.event.label.name == 'deploy-staging' &&
+        github.event.pull_request.state == 'open' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Validate EXPO_TOKEN
+        id: validate_token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add EXPO_TOKEN to the staging environment (or repository secrets) to enable staging previews."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $EXPO_TOKEN" \
+              https://api.expo.dev/v2/auth/userinfo)
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "has_token=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::EXPO_TOKEN is invalid or revoked (HTTP $HTTP_STATUS) — EAS build skipped. Regenerate the token at https://expo.dev/settings/access-tokens and update the secret."
+              echo "has_token=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Install dependencies (monorepo)
+        if: steps.validate_token.outputs.has_token == 'true'
+        run: yarn install --frozen-lockfile
+
+      - name: EAS build iOS preview
+        if: steps.validate_token.outputs.has_token == 'true'
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform ios --profile preview --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Mobile preview (staging)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.validate_token.outputs.has_token }}" = "true" ]; then
+            echo "Install from the EAS dashboard or re-run with submit after review." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ Build skipped — EXPO_TOKEN secret is missing or invalid. Check the workflow logs for details." >> "$GITHUB_STEP_SUMMARY"
+          fi
