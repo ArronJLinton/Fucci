@@ -20,6 +20,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../types/navigation';
 import type {Match} from '../types/match';
 import type {DebateCard, DebateResponse, DebateType} from '../types/debate';
+import {isPlayedMatchStatus} from '../utils/matchStatus';
 import {
   fetchDebatesByMatch,
   fetchDebateById,
@@ -156,14 +157,12 @@ const MatchDebatePulse: React.FC<{cards: DebateCard[] | undefined}> = ({
   );
 };
 
-const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
-
 /** Labels for the up-to-three match debates returned by generate-set / DB. */
 const MATCH_DEBATE_PILLS = ['HOT TOPIC', 'REFEREE WATCH', 'KEY TALKING POINT'] as const;
 
 function getDefaultDebateType(match: Match): DebateType {
   const short = match?.fixture?.status?.short ?? '';
-  return FINISHED_STATUSES.includes(short) ? 'post_match' : 'pre_match';
+  return isPlayedMatchStatus(short) ? 'post_match' : 'pre_match';
 }
 
 interface DebateScreenProps {

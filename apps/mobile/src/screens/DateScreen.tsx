@@ -7,6 +7,7 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  RefreshControl,
   type ImageStyle,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
@@ -28,6 +29,12 @@ import {
   MATCH_SHORTS_STALE_MS,
   matchShortsQueryKey,
 } from '../services/matchShortsApi';
+import {
+  isFinishedMatchStatus,
+  isLiveMatchStatus,
+  isScheduledMatchStatus,
+} from '../utils/matchStatus';
+import {usePullToRefresh} from '../hooks/usePullToRefresh';
 
 const SHORT_RING_AMBER = '#F5A623';
 
@@ -36,26 +43,10 @@ interface DateScreenProps {
   isSelected?: boolean;
   matches: Match[];
   isLoading?: boolean;
+  onRefresh?: () => Promise<void>;
 }
 
 const ITEMS_PER_PAGE = 10;
-
-const LIVE_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'P', 'BT']);
-const FINISHED_STATUSES = new Set([
-  'FT',
-  'AET',
-  'PEN',
-  'FT_PEN',
-  'AET_PEN',
-]);
-
-function isLiveStatus(short: string): boolean {
-  return LIVE_STATUSES.has(short);
-}
-
-function isFinishedStatus(short: string): boolean {
-  return FINISHED_STATUSES.has(short);
-}
 
 const getMatchTime = (fixtureDate: string): string => {
   const d = new Date(fixtureDate);
@@ -100,10 +91,10 @@ function statusLeftRight(match: Match): {
   if (s === 'HT') {
     return {left: '• HALF TIME', tone: 'ht'};
   }
-  if (isLiveStatus(s)) {
+  if (isLiveMatchStatus(s)) {
     return {left: `• LIVE • ${elapsed}'`, tone: 'live'};
   }
-  if (s === 'NS' || s === 'TBD') {
+  if (isScheduledMatchStatus(s)) {
     const mins = minutesUntilKickoff(match.fixture.date);
     if (mins > 0 && mins < 24 * 60) {
       return {left: formatStartsInFromMinutes(mins), tone: 'upcoming'};
@@ -284,7 +275,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
   const h = match.goals.home;
   const a = match.goals.away;
   const hasScore =
-    h != null && a != null && (isLiveStatus(s) || isFinishedStatus(s) || s === 'HT');
+    h != null && a != null && (isLiveMatchStatus(s) || isFinishedMatchStatus(s));
   const homeLeading = h != null && a != null && h > a;
   const awayLeading = h != null && a != null && a > h;
 
@@ -413,10 +404,19 @@ const DateScreen: React.FC<DateScreenProps> = ({
   isSelected: _isSelected = false,
   matches = [],
   isLoading = false,
+  onRefresh,
 }) => {
   const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const previousMatchesRef = useRef<Match[]>([]);
+
+  const refreshHandler = useCallback(async () => {
+    if (onRefresh) {
+      await onRefresh();
+    }
+  }, [onRefresh]);
+  const {refreshing, onRefresh: handleRefresh} =
+    usePullToRefresh(refreshHandler);
 
   const isToday = useMemo(() => {
     const a = new Date(date);
@@ -526,6 +526,16 @@ const DateScreen: React.FC<DateScreenProps> = ({
       contentContainerStyle={styles.container}
       style={styles.listContainer}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={MATCHES_LIME}
+            progressBackgroundColor={MATCHES_BG}
+          />
+        ) : undefined
+      }
     />
   );
 };
@@ -758,6 +768,7 @@ export default React.memo(DateScreen, (prev, next) => {
     prev.date.getTime() === next.date.getTime() &&
     prev.isSelected === next.isSelected &&
     prev.matches === next.matches &&
-    prev.isLoading === next.isLoading
+    prev.isLoading === next.isLoading &&
+    prev.onRefresh === next.onRefresh
   );
 });
