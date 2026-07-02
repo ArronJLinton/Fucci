@@ -47,18 +47,23 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Validate EXPO_TOKEN
+        id: validate_token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error::Missing EXPO_TOKEN secret"
-            exit 1
+            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add the secret to the repository or the mobile-internal-submit environment to enable staging previews."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install dependencies (monorepo)
+        if: steps.validate_token.outputs.has_token == 'true'
         run: yarn install --frozen-lockfile
 
       - name: EAS build iOS preview
+        if: steps.validate_token.outputs.has_token == 'true'
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -71,4 +76,8 @@ jobs:
           echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Install from the EAS dashboard or re-run with submit after review." >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.validate_token.outputs.has_token }}" = "true" ]; then
+            echo "Install from the EAS dashboard or re-run with submit after review." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ Build skipped — EXPO_TOKEN secret is not configured." >> "$GITHUB_STEP_SUMMARY"
+          fi
