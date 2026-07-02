@@ -1,23 +1,23 @@
-name: Deploy API to Fly.io
+name: Deploy API to Fly.io (staging)
 
+# Triggers:
+#   - workflow_dispatch (pick ref)
+#   - pull_request labeled deploy-staging (after review; waits on staging environment approval)
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'services/api/**'
-      - '.github/workflows/deploy-api.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'services/api/**'
-      - '.github/workflows/deploy-api.yml'
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy (branch, tag, or SHA)
+        required: true
+        default: main
+  pull_request:
+    types:
+      - labeled
+    branches:
+      - main
 
-# One staging deploy at a time; PR updates cancel older runs on the same branch.
 concurrency:
-  group: deploy-api-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: deploy-api-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,15 +25,18 @@ jobs:
     name: Deploy to Fly.io (staging)
     runs-on: ubuntu-latest
     environment: staging
-    # Secrets are not available to workflows from fork PRs; skip instead of failing obscurely.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        github.event.label.name == 'deploy-staging' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.pull_request.head.sha }}
 
-      # setup-go only accepts go-version / go-version-file, cache (boolean), cache-dependency-path.
-      # Do not pass node-version or npm-style cache here — that breaks the step.
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -66,7 +69,6 @@ jobs:
       - name: Setup Fly.io
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
-      # Include DB_URL so [deploy].release_command = ./migrate can reach Postgres from Fly (not from GitHub).
       - name: Sync secrets to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -91,17 +93,11 @@ jobs:
           fi
 
           flyctl secrets set "$@" --app fucci-api --stage
-      # Migrations run on Fly only: fly.toml [deploy] release_command = ./migrate (GitHub runners often
-      # cannot reach IPv6 Postgres hosts — "network is unreachable"). Use yarn migrate locally when needed.
 
-      # Validate that the database host in DB_URL resolves before we hand off to Fly.io, so that
-      # a stale or paused-project DB_URL produces an actionable error here rather than an opaque
-      # failure buried inside the Fly release_command logs.
       - name: Validate database host resolves
         env:
           DB_URL: ${{ secrets.DB_URL }}
         run: |
-          # Extract the hostname from the Postgres URL (handles user:pass@host:port/db).
           DB_HOST=$(echo "$DB_URL" | sed -n 's|.*@\([^/:?]*\).*|\1|p')
           if [ -z "$DB_HOST" ]; then
             echo "ERROR: Could not extract hostname from DB_URL. Ensure DB_URL is a valid postgres:// connection string."
@@ -114,14 +110,7 @@ jobs:
             echo ""
             echo "Likely causes:"
             echo "  1. Supabase free-tier project is PAUSED — resume it at https://supabase.com/dashboard"
-            echo "     (free-tier projects pause after 7 days of inactivity and their DNS record is removed)."
             echo "  2. The DB_URL secret contains a stale project reference."
-            echo ""
-            echo "Recommended fix:"
-            echo "  Update the DB_URL GitHub secret to a valid Supabase connection string."
-            echo "  For reliability, use the session-pooler URL:"
-            echo "    postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres"
-            echo "  The pooler endpoint resolves even while the project is waking up."
             echo ""
             exit 1
           fi
@@ -158,3 +147,10 @@ jobs:
             exit 0
           fi
           flyctl status --app fucci-api
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## API deploy (staging)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"

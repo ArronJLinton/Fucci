@@ -1,0 +1,114 @@
+# Push to main → EAS iOS build + TestFlight submit (no Android).
+name: Mobile TestFlight (main)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/mobile-testflight.yml'
+
+concurrency:
+  group: mobile-testflight-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios-testflight:
+    name: EAS iOS build + TestFlight submit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Validate EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing EXPO_TOKEN secret"
+            exit 1
+          fi
+
+      - name: Install dependencies (monorepo)
+        run: yarn install --frozen-lockfile
+
+      - name: Validate App Store Connect API secrets
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          missing=""
+          [ -z "$ASC_APP_ID" ] && missing="$missing ASC_APP_ID"
+          [ -z "$ASC_API_KEY_ID" ] && missing="$missing ASC_API_KEY_ID"
+          [ -z "$ASC_API_ISSUER_ID" ] && missing="$missing ASC_API_ISSUER_ID"
+          [ -z "$ASC_API_KEY_P8" ] && missing="$missing ASC_API_KEY_P8"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing iOS submit secrets:$missing"
+            exit 1
+          fi
+
+      - name: EAS build iOS (preview / store)
+        id: eas_build
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx eas-cli build --platform ios --profile preview --non-interactive --json --wait > "$RUNNER_TEMP/eas-build.json"
+          BUILD_ID=$(jq -r 'if type == "array" then .[0].id else .id end' "$RUNNER_TEMP/eas-build.json")
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::Could not parse EAS build id"
+            cat "$RUNNER_TEMP/eas-build.json"
+            exit 1
+          fi
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+          echo "EAS build id: $BUILD_ID"
+
+      - name: Inject iOS submit profile (ASC API key from secrets)
+        working-directory: apps/mobile
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/AscApiKey.p8"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          jq --arg id "$ASC_APP_ID" \
+            --arg kid "$ASC_API_KEY_ID" \
+            --arg iss "$ASC_API_ISSUER_ID" \
+            --arg path "$KEY_PATH" \
+            '.submit.preview.ios = {
+              ascAppId: $id,
+              ascApiKeyId: $kid,
+              ascApiKeyIssuerId: $iss,
+              ascApiKeyPath: $path
+            }' eas.json > eas.json.tmp && mv eas.json.tmp eas.json
+
+      - name: EAS submit iOS to TestFlight
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx eas-cli submit --platform ios --profile preview --id "${{ steps.eas_build.outputs.build_id }}" --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Mobile TestFlight (main)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SHA: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- EAS build: \`${{ steps.eas_build.outputs.build_id }}\`" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,73 @@
+# Staging mobile preview — manual dispatch or PR label deploy-staging (environment approval).
+name: Mobile EAS preview (staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build (branch, tag, or SHA)
+        required: true
+        default: main
+  pull_request:
+    types:
+      - labeled
+    branches:
+      - main
+
+concurrency:
+  group: mobile-preview-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios-preview:
+    name: EAS iOS preview build
+    runs-on: ubuntu-latest
+    environment: mobile-internal-submit
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        github.event.label.name == 'deploy-staging' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Validate EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing EXPO_TOKEN secret"
+            exit 1
+          fi
+
+      - name: Install dependencies (monorepo)
+        run: yarn install --frozen-lockfile
+
+      - name: EAS build iOS preview
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform ios --profile preview --non-interactive
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Mobile preview (staging)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Install from the EAS dashboard or re-run with submit after review." >> "$GITHUB_STEP_SUMMARY"

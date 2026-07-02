@@ -1,0 +1,35 @@
+# API verification on pull requests — no Fly deploy (see deploy-api.yml).
+name: API CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/api/**'
+      - '.github/workflows/api-ci.yml'
+
+concurrency:
+  group: api-ci-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Go test
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+          cache: true
+          cache-dependency-path: services/api/go.sum
+
+      - name: Run tests
+        working-directory: ./services/api
+        run: go test ./...

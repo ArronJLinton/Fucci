@@ -159,22 +159,28 @@ cd services/api
 flyctl deploy
 ```
 
-### Automatic Deployment via GitHub Actions
+### GitHub Actions (staging)
 
-The repository includes a GitHub Actions workflow (`.github/workflows/deploy-api.yml`) that automatically deploys to Fly.io when changes are pushed to the `main` or `master` branch.
+| Workflow | When it runs |
+| -------- | ------------ |
+| **API CI** (`api-ci.yml`) | Every PR to `main` that touches `services/api/**` — tests only |
+| **Deploy API** (`deploy-api.yml`) | Manual **workflow_dispatch**, or add label `deploy-staging` on a PR (requires **`staging` environment** approval) |
+| **Mobile TestFlight** (`mobile-testflight.yml`) | Push to `main` with `apps/mobile/**` changes — iOS build + TestFlight submit |
+| **Mobile preview** (`mobile-preview-deploy.yml`) | Manual dispatch, or PR label `deploy-staging` (requires **`mobile-internal-submit` environment** approval) |
 
-**Setup GitHub Secrets:**
+**Setup GitHub Secrets** (Settings → Secrets and variables → Actions):
 
-1. Go to your GitHub repository settings
-2. Navigate to Secrets and variables > Actions
-3. Add the following secret:
-   - `FLY_API_TOKEN`: Your Fly.io API token (get it from `flyctl auth token`)
+- `FLY_API_TOKEN`, `DB_URL`, `SUPABASE_*`, etc. for API deploy
+- `EXPO_TOKEN`, `ASC_APP_ID`, `ASC_API_KEY_*` for mobile TestFlight / preview
 
-**Deployment will trigger automatically on:**
+**Environment protection** (Settings → Environments):
 
-- Push to `main` or `master` branch
-- Changes to `services/api/**` files
-- Manual workflow dispatch
+- **`staging`** — required reviewers before Fly deploy
+- **`mobile-internal-submit`** — required reviewers before EAS preview builds on PRs
+
+**After code review on a PR:** add the `deploy-staging` label (or run **Deploy API** / **Mobile EAS preview** manually from Actions with the PR branch as `ref`).
+
+**After merge to `main`:** mobile changes auto-submit to TestFlight; API deploy remains manual until you run **Deploy API** with `ref: main`.
 
 ## Health Checks
 
