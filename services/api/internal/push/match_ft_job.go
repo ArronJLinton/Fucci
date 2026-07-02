@@ -28,8 +28,8 @@ type MediaShortsProvider interface {
 	MediaOutletsShorts(ctx context.Context) []youtube.MediaOutletShorts
 }
 
-// MatchFTJob scans finished marquee fixtures and sends staggered post-FT pushes:
-// highlights ~1h after FT when a Short exists; debates-live 30m later (or ~1h when no Short).
+// MatchFTJob scans finished marquee fixtures ~1h after FT and sends debates-live pushes.
+// Shorts-based highlights pushes are disabled until MatchHighlightsPushEnabled is true.
 type MatchFTJob struct {
 	Matches        MatchFetcher
 	Shorts         MediaShortsProvider
@@ -56,7 +56,7 @@ func (j *MatchFTJob) Run(ctx context.Context) error {
 	}
 
 	shorts := []youtube.MediaOutletShorts{}
-	if j.Shorts != nil {
+	if MatchHighlightsPushEnabled && j.Shorts != nil {
 		shorts = j.Shorts.MediaOutletsShorts(ctx)
 	}
 
@@ -82,10 +82,13 @@ func (j *MatchFTJob) Run(ctx context.Context) error {
 					continue
 				}
 
-				short := FindMatchHighlightShort(shorts, fx)
+				var short *ShortCandidate
+				if MatchHighlightsPushEnabled {
+					short = FindMatchHighlightShort(shorts, fx)
+				}
 				schedule := scheduleMatchPushes(now, fx.EstimatedEnd, short, j.highlightsDelay(), j.debatesStagger())
 
-				if schedule.HighlightsReady {
+				if MatchHighlightsPushEnabled && schedule.HighlightsReady {
 					if j.acquireFixtureCampaignLock(ctx, fx.ID, "highlights") {
 						req := BuildMatchHighlightsPushRequest(fx, short)
 						n := j.sendToCandidates(ctx, candidates, req, now)

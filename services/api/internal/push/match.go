@@ -14,6 +14,10 @@ const (
 	MaxMatchPushesPerDay = 2
 	MarqueeMaxFIFARank   = 50
 
+	// MatchHighlightsPushEnabled gates Shorts-based highlights pushes. Off until highlight
+	// sourcing is consistent; debates-live post-FT pushes still send.
+	MatchHighlightsPushEnabled = false
+
 	DefaultDelayAfterFT = time.Hour
 	// DefaultDebatesStaggerAfterHighlights is the gap between highlights and debates-live when both send.
 	DefaultDebatesStaggerAfterHighlights = 30 * time.Minute
