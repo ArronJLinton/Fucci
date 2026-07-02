@@ -25,7 +25,7 @@ jobs:
   ios-preview:
     name: EAS iOS preview build
     runs-on: ubuntu-latest
-    environment: mobile-internal-submit
+    environment: staging
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&

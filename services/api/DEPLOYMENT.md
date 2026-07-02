@@ -166,7 +166,7 @@ flyctl deploy
 | **API CI** (`api-ci.yml`) | Every PR to `main` that touches `services/api/**` — tests only |
 | **Deploy API** (`deploy-api.yml`) | Manual **workflow_dispatch**, or add label `deploy-staging` on a PR (requires **`staging` environment** approval) |
 | **Mobile TestFlight** (`mobile-testflight.yml`) | Push to `main` with `apps/mobile/**` changes — iOS build + TestFlight submit |
-| **Mobile preview** (`mobile-preview-deploy.yml`) | Manual dispatch, or PR label `deploy-staging` (requires **`mobile-internal-submit` environment** approval) |
+| **Mobile preview** (`mobile-preview-deploy.yml`) | Manual dispatch, or PR label `deploy-staging` (requires **`staging` environment** approval) |
 
 **Setup GitHub Secrets** (Settings → Secrets and variables → Actions):
 
@@ -175,8 +175,7 @@ flyctl deploy
 
 **Environment protection** (Settings → Environments):
 
-- **`staging`** — required reviewers before Fly deploy
-- **`mobile-internal-submit`** — required reviewers before EAS preview builds on PRs
+- **`staging`** — required reviewers before Fly deploy and EAS preview builds on PRs
 
 **After code review on a PR:** add the `deploy-staging` label (or run **Deploy API** / **Mobile EAS preview** manually from Actions with the PR branch as `ref`).
 
