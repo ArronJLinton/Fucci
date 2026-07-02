@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import {useQueryClient} from '@tanstack/react-query';
 import {Ionicons} from '@expo/vector-icons';
 import Animated, {
   cancelAnimation,
@@ -181,6 +182,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
   const stackNav = stackNavigation ?? null;
   const matchScroll = useMatchDetailsScroll();
   const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
+  const queryClient = useQueryClient();
 
   const [debateList, setDebateList] = useState<DebateResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,6 +193,10 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
   );
 
   const loadCancelledRef = useRef(false);
+
+  const invalidateMainDebatesFeed = useCallback(() => {
+    void queryClient.invalidateQueries({queryKey: ['mainDebatesFeed']});
+  }, [queryClient]);
 
   const openSingleDebate = (debate: DebateResponse, selectedCardIndex = 0) => {
     if (!stackNav) return;
@@ -225,6 +231,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           }
           if (cancelled()) return;
           setDebateList(fullDebates);
+          invalidateMainDebatesFeed();
           return;
         }
 
@@ -237,6 +244,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
         }
         if (setResult?.debates?.length) {
           setDebateList(setResult.debates);
+          invalidateMainDebatesFeed();
           return;
         }
         if (setResult?.pending) {
@@ -256,6 +264,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
               }
               if (cancelled()) break;
               setDebateList(fullDebates);
+              invalidateMainDebatesFeed();
               return;
             }
           }
@@ -278,6 +287,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           }
           if (cancelled()) return;
           setDebateList(fullDebates);
+          invalidateMainDebatesFeed();
         } else {
           setError('Could not load debates. Try again.');
         }
@@ -294,7 +304,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
         }
       }
     },
-    [match?.fixture?.id],
+    [match?.fixture?.id, invalidateMainDebatesFeed],
   );
 
   useEffect(() => {

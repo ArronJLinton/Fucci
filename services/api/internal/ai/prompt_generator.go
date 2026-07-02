@@ -312,6 +312,7 @@ DO NOT generate lazy, generic debates such as:
 - "Classic giants or rising stars"
 - "Can [team] go all the way?" / title-favorite / golden-generation hype when the round does not warrant it
 - Vague narratives that could apply to any match between these teams
+- Compound either/or headlines ("Should X start, or is it time for Y?") — use ONE yes/no proposition instead
 
 DO generate practical, scroll-stopping debates anchored in THIS match:
 - Named players: should X start or be benched? injury return risk? key matchup? (use LINEUPS when provided)
@@ -324,30 +325,52 @@ Headlines should name players, tactical choices, or concrete storylines — not 
 Descriptions should explain why NOW: the round/stage, a news item, a H2H fact, or a lineup question.` + stageNote
 }
 
+// binaryPropositionGuidelines instructs the model to produce one YES/NO proposition per debate.
+func binaryPropositionGuidelines() string {
+	return `
+
+BINARY PROPOSITION (critical — users swipe AGREE = YES, DISAGREE = NO on exactly ONE claim):
+
+- The headline must be a single yes/no question or statement. Agree = YES to that proposition; disagree = NO.
+- GOOD: "For this World Cup, should Portugal start Ronaldo?"
+- GOOD: "Should Portugal bench Ronaldo and start João Félix against Croatia?"
+- BAD: "Should Ronaldo start against Croatia, or is it time to rely on younger talent?" (two different questions joined by "or")
+- BAD: "Hero or burden — should he have been dropped?" (unclear what agree vs disagree mean)
+- Never combine two alternatives with "or", "either … or …", "A — or B?", or ask multiple questions in one headline.
+
+Card titles must mirror YES/NO on the same proposition:
+- agree card: short YES label (e.g. "Yes, start Ronaldo")
+- disagree card: short NO label (e.g. "No, play the youngsters")
+
+Fucci's Take comments (exactly three strings):
+- (1) passionate fan voice for YES — may start with "Yes," and state why
+- (2) passionate fan voice for NO — may start with "No," and state the counter (e.g. "No, Portugal should rely on younger talent like Ramos or João Félix.")
+- (3) wildcard hot-take that still lands on a readable side of the same proposition`
+}
+
 func (pg *PromptGenerator) buildSystemPrompt(promptType string) string {
 	reference := ReferenceDebatesPromptSection()
 	relevance := debateRelevanceGuidelines(promptType)
+	binary := binaryPropositionGuidelines()
 	if promptType == "pre_match" {
 		return `You are Fucci's elite football debate producer for a mobile app where each debate gets ONE community vote: users swipe agree or disagree with a single proposition.
 
 IMPORTANT: PRE-MATCH — the match has NOT happened yet. No final scores or post-match outcomes.
 
-Quality bar: headlines must be bold, specific, and polarizing — the kind of take that stops a fan mid-scroll. Descriptions should raise stakes with real context tied to this fixture. Study the reference corpus below for tone; adapt it to THIS match's players, round, news, and H2H — do not copy generic "who wins" framing.` + relevance + `
-
-The headline must read as a clear plain-language statement or question fans can answer YES or NO to (agree vs disagree). Frame it so "agree" and "disagree" are natural opposites.
+Quality bar: headlines must be bold, specific, and polarizing — the kind of take that stops a fan mid-scroll. Descriptions should raise stakes with real context tied to this fixture. Study the reference corpus below for tone; adapt it to THIS match's players, round, news, and H2H — do not copy generic "who wins" framing.` + relevance + binary + `
 
 Respond with ONLY one JSON object (no markdown, no code fences, no extra text). Exact shape:
 {
-  "headline": "Bold, controversial line fans can agree or disagree with",
+  "headline": "Single yes/no question or statement (one proposition only)",
   "description": "Short context that raises the stakes (why it matters for this fixture)",
   "cards": [
-    { "stance": "agree", "title": "Short label for the YES / agree side" },
-    { "stance": "disagree", "title": "Short label for the NO / disagree side" }
+    { "stance": "agree", "title": "Short YES-side label" },
+    { "stance": "disagree", "title": "Short NO-side label" }
   ],
   "comments": [
-    "passionate fan voice backing the agree side",
-    "passionate fan voice backing the disagree side",
-    "spicy wildcard / hot-take that still fits the debate"
+    "Fucci's Take backing YES (may start with Yes,)",
+    "Fucci's Take backing NO (may start with No,)",
+    "wildcard hot-take on the same proposition"
   ]
 }
 
@@ -371,22 +394,20 @@ DO NOT reference final score or "after the match" facts.` + reference
 
 IMPORTANT: POST-MATCH — the match has finished. Use what happened; reference result and moments when useful.
 
-Quality bar: headlines must be bold, specific, and polarizing — tied to what actually happened in the match. Descriptions should fuel the argument with concrete moments, stats, or narratives. Study the reference corpus below for tone; keep debates anchored to THIS match, not generic season narratives.` + relevance + `
-
-The headline must read as a clear statement or question fans can answer YES or NO to. "Agree" and "disagree" must be direct opposites.
+Quality bar: headlines must be bold, specific, and polarizing — tied to what actually happened in the match. Descriptions should fuel the argument with concrete moments, stats, or narratives. Study the reference corpus below for tone; keep debates anchored to THIS match, not generic season narratives.` + relevance + binary + `
 
 Respond with ONLY one JSON object (no markdown, no code fences, no extra text). Exact shape:
 {
-  "headline": "Bold line fans can agree or disagree with",
+  "headline": "Single yes/no question or statement (one proposition only)",
   "description": "Short context from the match that fuels the argument",
   "cards": [
-    { "stance": "agree", "title": "Short label for the YES / agree side" },
-    { "stance": "disagree", "title": "Short label for the NO / disagree side" }
+    { "stance": "agree", "title": "Short YES-side label" },
+    { "stance": "disagree", "title": "Short NO-side label" }
   ],
   "comments": [
-    "passionate fan comment supporting the agree side",
-    "passionate fan comment supporting the disagree side",
-    "wildcard / hot-take comment (still about this debate; fan voice not pundit voice)"
+    "Fucci's Take backing YES (may start with Yes,)",
+    "Fucci's Take backing NO (may start with No,)",
+    "wildcard hot-take on the same proposition"
   ]
 }
 
@@ -575,18 +596,19 @@ func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int)
 
 	reference := ReferenceDebatesPromptSection()
 	relevance := debateRelevanceGuidelines(promptType)
+	binary := binaryPropositionGuidelines()
 	return fmt.Sprintf(`You are Fucci's elite football debate producer for a mobile app: ONE vote per debate (agree vs disagree on a single proposition).
 
 	IMPORTANT: This is a %s debate. %s
-%s
+%s%s
 	Quality bar: headlines must be bold, specific, and polarizing — the kind of take that stops a fan mid-scroll. Study the reference corpus below for tone; every debate must feel written for THIS match, round, and news cycle.
 
-	Each debate is binary: a headline fans can agree or disagree with, two stance labels (agree/disagree), and three pre-seeded "Fucci's Take" comments in a passionate FAN voice (not polished pundit copy; avoid analyst jargon unless a normal supporter would say it). Comments should feel like stands or group-chat energy: short, heated, believable, PG-13.
+	Each debate is binary: ONE yes/no headline, two stance labels (agree/disagree), and three pre-seeded "Fucci's Take" comments in a passionate FAN voice (not polished pundit copy; avoid analyst jargon unless a normal supporter would say it). Comments should feel like stands or group-chat energy: short, heated, believable, PG-13.
 
 	JSON rules for EVERY object in the array:
 	- Exactly two cards: { "stance": "agree", "title": "..." } and { "stance": "disagree", "title": "..." } only. No wildcard card. No "description" on cards.
-	- "comments" must be an array of exactly three strings: (1) fan comment backing agree, (2) fan comment backing disagree, (3) wildcard/hot-take still tied to this debate.
-	- Headline frames an agree/disagree split; description adds match-specific stakes.
+	- "comments" must be an array of exactly three strings: (1) YES fan take, (2) NO fan take, (3) wildcard hot-take on the same proposition.
+	- Headline = one proposition only; description adds match-specific stakes.
 	- When NEWS HEADLINES appear in the user message, at least one debate in the set must spring directly from a headline.
 	- Prefer named players, selection drama, H2H angles, and upset/concern takes over generic "who wins" showdown titles.
 
@@ -596,16 +618,16 @@ func (pg *PromptGenerator) buildSystemPromptForSet(promptType string, count int)
 
 	Each object must match this structure:
 	{
-	"headline": "Statement or question fans can agree or disagree with",
+	"headline": "Single yes/no question or statement (one proposition only)",
 	"description": "Context that fuels the split",
 	"cards": [
 		{ "stance": "agree", "title": "Short YES-side label" },
 		{ "stance": "disagree", "title": "Short NO-side label" }
 	],
-	"comments": ["fan comment backing agree", "fan comment backing disagree", "wildcard hot-take fan comment"]
+	"comments": ["YES Fucci's Take", "NO Fucci's Take", "wildcard hot-take fan comment"]
 	}
 
-	Return only the JSON array.%s`, phase, phaseNote, relevance, count, reference)
+	Return only the JSON array.%s`, phase, phaseNote, relevance, binary, count, reference)
 }
 
 // GenerateDebateSetPrompt performs one AI call and returns multiple debate prompts (e.g. 3) for the given type.

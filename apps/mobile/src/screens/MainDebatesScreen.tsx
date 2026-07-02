@@ -28,7 +28,7 @@ import type {DebatesStackParamList} from '../types/navigation';
 import {userFacingApiMessage} from '../services/api';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
-import {worldCupKeywordMatch} from '../utils/newsFilters';
+import {debateMatchesWorldCupFilter} from '../utils/newsFilters';
 import {mainDebatesFeedQueryKey} from '../queries/keys';
 import DebateHeroSwipeCard, {
   type DebateHeroVoteFailedDetail,
@@ -94,16 +94,8 @@ function debateGeneratedWithinPast48Hours(
   return nowMs - rowMs <= FEED_MAX_AGE_MS;
 }
 
-/**
- * Summer 2026 world-cup-only mode: keep a debate only if its headline,
- * description, or sourced headline mentions a World Cup–related keyword.
- */
 function debateIsWorldCupRelated(summary: DebateSummary): boolean {
-  return (
-    worldCupKeywordMatch(summary.headline) ||
-    worldCupKeywordMatch(summary.description) ||
-    worldCupKeywordMatch(summary.source_headline)
-  );
+  return debateMatchesWorldCupFilter(summary);
 }
 
 function debatePassesActiveFilters(
@@ -245,11 +237,12 @@ const MainDebatesScreen = () => {
   const onPullRefresh = useCallback(async () => {
     setIsPullRefreshing(true);
     try {
+      await queryClient.invalidateQueries({queryKey: debatesFeedQueryKey});
       await refetch();
     } finally {
       setIsPullRefreshing(false);
     }
-  }, [refetch]);
+  }, [queryClient, debatesFeedQueryKey, refetch]);
 
   const [feedNowMs, setFeedNowMs] = useState(() => Date.now());
   useEffect(() => {

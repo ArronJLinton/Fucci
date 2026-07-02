@@ -53,11 +53,11 @@ func ReferenceDebatesPromptSection() string {
 	var b strings.Builder
 	b.WriteString("\n\nREFERENCE CORPUS — FIFA World Cup debate style guide (1966–2026):\n")
 	b.WriteString("Match this tone: bold polarizing headlines, stakes-driven descriptions, and seeded \"Fucci's Take\" comments that sound like passionate fans in the stands — not TV pundits.\n")
-	b.WriteString("Headlines should be plain-language yes/no propositions. Descriptions should draw on notable controversy, records, or narratives.\n")
+	b.WriteString("Headlines must be ONE plain-language yes/no proposition (agree = YES, disagree = NO). Some older reference headlines use legacy either/or wording — do NOT copy that pattern; use single-proposition questions only.\n")
 	b.WriteString("Each debate needs exactly three seeded comments labeled \"Fucci's Take\" in the app:\n")
-	b.WriteString("  (1) backs the agree side with heat and conviction\n")
-	b.WriteString("  (2) backs the disagree side with a sharp counter\n")
-	b.WriteString("  (3) a wildcard/hot-take angle that still fits the debate\n")
+	b.WriteString("  (1) backs YES with heat and conviction (may start with \"Yes,\")\n")
+	b.WriteString("  (2) backs NO with a sharp counter (may start with \"No,\")\n")
+	b.WriteString("  (3) a wildcard/hot-take angle that still fits the same proposition\n")
 	b.WriteString("Comments: short, conversational, PG-13, emotionally charged — never analyst jargon unless a normal fan would say it.\n\n")
 
 	exampleCount := 5
