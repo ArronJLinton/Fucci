@@ -24,6 +24,7 @@ import {resolveHomeScreenDefaultLeague} from '../services/matchesDefaultLeague';
 import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
 import {matchesForLocalDateQueryKey} from '../queries/keys';
 import type {Match} from '../types/match';
+import {hasLiveMatchInList} from '../utils/matchStatus';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -66,6 +67,17 @@ const getTabLabel = (date: Date): string => {
 };
 
 const MATCHES_STALE_MS = 5 * 60 * 1000;
+const MATCHES_TODAY_STALE_MS = 2 * 60 * 1000;
+/** Poll today's tab while fixtures are live (between manual pull-to-refresh). */
+const MATCHES_LIVE_REFETCH_MS = 75 * 1000;
+
+const isSameLocalDay = (a: Date, b: Date): boolean => {
+  const left = new Date(a);
+  left.setHours(0, 0, 0, 0);
+  const right = new Date(b);
+  right.setHours(0, 0, 0, 0);
+  return left.getTime() === right.getTime();
+};
 
 type DateTabScreenProps = {
   date: Date;
@@ -86,7 +98,8 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const isSelected = route.name === currentRoute;
 
   const leagueId = selectedLeague?.id ?? 0;
-  const {data: matches = [], isLoading} = useQuery<Match[]>({
+  const isTodayTab = isSameLocalDay(date, new Date());
+  const {data: matches = [], isLoading, refetch} = useQuery<Match[]>({
     queryKey: matchesForLocalDateQueryKey(date, leagueId),
     queryFn: async () => {
       if (!selectedLeague) {
@@ -100,10 +113,19 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
       return rows ?? [];
     },
     enabled: Boolean(selectedLeague) && isSelected,
-    staleTime: MATCHES_STALE_MS,
+    staleTime: isTodayTab ? MATCHES_TODAY_STALE_MS : MATCHES_STALE_MS,
     gcTime: 15 * 60 * 1000,
     placeholderData: previous => previous,
+    refetchOnWindowFocus: isTodayTab,
+    refetchInterval: query =>
+      isTodayTab && isSelected && hasLiveMatchInList(query.state.data ?? [])
+        ? MATCHES_LIVE_REFETCH_MS
+        : false,
   });
+
+  const onRefresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   const filteredMatches = React.useMemo(() => {
     if (!searchQuery) return matches;
@@ -123,6 +145,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
       isSelected={isSelected}
       matches={filteredMatches}
       isLoading={isLoading}
+      onRefresh={onRefresh}
     />
   );
 };

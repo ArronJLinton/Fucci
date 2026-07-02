@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import {useQueryClient} from '@tanstack/react-query';
 import {Ionicons} from '@expo/vector-icons';
 import Animated, {
   cancelAnimation,
@@ -20,6 +21,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../types/navigation';
 import type {Match} from '../types/match';
 import type {DebateCard, DebateResponse, DebateType} from '../types/debate';
+import {isPlayedMatchStatus} from '../utils/matchStatus';
 import {
   fetchDebatesByMatch,
   fetchDebateById,
@@ -156,14 +158,12 @@ const MatchDebatePulse: React.FC<{cards: DebateCard[] | undefined}> = ({
   );
 };
 
-const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
-
 /** Labels for the up-to-three match debates returned by generate-set / DB. */
 const MATCH_DEBATE_PILLS = ['HOT TOPIC', 'REFEREE WATCH', 'KEY TALKING POINT'] as const;
 
 function getDefaultDebateType(match: Match): DebateType {
   const short = match?.fixture?.status?.short ?? '';
-  return FINISHED_STATUSES.includes(short) ? 'post_match' : 'pre_match';
+  return isPlayedMatchStatus(short) ? 'post_match' : 'pre_match';
 }
 
 interface DebateScreenProps {
@@ -182,6 +182,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
   const stackNav = stackNavigation ?? null;
   const matchScroll = useMatchDetailsScroll();
   const onScroll = matchScrollHandler ?? matchScroll?.scrollHandler;
+  const queryClient = useQueryClient();
 
   const [debateList, setDebateList] = useState<DebateResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -192,6 +193,10 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
   );
 
   const loadCancelledRef = useRef(false);
+
+  const invalidateMainDebatesFeed = useCallback(() => {
+    void queryClient.invalidateQueries({queryKey: ['mainDebatesFeed']});
+  }, [queryClient]);
 
   const openSingleDebate = (debate: DebateResponse, selectedCardIndex = 0) => {
     if (!stackNav) return;
@@ -226,6 +231,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           }
           if (cancelled()) return;
           setDebateList(fullDebates);
+          invalidateMainDebatesFeed();
           return;
         }
 
@@ -238,6 +244,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
         }
         if (setResult?.debates?.length) {
           setDebateList(setResult.debates);
+          invalidateMainDebatesFeed();
           return;
         }
         if (setResult?.pending) {
@@ -257,6 +264,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
               }
               if (cancelled()) break;
               setDebateList(fullDebates);
+              invalidateMainDebatesFeed();
               return;
             }
           }
@@ -279,6 +287,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
           }
           if (cancelled()) return;
           setDebateList(fullDebates);
+          invalidateMainDebatesFeed();
         } else {
           setError('Could not load debates. Try again.');
         }
@@ -295,7 +304,7 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
         }
       }
     },
-    [match?.fixture?.id],
+    [match?.fixture?.id, invalidateMainDebatesFeed],
   );
 
   useEffect(() => {

@@ -16,6 +16,7 @@ import {LinearGradient} from 'expo-linear-gradient';
 import type {Match} from '../types/match';
 import type {NavigationProp} from '../types/navigation';
 import {useMatchNews} from '../hooks/useMatchNews';
+import {isPlayedMatchStatus} from '../utils/matchStatus';
 import type {NewsArticle} from '../types/news';
 import {
   NEWS_BG,
@@ -42,11 +43,8 @@ interface MatchNewsScreenProps {
 const PAGE_PAD = 16;
 const CARD_RADIUS = 12;
 
-// Actually played + finished statuses only.
-const COMPLETED_STATUSES = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'];
-
 function isMatchCompleted(statusShort: string): boolean {
-  return COMPLETED_STATUSES.includes(statusShort);
+  return isPlayedMatchStatus(statusShort);
 }
 
 function getMatchEndTimeISO(fixtureDate: string): string {

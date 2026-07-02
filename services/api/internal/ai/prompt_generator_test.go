@@ -134,3 +134,23 @@ func TestBuildSystemPromptForSet_IncludesRelevanceGuidelines(t *testing.T) {
 		t.Error("set system prompt should require headline-driven debate in set")
 	}
 }
+
+func TestBuildSystemPrompt_IncludesBinaryPropositionGuidelines(t *testing.T) {
+	pg := &PromptGenerator{}
+	for _, promptType := range []string{"pre_match", "post_match"} {
+		prompt := pg.buildSystemPrompt(promptType)
+		if !strings.Contains(prompt, "BINARY PROPOSITION") {
+			t.Errorf("%s system prompt should include binary proposition guidelines", promptType)
+		}
+		if !strings.Contains(prompt, "should Portugal start Ronaldo") {
+			t.Errorf("%s system prompt should include good headline example", promptType)
+		}
+		if !strings.Contains(prompt, "is it time to rely on younger talent") {
+			t.Errorf("%s system prompt should include bad either/or example", promptType)
+		}
+	}
+	setPrompt := pg.buildSystemPromptForSet("pre_match", 3)
+	if !strings.Contains(setPrompt, "BINARY PROPOSITION") {
+		t.Error("set system prompt should include binary proposition guidelines")
+	}
+}

@@ -47,6 +47,7 @@ import {
   MATCH_SHORTS_STALE_MS,
   matchShortsQueryKey,
 } from '../services/matchShortsApi';
+import {isLiveMatchStatus, isPlayedMatchStatus} from '../utils/matchStatus';
 
 const SHORT_RING_AMBER = '#F5A623';
 
@@ -105,10 +106,6 @@ function statusPillLabel(match: Match): string {
   return map[short] ?? long.toUpperCase().slice(0, 28);
 }
 
-function isLiveStatus(short: string): boolean {
-  return ['1H', '2H', 'ET', 'BT', 'PEN', 'LIVE'].includes(short);
-}
-
 const MatchDetailsScreen = () => {
   const route = useRoute<MatchDetailsRouteProp>();
   const navigation =
@@ -151,7 +148,7 @@ const MatchDetailsScreen = () => {
     const matchId = match?.fixture?.id;
     if (!matchId) return;
     const status = match?.fixture?.status?.short ?? '';
-    const finished = ['FT', 'AET', 'PEN', 'FT_PEN', 'AET_PEN'].includes(status);
+    const finished = isPlayedMatchStatus(status);
     const debateType = finished ? 'post_match' : 'pre_match';
     const key = preloadKey(matchId, debateType);
     if (preloadFiredFor.has(key) || preloadInFlight.has(key)) return;
@@ -227,7 +224,7 @@ const MatchDetailsScreen = () => {
   });
 
   const statusLabel = statusPillLabel(match);
-  const live = isLiveStatus(match.fixture.status.short);
+  const live = isLiveMatchStatus(match.fixture.status.short);
 
   const MatchHero = () => (
     <Animated.View style={[styles.heroOuter, heroAnimatedStyle]}>

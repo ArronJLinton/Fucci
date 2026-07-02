@@ -129,6 +129,35 @@ export function worldCupKeywordMatch(text: string | null | undefined): boolean {
   return WORLD_CUP_KEYWORDS.some(k => haystack.includes(k));
 }
 
+type WorldCupDebateFields = {
+  headline?: string;
+  description?: string;
+  source_headline?: string;
+  teams?: {home?: {name?: string}; away?: {name?: string}};
+};
+
+/**
+ * World-cup-only debates filter. Headlines often omit "World Cup" wording even for
+ * international fixtures, so also accept rows with both team names attached.
+ */
+export function debateMatchesWorldCupFilter(
+  summary: WorldCupDebateFields,
+): boolean {
+  const fields = [
+    summary.headline,
+    summary.description,
+    summary.source_headline,
+    summary.teams?.home?.name,
+    summary.teams?.away?.name,
+  ];
+  if (fields.some(f => worldCupKeywordMatch(f))) {
+    return true;
+  }
+  const home = summary.teams?.home?.name?.trim();
+  const away = summary.teams?.away?.name?.trim();
+  return Boolean(home && away);
+}
+
 export function filterByLeague(
   articles: NewsArticle[],
   league: League | null,

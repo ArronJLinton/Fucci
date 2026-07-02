@@ -6,7 +6,6 @@ import {
   Image,
   Linking,
   Dimensions,
-  TouchableOpacity,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
@@ -54,6 +53,17 @@ function pickBinaryStanceCards(cards: DebateCard[] | undefined): {
   return {
     agree: cards.find(c => c.stance === 'agree'),
     disagree: cards.find(c => c.stance === 'disagree'),
+  };
+}
+
+function buildPlaceholderDebate(summary: DebateSummary): DebateResponse {
+  return {
+    id: summary.id,
+    match_id: summary.match_id,
+    headline: summary.headline,
+    description: summary.description ?? '',
+    debate_type: summary.debate_type,
+    cards: [],
   };
 }
 
@@ -205,15 +215,14 @@ export default function DebateHeroSwipeCard({
     () => pickBinaryStanceCards(debate?.cards),
     [debate?.cards],
   );
-  /** Debate loaded with both stance cards — UI can show vote affordances (guest sees sign-in). */
   const binaryVoteUiReady =
     !!debate?.id &&
     agreeCard?.id != null &&
     disagreeCard?.id != null &&
     !debateQuery.isLoading;
-  /** Logged-in only: swipe-to-vote. */
+  /** Logged-in with binary cards loaded — swipe commits a vote. */
   const canSwipeVote = binaryVoteUiReady && isLoggedIn && !!token;
-  const authRequiredForVote = binaryVoteUiReady && (!isLoggedIn || !token);
+  const needsAuthForVote = !isLoggedIn || !token;
 
   /** Tracks hero identity so we reset pan/commit state only on debate change, not when canSwipeVote flips (e.g. prefetch). */
   const prevHeroSummaryIdRef = useRef(summary.id);
@@ -253,13 +262,11 @@ export default function DebateHeroSwipeCard({
     : (summary.source_url?.trim() ?? '');
 
   const openAuthForSwipe = useCallback(() => {
-    if (!debate) {
-      return;
-    }
+    const debateForAuth = debate ?? buildPlaceholderDebate(summary);
     const match = buildPlaceholderMatch(summary);
     rootNavigateToProfileAuth({
       match,
-      debate,
+      debate: debateForAuth,
       pendingAction: 'swipe',
     });
   }, [debate, summary, buildPlaceholderMatch]);
@@ -362,7 +369,7 @@ export default function DebateHeroSwipeCard({
         return;
       }
       if (!canSwipeVote) {
-        if (authRequiredForVote) {
+        if (needsAuthForVote) {
           const pastThreshold = dx > SWIPE_THRESHOLD || dx < -SWIPE_THRESHOLD;
           if (pastThreshold) {
             onPanResolved?.({
@@ -411,7 +418,7 @@ export default function DebateHeroSwipeCard({
     [
       summary.id,
       canSwipeVote,
-      authRequiredForVote,
+      needsAuthForVote,
       onOpen,
       onPanResolved,
       openAuthForSwipe,
@@ -515,7 +522,7 @@ export default function DebateHeroSwipeCard({
   }));
 
   const heroA11yLabel = `Featured debate: ${summary.headline}`;
-  const heroA11yHint = authRequiredForVote
+  const heroA11yHint = needsAuthForVote
     ? 'Sign in to vote. Short tap opens the full debate.'
     : 'Swipe right to agree, left to disagree. Short tap opens the full debate.';
 
@@ -633,30 +640,14 @@ export default function DebateHeroSwipeCard({
                 This debate needs agree and disagree cards to swipe-vote.
               </Text>
             ) : null}
-            {authRequiredForVote ? (
-              <View style={styles.guestVoteCta} accessibilityRole="text">
-                <Text style={styles.guestVoteText}>
-                  Sign in to participate in debates and cast your vote.
-                </Text>
-                <TouchableOpacity
-                  onPress={openAuthForSwipe}
-                  style={styles.guestSignInBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign in to vote">
-                  <Text style={styles.guestSignInBtnText}>Sign in</Text>
-                  <Ionicons name="chevron-forward" size={18} color={BG} />
-                </TouchableOpacity>
+            <View style={styles.swipeRow}>
+              <Text style={styles.disagreeLabel}>DISAGREE</Text>
+              <View style={styles.swipeHint}>
+                <View style={styles.swipeLine} />
+                <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
               </View>
-            ) : canSwipeVote ? (
-              <View style={styles.swipeRow}>
-                <Text style={styles.disagreeLabel}>DISAGREE</Text>
-                <View style={styles.swipeHint}>
-                  <View style={styles.swipeLine} />
-                  <Text style={styles.swipeHintText}>SWIPE TO VOTE</Text>
-                </View>
-                <Text style={styles.agreeLabel}>AGREE</Text>
-              </View>
-            ) : null}
+              <Text style={styles.agreeLabel}>AGREE</Text>
+            </View>
           </View>
         </Animated.View>
       </GestureDetector>
@@ -791,33 +782,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: MUTED,
-  },
-  guestVoteCta: {
-    marginTop: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    gap: 12,
-  },
-  guestVoteText: {
-    fontSize: 13,
-    color: MUTED,
-    fontWeight: '600',
-    lineHeight: 19,
-  },
-  guestSignInBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 4,
-    backgroundColor: LIME,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  guestSignInBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BG,
   },
   swipeRow: {
     flexDirection: 'row',
