@@ -97,7 +97,7 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
         selectedLeague.id,
         seasonParamForMatchSearch(selectedLeague, date),
       );
-      return (rows ?? []) as unknown as Match[];
+      return rows ?? [];
     },
     enabled: Boolean(selectedLeague) && isSelected,
     staleTime: MATCHES_STALE_MS,

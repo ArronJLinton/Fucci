@@ -36,6 +36,9 @@ const mockFetchMatches = fetchMatchesForLocalDate as jest.MockedFunction<
 const mockFetchMatchShorts = fetchMatchShorts as jest.MockedFunction<
   typeof fetchMatchShorts
 >;
+type FetchMatchesForLocalDateResult = Awaited<
+  ReturnType<typeof fetchMatchesForLocalDate>
+>;
 
 function createQueryClient(): QueryClient {
   const {QueryClient} = require('@tanstack/react-query');
@@ -84,7 +87,8 @@ describe('prefetchPushContext', () => {
         away: {name: 'B'},
       },
     });
-    mockFetchMatches.mockResolvedValue([sampleMatch(99)] as never);
+    const matches: FetchMatchesForLocalDateResult = [sampleMatch(99)];
+    mockFetchMatches.mockResolvedValue(matches);
 
     const queryClient = createQueryClient();
     const context = await prefetchPushContext(
@@ -99,7 +103,8 @@ describe('prefetchPushContext', () => {
   });
 
   it('prefetches match and shorts for match pushes', async () => {
-    mockFetchMatches.mockResolvedValue([sampleMatch(7)] as never);
+    const matches: FetchMatchesForLocalDateResult = [sampleMatch(7)];
+    mockFetchMatches.mockResolvedValue(matches);
 
     const queryClient = createQueryClient();
     const context = await prefetchPushContext(

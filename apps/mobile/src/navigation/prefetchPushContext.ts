@@ -85,7 +85,7 @@ export async function resolveMatchForPush(
           date,
           league.id,
           season,
-        )) as unknown as Match[];
+        )) ?? [];
         queryClient.setQueryData(key, matches);
       } catch {
         continue;
