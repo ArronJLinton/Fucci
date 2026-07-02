@@ -52,10 +52,18 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add the secret to the repository or the mobile-internal-submit environment to enable staging previews."
+            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add the secret to the repository or the staging environment to enable staging previews."
             echo "has_token=false" >> "$GITHUB_OUTPUT"
           else
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $EXPO_TOKEN" \
+              https://api.expo.dev/v2/auth/userinfo)
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "has_token=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::EXPO_TOKEN is invalid or revoked (HTTP $HTTP_STATUS) — EAS build skipped. Regenerate the token at https://expo.dev/settings/access-tokens and update the secret."
+              echo "has_token=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Install dependencies (monorepo)
@@ -79,5 +87,5 @@ jobs:
           if [ "${{ steps.validate_token.outputs.has_token }}" = "true" ]; then
             echo "Install from the EAS dashboard or re-run with submit after review." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️ Build skipped — EXPO_TOKEN secret is not configured." >> "$GITHUB_STEP_SUMMARY"
+            echo "⚠️ Build skipped — EXPO_TOKEN secret is missing or invalid. Check the workflow logs for details." >> "$GITHUB_STEP_SUMMARY"
           fi
