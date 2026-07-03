@@ -54,6 +54,13 @@ type PushStore interface {
 	UpdatePushPreferences(ctx context.Context, arg database.UpdatePushPreferencesParams) (database.PushPreferences, error)
 }
 
+// MatchStoryStore is the DB surface for /stories handlers; *database.Queries implements it.
+// MatchStoryDB on Config overrides DB for those handlers when set (unit tests).
+type MatchStoryStore interface {
+	GetMatchStoryByID(ctx context.Context, id uuid.UUID) (database.MatchStories, error)
+	DeactivateMatchStory(ctx context.Context, id uuid.UUID) (database.MatchStories, error)
+}
+
 // PlayerProfileStore is the DB surface used by /api/player-profile handlers; *database.Queries implements it.
 // PlayerProfileDB on Config overrides DB for those handlers when set (unit tests).
 type PlayerProfileStore interface {
@@ -116,6 +123,7 @@ type Config struct {
 	CommentReader   CommentReader
 	DebatesFeedDB   DebatesFeedStore   // nil => use DB for debate feed GETs
 	PlayerProfileDB PlayerProfileStore // nil => use DB for /api/player-profile routes
+	MatchStoryDB    MatchStoryStore    // nil => use DB for /stories routes
 	PushDB          PushStore          // nil => use DB for /push/* routes
 
 	// ProfileUpdateDB optional fake for PUT /users/profile persistence; nil => DBConn + sqlc (production).
@@ -226,6 +234,15 @@ func New(c *Config) http.Handler {
 	matchesRouter := chi.NewRouter()
 	matchesRouter.Get("/{matchId}/stories/shorts", c.getMatchYouTubeShorts)
 
+	storiesRouter := chi.NewRouter()
+	storiesRouter.Use(auth.RequireAuth)
+	storiesRouter.Post("/", c.postMatchStory)
+	storiesRouter.Delete("/{id}", c.deleteMatchStory)
+
+	reportsRouter := chi.NewRouter()
+	reportsRouter.Use(auth.RequireAuth)
+	reportsRouter.Post("/", c.postContentReport)
+
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)
 	debateRouter.Get("/public-feed", c.getDebatesPublicFeed)
@@ -296,6 +313,8 @@ func New(c *Config) http.Handler {
 	router.Mount("/google", googleRouter)
 	router.Mount("/news", newsRouter)
 	router.Mount("/matches", matchesRouter)
+	router.Mount("/stories", storiesRouter)
+	router.Mount("/reports", reportsRouter)
 	router.Mount("/debates", debateRouter)
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)

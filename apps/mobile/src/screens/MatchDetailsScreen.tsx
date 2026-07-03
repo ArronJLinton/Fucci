@@ -44,6 +44,7 @@ import type {Match} from '../types/match';
 import {
   fetchMatchShorts,
   hasTeamShorts,
+  teamHasStoryContent,
   MATCH_SHORTS_STALE_MS,
   matchShortsQueryKey,
 } from '../services/matchShortsApi';
@@ -126,6 +127,8 @@ const MatchDetailsScreen = () => {
 
   const homeHasShorts = hasTeamShorts(matchShortsData?.teams.home);
   const awayHasShorts = hasTeamShorts(matchShortsData?.teams.away);
+  const homeHasStories = teamHasStoryContent(matchShortsData?.teams.home);
+  const awayHasStories = teamHasStoryContent(matchShortsData?.teams.away);
 
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
@@ -168,13 +171,14 @@ const MatchDetailsScreen = () => {
   const openTeamShorts = (side: 'home' | 'away') => {
     const team =
       side === 'home' ? matchShortsData?.teams.home : matchShortsData?.teams.away;
-    if (!hasTeamShorts(team)) {
-      return;
-    }
+    const teamName =
+      side === 'home' ? match.teams.home.name : match.teams.away.name;
     navigation.navigate('MatchTeamShorts', {
-      shorts: team!.shorts,
-      teamDisplayName:
-        side === 'home' ? match.teams.home.name : match.teams.away.name,
+      matchId,
+      teamLookupKey: team?.lookup_key,
+      teamDisplayName: teamName,
+      youtubeShorts: team?.shorts ?? [],
+      userStories: team?.user_stories ?? [],
     });
   };
 
@@ -258,24 +262,16 @@ const MatchDetailsScreen = () => {
           <Animated.View style={[styles.heroScoreBlock, expandedScoreStyle]}>
             <TouchableOpacity
               style={[styles.teamBlock, styles.teamBlockSide]}
-              activeOpacity={homeHasShorts ? 0.88 : 1}
-              disabled={!homeHasShorts}
+              activeOpacity={0.88}
               onPress={() => openTeamShorts('home')}
-              hitSlop={
-                homeHasShorts
-                  ? {top: 8, bottom: 8, left: 4, right: 4}
-                  : undefined
-              }
+              hitSlop={{top: 8, bottom: 8, left: 4, right: 4}}
               accessibilityRole="button"
-              accessibilityLabel={
-                homeHasShorts
-                  ? `Open ${match.teams.home.name} YouTube Shorts`
-                  : `Home team ${match.teams.home.name}`
-              }>
+              accessibilityLabel={`Open ${match.teams.home.name} match stories`}>
               <View
                 style={[
                   styles.badgeWrap,
-                  homeHasShorts && styles.badgeShortRingWrap,
+                  (homeHasStories || homeHasShorts) && styles.badgeShortRingWrap,
+                  !homeHasStories && styles.badgeShortRingEmpty,
                 ]}>
                 {!homeLogoError && match.teams.home.logo ? (
                   <Image
@@ -289,6 +285,11 @@ const MatchDetailsScreen = () => {
                 ) : (
                   <View style={[styles.badge, styles.badgePlaceholder]} />
                 )}
+                {!homeHasStories ? (
+                  <View style={styles.addStoryBadge}>
+                    <Ionicons name="add" size={14} color="#111" />
+                  </View>
+                ) : null}
               </View>
               <Text style={styles.teamName} numberOfLines={2}>
                 {match.teams.home.name.toUpperCase()}
@@ -312,24 +313,16 @@ const MatchDetailsScreen = () => {
 
             <TouchableOpacity
               style={[styles.teamBlock, styles.teamBlockSide]}
-              activeOpacity={awayHasShorts ? 0.88 : 1}
-              disabled={!awayHasShorts}
+              activeOpacity={0.88}
               onPress={() => openTeamShorts('away')}
-              hitSlop={
-                awayHasShorts
-                  ? {top: 8, bottom: 8, left: 4, right: 4}
-                  : undefined
-              }
+              hitSlop={{top: 8, bottom: 8, left: 4, right: 4}}
               accessibilityRole="button"
-              accessibilityLabel={
-                awayHasShorts
-                  ? `Open ${match.teams.away.name} YouTube Shorts`
-                  : `Away team ${match.teams.away.name}`
-              }>
+              accessibilityLabel={`Open ${match.teams.away.name} match stories`}>
               <View
                 style={[
                   styles.badgeWrap,
-                  awayHasShorts && styles.badgeShortRingWrap,
+                  (awayHasStories || awayHasShorts) && styles.badgeShortRingWrap,
+                  !awayHasStories && styles.badgeShortRingEmpty,
                 ]}>
                 {!awayLogoError && match.teams.away.logo ? (
                   <Image
@@ -343,6 +336,11 @@ const MatchDetailsScreen = () => {
                 ) : (
                   <View style={[styles.badge, styles.badgePlaceholder]} />
                 )}
+                {!awayHasStories ? (
+                  <View style={styles.addStoryBadge}>
+                    <Ionicons name="add" size={14} color="#111" />
+                  </View>
+                ) : null}
               </View>
               <Text style={styles.teamName} numberOfLines={2}>
                 {match.teams.away.name.toUpperCase()}
@@ -541,6 +539,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.85,
     shadowRadius: 14,
     elevation: 12,
+  },
+  badgeShortRingEmpty: {
+    padding: 2,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(245,166,35,0.45)',
+    borderStyle: 'dashed',
+  },
+  addStoryBadge: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: SHORT_RING_AMBER,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scoreMidCenter: {
     flex: 1,

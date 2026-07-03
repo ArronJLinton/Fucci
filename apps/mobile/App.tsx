@@ -47,6 +47,7 @@ import CreatePlayerProfileScreen from './src/screens/CreatePlayerProfileScreen';
 import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import PlayerCompareScreen from './src/screens/PlayerCompareScreen';
 import MatchTeamShortsScreen from './src/screens/MatchTeamShortsScreen';
+import MatchStoryCaptureScreen from './src/screens/MatchStoryCaptureScreen';
 
 // Types
 import type {RootStackParamList} from './src/types/navigation';
@@ -299,6 +300,15 @@ const HomeStack = () => {
         }}
       />
       <StackScreen
+        name="MatchStoryCapture"
+        component={MatchStoryCaptureScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <StackScreen
         name="NewsWebView"
         component={NewsWebViewScreen}
         options={{
@@ -351,6 +361,15 @@ const NewsStack = () => {
           presentation: 'fullScreenModal',
           animation: 'slide_from_bottom',
           gestureEnabled: true,
+        }}
+      />
+      <StackScreen
+        name="MatchStoryCapture"
+        component={MatchStoryCaptureScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
         }}
       />
     </StackNavigator>

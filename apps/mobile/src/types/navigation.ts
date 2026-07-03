@@ -3,7 +3,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {Match} from './match';
 import type {DebateResponse} from './debate';
 import type {ComparePlayerSnapshot} from './comparePlayer';
-import type {YouTubeShort} from '../services/matchShortsApi';
+import type {YouTubeShort, FanStory} from '../services/matchShortsApi';
 
 export type MediaType = 'photo' | 'video';
 
@@ -55,9 +55,19 @@ export type RootStackParamList = {
   MatchDetails: {
     match: Match;
   };
-  /** Match hero: team badge → YouTube Shorts rail (registered WC teams only). */
+  /** Match hero: team badge → stories rail (fan uploads + YouTube Shorts). */
   MatchTeamShorts: {
-    shorts: YouTubeShort[];
+    matchId?: number;
+    teamLookupKey?: string;
+    teamDisplayName: string;
+    /** @deprecated use youtubeShorts */
+    shorts?: YouTubeShort[];
+    youtubeShorts?: YouTubeShort[];
+    userStories?: FanStory[];
+  };
+  MatchStoryCapture: {
+    matchId: number;
+    teamLookupKey: string;
     teamDisplayName: string;
   };
   SingleDebate: {

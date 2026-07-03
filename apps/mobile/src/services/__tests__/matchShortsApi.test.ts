@@ -1,8 +1,10 @@
 /// <reference types="jest" />
 
 import {
+  buildStorySlides,
   fetchMatchShorts,
   hasTeamShorts,
+  teamHasStoryContent,
   matchShortsQueryKey,
   parseYouTubeDurationSeconds,
   youtubePlayerContainLayout,
@@ -44,6 +46,8 @@ describe('matchShortsApi', () => {
           published_at: '2026-06-19T00:00:00Z',
         },
       ],
+      has_user_stories: false,
+      user_stories: [],
     };
 
     it('is true when flag and shorts list are present', () => {
@@ -61,6 +65,57 @@ describe('matchShortsApi', () => {
     it('is false for null/undefined', () => {
       expect(hasTeamShorts(null)).toBe(false);
       expect(hasTeamShorts(undefined)).toBe(false);
+    });
+  });
+
+  describe('teamHasStoryContent', () => {
+    it('is true when user stories exist', () => {
+      expect(
+        teamHasStoryContent({
+          lookup_key: 'spain',
+          has_shorts: false,
+          shorts: [],
+          has_user_stories: true,
+          user_stories: [
+            {
+              id: '1',
+              content_type: 'photo',
+              media_url: 'https://example.com/p.jpg',
+              user_id: 1,
+              created_at: '2026-07-02T00:00:00Z',
+            },
+          ],
+        }),
+      ).toBe(true);
+    });
+  });
+
+  describe('buildStorySlides', () => {
+    it('orders fan stories before youtube shorts', () => {
+      const slides = buildStorySlides(
+        [
+          {
+            id: 'fan-1',
+            content_type: 'photo',
+            media_url: 'https://example.com/p.jpg',
+            user_id: 2,
+            created_at: '2026-07-02T00:00:00Z',
+          },
+        ],
+        [
+          {
+            video_id: 'yt-1',
+            title: 'Highlight',
+            thumbnail_url: '',
+            embed_url: '',
+            duration: 'PT30S',
+            published_at: '2026-07-02T00:00:00Z',
+          },
+        ],
+      );
+      expect(slides).toHaveLength(2);
+      expect(slides[0].kind).toBe('fan');
+      expect(slides[1].kind).toBe('youtube');
     });
   });
 
