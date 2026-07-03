@@ -144,6 +144,26 @@ func TestValidateCloudinaryMediaURLForContext(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts valid match story video URL", func(t *testing.T) {
+		err := cfg.validateCloudinaryMediaURLForContext(
+			"https://res.cloudinary.com/demo-cloud/video/upload/v1/fucci/match-stories/videos/story-1.mp4",
+			"match_story_video",
+		)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("rejects video delivery path for image-only context", func(t *testing.T) {
+		err := cfg.validateCloudinaryMediaURLForContext(
+			"https://res.cloudinary.com/demo-cloud/video/upload/v1/fucci/match-stories/videos/story-1.mp4",
+			"match_story_photo",
+		)
+		if err == nil {
+			t.Fatal("expected error for mismatched resource type")
+		}
+	})
+
 	t.Run("rejects when cloud name not configured", func(t *testing.T) {
 		loose := Config{}
 		err := loose.validateCloudinaryMediaURLForContext(

@@ -87,7 +87,7 @@ export default function MatchStoryCaptureScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.85,
       videoMaxDuration: VIDEO_MAX_DURATION_SEC,
     });
@@ -115,7 +115,7 @@ export default function MatchStoryCaptureScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.85,
       videoMaxDuration: VIDEO_MAX_DURATION_SEC,
     });

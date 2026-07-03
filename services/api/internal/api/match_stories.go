@@ -308,7 +308,7 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = tx.Rollback() }()
 
 	qtx := c.DB.WithTx(tx)
-	if _, err := qtx.DeactivateMatchStory(r.Context(), storyID); err != nil {
+	if _, err := qtx.DeactivateMatchStory(r.Context(), storyID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to remove story")
 		return
 	}
