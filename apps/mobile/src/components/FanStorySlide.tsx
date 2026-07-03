@@ -17,6 +17,7 @@ type Props = {
   onFinished: () => void;
   onPlaybackStart?: () => void;
   onReport?: (story: FanStory) => void;
+  onDelete?: (story: FanStory) => void;
 };
 
 export default function FanStorySlide({
@@ -25,6 +26,7 @@ export default function FanStorySlide({
   onFinished,
   onPlaybackStart,
   onReport,
+  onDelete,
 }: Props) {
   const finishedRef = useRef(onFinished);
   const onPlaybackStartRef = useRef(onPlaybackStart);
@@ -98,9 +100,18 @@ export default function FanStorySlide({
           <ActivityIndicator color="#fff" size="large" />
         </View>
       ) : null}
-      {onReport ? (
+      {onDelete ? (
         <Pressable
-          style={styles.reportBtn}
+          style={styles.actionBtn}
+          onPress={() => onDelete(story)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Delete story">
+          <Ionicons name="trash-outline" size={22} color="#fff" />
+        </Pressable>
+      ) : onReport ? (
+        <Pressable
+          style={styles.actionBtn}
           onPress={() => onReport(story)}
           hitSlop={12}
           accessibilityRole="button"
@@ -126,7 +137,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  reportBtn: {
+  actionBtn: {
     position: 'absolute',
     right: 16,
     bottom: 120,

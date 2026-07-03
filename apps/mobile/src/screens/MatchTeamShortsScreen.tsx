@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Alert, Animated, Pressable, StyleSheet, Text, View} from 'react-native';
+import {useQueryClient} from '@tanstack/react-query';
 import PagerView from 'react-native-pager-view';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
@@ -19,10 +20,11 @@ import FanStorySlide from '../components/FanStorySlide';
 import {useAuth} from '../context/AuthContext';
 import {
   buildStorySlides,
+  matchShortsQueryKey,
   type FanStory,
   type StorySlide,
 } from '../services/matchShortsApi';
-import {reportMatchStory} from '../services/matchStoryApi';
+import {deleteMatchStory, reportMatchStory} from '../services/matchStoryApi';
 import type {RootStackParamList} from '../types/navigation';
 
 const SHORT_RING_AMBER = '#F5A623';
@@ -47,7 +49,8 @@ type R = RouteProp<RootStackParamList, 'MatchTeamShorts'>;
 export default function MatchTeamShortsScreen() {
   const navigation = useNavigation<Nav>();
   const {params} = useRoute<R>();
-  const {token, isLoggedIn} = useAuth();
+  const queryClient = useQueryClient();
+  const {token, isLoggedIn, user} = useAuth();
   const insets = useSafeAreaInsets();
   const headerLayout = shortsHeaderLayout(insets.top);
   const [page, setPage] = useState(0);
@@ -226,6 +229,40 @@ export default function MatchTeamShortsScreen() {
     [token],
   );
 
+  const onDeleteStory = useCallback(
+    (story: FanStory) => {
+      Alert.alert(
+        'Delete story?',
+        'This story will be removed from the match feed.',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              if (!token) {
+                Alert.alert('Sign in required', 'Please sign in to delete your story.');
+                return;
+              }
+              try {
+                await deleteMatchStory(token, story.id);
+                setRemovedFanIds(prev => new Set(prev).add(story.id));
+                if (params.matchId != null) {
+                  await queryClient.invalidateQueries({
+                    queryKey: matchShortsQueryKey(params.matchId),
+                  });
+                }
+              } catch {
+                Alert.alert('Could not delete', 'Please try again.');
+              }
+            },
+          },
+        ],
+      );
+    },
+    [params.matchId, queryClient, token],
+  );
+
   const canAddStory =
     params.matchId != null && Boolean(params.teamLookupKey);
 
@@ -344,7 +381,12 @@ export default function MatchTeamShortsScreen() {
                   onPlaybackStart={
                     page === index ? onPlaybackStart : undefined
                   }
-                  onReport={onReportStory}
+                  onReport={
+                    user?.id === slide.story.user_id ? undefined : onReportStory
+                  }
+                  onDelete={
+                    user?.id === slide.story.user_id ? onDeleteStory : undefined
+                  }
                 />
               ) : (
                 <YouTubeShortSlide

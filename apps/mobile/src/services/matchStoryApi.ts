@@ -52,3 +52,10 @@ export async function reportMatchStory(
     }),
   });
 }
+
+export async function deleteMatchStory(
+  token: string,
+  storyId: string,
+): Promise<void> {
+  await makeAuthRequest(token, `/stories/${storyId}`, 'DELETE');
+}

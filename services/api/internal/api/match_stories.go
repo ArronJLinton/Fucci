@@ -12,8 +12,16 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/ArronJLinton/fucci-api/internal/youtube"
+	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 )
+
+func (c *Config) matchStoryDB() MatchStoryStore {
+	if c.MatchStoryDB != nil {
+		return c.MatchStoryDB
+	}
+	return c.DB
+}
 
 const matchStoriesListLimit = 50
 
@@ -220,6 +228,54 @@ func (c *Config) postMatchStory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusCreated, matchStoryFromRecord(row))
+}
+
+// DELETE /v1/api/stories/{id}
+func (c *Config) deleteMatchStory(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok || userID == 0 {
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	if c.matchStoryDB() == nil {
+		respondWithError(w, http.StatusInternalServerError, "Database not configured")
+		return
+	}
+
+	storyID, err := uuid.Parse(strings.TrimSpace(chi.URLParam(r, "id")))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid story id")
+		return
+	}
+
+	story, err := c.matchStoryDB().GetMatchStoryByID(r.Context(), storyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "story not found")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to load story")
+		return
+	}
+	if story.UserID != userID {
+		respondWithError(w, http.StatusForbidden, "Not allowed to delete this story")
+		return
+	}
+	if !story.IsActive {
+		respondWithJSON(w, http.StatusOK, map[string]string{"status": "already_removed"})
+		return
+	}
+
+	if _, err := c.matchStoryDB().DeactivateMatchStory(r.Context(), storyID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithJSON(w, http.StatusOK, map[string]string{"status": "already_removed"})
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete story")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }
 
 type createContentReportRequest struct {
