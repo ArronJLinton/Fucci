@@ -8,14 +8,17 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/cache"
+	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/ArronJLinton/fucci-api/internal/youtube"
 	"github.com/go-chi/chi"
 )
 
 type matchShortsTeamPayload struct {
-	LookupKey string          `json:"lookup_key"`
-	HasShorts bool            `json:"has_shorts"`
-	Shorts    []youtube.Short `json:"shorts"`
+	LookupKey      string             `json:"lookup_key"`
+	HasShorts      bool               `json:"has_shorts"`
+	Shorts         []youtube.Short    `json:"shorts"`
+	HasUserStories bool               `json:"has_user_stories"`
+	UserStories    []userStoryPayload `json:"user_stories"`
 }
 
 type matchShortsResponse struct {
@@ -65,17 +68,24 @@ func (c *Config) getMatchYouTubeShorts(w http.ResponseWriter, r *http.Request) {
 		awayShorts = []youtube.Short{}
 	}
 
+	homeUserStories := c.listUserStoriesForTeam(ctx, database.StoryScopeTypeMatch, matchID, homeKey)
+	awayUserStories := c.listUserStoriesForTeam(ctx, database.StoryScopeTypeMatch, matchID, awayKey)
+
 	var resp matchShortsResponse
 	resp.MatchID = matchID
 	resp.Teams.Home = matchShortsTeamPayload{
-		LookupKey: homeKey,
-		HasShorts: len(homeShorts) > 0,
-		Shorts:    homeShorts,
+		LookupKey:      homeKey,
+		HasShorts:      len(homeShorts) > 0,
+		Shorts:         homeShorts,
+		HasUserStories: len(homeUserStories) > 0,
+		UserStories:    homeUserStories,
 	}
 	resp.Teams.Away = matchShortsTeamPayload{
-		LookupKey: awayKey,
-		HasShorts: len(awayShorts) > 0,
-		Shorts:    awayShorts,
+		LookupKey:      awayKey,
+		HasShorts:      len(awayShorts) > 0,
+		Shorts:         awayShorts,
+		HasUserStories: len(awayUserStories) > 0,
+		UserStories:    awayUserStories,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -226,6 +226,14 @@ func New(c *Config) http.Handler {
 	matchesRouter := chi.NewRouter()
 	matchesRouter.Get("/{matchId}/stories/shorts", c.getMatchYouTubeShorts)
 
+	storiesRouter := chi.NewRouter()
+	storiesRouter.Use(auth.RequireAuth)
+	storiesRouter.Post("/", c.postMatchStory)
+
+	reportsRouter := chi.NewRouter()
+	reportsRouter.Use(auth.RequireAuth)
+	reportsRouter.Post("/", c.postContentReport)
+
 	debateRouter := chi.NewRouter()
 	debateRouter.Post("/", c.createDebate)
 	debateRouter.Get("/public-feed", c.getDebatesPublicFeed)
@@ -296,6 +304,8 @@ func New(c *Config) http.Handler {
 	router.Mount("/google", googleRouter)
 	router.Mount("/news", newsRouter)
 	router.Mount("/matches", matchesRouter)
+	router.Mount("/stories", storiesRouter)
+	router.Mount("/reports", reportsRouter)
 	router.Mount("/debates", debateRouter)
 	router.Mount("/teams", teamsRouter)
 	router.Mount("/team-managers", teamManagersRouter)

@@ -15,11 +15,30 @@ export type YouTubeShort = {
   published_at: string;
 };
 
+export type FanStory = {
+  id: string;
+  content_type: 'photo' | 'video';
+  media_url: string;
+  user_id: number;
+  display_name?: string;
+  avatar_url?: string;
+  created_at: string;
+};
+
 export type MatchShortsTeam = {
   lookup_key: string;
   has_shorts: boolean;
   shorts: YouTubeShort[];
+  has_user_stories: boolean;
+  user_stories: FanStory[];
 };
+
+export type StorySlide =
+  | {kind: 'fan'; story: FanStory; slideKey: string; durationMs: number}
+  | {kind: 'youtube'; short: YouTubeShort; slideKey: string; durationMs: number};
+
+export const FAN_STORY_PHOTO_DURATION_MS = 5000;
+export const FAN_STORY_VIDEO_MAX_DURATION_MS = 60_000;
 
 export type MatchShortsResponse = {
   match_id: string;
@@ -37,6 +56,40 @@ export function hasTeamShorts(
   team: MatchShortsTeam | null | undefined,
 ): boolean {
   return Boolean(team?.has_shorts && (team.shorts?.length ?? 0) > 0);
+}
+
+export function hasTeamUserStories(
+  team: MatchShortsTeam | null | undefined,
+): boolean {
+  return Boolean(team?.has_user_stories && (team.user_stories?.length ?? 0) > 0);
+}
+
+export function teamHasStoryContent(
+  team: MatchShortsTeam | null | undefined,
+): boolean {
+  return hasTeamShorts(team) || hasTeamUserStories(team);
+}
+
+export function buildStorySlides(
+  userStories: FanStory[] = [],
+  youtubeShorts: YouTubeShort[] = [],
+): StorySlide[] {
+  const fanSlides: StorySlide[] = userStories.map(story => ({
+    kind: 'fan' as const,
+    story,
+    slideKey: `fan-${story.id}`,
+    durationMs:
+      story.content_type === 'video'
+        ? FAN_STORY_VIDEO_MAX_DURATION_MS
+        : FAN_STORY_PHOTO_DURATION_MS,
+  }));
+  const ytSlides: StorySlide[] = youtubeShorts.map(short => ({
+    kind: 'youtube' as const,
+    short,
+    slideKey: `yt-${short.video_id}`,
+    durationMs: Math.max(parseYouTubeDurationSeconds(short.duration) * 1000, 3000),
+  }));
+  return [...fanSlides, ...ytSlides];
 }
 
 /** Parse ISO 8601 YouTube duration (e.g. PT58S, PT1M30S) to seconds. */

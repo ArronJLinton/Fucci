@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Animated, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Alert, Animated, Pressable, StyleSheet, Text, View} from 'react-native';
 import PagerView from 'react-native-pager-view';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
@@ -15,10 +15,14 @@ import {
   unlockAppOrientation,
 } from '../utils/screenOrientation';
 import YouTubeShortSlide from '../components/YouTubeShortSlide';
+import FanStorySlide from '../components/FanStorySlide';
+import {useAuth} from '../context/AuthContext';
 import {
-  parseYouTubeDurationSeconds,
-  type YouTubeShort,
+  buildStorySlides,
+  type FanStory,
+  type StorySlide,
 } from '../services/matchShortsApi';
+import {reportMatchStory} from '../services/matchStoryApi';
 import type {RootStackParamList} from '../types/navigation';
 
 const SHORT_RING_AMBER = '#F5A623';
@@ -43,21 +47,30 @@ type R = RouteProp<RootStackParamList, 'MatchTeamShorts'>;
 export default function MatchTeamShortsScreen() {
   const navigation = useNavigation<Nav>();
   const {params} = useRoute<R>();
-  const {shorts} = params;
+  const {token, isLoggedIn} = useAuth();
   const insets = useSafeAreaInsets();
   const headerLayout = shortsHeaderLayout(insets.top);
   const [page, setPage] = useState(0);
   const [playbackStarted, setPlaybackStarted] = useState(false);
+  const [removedFanIds, setRemovedFanIds] = useState<Set<string>>(new Set());
   const progressAnim = useRef(new Animated.Value(0)).current;
   const pagerRef = useRef<PagerView>(null);
   const pageRef = useRef(0);
 
-  const slides: YouTubeShort[] = useMemo(() => shorts ?? [], [shorts]);
-  const currentShort = slides[page];
-  const currentDurationMs = useMemo(() => {
-    const sec = parseYouTubeDurationSeconds(currentShort?.duration ?? '');
-    return Math.max(sec * 1000, 3000);
-  }, [currentShort?.duration, currentShort?.video_id]);
+  const userStories = useMemo(
+    () =>
+      (params.userStories ?? []).filter(story => !removedFanIds.has(story.id)),
+    [params.userStories, removedFanIds],
+  );
+  const youtubeShorts = params.youtubeShorts ?? params.shorts ?? [];
+
+  const slides: StorySlide[] = useMemo(
+    () => buildStorySlides(userStories, youtubeShorts),
+    [userStories, youtubeShorts],
+  );
+
+  const currentSlide = slides[page];
+  const currentDurationMs = currentSlide?.durationMs ?? 3000;
 
   useFocusEffect(
     useCallback(() => {
@@ -69,10 +82,13 @@ export default function MatchTeamShortsScreen() {
   useEffect(() => {
     progressAnim.setValue(0);
     setPlaybackStarted(false);
-  }, [page, currentShort?.video_id, progressAnim]);
+  }, [page, currentSlide?.slideKey, progressAnim]);
 
   useEffect(() => {
-    if (!playbackStarted || !currentShort) {
+    if (!playbackStarted || !currentSlide) {
+      return;
+    }
+    if (currentSlide.kind === 'fan' && currentSlide.story.content_type === 'video') {
       return;
     }
     progressAnim.setValue(0);
@@ -88,7 +104,7 @@ export default function MatchTeamShortsScreen() {
   }, [
     playbackStarted,
     page,
-    currentShort?.video_id,
+    currentSlide,
     currentDurationMs,
     progressAnim,
   ]);
@@ -102,7 +118,7 @@ export default function MatchTeamShortsScreen() {
   }, [page]);
 
   const pagerIdentityKey = useMemo(
-    () => slides.map(s => s.video_id).join(','),
+    () => slides.map(s => s.slideKey).join(','),
     [slides],
   );
 
@@ -160,14 +176,72 @@ export default function MatchTeamShortsScreen() {
     pagerRef.current?.setPage(p - 1);
   }, []);
 
-  const onShortFinished = useCallback(() => {
+  const onSlideFinished = useCallback(() => {
     goToNext();
   }, [goToNext]);
+
+  const openCapture = useCallback(() => {
+    if (!isLoggedIn) {
+      Alert.alert('Sign in required', 'Please sign in to add a match story.');
+      navigation.navigate('Main', {screen: 'Profile'});
+      return;
+    }
+    if (params.matchId == null || !params.teamLookupKey) {
+      Alert.alert('Unavailable', 'Story upload is only available for match teams.');
+      return;
+    }
+    navigation.navigate('MatchStoryCapture', {
+      matchId: params.matchId,
+      teamLookupKey: params.teamLookupKey,
+      teamDisplayName: params.teamDisplayName,
+    });
+  }, [isLoggedIn, navigation, params.matchId, params.teamDisplayName, params.teamLookupKey]);
+
+  const onReportStory = useCallback(
+    (story: FanStory) => {
+      Alert.alert(
+        'Report story?',
+        'This story will be removed immediately and reviewed by our team.',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Report',
+            style: 'destructive',
+            onPress: async () => {
+              if (!token) {
+                Alert.alert('Sign in required', 'Please sign in to report content.');
+                return;
+              }
+              try {
+                await reportMatchStory(token, story.id);
+                setRemovedFanIds(prev => new Set(prev).add(story.id));
+              } catch {
+                Alert.alert('Could not report', 'Please try again.');
+              }
+            },
+          },
+        ],
+      );
+    },
+    [token],
+  );
+
+  const canAddStory =
+    params.matchId != null && Boolean(params.teamLookupKey);
 
   if (slides.length === 0) {
     return (
       <View style={[styles.root, styles.centered]}>
-        <Text style={styles.hint}>No Shorts available right now.</Text>
+        <Text style={styles.emptyTitle}>No stories yet</Text>
+        <Text style={styles.emptyHint}>
+          Be the first to share a photo or video for {params.teamDisplayName}.
+        </Text>
+        {canAddStory ? (
+          <Pressable style={styles.addStoryBtn} onPress={openCapture}>
+            <Ionicons name="add" size={22} color="#111" />
+            <Text style={styles.addStoryBtnText}>Add story</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           style={[
             styles.closeFab,
@@ -198,8 +272,8 @@ export default function MatchTeamShortsScreen() {
           },
         ]}
         pointerEvents="none">
-        {slides.map((_, i) => (
-          <View key={i} style={styles.progressTrack}>
+        {slides.map((slide, i) => (
+          <View key={slide.slideKey} style={styles.progressTrack}>
             {i < page ? (
               <View style={styles.progressFill} />
             ) : i === page ? (
@@ -234,6 +308,23 @@ export default function MatchTeamShortsScreen() {
         <Ionicons name="close" size={26} color="#111" />
       </Pressable>
 
+      {canAddStory ? (
+        <Pressable
+          style={[
+            styles.addFab,
+            {
+              top: headerLayout.closeButtonTop,
+              right: HORIZONTAL_CHROME_INSET + insets.right,
+            },
+          ]}
+          onPress={openCapture}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Add story">
+          <Ionicons name="add" size={28} color="#111" />
+        </Pressable>
+      ) : null}
+
       <View style={styles.pagerWrap}>
         <PagerView
           ref={pagerRef}
@@ -243,19 +334,28 @@ export default function MatchTeamShortsScreen() {
           onPageSelected={onPageSelected}
           overdrag
           key={pagerIdentityKey}>
-          {slides.map((short, index) => (
-            <View
-              key={short.video_id}
-              style={styles.page}
-              collapsable={false}>
-              <YouTubeShortSlide
-                short={short}
-                isActive={page === index}
-                onFinished={onShortFinished}
-                onPlaybackStart={
-                  page === index ? onPlaybackStart : undefined
-                }
-              />
+          {slides.map((slide, index) => (
+            <View key={slide.slideKey} style={styles.page} collapsable={false}>
+              {slide.kind === 'fan' ? (
+                <FanStorySlide
+                  story={slide.story}
+                  isActive={page === index}
+                  onFinished={onSlideFinished}
+                  onPlaybackStart={
+                    page === index ? onPlaybackStart : undefined
+                  }
+                  onReport={onReportStory}
+                />
+              ) : (
+                <YouTubeShortSlide
+                  short={slide.short}
+                  isActive={page === index}
+                  onFinished={onSlideFinished}
+                  onPlaybackStart={
+                    page === index ? onPlaybackStart : undefined
+                  }
+                />
+              )}
             </View>
           ))}
         </PagerView>
@@ -270,13 +370,13 @@ export default function MatchTeamShortsScreen() {
             style={styles.tapEdgeLeft}
             onPress={goToPrev}
             accessibilityRole="button"
-            accessibilityLabel="Previous short"
+            accessibilityLabel="Previous story"
           />
           <Pressable
             style={styles.tapEdgeRight}
             onPress={goToNext}
             accessibilityRole="button"
-            accessibilityLabel="Next short"
+            accessibilityLabel="Next story"
           />
         </View>
       </View>
@@ -332,6 +432,16 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
   },
+  addFab: {
+    position: 'absolute',
+    zIndex: 10,
+    width: CLOSE_BUTTON_SIZE,
+    height: CLOSE_BUTTON_SIZE,
+    borderRadius: CLOSE_BUTTON_SIZE / 2,
+    backgroundColor: SHORT_RING_AMBER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   progressBar: {
     position: 'absolute',
     zIndex: 9,
@@ -357,10 +467,32 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
   },
-  hint: {
-    marginTop: 4,
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 10,
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  emptyHint: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  addStoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: SHORT_RING_AMBER,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  addStoryBtnText: {
+    color: '#111',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

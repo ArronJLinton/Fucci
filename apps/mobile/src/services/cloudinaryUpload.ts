@@ -1,6 +1,10 @@
 import {ApiRequestError, makeAuthRequest} from './api';
 
-export type CloudinaryUploadContext = 'avatar' | 'player_profile';
+export type CloudinaryUploadContext =
+  | 'avatar'
+  | 'player_profile'
+  | 'match_story_photo'
+  | 'match_story_video';
 
 type SignatureResponse = {
   cloud_name: string;
@@ -11,17 +15,23 @@ type SignatureResponse = {
   public_id?: string;
   upload_preset?: string;
   max_upload_bytes: number;
+  resource_type?: 'image' | 'video';
 };
 
-export type LocalImageFile = {
+export type LocalMediaFile = {
   uri: string;
   fileName?: string;
   mimeType?: string;
   size?: number;
 };
 
-function inferMimeType(fileName?: string): string {
+function inferMimeType(fileName?: string, resourceType: 'image' | 'video' = 'image'): string {
   const lower = (fileName ?? '').toLowerCase();
+  if (resourceType === 'video') {
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.webm')) return 'video/webm';
+    return 'video/mp4';
+  }
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.webp')) return 'image/webp';
   return 'image/jpeg';
@@ -40,12 +50,16 @@ async function requestSignature(
 export async function uploadToCloudinary(
   token: string,
   context: CloudinaryUploadContext,
-  file: LocalImageFile,
+  file: LocalMediaFile,
 ): Promise<string> {
   const signature = await requestSignature(token, context);
+  const resourceType = signature.resource_type ?? 'image';
   if (file.size != null && file.size > signature.max_upload_bytes) {
     const maxSizeMB = Math.round(signature.max_upload_bytes / (1024 * 1024));
-    throw new ApiRequestError(`Image must be ${maxSizeMB} MB or smaller.`, 400);
+    throw new ApiRequestError(
+      `${resourceType === 'video' ? 'Video' : 'Image'} must be ${maxSizeMB} MB or smaller.`,
+      400,
+    );
   }
   const form = new FormData();
   form.append('api_key', signature.api_key);
@@ -62,13 +76,14 @@ export async function uploadToCloudinary(
     throw new ApiRequestError('Upload configuration is incomplete.', 500);
   }
 
+  const defaultExt = resourceType === 'video' ? 'mp4' : 'jpg';
   form.append('file', {
     uri: file.uri,
-    name: file.fileName ?? `${context}-${Date.now()}.jpg`,
-    type: file.mimeType ?? inferMimeType(file.fileName),
+    name: file.fileName ?? `${context}-${Date.now()}.${defaultExt}`,
+    type: file.mimeType ?? inferMimeType(file.fileName, resourceType),
   } as any);
 
-  const uploadURL = `https://api.cloudinary.com/v1_1/${signature.cloud_name}/image/upload`;
+  const uploadURL = `https://api.cloudinary.com/v1_1/${signature.cloud_name}/${resourceType}/upload`;
   const response = await fetch(uploadURL, {
     method: 'POST',
     body: form,
@@ -79,7 +94,7 @@ export async function uploadToCloudinary(
       (typeof result.error === 'object' &&
       result.error &&
       typeof (result.error as {message?: unknown}).message === 'string'
-        ? ((result.error as {message: string}).message)
+        ? (result.error as {message: string}).message
         : null) ??
       `Upload failed (${response.status})`;
     throw new ApiRequestError(message, response.status);
@@ -91,3 +106,5 @@ export async function uploadToCloudinary(
   return secureURL;
 }
 
+/** @deprecated use LocalMediaFile */
+export type LocalImageFile = LocalMediaFile;

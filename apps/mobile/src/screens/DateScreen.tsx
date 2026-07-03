@@ -23,9 +23,10 @@ import {
   MATCHES_MUTED,
   MATCHES_TEXT,
 } from '../constants/matchesUi';
+import {Ionicons} from '@expo/vector-icons';
 import {
   fetchMatchShorts,
-  hasTeamShorts,
+  teamHasStoryContent,
   MATCH_SHORTS_STALE_MS,
   matchShortsQueryKey,
 } from '../services/matchShortsApi';
@@ -118,7 +119,7 @@ function SectionTitle({isToday}: {isToday: boolean}) {
 type MatchCardTeamColumnProps = {
   logo: string;
   name: string;
-  hasShorts: boolean;
+  hasStoryContent: boolean;
   onOpenShorts: () => void;
   logoStyle: ImageStyle;
   nameStyle?: object;
@@ -127,14 +128,23 @@ type MatchCardTeamColumnProps = {
 function MatchCardTeamColumn({
   logo,
   name,
-  hasShorts,
+  hasStoryContent,
   onOpenShorts,
   logoStyle,
   nameStyle,
 }: MatchCardTeamColumnProps) {
   const logoBlock = (
-    <View style={[styles.teamLogoWrap, hasShorts && styles.teamLogoRingWrap]}>
+    <View
+      style={[
+        styles.teamLogoWrap,
+        hasStoryContent ? styles.teamLogoRingWrap : styles.teamLogoRingEmpty,
+      ]}>
       <Image source={{uri: logo}} style={logoStyle} resizeMode="contain" />
+      {!hasStoryContent ? (
+        <View style={styles.addStoryBadgeSm}>
+          <Ionicons name="add" size={10} color="#111" />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -147,20 +157,16 @@ function MatchCardTeamColumn({
     </>
   );
 
-  if (hasShorts) {
-    return (
-      <TouchableOpacity
-        style={styles.teamContainer}
-        onPress={onOpenShorts}
-        activeOpacity={0.88}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${name} YouTube Shorts`}>
-        {content}
-      </TouchableOpacity>
-    );
-  }
-
-  return <View style={styles.teamContainer}>{content}</View>;
+  return (
+    <TouchableOpacity
+      style={styles.teamContainer}
+      onPress={onOpenShorts}
+      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${name} match stories`}>
+      {content}
+    </TouchableOpacity>
+  );
 }
 
 type MatchCardFeaturedTeamRowProps = {
@@ -168,7 +174,7 @@ type MatchCardFeaturedTeamRowProps = {
   name: string;
   score?: number;
   scoreLeading?: boolean;
-  hasShorts: boolean;
+  hasStoryContent: boolean;
   onOpenShorts: () => void;
 };
 
@@ -177,20 +183,25 @@ function MatchCardFeaturedTeamRow({
   name,
   score,
   scoreLeading,
-  hasShorts,
+  hasStoryContent,
   onOpenShorts,
 }: MatchCardFeaturedTeamRowProps) {
   const logoBlock = (
     <View
       style={[
         styles.featuredLogoWrap,
-        hasShorts && styles.teamLogoRingWrap,
+        hasStoryContent ? styles.teamLogoRingWrap : styles.teamLogoRingEmpty,
       ]}>
       <Image
         source={{uri: logo}}
         style={styles.teamLogoSm}
         resizeMode="contain"
       />
+      {!hasStoryContent ? (
+        <View style={styles.addStoryBadgeSm}>
+          <Ionicons name="add" size={10} color="#111" />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -209,20 +220,16 @@ function MatchCardFeaturedTeamRow({
     </>
   );
 
-  if (hasShorts) {
-    return (
-      <TouchableOpacity
-        style={styles.featuredTeamRow}
-        onPress={onOpenShorts}
-        activeOpacity={0.88}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${name} YouTube Shorts`}>
-        {row}
-      </TouchableOpacity>
-    );
-  }
-
-  return <View style={styles.featuredTeamRow}>{row}</View>;
+  return (
+    <TouchableOpacity
+      style={styles.featuredTeamRow}
+      onPress={onOpenShorts}
+      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${name} match stories`}>
+      {row}
+    </TouchableOpacity>
+  );
 }
 
 const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
@@ -239,21 +246,22 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
     staleTime: MATCH_SHORTS_STALE_MS,
   });
 
-  const homeHasShorts = hasTeamShorts(matchShortsData?.teams.home);
-  const awayHasShorts = hasTeamShorts(matchShortsData?.teams.away);
+  const homeHasStories = teamHasStoryContent(matchShortsData?.teams.home);
+  const awayHasStories = teamHasStoryContent(matchShortsData?.teams.away);
 
   const openTeamShorts = (side: 'home' | 'away') => {
     const team =
       side === 'home'
         ? matchShortsData?.teams.home
         : matchShortsData?.teams.away;
-    if (!hasTeamShorts(team)) {
-      return;
-    }
+    const teamName =
+      side === 'home' ? match.teams.home.name : match.teams.away.name;
     navigation.navigate('MatchTeamShorts', {
-      shorts: team!.shorts,
-      teamDisplayName:
-        side === 'home' ? match.teams.home.name : match.teams.away.name,
+      matchId,
+      teamLookupKey: team?.lookup_key,
+      teamDisplayName: teamName,
+      youtubeShorts: team?.shorts ?? [],
+      userStories: team?.user_stories ?? [],
     });
   };
 
@@ -297,7 +305,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
             name={match.teams.home.name}
             score={hasScore ? h ?? undefined : undefined}
             scoreLeading={homeLeading}
-            hasShorts={homeHasShorts}
+            hasStoryContent={homeHasStories}
             onOpenShorts={() => openTeamShorts('home')}
           />
           <MatchCardFeaturedTeamRow
@@ -305,7 +313,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
             name={match.teams.away.name}
             score={hasScore ? a ?? undefined : undefined}
             scoreLeading={awayLeading}
-            hasShorts={awayHasShorts}
+            hasStoryContent={awayHasStories}
             onOpenShorts={() => openTeamShorts('away')}
           />
         </View>
@@ -327,7 +335,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
           <MatchCardTeamColumn
             logo={match.teams.home.logo}
             name={match.teams.home.name}
-            hasShorts={homeHasShorts}
+            hasStoryContent={homeHasStories}
             onOpenShorts={() => openTeamShorts('home')}
             logoStyle={styles.teamLogo}
           />
@@ -337,7 +345,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
           <MatchCardTeamColumn
             logo={match.teams.away.logo}
             name={match.teams.away.name}
-            hasShorts={awayHasShorts}
+            hasStoryContent={awayHasStories}
             onOpenShorts={() => openTeamShorts('away')}
             logoStyle={styles.teamLogo}
           />
@@ -358,7 +366,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
         <MatchCardTeamColumn
           logo={match.teams.home.logo}
           name={match.teams.home.name}
-          hasShorts={homeHasShorts}
+          hasStoryContent={homeHasStories}
           onOpenShorts={() => openTeamShorts('home')}
           logoStyle={styles.teamLogo}
         />
@@ -390,7 +398,7 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
         <MatchCardTeamColumn
           logo={match.teams.away.logo}
           name={match.teams.away.name}
-          hasShorts={awayHasShorts}
+          hasStoryContent={awayHasStories}
           onOpenShorts={() => openTeamShorts('away')}
           logoStyle={styles.teamLogo}
         />
@@ -669,6 +677,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.85,
     shadowRadius: 10,
     elevation: 10,
+  },
+  teamLogoRingEmpty: {
+    padding: 2,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(245,166,35,0.45)',
+    borderStyle: 'dashed',
+  },
+  addStoryBadgeSm: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: SHORT_RING_AMBER,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   teamLogo: {
     width: 48,

@@ -14,6 +14,90 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type StoryContentType string
+
+const (
+	StoryContentTypePhoto StoryContentType = "photo"
+	StoryContentTypeVideo StoryContentType = "video"
+)
+
+func (e *StoryContentType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StoryContentType(s)
+	case string:
+		*e = StoryContentType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StoryContentType: %T", src)
+	}
+	return nil
+}
+
+type NullStoryContentType struct {
+	StoryContentType StoryContentType
+	Valid            bool // Valid is true if StoryContentType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStoryContentType) Scan(value interface{}) error {
+	if value == nil {
+		ns.StoryContentType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StoryContentType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStoryContentType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StoryContentType), nil
+}
+
+type StoryScopeType string
+
+const (
+	StoryScopeTypeMatch      StoryScopeType = "match"
+	StoryScopeTypeTournament StoryScopeType = "tournament"
+)
+
+func (e *StoryScopeType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StoryScopeType(s)
+	case string:
+		*e = StoryScopeType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StoryScopeType: %T", src)
+	}
+	return nil
+}
+
+type NullStoryScopeType struct {
+	StoryScopeType StoryScopeType
+	Valid          bool // Valid is true if StoryScopeType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStoryScopeType) Scan(value interface{}) error {
+	if value == nil {
+		ns.StoryScopeType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StoryScopeType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStoryScopeType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StoryScopeType), nil
+}
+
 type UserRole string
 
 const (
@@ -84,6 +168,17 @@ type Comments struct {
 	Seeded          bool
 }
 
+type ContentReports struct {
+	ID             uuid.UUID
+	ReporterID     int32
+	ReportableType string
+	ReportableID   uuid.UUID
+	Reason         string
+	Description    sql.NullString
+	Status         string
+	CreatedAt      time.Time
+}
+
 type DebateAnalytics struct {
 	ID              int32
 	DebateID        sql.NullInt32
@@ -130,6 +225,19 @@ type Leagues struct {
 	Founded     sql.NullInt32
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type MatchStories struct {
+	ID            uuid.UUID
+	UserID        int32
+	ScopeType     StoryScopeType
+	ScopeID       string
+	TeamLookupKey string
+	ContentType   StoryContentType
+	MediaUrl      string
+	Caption       sql.NullString
+	IsActive      bool
+	CreatedAt     time.Time
 }
 
 type Matches struct {

@@ -17,11 +17,29 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 )
 
-const cloudinaryMaxUploadBytes = 5 * 1024 * 1024 // 5 MB
+const cloudinaryMaxUploadBytes = 5 * 1024 * 1024       // 5 MB photos
+const cloudinaryMaxVideoUploadBytes = 50 * 1024 * 1024 // 50 MB videos
 
-// ErrCloudinaryURLValidationNotConfigured is returned when persisting Cloudinary media URLs
-// is requested but CLOUDINARY_CLOUD_NAME is unset, so URLs cannot be bound to the server's cloud.
-var ErrCloudinaryURLValidationNotConfigured = errors.New("cloudinary cloud name is not configured; cannot validate media URLs")
+type cloudinaryContextConfig struct {
+	Folder       string
+	MaxBytes     int64
+	ResourceType string
+}
+
+func cloudinaryConfigForContext(context string) (cloudinaryContextConfig, bool) {
+	switch context {
+	case "avatar":
+		return cloudinaryContextConfig{Folder: "fucci/avatars", MaxBytes: cloudinaryMaxUploadBytes, ResourceType: "image"}, true
+	case "player_profile":
+		return cloudinaryContextConfig{Folder: "fucci/player-profiles", MaxBytes: cloudinaryMaxUploadBytes, ResourceType: "image"}, true
+	case "match_story_photo":
+		return cloudinaryContextConfig{Folder: "fucci/match-stories/photos", MaxBytes: cloudinaryMaxUploadBytes, ResourceType: "image"}, true
+	case "match_story_video":
+		return cloudinaryContextConfig{Folder: "fucci/match-stories/videos", MaxBytes: cloudinaryMaxVideoUploadBytes, ResourceType: "video"}, true
+	default:
+		return cloudinaryContextConfig{}, false
+	}
+}
 
 type cloudinarySignatureRequest struct {
 	Context string `json:"context"`
@@ -36,17 +54,15 @@ type cloudinarySignatureResponse struct {
 	PublicID       string `json:"public_id,omitempty"`
 	UploadPreset   string `json:"upload_preset,omitempty"`
 	MaxUploadBytes int64  `json:"max_upload_bytes"`
+	ResourceType   string `json:"resource_type"`
 }
 
 func cloudinaryFolderForContext(context string) (string, bool) {
-	switch context {
-	case "avatar":
-		return "fucci/avatars", true
-	case "player_profile":
-		return "fucci/player-profiles", true
-	default:
+	cfg, ok := cloudinaryConfigForContext(context)
+	if !ok {
 		return "", false
 	}
+	return cfg.Folder, true
 }
 
 func cloudinarySign(params map[string]string, apiSecret string) string {
@@ -85,9 +101,8 @@ func isCloudinaryVersionSegment(s string) bool {
 }
 
 // cloudinaryPublicIDFromDeliveryPath extracts the public_id (including folder prefix) from a delivery URL path
-// after /{cloud}/image/upload/, skipping optional transformation segments and an optional v{version} segment.
-// The first path segment must equal cloudName (case-insensitive) so persisted URLs cannot target another Cloudinary cloud.
-func cloudinaryPublicIDFromDeliveryPath(trimmedPath, cloudName string) (string, error) {
+// after /{cloud}/{resourceType}/upload/, skipping optional transformation segments and an optional v{version} segment.
+func cloudinaryPublicIDFromDeliveryPath(trimmedPath, cloudName, resourceType string) (string, error) {
 	if strings.TrimSpace(cloudName) == "" {
 		return "", fmt.Errorf("cloud name is required")
 	}
@@ -98,9 +113,9 @@ func cloudinaryPublicIDFromDeliveryPath(trimmedPath, cloudName string) (string, 
 	if !strings.EqualFold(strings.TrimSpace(cloudFromURL), strings.TrimSpace(cloudName)) {
 		return "", fmt.Errorf("url must match configured cloud")
 	}
-	const uploadPrefix = "image/upload/"
+	uploadPrefix := resourceType + "/upload/"
 	if len(afterCloudSegment) < len(uploadPrefix) || !strings.EqualFold(afterCloudSegment[:len(uploadPrefix)], uploadPrefix) {
-		return "", fmt.Errorf("url must use Cloudinary image delivery path")
+		return "", fmt.Errorf("url must use Cloudinary %s delivery path", resourceType)
 	}
 	suffix := afterCloudSegment[len(uploadPrefix):]
 
@@ -159,6 +174,7 @@ func (c *Config) validateCloudinaryMediaURLForContext(rawURL string, context str
 	if !ok {
 		return fmt.Errorf("invalid context")
 	}
+	cfg, _ := cloudinaryConfigForContext(context)
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid url")
@@ -175,7 +191,7 @@ func (c *Config) validateCloudinaryMediaURLForContext(rawURL string, context str
 	}
 	trimmedPath := strings.TrimPrefix(cleaned, "/")
 
-	publicID, err := cloudinaryPublicIDFromDeliveryPath(trimmedPath, c.CloudinaryCloudName)
+	publicID, err := cloudinaryPublicIDFromDeliveryPath(trimmedPath, c.CloudinaryCloudName, cfg.ResourceType)
 	if err != nil {
 		return err
 	}
@@ -184,6 +200,10 @@ func (c *Config) validateCloudinaryMediaURLForContext(rawURL string, context str
 	}
 	return nil
 }
+
+// ErrCloudinaryURLValidationNotConfigured is returned when persisting Cloudinary media URLs
+// is requested but CLOUDINARY_CLOUD_NAME is unset, so URLs cannot be bound to the server's cloud.
+var ErrCloudinaryURLValidationNotConfigured = errors.New("cloudinary cloud name is not configured; cannot validate media URLs")
 
 func (c *Config) postCloudinarySignature(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(c.CloudinaryCloudName) == "" || strings.TrimSpace(c.CloudinaryAPIKey) == "" {
@@ -195,9 +215,9 @@ func (c *Config) postCloudinarySignature(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	folder, ok := cloudinaryFolderForContext(req.Context)
+	cfg, ok := cloudinaryConfigForContext(req.Context)
 	if !ok {
-		respondWithError(w, http.StatusBadRequest, "context must be avatar or player_profile")
+		respondWithError(w, http.StatusBadRequest, "invalid upload context")
 		return
 	}
 	userID, ok := auth.UserIDFromContext(r.Context())
@@ -212,9 +232,10 @@ func (c *Config) postCloudinarySignature(w http.ResponseWriter, r *http.Request)
 		CloudName:      c.CloudinaryCloudName,
 		APIKey:         c.CloudinaryAPIKey,
 		Timestamp:      timestamp,
-		Folder:         folder,
+		Folder:         cfg.Folder,
 		PublicID:       publicID,
-		MaxUploadBytes: cloudinaryMaxUploadBytes,
+		MaxUploadBytes: cfg.MaxBytes,
+		ResourceType:   cfg.ResourceType,
 	}
 
 	// Optional fallback path if team uses unsigned presets.
@@ -223,7 +244,7 @@ func (c *Config) postCloudinarySignature(w http.ResponseWriter, r *http.Request)
 	}
 	if strings.TrimSpace(c.CloudinaryAPISecret) != "" {
 		resp.Signature = cloudinarySign(map[string]string{
-			"folder":    folder,
+			"folder":    cfg.Folder,
 			"public_id": publicID,
 			"timestamp": strconv.FormatInt(timestamp, 10),
 		}, c.CloudinaryAPISecret)
