@@ -1,7 +1,16 @@
 -- +goose Up
 
-CREATE TYPE story_scope_type AS ENUM ('match', 'tournament');
-CREATE TYPE story_content_type AS ENUM ('photo', 'video');
+DO $$ BEGIN
+    CREATE TYPE story_scope_type AS ENUM ('match', 'tournament');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE story_content_type AS ENUM ('photo', 'video');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 CREATE TABLE IF NOT EXISTS match_stories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

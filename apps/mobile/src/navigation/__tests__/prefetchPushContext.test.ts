@@ -69,8 +69,20 @@ describe('prefetchPushContext', () => {
     mockFetchMatchShorts.mockResolvedValue({
       match_id: '0',
       teams: {
-        home: {lookup_key: 'home', has_shorts: false, shorts: []},
-        away: {lookup_key: 'away', has_shorts: false, shorts: []},
+        home: {
+          lookup_key: 'home',
+          has_shorts: false,
+          shorts: [],
+          has_user_stories: false,
+          user_stories: [],
+        },
+        away: {
+          lookup_key: 'away',
+          has_shorts: false,
+          shorts: [],
+          has_user_stories: false,
+          user_stories: [],
+        },
       },
     });
   });
