@@ -92,6 +92,28 @@ func TestGetSystemUserID_FallsBackToDefaultEmail(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestGetSystemUserID_ProvisionsWhenMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	mock.ExpectQuery(`SELECT .+ FROM users WHERE email`).
+		WithArgs(defaultSystemUserEmail).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT .+ FROM users WHERE email`).
+		WithArgs(legacySystemUserEmail).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`INSERT INTO users`).
+		WithArgs("Fucci", "System", defaultSystemUserEmail, false).
+		WillReturnRows(systemUserMockRows(42, defaultSystemUserEmail))
+
+	cfg := &Config{DB: database.New(db)}
+	id, err := cfg.getSystemUserID(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int32(42), id)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestEnsureSeededComments_InsertsWhenMissing(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

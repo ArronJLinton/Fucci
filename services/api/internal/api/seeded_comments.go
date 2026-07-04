@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"strings"
 
@@ -18,6 +19,7 @@ const (
 
 // getSystemUserID returns the system user (Fucci) ID for seeded comments.
 // Tries Config.SystemUserEmail first, then known migration defaults.
+// If none exist, provisions contact@magistri.dev (same as goose migration 20260215000003).
 func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
 	var candidates []string
 	if email := strings.TrimSpace(c.SystemUserEmail); email != "" {
@@ -38,7 +40,23 @@ func (c *Config) getSystemUserID(ctx context.Context) (int32, error) {
 		}
 		lastErr = err
 	}
-	return 0, lastErr
+	if c.DB == nil {
+		return 0, lastErr
+	}
+	user, err := c.DB.CreateUser(ctx, database.CreateUserParams{
+		Firstname: "Fucci",
+		Lastname:  "System",
+		Email:     defaultSystemUserEmail,
+		IsAdmin:   false,
+	})
+	if err != nil {
+		if user, retryErr := c.DB.GetUserByEmail(ctx, defaultSystemUserEmail); retryErr == nil {
+			return user.ID, nil
+		}
+		return 0, errors.Join(lastErr, err)
+	}
+	log.Printf("[debate] provisioned system user id=%d email=%s", user.ID, defaultSystemUserEmail)
+	return user.ID, nil
 }
 
 func cardText(title, description string) string {
