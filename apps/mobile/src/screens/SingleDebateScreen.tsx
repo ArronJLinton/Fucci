@@ -21,6 +21,12 @@ import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
 import type {DebateComment, DebateCard, ReactionCount} from '../types/debate';
 import {fetchDebateById, setCardVote} from '../services/debate';
 import {
+  APP_STORE_SCREENSHOT_MODE,
+  getScreenshotDebateById,
+  getScreenshotDebateComments,
+  SCREENSHOT_MBAPPE_DEBATE_ID,
+} from '../demo/screenshotDemo';
+import {
   listComments,
   createComment as apiCreateComment,
   setCommentVote,
@@ -93,11 +99,18 @@ const SingleDebateScreen = () => {
   const insets = useSafeAreaInsets();
   const {match, debate} = route.params;
   const {token, isLoggedIn} = useAuth();
+  const screenshotDebateSession =
+    APP_STORE_SCREENSHOT_MODE && debate?.id === SCREENSHOT_MBAPPE_DEBATE_ID;
+  const canParticipate = isLoggedIn || screenshotDebateSession;
 
   const debateDetailQuery = useQuery({
     queryKey: ['singleDebate', debate?.id, token ?? ''],
     queryFn: async () => {
       if (debate?.id == null) return null;
+      if (APP_STORE_SCREENSHOT_MODE) {
+        const demo = getScreenshotDebateById(debate.id);
+        if (demo) return demo;
+      }
       return fetchDebateById(debate.id, token);
     },
     enabled: typeof debate?.id === 'number' && debate.id > 0,
@@ -205,6 +218,13 @@ const SingleDebateScreen = () => {
     setCommentsError(null);
     setCommentsLoading(true);
     try {
+      if (APP_STORE_SCREENSHOT_MODE) {
+        const demo = getScreenshotDebateComments(debateId);
+        if (demo) {
+          setComments(demo);
+          return;
+        }
+      }
       const list = await listComments(debateId);
       setComments(list);
     } catch (_e) {
@@ -547,7 +567,7 @@ const SingleDebateScreen = () => {
             {!isSub && (
               <TouchableOpacity
                 onPress={() => {
-                  if (!isLoggedIn) setAuthGatePendingAction('reply');
+                  if (!canParticipate) setAuthGatePendingAction('reply');
                   else {
                     setReplyingToCommentId(c.id);
                     setCommentInput('');
@@ -572,7 +592,7 @@ const SingleDebateScreen = () => {
               ))}
               <TouchableOpacity
                 onPress={() => {
-                  if (!isLoggedIn) setAuthGatePendingAction('reaction');
+                  if (!canParticipate) setAuthGatePendingAction('reaction');
                   else
                     setShowReactionPickerCommentId(prev =>
                       prev === c.id ? null : c.id,
@@ -884,7 +904,7 @@ const SingleDebateScreen = () => {
       </ScrollView>
 
       {/* Fixed comment input — T021: guests get read-only thread; signed-in users get composer */}
-      {isLoggedIn && commentSubmitError ? (
+      {canParticipate && commentSubmitError ? (
         <View style={styles.commentSubmitError}>
           <Text style={styles.commentSubmitErrorText}>
             {commentSubmitError}
@@ -894,7 +914,7 @@ const SingleDebateScreen = () => {
           </TouchableOpacity>
         </View>
       ) : null}
-      {isLoggedIn ? (
+      {canParticipate ? (
         <View
           style={[
             styles.inputRow,

@@ -1,6 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  useWindowDimensions,
   View,
   StyleSheet,
   Text,
@@ -25,6 +24,11 @@ import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
 import {matchesForLocalDateQueryKey} from '../queries/keys';
 import type {Match} from '../types/match';
 import {hasLiveMatchInList} from '../utils/matchStatus';
+import {
+  APP_STORE_SCREENSHOT_MODE,
+  fetchScreenshotMatchday,
+  SCREENSHOT_MATCHDAY,
+} from '../demo/screenshotDemo';
 
 type RootTabParamList = {
   [key: string]: undefined;
@@ -36,14 +40,21 @@ const TabScreen = Tab.Screen as any;
 
 const TAB_DAY_OFFSETS = [-2, -1, 0, 1, 2] as const;
 
+/** Shared pill width — sized for the longest date tab label ("YESTERDAY"). */
+const DATE_TAB_PILL_WIDTH = 86;
+const DATE_TAB_ITEM_WIDTH = DATE_TAB_PILL_WIDTH + 6;
+
 const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
 
 const formatCalendarDay = (date: Date): string =>
   `${WEEKDAY_LABELS[date.getDay()]} ${date.getDate()}`;
 
-const getTabLabel = (date: Date): string => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+const getTabLabel = (date: Date, focusDay?: Date): string => {
+  const today = (() => {
+    const d = focusDay ? new Date(focusDay) : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
 
@@ -102,6 +113,9 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
   const {data: matches = [], isLoading, refetch} = useQuery<Match[]>({
     queryKey: matchesForLocalDateQueryKey(date, leagueId),
     queryFn: async () => {
+      if (APP_STORE_SCREENSHOT_MODE) {
+        return fetchScreenshotMatchday(date);
+      }
       if (!selectedLeague) {
         return [];
       }
@@ -112,15 +126,17 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
       );
       return rows ?? [];
     },
-    enabled: Boolean(selectedLeague) && isSelected,
+    enabled: (APP_STORE_SCREENSHOT_MODE || Boolean(selectedLeague)) && isSelected,
     staleTime: isTodayTab ? MATCHES_TODAY_STALE_MS : MATCHES_STALE_MS,
     gcTime: 15 * 60 * 1000,
     placeholderData: previous => previous,
     refetchOnWindowFocus: isTodayTab,
     refetchInterval: query =>
-      isTodayTab && isSelected && hasLiveMatchInList(query.state.data ?? [])
-        ? MATCHES_LIVE_REFETCH_MS
-        : false,
+      APP_STORE_SCREENSHOT_MODE
+        ? false
+        : isTodayTab && isSelected && hasLiveMatchInList(query.state.data ?? [])
+          ? MATCHES_LIVE_REFETCH_MS
+          : false,
   });
 
   const onRefresh = useCallback(async () => {
@@ -151,8 +167,6 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
 };
 
 const HomeScreen = () => {
-  const {width: screenWidth} = useWindowDimensions();
-  const tabWidth = screenWidth / TAB_DAY_OFFSETS.length;
   const [selectedLeague, setSelectedLeague] = useState<League | null>(
     WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : DEFAULT_LEAGUE,
   );
@@ -185,19 +199,36 @@ const HomeScreen = () => {
   }, []);
 
   const dates = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const anchor = APP_STORE_SCREENSHOT_MODE
+      ? new Date(
+          SCREENSHOT_MATCHDAY.getFullYear(),
+          SCREENSHOT_MATCHDAY.getMonth(),
+          SCREENSHOT_MATCHDAY.getDate(),
+        )
+      : (() => {
+          const now = new Date();
+          return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        })();
     return TAB_DAY_OFFSETS.map(offset => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + offset);
+      const d = new Date(anchor);
+      d.setDate(anchor.getDate() + offset);
       return d;
     });
   }, []);
 
   const todayIndex = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return dates.findIndex(date => date.getTime() === today.getTime());
+    const focus = APP_STORE_SCREENSHOT_MODE
+      ? (() => {
+          const d = new Date(SCREENSHOT_MATCHDAY);
+          d.setHours(0, 0, 0, 0);
+          return d;
+        })()
+      : (() => {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return today;
+        })();
+    return dates.findIndex(date => date.getTime() === focus.getTime());
   }, [dates]);
 
   const initialRoute = useMemo(() => {
@@ -205,14 +236,16 @@ const HomeScreen = () => {
     return `date-${initialDate.toISOString()}`;
   }, [dates, todayIndex]);
 
+  const tabFocusDay = APP_STORE_SCREENSHOT_MODE ? SCREENSHOT_MATCHDAY : undefined;
+
   return (
     <View style={styles.root}>
       <TabNavigator
         initialRouteName={initialRoute}
         screenOptions={{
-          tabBarScrollEnabled: false,
+          tabBarScrollEnabled: true,
           tabBarItemStyle: {
-            width: tabWidth,
+            width: DATE_TAB_ITEM_WIDTH,
             paddingHorizontal: 0,
             marginHorizontal: 0,
           },
@@ -223,7 +256,6 @@ const HomeScreen = () => {
             borderBottomWidth: 1,
             borderBottomColor: 'rgba(255,255,255,0.08)',
             minHeight: 44,
-            width: screenWidth,
           },
           tabBarIndicatorStyle: {
             height: 0,
@@ -237,7 +269,7 @@ const HomeScreen = () => {
         {dates.map(date => {
           const dateString = date.toISOString();
           const screenKey = `date-${dateString}`;
-          const label = getTabLabel(date);
+          const label = getTabLabel(date, tabFocusDay);
 
           return (
             <TabScreen
@@ -249,23 +281,25 @@ const HomeScreen = () => {
                   <View
                     style={styles.dateTabInner}
                     accessibilityLabel={label}>
-                    {focused ? (
-                      <LinearGradient
-                        colors={['#C6FF00', '#E8FF66']}
-                        start={{x: 0, y: 0.5}}
-                        end={{x: 1, y: 0.5}}
-                        style={StyleSheet.absoluteFill}
-                      />
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.dateTabText,
-                        focused && styles.dateTabTextActive,
-                      ]}
-                      numberOfLines={1}
-                      allowFontScaling={false}>
-                      {label}
-                    </Text>
+                    <View style={styles.dateTabPill}>
+                      {focused ? (
+                        <LinearGradient
+                          colors={['#C6FF00', '#E8FF66']}
+                          start={{x: 0, y: 0.5}}
+                          end={{x: 1, y: 0.5}}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      ) : null}
+                      <Text
+                        style={[
+                          styles.dateTabText,
+                          focused && styles.dateTabTextActive,
+                        ]}
+                        numberOfLines={1}
+                        allowFontScaling={false}>
+                        {label}
+                      </Text>
+                    </View>
                   </View>
                 ),
                 tabBarAccessibilityLabel: `Switch to ${label}`,
@@ -304,12 +338,18 @@ const styles = StyleSheet.create({
     backgroundColor: MATCHES_BG,
   },
   dateTabInner: {
+    width: DATE_TAB_ITEM_WIDTH,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateTabPill: {
+    width: DATE_TAB_PILL_WIDTH,
+    minHeight: 32,
     paddingVertical: 7,
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
     borderRadius: 5,
     overflow: 'hidden',
-    width: '100%',
-    minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -320,7 +360,6 @@ const styles = StyleSheet.create({
     color: MATCHES_MUTED,
     zIndex: 1,
     textAlign: 'center',
-    width: '100%',
   },
   dateTabTextActive: {
     color: '#0B0E14',
