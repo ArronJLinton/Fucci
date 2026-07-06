@@ -35,6 +35,10 @@ import {
   isLiveMatchStatus,
   isScheduledMatchStatus,
 } from '../utils/matchStatus';
+import {
+  isAwayMatchWinner,
+  isHomeMatchWinner,
+} from '../utils/matchWinner';
 import {usePullToRefresh} from '../hooks/usePullToRefresh';
 
 const SHORT_RING_AMBER = '#F5A623';
@@ -284,8 +288,8 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
   const a = match.goals.away;
   const hasScore =
     h != null && a != null && (isLiveMatchStatus(s) || isFinishedMatchStatus(s));
-  const homeLeading = h != null && a != null && h > a;
-  const awayLeading = h != null && a != null && a > h;
+  const homeLeading = isHomeMatchWinner(match);
+  const awayLeading = isAwayMatchWinner(match);
 
   if (featuredLayout && (s === 'HT' || tone === 'ht')) {
     return (

@@ -48,7 +48,11 @@ import {
   MATCH_SHORTS_STALE_MS,
   matchShortsQueryKey,
 } from '../services/matchShortsApi';
-import {isLiveMatchStatus, isPlayedMatchStatus} from '../utils/matchStatus';
+import {
+  isFinishedMatchStatus,
+  isLiveMatchStatus,
+  isPlayedMatchStatus,
+} from '../utils/matchStatus';
 
 const SHORT_RING_AMBER = '#F5A623';
 
@@ -228,7 +232,12 @@ const MatchDetailsScreen = () => {
   });
 
   const statusLabel = statusPillLabel(match);
-  const live = isLiveMatchStatus(match.fixture.status.short);
+  const statusShort = match.fixture.status.short;
+  const live = isLiveMatchStatus(statusShort);
+  const showScore =
+    match.goals.home != null &&
+    match.goals.away != null &&
+    (live || isFinishedMatchStatus(statusShort));
 
   const MatchHero = () => (
     <Animated.View style={[styles.heroOuter, heroAnimatedStyle]}>
@@ -297,9 +306,11 @@ const MatchDetailsScreen = () => {
             </TouchableOpacity>
 
             <View style={[styles.scoreMid, styles.scoreMidCenter]}>
-              <Text style={styles.scoreText}>
-                {match.goals.home ?? 0} - {match.goals.away ?? 0}
-              </Text>
+              {showScore ? (
+                <Text style={styles.scoreText}>
+                  {match.goals.home} - {match.goals.away}
+                </Text>
+              ) : null}
               <View style={[styles.statusPill, live && styles.statusPillLive]}>
                 <Text
                   style={[
@@ -352,10 +363,17 @@ const MatchDetailsScreen = () => {
             style={[styles.heroCompactRow, heroCompactOpacityStyle]}
             pointerEvents="none">
             <Text style={styles.heroCompactScore} numberOfLines={1}>
-              {match.teams.home.name.slice(0, 3).toUpperCase()}{' '}
-              <Text style={styles.heroCompactNums}>
-                {match.goals.home ?? 0}-{match.goals.away ?? 0}
-              </Text>{' '}
+              {match.teams.home.name.slice(0, 3).toUpperCase()}
+              {showScore ? (
+                <>
+                  {' '}
+                  <Text style={styles.heroCompactNums}>
+                    {match.goals.home}-{match.goals.away}
+                  </Text>{' '}
+                </>
+              ) : (
+                ' vs '
+              )}
               {match.teams.away.name.slice(0, 3).toUpperCase()}
             </Text>
           </Animated.View>

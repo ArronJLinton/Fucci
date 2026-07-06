@@ -30,6 +30,10 @@ import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
 import {debateMatchesWorldCupFilter} from '../utils/newsFilters';
 import {mainDebatesFeedQueryKey} from '../queries/keys';
+import {
+  APP_STORE_SCREENSHOT_MODE,
+  fetchScreenshotDebatesFeed,
+} from '../demo/screenshotDemo';
 import DebateHeroSwipeCard, {
   type DebateHeroVoteFailedDetail,
   type DebateHeroVoteSuccessDetail,
@@ -218,8 +222,11 @@ const MainDebatesScreen = () => {
 
   const query = useQuery({
     queryKey: debatesFeedQueryKey,
-    enabled: isReady,
+    enabled: isReady || APP_STORE_SCREENSHOT_MODE,
     queryFn: async (): Promise<UnifiedFeed> => {
+      if (APP_STORE_SCREENSHOT_MODE) {
+        return {kind: 'auth', ...(await fetchScreenshotDebatesFeed())};
+      }
       if (token) {
         const data = await fetchDebatesFeed(token, {
           new_limit: 30,
@@ -254,6 +261,9 @@ const MainDebatesScreen = () => {
     if (!data) {
       return null;
     }
+    if (APP_STORE_SCREENSHOT_MODE) {
+      return data;
+    }
     if (data.kind === 'public') {
       return {
         kind: 'public',
@@ -279,6 +289,13 @@ const MainDebatesScreen = () => {
         hero: null as DebateSummary | null,
         votedList: [] as DebateSummary[],
         isGuest: true,
+      };
+    }
+    if (APP_STORE_SCREENSHOT_MODE && filteredFeed?.kind === 'auth') {
+      return {
+        hero: filteredFeed.new_debates[0] ?? null,
+        votedList: filteredFeed.voted_debates,
+        isGuest: false,
       };
     }
     if (filteredFeed.kind === 'public') {
@@ -477,7 +494,7 @@ const MainDebatesScreen = () => {
           return (
             <DebateHeroSwipeCard
               summary={item.summary}
-              isLoggedIn={isLoggedIn}
+              isLoggedIn={APP_STORE_SCREENSHOT_MODE || isLoggedIn}
               token={token ?? null}
               onOpen={() => onOpenSummary(item.summary)}
               onVoteOptimistic={onHeroVoteOptimistic}
@@ -548,7 +565,7 @@ const MainDebatesScreen = () => {
     ],
   );
 
-  if (!isReady || (isLoading && !data)) {
+  if ((!isReady && !APP_STORE_SCREENSHOT_MODE) || (isLoading && !data)) {
     return (
       <View style={[styles.centered, {backgroundColor: BG}]}>
         <StatusBar barStyle="light-content" />

@@ -40,6 +40,10 @@ import {
   MATCH_CENTER_MUTED,
   MATCH_CENTER_TEXT,
 } from '../constants/matchCenterUi';
+import {
+  APP_STORE_SCREENSHOT_MODE,
+  getScreenshotMatchDebates,
+} from '../demo/screenshotDemo';
 
 /** Same semantics as SingleDebateScreen `binaryPulseSideTotals` (read-only on this screen). */
 function binaryPulseSideTotals(
@@ -214,6 +218,17 @@ const DebateScreen: React.FC<DebateScreenProps> = ({
       setIsLoading(true);
       setDebateList([]);
       const matchId = match.fixture.id;
+
+      if (APP_STORE_SCREENSHOT_MODE) {
+        const demoDebates = getScreenshotMatchDebates(match);
+        if (demoDebates?.length) {
+          setDebateList(demoDebates);
+          setIsLoading(false);
+          setIsGenerating(false);
+          return;
+        }
+      }
+
       const POLL_INTERVAL_MS = 3000;
       const POLL_TIMEOUT_MS = 60000;
 
