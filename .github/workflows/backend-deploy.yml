@@ -1,8 +1,8 @@
-name: Deploy API to Fly.io (staging)
+name: Backend deploy (Fly.io staging)
 
 # Triggers:
 #   - workflow_dispatch (pick ref)
-#   - pull_request labeled deploy-staging (after review; waits on staging environment approval)
+#   - pull_request labeled backend-deploy (after review; waits on staging environment approval)
 on:
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ on:
       - main
 
 concurrency:
-  group: deploy-api-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
+  group: backend-deploy-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
-        github.event.label.name == 'deploy-staging' &&
+        github.event.label.name == 'backend-deploy' &&
         github.event.pull_request.state == 'open' &&
         github.event.pull_request.head.repo.full_name == github.repository)
 
@@ -152,6 +152,6 @@ jobs:
       - name: Job summary
         if: always()
         run: |
-          echo "## API deploy (staging)" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Backend deploy (staging)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"

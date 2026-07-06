@@ -164,22 +164,22 @@ flyctl deploy
 | Workflow | When it runs |
 | -------- | ------------ |
 | **API CI** (`api-ci.yml`) | Every PR to `main` that touches `services/api/**` — tests only |
-| **Deploy API** (`deploy-api.yml`) | Manual **workflow_dispatch**, or add label `deploy-staging` on a PR (requires **`staging` environment** approval) |
-| **Mobile TestFlight** (`mobile-testflight.yml`) | Push to `main` with `apps/mobile/**` changes — iOS build + TestFlight submit |
-| **Mobile preview** (`mobile-preview-deploy.yml`) | Manual dispatch, or PR label `deploy-staging` (requires **`staging` environment** approval) |
+| **Backend deploy** (`backend-deploy.yml`) | Manual **workflow_dispatch**, or add label `backend-deploy` on a PR (requires **`staging` environment** approval) |
+| **Mobile deploy** (`mobile-deploy.yml`) | Manual **workflow_dispatch** (iOS / Android / all), or PR label `mobile-deploy` (requires **`staging` environment** approval) |
+| **Mobile TestFlight** (`mobile-testflight.yml`) | Manual **workflow_dispatch** only (auto deploy on push to `main` is disabled until the pipeline is fixed) |
 
 **Setup GitHub Secrets** (Settings → Secrets and variables → Actions):
 
 - `FLY_API_TOKEN`, `DB_URL`, `SUPABASE_*`, etc. for API deploy
-- `EXPO_TOKEN`, `ASC_APP_ID`, `ASC_API_KEY_*` for mobile TestFlight / preview
+- `EXPO_TOKEN`, `ASC_APP_ID`, `ASC_API_KEY_*` for mobile TestFlight / EAS builds
 
 **Environment protection** (Settings → Environments):
 
-- **`staging`** — required reviewers before Fly deploy and EAS preview builds on PRs
+- **`staging`** — required reviewers before Fly deploy and EAS builds triggered from PR labels
 
-**After code review on a PR:** add the `deploy-staging` label (or run **Deploy API** / **Mobile EAS preview** manually from Actions with the PR branch as `ref`).
+**After code review on a PR:** add `backend-deploy` and/or `mobile-deploy` (or run **Backend deploy** / **Mobile deploy** manually from Actions with the PR branch as `ref`).
 
-**After merge to `main`:** mobile changes auto-submit to TestFlight; API deploy remains manual until you run **Deploy API** with `ref: main`.
+**After merge to `main`:** API and mobile deploys are manual — use **Backend deploy** or **Mobile deploy** from Actions with `ref: main`. TestFlight auto-submit on merge is disabled for now.
 
 **iOS build numbers:** The `preview` profile uses EAS remote versioning with `autoIncrement: true` — EAS bumps `ios.buildNumber` on each preview/TestFlight build. Bump `expo.version` in `app.json` manually when you want a new user-facing version (e.g. `1.1.0` → `1.2.0`).
 
