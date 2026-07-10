@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/ArronJLinton/fucci-api/internal/youtube"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +47,7 @@ func TestCloudinaryConfigForMatchStoryContexts(t *testing.T) {
 }
 
 type stubMatchStoryStore struct {
-	GetMatchStoryByIDFn   func(ctx context.Context, id uuid.UUID) (database.MatchStories, error)
+	GetMatchStoryByIDFn    func(ctx context.Context, id uuid.UUID) (database.MatchStories, error)
 	DeactivateMatchStoryFn func(ctx context.Context, id uuid.UUID) (database.MatchStories, error)
 }
 
@@ -68,6 +70,19 @@ func matchStoryDeleteTestRequest(storyID uuid.UUID, userID int32) *http.Request 
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", storyID.String())
 	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	if userID != 0 {
+		r = r.WithContext(auth.ContextWithClaims(r.Context(), &auth.JWTClaims{UserID: userID}))
+	}
+	return r
+}
+
+func matchStoryReportTestRequest(storyID uuid.UUID, userID int32) *http.Request {
+	body, _ := json.Marshal(map[string]string{
+		"reportable_type": "story",
+		"reportable_id":   storyID.String(),
+		"reason":          "spam",
+	})
+	r := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(body))
 	if userID != 0 {
 		r = r.WithContext(auth.ContextWithClaims(r.Context(), &auth.JWTClaims{UserID: userID}))
 	}
@@ -164,4 +179,58 @@ func TestDeleteMatchStory_AlreadyRemoved(t *testing.T) {
 	var out map[string]string
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
 	assert.Equal(t, "already_removed", out["status"])
+}
+
+func TestPostContentReport_DoesNotDeactivateStory(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	cfg := &Config{DB: database.New(db)}
+	storyID := uuid.New()
+	reportID := uuid.New()
+	const reporterID int32 = 99
+	const ownerID int32 = 10
+	createdAt := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`SELECT id, user_id, scope_type, scope_id, team_lookup_key, content_type, media_url, caption, is_active, created_at FROM match_stories WHERE id = \$1`).
+		WithArgs(storyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "scope_type", "scope_id", "team_lookup_key", "content_type", "media_url", "caption", "is_active", "created_at",
+		}).AddRow(
+			storyID,
+			ownerID,
+			string(database.StoryScopeTypeMatch),
+			"12345",
+			"spain",
+			string(database.StoryContentTypePhoto),
+			"https://res.cloudinary.com/demo/image/upload/v1/story.jpg",
+			nil,
+			true,
+			createdAt,
+		))
+	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at`).
+		WithArgs(reporterID, "story", storyID, "spam", sql.NullString{}).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at",
+		}).AddRow(
+			reportID,
+			reporterID,
+			"story",
+			storyID,
+			"spam",
+			nil,
+			"pending",
+			createdAt,
+		))
+
+	rec := httptest.NewRecorder()
+	cfg.postContentReport(rec, matchStoryReportTestRequest(storyID, reporterID))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var out map[string]interface{}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	assert.Equal(t, reportID.String(), out["id"])
+	assert.Equal(t, false, out["story_deactivated"])
+	require.NoError(t, mock.ExpectationsWereMet())
 }
