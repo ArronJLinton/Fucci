@@ -1035,6 +1035,12 @@ func TestMatchesCacheTTLExpiresAtKickoff(t *testing.T) {
 			expected: cache.DefaultTTL,
 		},
 		{
+			name:     "overdue TBD fixture retains default cap",
+			status:   "TBD",
+			kickoff:  now.Add(-time.Hour),
+			expected: cache.DefaultTTL,
+		},
+		{
 			name:     "live fixture uses live ttl",
 			status:   "1H",
 			kickoff:  now.Add(-20 * time.Minute),

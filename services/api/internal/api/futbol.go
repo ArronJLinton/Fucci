@@ -186,8 +186,11 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 func matchesCacheTTL(data *GetMatchesAPIResponse, now time.Time) time.Duration {
 	ttl := cache.DefaultTTL
 	for _, match := range data.Response {
-		matchTTL := cache.GetMatchTTL(match.Fixture.Status.Short)
-		if matchTTL == cache.FixtureTTL {
+		status := strings.ToUpper(strings.TrimSpace(match.Fixture.Status.Short))
+		matchTTL := cache.GetMatchTTL(status)
+		// API-Football's NS status has a confirmed kickoff. TBD can carry a
+		// placeholder date, so it must not enter live-frequency refreshes.
+		if status == "NS" {
 			untilKickoff := match.Fixture.Date.Sub(now)
 			if untilKickoff <= 0 {
 				matchTTL = cache.LiveMatchTTL
