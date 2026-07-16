@@ -1008,6 +1008,58 @@ func TestTeamStandingsCache(t *testing.T) {
 
 const testGetMatchesFixtureOK = `{"get":"fixtures","results":1,"response":[{"fixture":{"id":1,"status":{"short":"FT"}},"teams":{"home":{"name":"A"},"away":{"name":"B"}}}]}`
 
+func TestMatchesCacheTTLExpiresAtKickoff(t *testing.T) {
+	now := time.Date(2026, 7, 16, 15, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name     string
+		status   string
+		kickoff  time.Time
+		expected time.Duration
+	}{
+		{
+			name:     "scheduled fixture expires at kickoff",
+			status:   "NS",
+			kickoff:  now.Add(25 * time.Minute),
+			expected: 25 * time.Minute,
+		},
+		{
+			name:     "overdue scheduled fixture refreshes like a live match",
+			status:   "NS",
+			kickoff:  now.Add(-time.Minute),
+			expected: cache.LiveMatchTTL,
+		},
+		{
+			name:     "distant scheduled fixture retains default cap",
+			status:   "TBD",
+			kickoff:  now.Add(3 * time.Hour),
+			expected: cache.DefaultTTL,
+		},
+		{
+			name:     "live fixture uses live ttl",
+			status:   "1H",
+			kickoff:  now.Add(-20 * time.Minute),
+			expected: cache.LiveMatchTTL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := fmt.Sprintf(
+				`{"response":[{"fixture":{"date":%q,"status":{"short":%q}}}]}`,
+				tt.kickoff.Format(time.RFC3339),
+				tt.status,
+			)
+			var response GetMatchesAPIResponse
+			if err := json.Unmarshal([]byte(raw), &response); err != nil {
+				t.Fatalf("decode fixture: %v", err)
+			}
+			if got := matchesCacheTTL(&response, now); got != tt.expected {
+				t.Fatalf("matchesCacheTTL() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 // TestGetMatchesSeasonResolutionAndCache covers ResolveAPIFootballSeason vs explicit season, cache keys, and rejections.
 func TestGetMatchesSeasonResolutionAndCache(t *testing.T) {
 	newMatchServer := func(t *testing.T, onReq func(path string)) *httptest.Server {
