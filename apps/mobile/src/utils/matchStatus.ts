@@ -61,3 +61,23 @@ export function isPlayedMatchStatus(status: string): boolean {
 export function hasLiveMatchInList(matches: Match[]): boolean {
   return matches.some(m => isLiveMatchStatus(m.fixture.status.short));
 }
+
+export function resolveRefreshedMatch(
+  initialMatch: Match,
+  matches: Match[] | undefined,
+): Match {
+  return (
+    matches?.find(
+      candidate => candidate.fixture.id === initialMatch.fixture.id,
+    ) ?? initialMatch
+  );
+}
+
+export function shouldPollLiveMatch(
+  initialMatch: Match,
+  matches: Match[] | undefined,
+): boolean {
+  return isLiveMatchStatus(
+    resolveRefreshedMatch(initialMatch, matches).fixture.status.short,
+  );
+}
