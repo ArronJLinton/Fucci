@@ -78,5 +78,9 @@ module.exports = () => {
   }
 
   expo.extra = extra;
+  expo.ios = {
+    ...(expo.ios || {}),
+    supportsTablet: false,
+  };
   return expo;
 };

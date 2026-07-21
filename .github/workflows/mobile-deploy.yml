@@ -1,5 +1,5 @@
-# Staging mobile preview — manual dispatch or PR label deploy-staging (environment approval).
-name: Mobile EAS preview (staging)
+# Staging mobile — manual dispatch or PR label mobile-deploy (environment approval).
+name: Mobile deploy (EAS)
 
 on:
   workflow_dispatch:
@@ -8,6 +8,15 @@ on:
         description: Git ref to build (branch, tag, or SHA)
         required: true
         default: main
+      platform:
+        description: Platform to build
+        required: true
+        default: ios
+        type: choice
+        options:
+          - ios
+          - android
+          - all
   pull_request:
     types:
       - labeled
@@ -15,21 +24,21 @@ on:
       - main
 
 concurrency:
-  group: mobile-preview-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
+  group: mobile-deploy-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  ios-preview:
-    name: EAS iOS preview build
+  eas-build:
+    name: EAS build (${{ github.event.inputs.platform || 'ios' }})
     runs-on: ubuntu-latest
     environment: staging
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
-        github.event.label.name == 'deploy-staging' &&
+        github.event.label.name == 'mobile-deploy' &&
         github.event.pull_request.state == 'open' &&
         github.event.pull_request.head.repo.full_name == github.repository)
 
@@ -52,7 +61,7 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add EXPO_TOKEN to the staging environment (or repository secrets) to enable staging previews."
+            echo "::warning::EXPO_TOKEN secret is not configured — EAS build skipped. Add EXPO_TOKEN to the staging environment (or repository secrets) to enable mobile deploys."
             echo "has_token=false" >> "$GITHUB_OUTPUT"
           else
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -70,22 +79,36 @@ jobs:
         if: steps.validate_token.outputs.has_token == 'true'
         run: yarn install --frozen-lockfile
 
-      - name: EAS build iOS preview
+      - name: Resolve EAS platform
+        if: steps.validate_token.outputs.has_token == 'true'
+        id: platform
+        env:
+          INPUT_PLATFORM: ${{ github.event.inputs.platform }}
+        run: |
+          PLATFORM="${INPUT_PLATFORM:-ios}"
+          echo "platform=$PLATFORM" >> "$GITHUB_OUTPUT"
+
+      - name: EAS build (preview profile)
         if: steps.validate_token.outputs.has_token == 'true'
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli build --platform ios --profile preview --non-interactive
+        run: |
+          npx eas-cli build \
+            --platform "${{ steps.platform.outputs.platform }}" \
+            --profile preview \
+            --non-interactive
 
       - name: Job summary
         if: always()
         run: |
-          echo "## Mobile preview (staging)" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Mobile deploy (EAS)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || format('PR #{0}', github.event.pull_request.number) }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Trigger: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Platform: \`${{ steps.platform.outputs.platform || 'ios' }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ steps.validate_token.outputs.has_token }}" = "true" ]; then
-            echo "Install from the EAS dashboard or re-run with submit after review." >> "$GITHUB_STEP_SUMMARY"
+            echo "Install from the [EAS dashboard](https://expo.dev/accounts) when the build completes." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "⚠️ Build skipped — EXPO_TOKEN secret is missing or invalid. Check the workflow logs for details." >> "$GITHUB_STEP_SUMMARY"
           fi

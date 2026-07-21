@@ -1,4 +1,4 @@
-# API verification on pull requests — no Fly deploy (see deploy-api.yml).
+# API verification on pull requests — no Fly deploy (see backend-deploy.yml).
 name: API CI
 
 on:

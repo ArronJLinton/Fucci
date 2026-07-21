@@ -1,16 +1,23 @@
-# Push to main → EAS iOS build + TestFlight submit (no Android).
+# Auto TestFlight on push to main is disabled until the pipeline is fixed.
+# Re-enable by restoring the `push` trigger below.
 name: Mobile TestFlight (main)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/mobile/**'
-      - '.github/workflows/mobile-testflight.yml'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build and submit (branch, tag, or SHA)
+        required: true
+        default: main
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'apps/mobile/**'
+  #     - '.github/workflows/mobile-testflight.yml'
 
 concurrency:
-  group: mobile-testflight-${{ github.ref }}
+  group: mobile-testflight-${{ github.event.inputs.ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -24,6 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -110,5 +119,6 @@ jobs:
         if: always()
         run: |
           echo "## Mobile TestFlight (main)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ github.event.inputs.ref || github.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- EAS build: \`${{ steps.eas_build.outputs.build_id }}\`" >> "$GITHUB_STEP_SUMMARY"
