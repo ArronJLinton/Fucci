@@ -244,7 +244,7 @@ func New(c *Config) http.Handler {
 	reportsRouter.Post("/", c.postContentReport)
 
 	debateRouter := chi.NewRouter()
-	debateRouter.Post("/", c.createDebate)
+	debateRouter.With(auth.RequireAuth).Post("/", c.createDebate)
 	debateRouter.Get("/public-feed", c.getDebatesPublicFeed)
 	debateRouter.With(auth.RequireAuth).Get("/feed", c.getDebatesFeed)
 	debateRouter.Get("/top", c.getTopDebates)
@@ -255,7 +255,7 @@ func New(c *Config) http.Handler {
 	debateRouter.Get("/match", c.getDebatesByMatch)
 	debateRouter.With(auth.OptionalAuth).Get("/{id}", c.getDebate)
 	debateRouter.With(auth.RequireAuth).Put("/{debateId}/cards/{cardId}/vote", c.setCardVote)
-	debateRouter.Post("/cards", c.createDebateCard)
+	debateRouter.With(auth.RequireAuth).Post("/cards", c.createDebateCard)
 	// Legacy POST /debates/votes and POST /debates/comments removed: they were unauthenticated and used hardcoded user_id. Use PUT /debates/{id}/cards/{cardId}/vote and POST /debates/{id}/comments (auth required) instead.
 	debateRouter.Get("/{debateId}/comments", c.ListDebateComments)
 	debateRouter.With(auth.RequireAuth).Post("/{debateId}/comments", c.CreateDebateComment)
