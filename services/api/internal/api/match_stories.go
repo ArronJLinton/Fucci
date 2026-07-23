@@ -351,24 +351,7 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if c.DBConn == nil {
-		respondWithError(w, http.StatusInternalServerError, "Database not configured")
-		return
-	}
-
-	tx, err := c.DBConn.BeginTx(r.Context(), nil)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to start transaction")
-		return
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := c.DB.WithTx(tx)
-	if _, err := qtx.DeactivateMatchStory(r.Context(), storyID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		respondWithError(w, http.StatusInternalServerError, "Failed to remove story")
-		return
-	}
-	report, err := qtx.CreateContentReport(r.Context(), database.CreateContentReportParams{
+	report, err := c.DB.CreateContentReport(r.Context(), database.CreateContentReportParams{
 		ReporterID:     userID,
 		ReportableType: reportableType,
 		ReportableID:   storyID,
@@ -379,10 +362,6 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create report")
 		return
 	}
-	if err := tx.Commit(); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to save report")
-		return
-	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"id":                report.ID.String(),
@@ -390,6 +369,6 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 		"reportable_id":     report.ReportableID.String(),
 		"reason":            report.Reason,
 		"status":            report.Status,
-		"story_deactivated": true,
+		"story_deactivated": false,
 	})
 }
