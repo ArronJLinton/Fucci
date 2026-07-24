@@ -1118,6 +1118,8 @@ func TestDebateAdminRoutesRequireAuthentication(t *testing.T) {
 		method string
 		path   string
 	}{
+		{name: "create debate", method: http.MethodPost, path: "/debates"},
+		{name: "create debate card", method: http.MethodPost, path: "/debates/cards"},
 		{name: "hard delete", method: http.MethodDelete, path: "/debates/7/hard"},
 		{name: "restore", method: http.MethodPost, path: "/debates/7/restore"},
 	} {
@@ -1140,6 +1142,8 @@ func TestDebateAdminRoutesRejectNonAdmins(t *testing.T) {
 		method string
 		path   string
 	}{
+		{name: "create debate", method: http.MethodPost, path: "/debates"},
+		{name: "create debate card", method: http.MethodPost, path: "/debates/cards"},
 		{name: "hard delete", method: http.MethodDelete, path: "/debates/7/hard"},
 		{name: "restore", method: http.MethodPost, path: "/debates/7/restore"},
 	} {
@@ -1164,6 +1168,43 @@ func TestDebateAdminRoutesRejectNonAdmins(t *testing.T) {
 
 			if rec.Code != http.StatusForbidden {
 				t.Fatalf("code=%d body=%s, want 403", rec.Code, rec.Body.String())
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("db expectations: %v", err)
+			}
+		})
+	}
+}
+
+func TestDebateCreationRoutesAllowAdminsPastAuthorization(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "create debate", path: "/debates"},
+		{name: "create debate card", path: "/debates/cards"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+
+			const uid int32 = 7
+			mock.ExpectQuery(testSQLGetUserForDebateAdmin).
+				WithArgs(uid).
+				WillReturnRows(debateAdminUserRows(uid, false, database.UserRoleAdmin))
+
+			h := New(&Config{DB: database.New(db), DBConn: db})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer "+debateAdminTestToken(t, uid, string(database.UserRoleAdmin)))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("code=%d body=%s, want 400 after admin authorization", rec.Code, rec.Body.String())
 			}
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Fatalf("db expectations: %v", err)
