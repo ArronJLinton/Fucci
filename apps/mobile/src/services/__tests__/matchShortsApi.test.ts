@@ -4,6 +4,7 @@ import {
   buildStorySlides,
   fetchMatchShorts,
   hasTeamShorts,
+  isLibraryVideoTooLong,
   teamHasStoryContent,
   matchShortsQueryKey,
   parseYouTubeDurationSeconds,
@@ -29,6 +30,17 @@ describe('matchShortsApi', () => {
       expect(parseYouTubeDurationSeconds('PT58S')).toBe(58);
       expect(parseYouTubeDurationSeconds('PT1M30S')).toBe(90);
       expect(parseYouTubeDurationSeconds('')).toBe(0);
+    });
+  });
+
+  describe('isLibraryVideoTooLong', () => {
+    it('treats ImagePicker duration as milliseconds', () => {
+      // 30s library clip must be accepted (regression: compared seconds to ms).
+      expect(isLibraryVideoTooLong(30_000)).toBe(false);
+      expect(isLibraryVideoTooLong(60_000)).toBe(false);
+      expect(isLibraryVideoTooLong(60_501)).toBe(true);
+      expect(isLibraryVideoTooLong(null)).toBe(false);
+      expect(isLibraryVideoTooLong(undefined)).toBe(false);
     });
   });
 

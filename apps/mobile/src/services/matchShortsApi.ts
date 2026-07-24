@@ -40,6 +40,17 @@ export type StorySlide =
 export const FAN_STORY_PHOTO_DURATION_MS = 5000;
 export const FAN_STORY_VIDEO_MAX_DURATION_MS = 60_000;
 
+/**
+ * Expo ImagePicker reports `asset.duration` in milliseconds for library videos.
+ * Reject clips longer than the fan-story max (with a small picker tolerance).
+ */
+export function isLibraryVideoTooLong(
+  durationMs: number | null | undefined,
+  maxMs: number = FAN_STORY_VIDEO_MAX_DURATION_MS,
+): boolean {
+  return durationMs != null && durationMs > maxMs + 500;
+}
+
 export type MatchShortsResponse = {
   match_id: string;
   teams: {
