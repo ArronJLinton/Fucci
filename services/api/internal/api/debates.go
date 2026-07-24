@@ -1173,11 +1173,6 @@ func (c *Config) validateMatchStatusForDebateType(matchStatus, debateType string
 func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if c.AIPromptGenerator == nil {
-		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
-		return
-	}
-
 	var req GenerateDebateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
@@ -1198,6 +1193,16 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 	// Validate match_id format (should be numeric)
 	if _, err := strconv.ParseInt(req.MatchID, 10, 64); err != nil {
 		respondWithErrorCode(w, http.StatusBadRequest, "match_id must be a valid numeric ID", errCodeDebateInvalidMatchID)
+		return
+	}
+
+	// force_regenerate soft-deletes live debates; require debate admin before any destructive work.
+	if req.ForceRegenerate && !c.requireDebateAdmin(w, r) {
+		return
+	}
+
+	if c.AIPromptGenerator == nil {
+		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
 		return
 	}
 
@@ -1414,11 +1419,6 @@ func checkGenerateSetRateLimit(ctx context.Context, c *Config, matchID string) b
 func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if c.AIPromptGenerator == nil {
-		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
-		return
-	}
-
 	var req GenerateDebateSetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
@@ -1433,6 +1433,18 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 		respondWithErrorCode(w, http.StatusBadRequest, "debate_type must be 'pre_match' or 'post_match'", errCodeDebateInvalidType)
 		return
 	}
+
+	// force_regenerate soft-deletes the match's live debates before rate limiting/AI.
+	// Keep unauthenticated preload, but require debate admin for destructive regeneration.
+	if req.ForceRegenerate && !c.requireDebateAdmin(w, r) {
+		return
+	}
+
+	if c.AIPromptGenerator == nil {
+		respondWithErrorCode(w, http.StatusNotImplemented, "AI prompt generation is not configured. Please set the OpenAI API key.", errCodeAINotConfigured)
+		return
+	}
+
 	count := req.Count
 	if count <= 0 {
 		count = ai.DefaultDebateSetCount

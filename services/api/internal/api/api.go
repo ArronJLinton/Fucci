@@ -249,8 +249,10 @@ func New(c *Config) http.Handler {
 	debateRouter.With(auth.RequireAuth).Get("/feed", c.getDebatesFeed)
 	debateRouter.Get("/top", c.getTopDebates)
 	debateRouter.Get("/generate", c.generateAIPrompt)
-	debateRouter.Post("/generate", c.generateDebate)
-	debateRouter.Post("/generate-set", c.generateDebateSet)
+	// OptionalAuth so force_regenerate can enforce debate-admin via JWT when provided.
+	// Unauthenticated generate/preload remains allowed when force_regenerate is false.
+	debateRouter.With(auth.OptionalAuth).Post("/generate", c.generateDebate)
+	debateRouter.With(auth.OptionalAuth).Post("/generate-set", c.generateDebateSet)
 	debateRouter.Get("/health", c.checkDebateGenerationHealth)
 	debateRouter.Get("/match", c.getDebatesByMatch)
 	debateRouter.With(auth.OptionalAuth).Get("/{id}", c.getDebate)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -1222,6 +1223,59 @@ func TestDebateAdminRoutesAllowAdmins(t *testing.T) {
 			}
 			if !strings.Contains(rec.Body.String(), tc.wantBody) {
 				t.Fatalf("body=%s, want message containing %q", rec.Body.String(), tc.wantBody)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("db expectations: %v", err)
+			}
+		})
+	}
+}
+
+func TestForceRegenerateRequiresDebateAdmin(t *testing.T) {
+	const forceBody = `{"match_id":"1234567","debate_type":"pre_match","force_regenerate":true}`
+
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "generate", path: "/debates/generate"},
+		{name: "generate-set", path: "/debates/generate-set"},
+	} {
+		t.Run(tc.name+"/unauthenticated", func(t *testing.T) {
+			h := New(&Config{})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(forceBody))
+			req.Header.Set("Content-Type", "application/json")
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("code=%d body=%s, want 401", rec.Code, rec.Body.String())
+			}
+		})
+
+		t.Run(tc.name+"/non-admin", func(t *testing.T) {
+			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+
+			const uid int32 = 42
+			mock.ExpectQuery(testSQLGetUserForDebateAdmin).
+				WithArgs(uid).
+				WillReturnRows(debateAdminUserRows(uid, false, database.UserRoleFan))
+
+			h := New(&Config{DB: database.New(db), DBConn: db})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(forceBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+debateAdminTestToken(t, uid, string(database.UserRoleFan)))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("code=%d body=%s, want 403", rec.Code, rec.Body.String())
 			}
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Fatalf("db expectations: %v", err)
