@@ -19,12 +19,14 @@ import {uploadToCloudinary} from '../services/cloudinaryUpload';
 import {createMatchStory} from '../services/matchStoryApi';
 import {
   FAN_STORY_VIDEO_MAX_DURATION_MS,
+  isLibraryVideoTooLong,
   matchShortsQueryKey,
 } from '../services/matchShortsApi';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'MatchStoryCapture'>;
 type R = RouteProp<RootStackParamList, 'MatchStoryCapture'>;
 
+/** expo-image-picker `videoMaxDuration` is in seconds. */
 const VIDEO_MAX_DURATION_SEC = FAN_STORY_VIDEO_MAX_DURATION_MS / 1000;
 
 export default function MatchStoryCaptureScreen() {
@@ -96,11 +98,8 @@ export default function MatchStoryCaptureScreen() {
     }
     const asset = result.assets[0];
     const contentType = asset.type === 'video' ? 'video' : 'photo';
-    if (
-      contentType === 'video' &&
-      asset.duration != null &&
-      asset.duration > VIDEO_MAX_DURATION_SEC + 0.5
-    ) {
+    // ImagePicker library assets report duration in milliseconds (not seconds).
+    if (contentType === 'video' && isLibraryVideoTooLong(asset.duration)) {
       Alert.alert('Video too long', 'Please choose a video up to 60 seconds.');
       return;
     }
