@@ -1,5 +1,12 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Alert, Animated, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  Alert,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {useQueryClient} from '@tanstack/react-query';
 import PagerView from 'react-native-pager-view';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -32,15 +39,25 @@ const PROGRESS_TRACK = 'rgba(255,255,255,0.35)';
 const PROGRESS_BAR_HEIGHT = 3;
 const HEADER_TOP_GAP = 8;
 const HEADER_SECTION_GAP = 10;
-const CLOSE_BUTTON_SIZE = 44;
+/** Original FAB was 44; 25% smaller → 33. */
+const CLOSE_BUTTON_SIZE = 33;
+const CLOSE_ICON_SIZE = 20;
+const ADD_ICON_SIZE = 22;
+/** Progress bars keep a wider inset; FABs sit closer to the corners. */
 const HORIZONTAL_CHROME_INSET = 12;
+const CORNER_CHROME_INSET = 6;
 
 export function shortsHeaderLayout(insetsTop: number) {
   const progressBarTop = insetsTop + HEADER_TOP_GAP;
-  const closeButtonTop =
+  const metaRowTop =
     progressBarTop + PROGRESS_BAR_HEIGHT + HEADER_SECTION_GAP;
-  const chromeBottom = closeButtonTop + CLOSE_BUTTON_SIZE;
-  return {progressBarTop, closeButtonTop, chromeBottom};
+  const chromeBottom = metaRowTop + CLOSE_BUTTON_SIZE;
+  return {
+    progressBarTop,
+    closeButtonTop: metaRowTop,
+    metaRowTop,
+    chromeBottom,
+  };
 }
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'MatchTeamShorts'>;
@@ -116,81 +133,46 @@ export default function MatchTeamShortsScreen() {
     setPlaybackStarted(true);
   }, []);
 
-  useEffect(() => {
-    pageRef.current = page;
-  }, [page]);
-
-  const pagerIdentityKey = useMemo(
-    () => slides.map(s => s.slideKey).join(','),
-    [slides],
-  );
-
-  useEffect(() => {
-    if (slides.length === 0) {
-      pageRef.current = 0;
-      setPage(0);
-      return;
-    }
-    setPage(prev => {
-      const maxIdx = slides.length - 1;
-      if (prev <= maxIdx) {
-        pageRef.current = prev;
-        return prev;
-      }
-      const clamped = maxIdx;
-      pageRef.current = clamped;
-      requestAnimationFrame(() => {
-        pagerRef.current?.setPage(clamped);
-      });
-      return clamped;
-    });
-  }, [slides.length]);
-
-  useEffect(() => {
-    if (slides.length === 0) {
-      return;
-    }
-    pageRef.current = 0;
-    setPage(0);
-    const id = requestAnimationFrame(() => {
-      pagerRef.current?.setPage(0);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [pagerIdentityKey, slides.length]);
-
-  const onPageSelected = useCallback((e: {nativeEvent: {position: number}}) => {
-    setPage(e.nativeEvent.position);
-  }, []);
-
   const goToNext = useCallback(() => {
-    const p = pageRef.current;
-    if (p >= slides.length - 1) {
+    const next = pageRef.current + 1;
+    if (next >= slides.length) {
       navigation.goBack();
       return;
     }
-    pagerRef.current?.setPage(p + 1);
+    pagerRef.current?.setPage(next);
   }, [navigation, slides.length]);
 
   const goToPrev = useCallback(() => {
-    const p = pageRef.current;
-    if (p <= 0) {
+    const prev = pageRef.current - 1;
+    if (prev < 0) {
       return;
     }
-    pagerRef.current?.setPage(p - 1);
+    pagerRef.current?.setPage(prev);
   }, []);
 
   const onSlideFinished = useCallback(() => {
     goToNext();
   }, [goToNext]);
 
+  const onPageSelected = useCallback(
+    (e: {nativeEvent: {position: number}}) => {
+      pageRef.current = e.nativeEvent.position;
+      setPage(e.nativeEvent.position);
+    },
+    [],
+  );
+
+  const pagerIdentityKey = useMemo(
+    () => slides.map(s => s.slideKey).join('|'),
+    [slides],
+  );
+
   const openCapture = useCallback(() => {
     if (!isLoggedIn) {
-      Alert.alert('Sign in required', 'Please sign in to add a match story.');
-      navigation.navigate('Main', {screen: 'Profile'});
+      navigation.navigate('Login', {returnTo: 'goBack'});
       return;
     }
     if (params.matchId == null || !params.teamLookupKey) {
-      Alert.alert('Unavailable', 'Story upload is only available for match teams.');
       return;
     }
     navigation.navigate('MatchStoryCapture', {
@@ -202,31 +184,32 @@ export default function MatchTeamShortsScreen() {
 
   const onReportStory = useCallback(
     (story: FanStory) => {
-      Alert.alert(
-        'Report story?',
-        'This story will be removed immediately and reviewed by our team.',
-        [
-          {text: 'Cancel', style: 'cancel'},
-          {
-            text: 'Report',
-            style: 'destructive',
-            onPress: async () => {
-              if (!token) {
-                Alert.alert('Sign in required', 'Please sign in to report content.');
-                return;
+      Alert.alert('Report story?', 'This story will be reviewed by our team.', [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            if (!token) {
+              Alert.alert('Sign in required', 'Please sign in to report a story.');
+              return;
+            }
+            try {
+              await reportMatchStory(token, story.id);
+              setRemovedFanIds(prev => new Set(prev).add(story.id));
+              if (params.matchId != null) {
+                await queryClient.invalidateQueries({
+                  queryKey: matchShortsQueryKey(params.matchId),
+                });
               }
-              try {
-                await reportMatchStory(token, story.id);
-                setRemovedFanIds(prev => new Set(prev).add(story.id));
-              } catch {
-                Alert.alert('Could not report', 'Please try again.');
-              }
-            },
+            } catch {
+              Alert.alert('Could not report', 'Please try again.');
+            }
           },
-        ],
-      );
+        },
+      ]);
     },
-    [token],
+    [params.matchId, queryClient, token],
   );
 
   const onDeleteStory = useCallback(
@@ -275,23 +258,24 @@ export default function MatchTeamShortsScreen() {
         </Text>
         {canAddStory ? (
           <Pressable style={styles.addStoryBtn} onPress={openCapture}>
-            <Ionicons name="add" size={22} color="#111" />
+            <Ionicons name="add" size={ADD_ICON_SIZE} color="#111" />
             <Text style={styles.addStoryBtnText}>Add story</Text>
           </Pressable>
         ) : null}
         <Pressable
           style={[
             styles.closeFab,
+            styles.closeFabAbsolute,
             {
               top: headerLayout.closeButtonTop,
-              left: HORIZONTAL_CHROME_INSET + insets.left,
+              left: CORNER_CHROME_INSET + insets.left,
             },
           ]}
           onPress={() => navigation.goBack()}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Close">
-          <Ionicons name="close" size={26} color="#111" />
+          <Ionicons name="close" size={CLOSE_ICON_SIZE} color="#111" />
         </Pressable>
       </View>
     );
@@ -299,69 +283,6 @@ export default function MatchTeamShortsScreen() {
 
   return (
     <View style={styles.root} testID="MatchTeamShortsScreen">
-      <View
-        style={[
-          styles.progressBar,
-          {
-            top: headerLayout.progressBarTop,
-            left: HORIZONTAL_CHROME_INSET + insets.left,
-            right: HORIZONTAL_CHROME_INSET + insets.right,
-          },
-        ]}
-        pointerEvents="none">
-        {slides.map((slide, i) => (
-          <View key={slide.slideKey} style={styles.progressTrack}>
-            {i < page ? (
-              <View style={styles.progressFill} />
-            ) : i === page ? (
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: progressAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    }),
-                  },
-                ]}
-              />
-            ) : null}
-          </View>
-        ))}
-      </View>
-
-      <Pressable
-        style={[
-          styles.closeFab,
-          {
-            top: headerLayout.closeButtonTop,
-            left: HORIZONTAL_CHROME_INSET + insets.left,
-          },
-        ]}
-        onPress={() => navigation.goBack()}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="Close">
-        <Ionicons name="close" size={26} color="#111" />
-      </Pressable>
-
-      {canAddStory ? (
-        <Pressable
-          style={[
-            styles.addFab,
-            {
-              top: headerLayout.closeButtonTop,
-              right: HORIZONTAL_CHROME_INSET + insets.right,
-            },
-          ]}
-          onPress={openCapture}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Add story">
-          <Ionicons name="add" size={28} color="#111" />
-        </Pressable>
-      ) : null}
-
       <View style={styles.pagerWrap}>
         <PagerView
           ref={pagerRef}
@@ -422,6 +343,71 @@ export default function MatchTeamShortsScreen() {
           />
         </View>
       </View>
+
+      <View
+        style={[
+          styles.progressBar,
+          {
+            top: headerLayout.progressBarTop,
+            left: HORIZONTAL_CHROME_INSET + insets.left,
+            right: HORIZONTAL_CHROME_INSET + insets.right,
+          },
+        ]}
+        pointerEvents="none">
+        {slides.map((slide, i) => (
+          <View key={slide.slideKey} style={styles.progressTrack}>
+            {i < page ? (
+              <View style={styles.progressFill} />
+            ) : i === page ? (
+              <Animated.View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                  },
+                ]}
+              />
+            ) : null}
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        style={[
+          styles.closeFab,
+          styles.closeFabAbsolute,
+          {
+            top: headerLayout.metaRowTop,
+            left: CORNER_CHROME_INSET + insets.left,
+          },
+        ]}
+        onPress={() => navigation.goBack()}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Close">
+        <Ionicons name="close" size={CLOSE_ICON_SIZE} color="#111" />
+      </Pressable>
+
+      {canAddStory ? (
+        <Pressable
+          style={[
+            styles.addFab,
+            styles.addFabAbsolute,
+            {
+              top: headerLayout.metaRowTop,
+              right: CORNER_CHROME_INSET + insets.right,
+            },
+          ]}
+          onPress={openCapture}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Add story">
+          <Ionicons name="add" size={ADD_ICON_SIZE} color="#111" />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -437,6 +423,12 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   pagerWrap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  pager: {
+    flex: 1,
+  },
+  page: {
     flex: 1,
   },
   tapZones: {
@@ -459,31 +451,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '32%',
   },
-  closeFab: {
-    position: 'absolute',
-    zIndex: 10,
-    width: CLOSE_BUTTON_SIZE,
-    height: CLOSE_BUTTON_SIZE,
-    borderRadius: CLOSE_BUTTON_SIZE / 2,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  addFab: {
-    position: 'absolute',
-    zIndex: 10,
-    width: CLOSE_BUTTON_SIZE,
-    height: CLOSE_BUTTON_SIZE,
-    borderRadius: CLOSE_BUTTON_SIZE / 2,
-    backgroundColor: SHORT_RING_AMBER,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   progressBar: {
     position: 'absolute',
     zIndex: 9,
@@ -503,11 +470,34 @@ const styles = StyleSheet.create({
     backgroundColor: SHORT_RING_AMBER,
     borderRadius: 2,
   },
-  pager: {
-    flex: 1,
+  closeFab: {
+    width: CLOSE_BUTTON_SIZE,
+    height: CLOSE_BUTTON_SIZE,
+    borderRadius: CLOSE_BUTTON_SIZE / 2,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  page: {
-    flex: 1,
+  closeFabAbsolute: {
+    position: 'absolute',
+    zIndex: 10,
+  },
+  addFab: {
+    width: CLOSE_BUTTON_SIZE,
+    height: CLOSE_BUTTON_SIZE,
+    borderRadius: CLOSE_BUTTON_SIZE / 2,
+    backgroundColor: SHORT_RING_AMBER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addFabAbsolute: {
+    position: 'absolute',
+    zIndex: 10,
   },
   emptyTitle: {
     color: '#fff',
@@ -528,13 +518,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: SHORT_RING_AMBER,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+    marginBottom: 16,
   },
   addStoryBtnText: {
     color: '#111',
-    fontSize: 16,
     fontWeight: '700',
+    fontSize: 15,
   },
 });
