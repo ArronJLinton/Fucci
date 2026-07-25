@@ -8,6 +8,9 @@ export interface League {
 /** API-Football league id for UEFA Champions League. */
 export const UCL_LEAGUE_ID = 2;
 
+/** API-Football league id for Major League Soccer. */
+export const MLS_LEAGUE_ID = 253;
+
 /** API-Football league id for the FIFA World Cup. */
 export const WORLD_CUP_LEAGUE_ID = 1;
 
@@ -27,6 +30,8 @@ const L = (leagueId: number) =>
   `https://media.api-sports.io/football/leagues/${leagueId}.png`;
 
 export const LEAGUES: League[] = [
+  // Temporary: MLS first / default until Premier League season starts.
+  {id: MLS_LEAGUE_ID, name: 'MLS', logo: L(MLS_LEAGUE_ID)},
   {id: 39, name: 'Premier League', logo: L(39)},
   {id: 140, name: 'La Liga', logo: L(140)},
   {id: 135, name: 'Serie A', logo: L(135)},
@@ -37,7 +42,7 @@ export const LEAGUES: League[] = [
   {id: 0, name: 'International Competitions', logo: L(1)},
 ];
 
-export const DEFAULT_LEAGUE = LEAGUES[0]; // Premier League
+export const DEFAULT_LEAGUE = LEAGUES[0]; // MLS (swap back to Premier League when season starts)
 
 /**
  * Standalone "FIFA World Cup" entry used by Summer-2026 world-cup-only mode.
@@ -58,6 +63,7 @@ export function leagueStripLabel(name: string): string {
     'Serie A': 'SERIE A',
     Bundesliga: 'BUNDES',
     'Ligue 1': 'LIGUE 1',
+    MLS: 'MLS',
     'UEFA Champions League': 'UCL',
     'International Competitions': 'INTL',
   };

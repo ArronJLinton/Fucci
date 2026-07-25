@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useMemo, useRef, useEffect} from 'react';
+import React, {useState, useCallback, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -17,11 +17,7 @@ import {LinearGradient} from 'expo-linear-gradient';
 import type {NavigationProp} from '../types/navigation';
 import {useNews} from '../hooks/useNews';
 import type {NewsArticle} from '../types/news';
-import {WORLD_CUP_LEAGUE, type League} from '../constants/leagues';
-import {
-  MEDIA_STORY_RINGS_ENABLED,
-  WORLD_CUP_ONLY_MODE,
-} from '../config/featureFlags';
+import {MEDIA_STORY_RINGS_ENABLED} from '../config/featureFlags';
 import {
   NEWS_BG,
   NEWS_CARD,
@@ -31,11 +27,9 @@ import {
   NEWS_MUTED,
   NEWS_EXCLUSIVE,
 } from '../constants/newsUi';
-import {LeagueHorizontalStrip} from '../components/LeagueHorizontalStrip';
 import {MediaStoryRings} from '../components/MediaStoryRings';
 import {
   mergeAndSortArticles,
-  filterByLeague,
   articleCategoryLabel,
 } from '../utils/newsFilters';
 import {userFacingApiMessage} from '../services/api';
@@ -49,9 +43,6 @@ const NewsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const scrollRef = useRef<ScrollView>(null);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
-  const [leagueFilter, setLeagueFilter] = useState<League | null>(
-    WORLD_CUP_ONLY_MODE ? WORLD_CUP_LEAGUE : null,
-  );
   const {
     todayArticles,
     historyArticles,
@@ -77,21 +68,13 @@ const NewsScreen: React.FC = () => {
     [navigation],
   );
 
-  const merged = useMemo(
+  const articles = useMemo(
     () => mergeAndSortArticles(todayArticles, historyArticles),
     [todayArticles, historyArticles],
   );
 
-  const filteredArticles = useMemo(() => {
-    return filterByLeague(merged, leagueFilter);
-  }, [merged, leagueFilter]);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({y: 0, animated: true});
-  }, [leagueFilter?.id]);
-
-  const featured = filteredArticles[0];
-  const gridArticles = filteredArticles.slice(1);
+  const featured = articles[0];
+  const gridArticles = articles.slice(1);
 
   const renderFeatured = (article: NewsArticle) => {
     const imgOk = Boolean(article.imageUrl && !failedImageIds.has(article.id));
@@ -185,7 +168,7 @@ const NewsScreen: React.FC = () => {
     );
   };
 
-  if (loading && merged.length === 0) {
+  if (loading && articles.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={NEWS_ACCENT} />
@@ -194,7 +177,7 @@ const NewsScreen: React.FC = () => {
     );
   }
 
-  if (error && merged.length === 0) {
+  if (error && articles.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#ff6b6b" />
@@ -214,7 +197,7 @@ const NewsScreen: React.FC = () => {
     );
   }
 
-  if (!loading && merged.length === 0) {
+  if (!loading && articles.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="newspaper-outline" size={48} color={NEWS_MUTED} />
@@ -253,28 +236,10 @@ const NewsScreen: React.FC = () => {
           />
         ) : null}
 
-        {WORLD_CUP_ONLY_MODE ? null : (
-          <LeagueHorizontalStrip
-            selectedLeague={leagueFilter}
-            onSelect={setLeagueFilter}
-            includeAllOption
-            accentColor={NEWS_ACCENT}
-            mutedColor={NEWS_MUTED}
-          />
-        )}
-
-        {filteredArticles.length === 0 ? (
+        {articles.length === 0 ? (
           <View style={styles.emptyFilter}>
-            <Text style={styles.emptyFilterText}>
-              {WORLD_CUP_ONLY_MODE
-                ? 'No World Cup articles right now'
-                : 'No articles match these filters'}
-            </Text>
-            <Text style={styles.emptyFilterHint}>
-              {WORLD_CUP_ONLY_MODE
-                ? 'Pull down to refresh'
-                : 'Try another league filter'}
-            </Text>
+            <Text style={styles.emptyFilterText}>No articles right now</Text>
+            <Text style={styles.emptyFilterHint}>Pull down to refresh</Text>
           </View>
         ) : (
           <>

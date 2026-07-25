@@ -103,6 +103,7 @@ const LEAGUE_KEYWORDS: Record<number, string[]> = {
   135: ['serie a', ' italy ', 'italian'],
   78: ['bundesliga', ' germany ', 'german'],
   61: ['ligue 1', ' ligue  ', ' france ', 'french'],
+  253: [' mls ', 'major league soccer', 'inter miami', 'la galaxy'],
   2: ['champions league', ' ucl ', 'european'],
   1: [...WORLD_CUP_KEYWORDS],
   0: [
