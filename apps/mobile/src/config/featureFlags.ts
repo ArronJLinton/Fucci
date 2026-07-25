@@ -18,7 +18,7 @@
  * seasons are all over until ~August 2026. Flip this to `false` when the new
  * club season starts.
  */
-export const WORLD_CUP_ONLY_MODE = true;
+export const WORLD_CUP_ONLY_MODE = false; // Note: News feed/strip behavior is no longer controlled by this flag.
 
 /**
  * Media-outlet YouTube Shorts story rings (FOX SPORTS, ESPN FC, Telemundo Deportes, etc.).

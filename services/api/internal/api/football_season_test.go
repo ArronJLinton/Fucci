@@ -42,3 +42,15 @@ func TestResolveAPIFootballSeason_International(t *testing.T) {
 		t.Fatalf("WCQ UEFA: got %d want 2026", g)
 	}
 }
+
+func TestResolveAPIFootballSeason_MLS(t *testing.T) {
+	// MLS is a calendar-year league; July 2026 fixtures use season 2026 (not 2025).
+	jul := time.Date(2026, time.July, 25, 0, 0, 0, 0, time.UTC)
+	if g := ResolveAPIFootballSeason(LeagueMLS, jul); g != 2026 {
+		t.Fatalf("MLS July 2026: got %d want 2026", g)
+	}
+	jan := time.Date(2026, time.January, 10, 0, 0, 0, 0, time.UTC)
+	if g := ResolveAPIFootballSeason(LeagueMLS, jan); g != 2026 {
+		t.Fatalf("MLS January 2026: got %d want 2026", g)
+	}
+}

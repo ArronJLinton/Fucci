@@ -1111,6 +1111,27 @@ func TestGetMatchesSeasonResolutionAndCache(t *testing.T) {
 		}
 	})
 
+	t.Run("computed season MLS uses calendar year", func(t *testing.T) {
+		var gotPath string
+		srv := newMatchServer(t, func(path string) { gotPath = path })
+		defer srv.Close()
+		config := &Config{
+			Cache:              mockCacheMiss(t, nil, nil),
+			FootballAPIKey:     "key",
+			APIFootballBaseURL: srv.URL,
+		}
+		req := httptest.NewRequest("GET", "/matches", nil)
+		req.URL.RawQuery = "date=2026-07-25&league_id=253"
+		rec := httptest.NewRecorder()
+		config.getMatches(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("code = %d", rec.Code)
+		}
+		if !strings.Contains(gotPath, "league=253") || !strings.Contains(gotPath, "season=2026") {
+			t.Fatalf("upstream URL want league=253 and season=2026; got %q", gotPath)
+		}
+	})
+
 	t.Run("explicit season override used for URL and cache key", func(t *testing.T) {
 		var gotPath string
 		var existsKey, setKey string

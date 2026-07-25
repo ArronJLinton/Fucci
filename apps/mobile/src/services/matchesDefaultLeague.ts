@@ -1,5 +1,4 @@
-import {fetchMatches} from './futbol';
-import {LEAGUES, UCL_LEAGUE_ID, seasonParamForMatchSearch} from '../constants/leagues';
+import {LEAGUES, MLS_LEAGUE_ID} from '../constants/leagues';
 import type {League} from '../constants/leagues';
 
 function requireLeague(id: number): League {
@@ -10,8 +9,7 @@ function requireLeague(id: number): League {
   return league;
 }
 
-const PREMIER_LEAGUE = requireLeague(39);
-const UCL_LEAGUE = requireLeague(UCL_LEAGUE_ID);
+const MLS_LEAGUE = requireLeague(MLS_LEAGUE_ID);
 
 function calendarDayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -22,15 +20,10 @@ function calendarDayKey(d: Date): string {
 /** One resolved default per calendar day per app session (avoids repeat probes on Home remount). */
 let sessionDefaultLeagueByDay: {dayKey: string; league: League} | null = null;
 
-/** Sat / Sun / Mon → Premier League is the default strip selection on Home. */
-export function isPremierLeaguePreferredDay(d: Date): boolean {
-  const day = d.getDay();
-  return day === 0 || day === 1 || day === 6;
-}
-
 /**
- * Tue–Fri: default to UCL if there is at least one UCL fixture **today** (single fetch),
- * else Premier League. Sat–Mon always Premier League (no network).
+ * Home Matches strip default.
+ * Temporary: always MLS until the Premier League season starts, then restore
+ * Sat–Mon → Premier League / Tue–Fri → UCL if fixtures today else Premier.
  */
 export async function resolveHomeScreenDefaultLeague(
   todayLocal: Date,
@@ -46,18 +39,6 @@ export async function resolveHomeScreenDefaultLeague(
     return sessionDefaultLeagueByDay.league;
   }
 
-  if (isPremierLeaguePreferredDay(today)) {
-    sessionDefaultLeagueByDay = {dayKey, league: PREMIER_LEAGUE};
-    return PREMIER_LEAGUE;
-  }
-
-  const rows = await fetchMatches(
-    today,
-    UCL_LEAGUE_ID,
-    seasonParamForMatchSearch(UCL_LEAGUE, today),
-  );
-  const league =
-    rows != null && rows.length > 0 ? UCL_LEAGUE : PREMIER_LEAGUE;
-  sessionDefaultLeagueByDay = {dayKey, league};
-  return league;
+  sessionDefaultLeagueByDay = {dayKey, league: MLS_LEAGUE};
+  return MLS_LEAGUE;
 }
