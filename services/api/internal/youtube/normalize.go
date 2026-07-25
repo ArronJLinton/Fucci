@@ -32,9 +32,13 @@ func NormalizeTeamLookupKey(name string) string {
 
 // Aliases maps alternate API-Football team name keys to registry lookup_key values.
 var Aliases = map[string]string{
-	"turkey":  "turkiye",
-	"usa":     "united states",
+	"turkey":         "turkiye",
+	"usa":            "united states",
 	"korea republic": "south korea",
+	// MLS (API-Football league 253): display names differ from seed lookup_keys.
+	// TheSportsDB idAPIfootball 1616 / 1611 use these strTeam values.
+	"los angeles fc":       "lafc",
+	"sporting kansas city": "sporting kc",
 }
 
 // LookupKeyForTeamName returns the DB lookup_key for a match team display name.
