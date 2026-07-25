@@ -236,23 +236,16 @@ const NewsScreen: React.FC = () => {
           />
         ) : null}
 
-        {articles.length === 0 ? (
-          <View style={styles.emptyFilter}>
-            <Text style={styles.emptyFilterText}>No articles right now</Text>
-            <Text style={styles.emptyFilterHint}>Pull down to refresh</Text>
+        <>
+          {featured ? renderFeatured(featured) : null}
+          <View style={styles.grid}>
+            {gridArticles.map(a => (
+              <View key={a.id} style={{width: GRID_COL_W}}>
+                {renderGridCard(a)}
+              </View>
+            ))}
           </View>
-        ) : (
-          <>
-            {featured ? renderFeatured(featured) : null}
-            <View style={styles.grid}>
-              {gridArticles.map(a => (
-                <View key={a.id} style={{width: GRID_COL_W}}>
-                  {renderGridCard(a)}
-                </View>
-              ))}
-            </View>
-          </>
-        )}
+        </>
       </ScrollView>
     </View>
   );
@@ -468,22 +461,6 @@ const styles = StyleSheet.create({
     color: NEWS_ACCENT,
     fontSize: 16,
     fontWeight: '700',
-  },
-  emptyFilter: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  emptyFilterText: {
-    color: NEWS_TEXT,
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  emptyFilterHint: {
-    color: NEWS_MUTED,
-    fontSize: 13,
-    marginTop: 8,
-    textAlign: 'center',
   },
 });
 

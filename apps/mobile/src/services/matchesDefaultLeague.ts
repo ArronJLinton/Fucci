@@ -20,12 +20,6 @@ function calendarDayKey(d: Date): string {
 /** One resolved default per calendar day per app session (avoids repeat probes on Home remount). */
 let sessionDefaultLeagueByDay: {dayKey: string; league: League} | null = null;
 
-/** Sat / Sun / Mon → Premier League preferred (re-enable with PL-season default logic). */
-export function isPremierLeaguePreferredDay(d: Date): boolean {
-  const day = d.getDay();
-  return day === 0 || day === 1 || day === 6;
-}
-
 /**
  * Home Matches strip default.
  * Temporary: always MLS until the Premier League season starts, then restore
