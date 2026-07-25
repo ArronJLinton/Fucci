@@ -157,6 +157,7 @@ export default function MatchTeamShortsScreen() {
       navigation.goBack();
       return;
     }
+    pageRef.current = next;
     pagerRef.current?.setPage(next);
   }, [navigation, slides.length]);
 
@@ -165,6 +166,7 @@ export default function MatchTeamShortsScreen() {
     if (prev < 0) {
       return;
     }
+    pageRef.current = prev;
     pagerRef.current?.setPage(prev);
   }, []);
 
