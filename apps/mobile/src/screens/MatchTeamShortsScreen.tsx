@@ -139,6 +139,7 @@ export default function MatchTeamShortsScreen() {
       navigation.goBack();
       return;
     }
+    pageRef.current = next;
     pagerRef.current?.setPage(next);
   }, [navigation, slides.length]);
 
@@ -147,6 +148,7 @@ export default function MatchTeamShortsScreen() {
     if (prev < 0) {
       return;
     }
+    pageRef.current = prev;
     pagerRef.current?.setPage(prev);
   }, []);
 
@@ -167,9 +169,21 @@ export default function MatchTeamShortsScreen() {
     [slides],
   );
 
+  useEffect(() => {
+    if (slides.length === 0) {
+      return;
+    }
+    const clamped = Math.min(pageRef.current, slides.length - 1);
+    if (clamped !== pageRef.current) {
+      pageRef.current = clamped;
+      setPage(clamped);
+      pagerRef.current?.setPage(clamped);
+    }
+  }, [slides.length]);
+
   const openCapture = useCallback(() => {
     if (!isLoggedIn) {
-      navigation.navigate('Login', {returnTo: 'goBack'});
+      navigation.navigate('Main', {screen: 'Profile'});
       return;
     }
     if (params.matchId == null || !params.teamLookupKey) {
