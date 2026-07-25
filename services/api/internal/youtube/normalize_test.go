@@ -21,8 +21,24 @@ func TestNormalizeTeamLookupKey(t *testing.T) {
 }
 
 func TestLookupKeyForTeamName_Aliases(t *testing.T) {
-	if got := LookupKeyForTeamName("Turkey"); got != "turkiye" {
-		t.Fatalf("Turkey alias = %q", got)
+	tests := []struct {
+		in, want string
+	}{
+		{"Turkey", "turkiye"},
+		{"USA", "united states"},
+		// MLS: API-Football / SportsDB names → seeded team_youtube_channels keys
+		{"Los Angeles FC", "lafc"},
+		{"Sporting Kansas City", "sporting kc"},
+		// Seed keys and common short names must stay identity mappings
+		{"LAFC", "lafc"},
+		{"Sporting KC", "sporting kc"},
+		{"Inter Miami", "inter miami"},
+		{"LA Galaxy", "la galaxy"},
+	}
+	for _, tc := range tests {
+		if got := LookupKeyForTeamName(tc.in); got != tc.want {
+			t.Errorf("LookupKeyForTeamName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }
 
