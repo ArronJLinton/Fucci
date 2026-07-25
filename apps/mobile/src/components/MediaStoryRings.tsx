@@ -68,6 +68,7 @@ export function MediaStoryRings({
       navigation.navigate('MatchTeamShorts', {
         shorts: outlet.shorts ?? [],
         teamDisplayName: outlet.display_name,
+        teamLogoUrl: outlet.thumbnail_url,
       });
     },
     [navigation],

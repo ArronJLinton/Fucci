@@ -158,7 +158,7 @@ func TestGetShortsForTeam_CacheMissFetchesAndStores(t *testing.T) {
 	}
 }
 
-func TestGetShortsForTeam_UnmappedTeamCachesEmpty(t *testing.T) {
+func TestGetShortsForTeam_UnmappedTeamDoesNotCache(t *testing.T) {
 	mc := &mockCache{data: map[string][]Short{}}
 	fetch := &mockFetcher{shorts: []Short{{VideoID: "x"}}}
 
@@ -175,8 +175,8 @@ func TestGetShortsForTeam_UnmappedTeamCachesEmpty(t *testing.T) {
 	if len(fetch.calls) != 0 {
 		t.Fatal("fetch should not run for unmapped team")
 	}
-	if mc.sets != 1 {
-		t.Fatalf("expected negative cache set, got sets=%d", mc.sets)
+	if mc.sets != 0 {
+		t.Fatalf("unmapped/unverified misses must not be cached, got sets=%d", mc.sets)
 	}
 }
 

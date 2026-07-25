@@ -60,6 +60,8 @@ export type RootStackParamList = {
     matchId?: number;
     teamLookupKey?: string;
     teamDisplayName: string;
+    /** Team / outlet badge shown in the stories header. */
+    teamLogoUrl?: string;
     /** @deprecated use youtubeShorts */
     shorts?: YouTubeShort[];
     youtubeShorts?: YouTubeShort[];

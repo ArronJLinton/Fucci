@@ -264,6 +264,8 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
       matchId,
       teamLookupKey: team?.lookup_key,
       teamDisplayName: teamName,
+      teamLogoUrl:
+        side === 'home' ? match.teams.home.logo : match.teams.away.logo,
       youtubeShorts: team?.shorts ?? [],
       userStories: team?.user_stories ?? [],
     });

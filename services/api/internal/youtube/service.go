@@ -60,7 +60,8 @@ func (s *Service) GetShortsForTeam(ctx context.Context, teamName string) []Short
 
 	channel, err := s.Channels.GetTeamYouTubeChannelByLookupKey(ctx, lookupKey)
 	if err != nil || !channel.IsVerified || channel.ChannelID == "" {
-		s.cacheEmpty(ctx, cacheKey)
+		// Do not cache misses for unknown/unverified channels — seeding a channel
+		// later the same day would otherwise be blocked until TTL expires.
 		return []Short{}
 	}
 
