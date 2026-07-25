@@ -103,6 +103,9 @@ func (config *Config) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (config *Config) handleListAllUsers(w http.ResponseWriter, r *http.Request) {
+	if !config.requireAdmin(w, r) {
+		return
+	}
 	users, err := config.DB.ListUsers(r.Context())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error listing users: %s", err))
