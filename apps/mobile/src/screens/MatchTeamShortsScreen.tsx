@@ -25,6 +25,7 @@ import {
 import YouTubeShortSlide from '../components/YouTubeShortSlide';
 import FanStorySlide from '../components/FanStorySlide';
 import {useAuth} from '../context/AuthContext';
+import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {
   buildStorySlides,
   matchShortsQueryKey,
@@ -133,6 +134,23 @@ export default function MatchTeamShortsScreen() {
     setPlaybackStarted(true);
   }, []);
 
+  const pagerIdentityKey = useMemo(
+    () => slides.map(s => s.slideKey).join('|'),
+    [slides],
+  );
+
+  // PagerView remounts via key={pagerIdentityKey} at initialPage 0. Keep React
+  // page state in sync or isActive / goToNext break after report/delete.
+  useEffect(() => {
+    if (slides.length === 0) {
+      pageRef.current = 0;
+      setPage(0);
+      return;
+    }
+    pageRef.current = 0;
+    setPage(0);
+  }, [pagerIdentityKey, slides.length]);
+
   const goToNext = useCallback(() => {
     const next = pageRef.current + 1;
     if (next >= slides.length) {
@@ -164,26 +182,11 @@ export default function MatchTeamShortsScreen() {
     [],
   );
 
-  const pagerIdentityKey = useMemo(
-    () => slides.map(s => s.slideKey).join('|'),
-    [slides],
-  );
-
-  useEffect(() => {
-    if (slides.length === 0) {
-      return;
-    }
-    const clamped = Math.min(pageRef.current, slides.length - 1);
-    if (clamped !== pageRef.current) {
-      pageRef.current = clamped;
-      setPage(clamped);
-      pagerRef.current?.setPage(clamped);
-    }
-  }, [slides.length]);
-
   const openCapture = useCallback(() => {
     if (!isLoggedIn) {
-      navigation.navigate('Main', {screen: 'Profile'});
+      Alert.alert('Sign in required', 'Please sign in to add a match story.');
+      // Login stack was removed; auth lives on the Profile tab.
+      rootNavigateToProfileAuth();
       return;
     }
     if (params.matchId == null || !params.teamLookupKey) {
