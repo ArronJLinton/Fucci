@@ -114,23 +114,26 @@ func (c *Config) listUserStoriesForTeam(ctx context.Context, scopeType database.
 	return out
 }
 
-func validateMatchStoryTeamLookup(scopeType, scopeID, teamLookupKey string, matchInfo *MatchInfo) error {
+// validateMatchStoryTeamLookup checks the client team_lookup_key against the match
+// and returns the canonical registry key (Aliases applied). Clients may send either
+// the canonical key or a pre-alias normalized form (e.g. cached "los angeles fc").
+func validateMatchStoryTeamLookup(scopeType, scopeID, teamLookupKey string, matchInfo *MatchInfo) (string, error) {
 	if strings.TrimSpace(scopeID) == "" || strings.TrimSpace(teamLookupKey) == "" {
-		return errors.New("scope_id and team_lookup_key are required")
+		return "", errors.New("scope_id and team_lookup_key are required")
 	}
 	if scopeType != string(database.StoryScopeTypeMatch) {
-		return errors.New("scope_type must be match")
+		return "", errors.New("scope_type must be match")
 	}
 	if matchInfo == nil {
-		return errors.New("match not found")
+		return "", errors.New("match not found")
 	}
 	homeKey := youtube.LookupKeyForTeamName(matchInfo.HomeTeam)
 	awayKey := youtube.LookupKeyForTeamName(matchInfo.AwayTeam)
-	key := strings.TrimSpace(teamLookupKey)
-	if key != homeKey && key != awayKey {
-		return errors.New("team_lookup_key must match a team in this match")
+	key := youtube.LookupKeyForTeamName(teamLookupKey)
+	if key == "" || (key != homeKey && key != awayKey) {
+		return "", errors.New("team_lookup_key must match a team in this match")
 	}
-	return nil
+	return key, nil
 }
 
 func cloudinaryContextForStoryContent(contentType string) (string, error) {
@@ -182,7 +185,8 @@ func (c *Config) postMatchStory(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, "match not found")
 		return
 	}
-	if err := validateMatchStoryTeamLookup(scopeType, req.ScopeID, req.TeamLookupKey, matchInfo); err != nil {
+	canonicalTeamKey, err := validateMatchStoryTeamLookup(scopeType, req.ScopeID, req.TeamLookupKey, matchInfo)
+	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -217,7 +221,7 @@ func (c *Config) postMatchStory(w http.ResponseWriter, r *http.Request) {
 		UserID:        userID,
 		ScopeType:     database.StoryScopeTypeMatch,
 		ScopeID:       strings.TrimSpace(req.ScopeID),
-		TeamLookupKey: strings.TrimSpace(req.TeamLookupKey),
+		TeamLookupKey: canonicalTeamKey,
 		ContentType:   database.StoryContentType(contentType),
 		MediaUrl:      strings.TrimSpace(req.MediaURL),
 		Caption:       caption,
