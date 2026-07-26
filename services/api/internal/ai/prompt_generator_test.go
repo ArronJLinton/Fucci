@@ -24,13 +24,13 @@ func TestBuildUserPrompt_IncludesH2HAndLeagueTable(t *testing.T) {
 		t.Error("prompt should contain HEAD-TO-HEAD section")
 	}
 	if !strings.Contains(prompt, "2024-01-15: Team A 2-1 Team B") {
-		t.Error("prompt should contain head-to-head summary content")
+		t.Error("prompt should contain head-to-head summary info")
 	}
 	if !strings.Contains(prompt, "LEAGUE TABLE:") {
 		t.Error("prompt should contain LEAGUE TABLE section")
 	}
 	if !strings.Contains(prompt, "1. Arsenal 50 pts") {
-		t.Error("prompt should contain league table summary content")
+		t.Error("prompt should contain league table summary info")
 	}
 }
 
