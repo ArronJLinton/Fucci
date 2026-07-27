@@ -198,7 +198,7 @@ func New(c *Config) http.Handler {
 	userRouter.Put("/profile", c.handleUpdateProfile)
 	userRouter.Get("/me/following", c.handleGetFollowing)
 
-	// Temp route for listing all users
+	// Admin-only: full user dump (PII). Do not expose to ordinary authenticated users.
 	userRouter.Get("/all", c.handleListAllUsers)
 
 	// 007: signed-in user's player profile (GET/POST/PUT/DELETE /api/player-profile, traits at /traits)
@@ -265,32 +265,43 @@ func New(c *Config) http.Handler {
 	debateRouter.With(auth.RequireAuth).Delete("/{id}/hard", c.hardDeleteDebate) // Permanent deletion
 	debateRouter.With(auth.RequireAuth).Post("/{id}/restore", c.restoreDebate)   // Restore soft-deleted debate
 
-	// Teams routes
+	// Teams / team-managers / leagues: reads stay public; mutations require auth + DB admin.
+	// Permission helpers in these services are stubs (always true); do not rely on them for authz.
 	teamsRouter := chi.NewRouter()
-	teamsRouter.Post("/", teamsService.CreateTeam)
 	teamsRouter.Get("/", teamsService.ListTeams)
 	teamsRouter.Get("/{id}", teamsService.GetTeam)
-	teamsRouter.Put("/{id}", teamsService.UpdateTeam)
-	teamsRouter.Delete("/{id}", teamsService.DeleteTeam)
 	teamsRouter.Get("/{id}/stats", teamsService.GetTeamStats)
+	teamsRouter.Group(func(r chi.Router) {
+		r.Use(auth.RequireAuth)
+		r.Use(c.requireAdminMiddleware)
+		r.Post("/", teamsService.CreateTeam)
+		r.Put("/{id}", teamsService.UpdateTeam)
+		r.Delete("/{id}", teamsService.DeleteTeam)
+	})
 
-	// Team Managers routes
 	teamManagersRouter := chi.NewRouter()
-	teamManagersRouter.Post("/", teamManagersService.CreateTeamManager)
 	teamManagersRouter.Get("/", teamManagersService.ListTeamManagers)
 	teamManagersRouter.Get("/{id}", teamManagersService.GetTeamManager)
-	teamManagersRouter.Put("/{id}", teamManagersService.UpdateTeamManager)
-	teamManagersRouter.Delete("/{id}", teamManagersService.DeleteTeamManager)
 	teamManagersRouter.Get("/{id}/stats", teamManagersService.GetManagerStats)
+	teamManagersRouter.Group(func(r chi.Router) {
+		r.Use(auth.RequireAuth)
+		r.Use(c.requireAdminMiddleware)
+		r.Post("/", teamManagersService.CreateTeamManager)
+		r.Put("/{id}", teamManagersService.UpdateTeamManager)
+		r.Delete("/{id}", teamManagersService.DeleteTeamManager)
+	})
 
-	// Leagues routes
 	leaguesRouter := chi.NewRouter()
-	leaguesRouter.Post("/", leaguesService.CreateLeague)
 	leaguesRouter.Get("/", leaguesService.ListLeagues)
 	leaguesRouter.Get("/{id}", leaguesService.GetLeague)
-	leaguesRouter.Put("/{id}", leaguesService.UpdateLeague)
-	leaguesRouter.Delete("/{id}", leaguesService.DeleteLeague)
 	leaguesRouter.Get("/{id}/stats", leaguesService.GetLeagueStats)
+	leaguesRouter.Group(func(r chi.Router) {
+		r.Use(auth.RequireAuth)
+		r.Use(c.requireAdminMiddleware)
+		r.Post("/", leaguesService.CreateLeague)
+		r.Put("/{id}", leaguesService.UpdateLeague)
+		r.Delete("/{id}", leaguesService.DeleteLeague)
+	})
 
 	commentsRouter := chi.NewRouter()
 	commentsRouter.With(auth.RequireAuth).Put("/{commentId}/vote", c.SetCommentVote)

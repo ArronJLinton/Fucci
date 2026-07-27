@@ -2329,31 +2329,14 @@ func (c *Config) restoreDebate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Config) requireDebateAdmin(w http.ResponseWriter, r *http.Request) bool {
-	userID, ok := auth.UserIDFromContext(r.Context())
-	if !ok || userID == 0 {
-		respondWithErrorCode(w, http.StatusUnauthorized, "Authentication required", errCodeDebateAuthRequired)
-		return false
-	}
-	if c.DB == nil {
-		logErrorAndRespond500(w, "verify debate admin", fmt.Errorf("database not configured"), errCodeDebateDBNotConfigured)
-		return false
-	}
-
-	user, err := c.DB.GetUser(r.Context(), userID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			respondWithErrorCode(w, http.StatusUnauthorized, "Account not found. Please log in again.", errCodeDebateAuthRequired)
-			return false
-		}
-		logErrorAndRespond500(w, "verify debate admin", err, errCodeAdminVerify)
-		return false
-	}
-	if user.IsAdmin || (user.Role.Valid && user.Role.UserRole == database.UserRoleAdmin) {
-		return true
-	}
-
-	respondWithErrorCode(w, http.StatusForbidden, "Admin privileges required", errCodeAdminRequired)
-	return false
+	return c.requireAdminWithCodes(
+		w,
+		r,
+		errCodeDebateAuthRequired,
+		errCodeDebateDBNotConfigured,
+		errCodeAdminVerify,
+		errCodeAdminRequired,
+	)
 }
 
 // MatchInfo represents detailed information about a match
