@@ -24,14 +24,46 @@ func TestValidateMatchStoryTeamLookup(t *testing.T) {
 	match := &MatchInfo{HomeTeam: "Spain", AwayTeam: "Croatia"}
 	homeKey := youtube.LookupKeyForTeamName("Spain")
 
-	if err := validateMatchStoryTeamLookup("match", "123", homeKey, match); err != nil {
+	got, err := validateMatchStoryTeamLookup("match", "123", homeKey, match)
+	if err != nil {
 		t.Fatalf("expected valid home team key, got %v", err)
 	}
-	if err := validateMatchStoryTeamLookup("match", "123", "france", match); err == nil {
+	if got != homeKey {
+		t.Fatalf("canonical key = %q, want %q", got, homeKey)
+	}
+	if _, err := validateMatchStoryTeamLookup("match", "123", "france", match); err == nil {
 		t.Fatal("expected error for team not in match")
 	}
-	if err := validateMatchStoryTeamLookup("tournament", "123", homeKey, match); err == nil {
+	if _, err := validateMatchStoryTeamLookup("tournament", "123", homeKey, match); err == nil {
 		t.Fatal("expected error for unsupported scope in v1")
+	}
+}
+
+func TestValidateMatchStoryTeamLookup_AcceptsPreAliasKeys(t *testing.T) {
+	match := &MatchInfo{HomeTeam: "Los Angeles FC", AwayTeam: "Sporting Kansas City"}
+
+	got, err := validateMatchStoryTeamLookup("match", "42", "los angeles fc", match)
+	if err != nil {
+		t.Fatalf("pre-alias LAFC key rejected: %v", err)
+	}
+	if got != "lafc" {
+		t.Fatalf("LAFC canonical = %q, want lafc", got)
+	}
+
+	got, err = validateMatchStoryTeamLookup("match", "42", "sporting kansas city", match)
+	if err != nil {
+		t.Fatalf("pre-alias Sporting KC key rejected: %v", err)
+	}
+	if got != "sporting kc" {
+		t.Fatalf("Sporting KC canonical = %q, want sporting kc", got)
+	}
+
+	got, err = validateMatchStoryTeamLookup("match", "42", "LAFC", match)
+	if err != nil {
+		t.Fatalf("canonical LAFC key rejected: %v", err)
+	}
+	if got != "lafc" {
+		t.Fatalf("LAFC short name canonical = %q, want lafc", got)
 	}
 }
 
