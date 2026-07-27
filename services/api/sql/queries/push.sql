@@ -69,6 +69,10 @@ VALUES ($1, $2, $3)
 ON CONFLICT (user_id, campaign_key, local_date) DO NOTHING
 RETURNING *;
 
+-- name: DeletePushSendLedger :exec
+DELETE FROM push_send_ledger
+WHERE user_id = $1 AND campaign_key = $2 AND local_date = $3;
+
 -- name: InsertPushDeliveryLog :one
 INSERT INTO push_delivery_log (user_id, push_device_id, campaign_key, title, expo_ticket_id, status, error_message)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
