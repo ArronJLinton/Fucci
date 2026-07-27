@@ -61,3 +61,39 @@ export function isPlayedMatchStatus(status: string): boolean {
 export function hasLiveMatchInList(matches: Match[]): boolean {
   return matches.some(m => isLiveMatchStatus(m.fixture.status.short));
 }
+
+const KICKOFF_REFETCH_GRACE_MS = 5 * 1000;
+
+/**
+ * Keep live polling active, and schedule one pre-live refetch just after the
+ * nearest confirmed kickoff. React Query does not refetch merely because data
+ * became stale, so an NS-only list otherwise never discovers that play began.
+ */
+export function getMatchRefetchInterval(
+  matches: Match[],
+  liveIntervalMs: number,
+  nowMs: number = Date.now(),
+): number | false {
+  if (hasLiveMatchInList(matches)) {
+    return liveIntervalMs;
+  }
+
+  let nextKickoffMs = Number.POSITIVE_INFINITY;
+  for (const match of matches) {
+    if (normalizeMatchStatus(match.fixture.status.short) !== 'NS') {
+      continue;
+    }
+    const kickoffMs = Date.parse(match.fixture.date);
+    if (!Number.isFinite(kickoffMs)) {
+      continue;
+    }
+    if (kickoffMs <= nowMs) {
+      return liveIntervalMs;
+    }
+    nextKickoffMs = Math.min(nextKickoffMs, kickoffMs);
+  }
+
+  return Number.isFinite(nextKickoffMs)
+    ? Math.max(1, nextKickoffMs - nowMs + KICKOFF_REFETCH_GRACE_MS)
+    : false;
+}

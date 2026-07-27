@@ -166,14 +166,7 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 		return &data, nil
 	}
 
-	// Pick the most conservative TTL across the fixtures in the response
-	// (live games shorten everything).
-	ttl := cache.DefaultTTL
-	for _, match := range data.Response {
-		if mt := cache.GetMatchTTL(match.Fixture.Status.Short); mt < ttl {
-			ttl = mt
-		}
-	}
+	ttl := matchesCacheTTL(&data, time.Now())
 
 	if c.Cache != nil {
 		if err := c.Cache.Set(ctx, cacheKey, data, ttl); err != nil {
@@ -184,6 +177,32 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 	}
 
 	return &data, nil
+}
+
+// matchesCacheTTL expires scheduled fixture data no later than kickoff. Without
+// this, an NS response fetched shortly before kickoff can remain cached for up
+// to DefaultTTL, preventing clients from ever observing the live status that
+// enables their score polling.
+func matchesCacheTTL(data *GetMatchesAPIResponse, now time.Time) time.Duration {
+	ttl := cache.DefaultTTL
+	for _, match := range data.Response {
+		status := strings.ToUpper(strings.TrimSpace(match.Fixture.Status.Short))
+		matchTTL := cache.GetMatchTTL(status)
+		// API-Football's NS status has a confirmed kickoff. TBD can carry a
+		// placeholder date, so it must not enter live-frequency refreshes.
+		if status == "NS" {
+			untilKickoff := match.Fixture.Date.Sub(now)
+			if untilKickoff <= 0 {
+				matchTTL = cache.LiveMatchTTL
+			} else if untilKickoff < matchTTL {
+				matchTTL = untilKickoff
+			}
+		}
+		if matchTTL < ttl {
+			ttl = matchTTL
+		}
+	}
+	return ttl
 }
 
 func (c *Config) getMatch(w http.ResponseWriter, r *http.Request) {
