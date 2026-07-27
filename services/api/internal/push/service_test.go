@@ -3,6 +3,7 @@ package push
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -45,6 +46,12 @@ func (m *memStore) TryInsertPushSendLedger(ctx context.Context, arg database.Try
 	return database.PushSendLedger{ID: 1, UserID: arg.UserID, CampaignKey: arg.CampaignKey, LocalDate: arg.LocalDate}, nil
 }
 
+func (m *memStore) DeletePushSendLedger(ctx context.Context, arg database.DeletePushSendLedgerParams) error {
+	key := arg.CampaignKey + "|" + arg.LocalDate.Format("2006-01-02")
+	delete(m.ledgerKeys, key)
+	return nil
+}
+
 func (m *memStore) InsertPushDeliveryLog(ctx context.Context, arg database.InsertPushDeliveryLogParams) (database.PushDeliveryLog, error) {
 	row := database.PushDeliveryLog{
 		ID:           int32(len(m.deliveryLog) + 1),
@@ -73,6 +80,22 @@ type stubSender struct {
 
 func (s *stubSender) Send(ctx context.Context, messages []Message) ([]SendResult, error) {
 	s.sent = len(messages)
+	out := make([]SendResult, len(messages))
+	for i := range messages {
+		out[i] = SendResult{Status: "ok", TicketID: "t1"}
+	}
+	return out, nil
+}
+
+type flakySender struct {
+	calls int
+}
+
+func (s *flakySender) Send(ctx context.Context, messages []Message) ([]SendResult, error) {
+	s.calls++
+	if s.calls == 1 {
+		return nil, errors.New("expo unavailable")
+	}
 	out := make([]SendResult, len(messages))
 	for i := range messages {
 		out[i] = SendResult{Status: "ok", TicketID: "t1"}
@@ -129,6 +152,35 @@ func TestSendToUser_Success(t *testing.T) {
 	}
 	if len(store.deliveryLog) != 1 || store.deliveryLog[0].Status != "sent" {
 		t.Fatalf("expected sent log, got %+v", store.deliveryLog)
+	}
+}
+
+func TestSendToUser_ReleasesDedupeAfterSendError(t *testing.T) {
+	t.Parallel()
+	sender := &flakySender{}
+	store := &memStore{
+		devices: []database.PushDevices{
+			{ID: 1, UserID: 5, ExpoPushToken: "ExponentPushToken[abc]", Enabled: true, Timezone: "UTC"},
+		},
+		prefs: database.PushPreferences{
+			UserID: 5, MasterEnabled: true, DebatesEnabled: true,
+		},
+	}
+	svc := &Service{Store: store, Sender: sender}
+	req := SendRequest{
+		UserID: 5, CampaignKey: "debate:daily", Title: "Debate", Category: "debates", Timezone: "UTC",
+	}
+	if err := svc.SendToUser(context.Background(), req); err == nil {
+		t.Fatal("expected first send to fail")
+	}
+	if err := svc.SendToUser(context.Background(), req); err != nil {
+		t.Fatalf("expected retry to send after ledger release: %v", err)
+	}
+	if sender.calls != 2 {
+		t.Fatalf("expected sender to be called twice, got %d", sender.calls)
+	}
+	if len(store.deliveryLog) != 1 || store.deliveryLog[0].Status != "sent" {
+		t.Fatalf("expected retry to record sent log, got %+v", store.deliveryLog)
 	}
 }
 
