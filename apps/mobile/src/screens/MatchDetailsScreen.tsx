@@ -27,7 +27,7 @@ import LineupScreen from './LineupScreen';
 import MatchNewsScreen from './MatchNewsScreen';
 import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
-import {generateDebateSet} from '../services/api';
+import {fetchMatchesForLocalDate, generateDebateSet} from '../services/api';
 import {MatchDetailsScrollProvider} from '../context/MatchDetailsScrollContext';
 import {
   MATCH_CENTER_BG,
@@ -52,9 +52,13 @@ import {
   isFinishedMatchStatus,
   isLiveMatchStatus,
   isPlayedMatchStatus,
+  resolveRefreshedMatch,
+  shouldPollLiveMatch,
 } from '../utils/matchStatus';
+import {APP_STORE_SCREENSHOT_MODE} from '../demo/screenshotDemo';
 
 const SHORT_RING_AMBER = '#F5A623';
+const LIVE_MATCH_REFETCH_MS = 75 * 1000;
 
 const MAX_PRELOAD_KEYS = 64;
 const preloadFiredFor = new Set<string>();
@@ -117,12 +121,33 @@ const MatchDetailsScreen = () => {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {width} = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const match = route.params.match;
+  const initialMatch = route.params.match;
+  const matchId = initialMatch.fixture.id;
+  const matchDate = useMemo(
+    () => new Date(initialMatch.fixture.date),
+    [initialMatch.fixture.date],
+  );
+  const {data: refreshedMatches} = useQuery<Match[]>({
+    queryKey: ['matchDetails', 'liveFixture', matchId],
+    queryFn: async () =>
+      (await fetchMatchesForLocalDate(
+        matchDate,
+        initialMatch.league.id,
+      )) ?? [],
+    enabled:
+      !APP_STORE_SCREENSHOT_MODE &&
+      isLiveMatchStatus(initialMatch.fixture.status.short),
+    staleTime: 0,
+    refetchInterval: query =>
+      shouldPollLiveMatch(initialMatch, query.state.data)
+        ? LIVE_MATCH_REFETCH_MS
+        : false,
+  });
+  const match = resolveRefreshedMatch(initialMatch, refreshedMatches);
   const [homeLogoError, setHomeLogoError] = useState(false);
   const [awayLogoError, setAwayLogoError] = useState(false);
   const isMountedRef = useRef(true);
 
-  const matchId = match.fixture.id;
   const {data: matchShortsData} = useQuery({
     queryKey: matchShortsQueryKey(matchId),
     queryFn: () => fetchMatchShorts(matchId),
