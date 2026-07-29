@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArronJLinton/fucci-api/internal/ai"
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/cache"
 	"github.com/ArronJLinton/fucci-api/internal/database"
@@ -1282,6 +1283,123 @@ func TestForceRegenerateRequiresDebateAdmin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression: force_regenerate must not soft-delete live debates before replacement succeeds.
+// Previously soft-delete ran before match-info / rate-limit / AI, so failures permanently wiped the match feed.
+func TestForceRegenerateDoesNotWipeDebatesBeforeReplacement(t *testing.T) {
+	const matchID = "99990001"
+	const uid int32 = 7
+
+	t.Run("generate/match-info-failure", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		mock.ExpectQuery(`-- name: GetUser :one`).
+			WithArgs(uid).
+			WillReturnRows(debateAdminUserRows(uid, true, database.UserRoleAdmin))
+
+		now := time.Unix(1700, 0).UTC()
+		mock.ExpectQuery(`-- name: GetDebatesByMatch :many`).
+			WithArgs(matchID).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "match_id", "debate_type", "headline", "description", "ai_generated",
+				"deleted_at", "created_at", "updated_at", "match_info",
+			}).AddRow(
+				int32(101), matchID, "pre_match", "Keep me", nil, true,
+				nil, now, now, nil,
+			))
+		// SoftDeleteDebate must not run when lookupMatchInfo fails.
+
+		h := New(&Config{
+			DB:                database.New(db),
+			DBConn:            db,
+			AIPromptGenerator: ai.NewPromptGenerator("test-key", "", nil),
+			MatchInfoLookup: func(context.Context, string) (*MatchInfo, error) {
+				return nil, errors.New("upstream match lookup failed")
+			},
+		})
+		body := fmt.Sprintf(`{"match_id":%q,"debate_type":"pre_match","force_regenerate":true}`, matchID)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/debates/generate", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+debateAdminTestToken(t, uid, string(database.UserRoleAdmin)))
+
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("code=%d body=%s, want 500", rec.Code, rec.Body.String())
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("db expectations (soft-delete must not run): %v", err)
+		}
+	})
+
+	t.Run("generate-set/rate-limit-failure", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		// Exhaust per-match generate-set budget so the force call hits 429 after listing priors.
+		generateSetFallbackLimiter.mu.Lock()
+		generateSetFallbackLimiter.byKey[matchID] = generateSetRateWindow{
+			WindowStart: time.Now(),
+			Count:       generateSetRateLimit,
+		}
+		generateSetFallbackLimiter.mu.Unlock()
+		t.Cleanup(func() {
+			generateSetFallbackLimiter.mu.Lock()
+			delete(generateSetFallbackLimiter.byKey, matchID)
+			generateSetFallbackLimiter.mu.Unlock()
+			generateSetInFlightMu.Lock()
+			delete(generateSetInFlight, matchID+":pre_match")
+			generateSetInFlightMu.Unlock()
+		})
+
+		mock.ExpectQuery(`-- name: GetUser :one`).
+			WithArgs(uid).
+			WillReturnRows(debateAdminUserRows(uid, true, database.UserRoleAdmin))
+
+		now := time.Unix(1700, 0).UTC()
+		mock.ExpectQuery(`-- name: GetDebatesByMatch :many`).
+			WithArgs(matchID).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "match_id", "debate_type", "headline", "description", "ai_generated",
+				"deleted_at", "created_at", "updated_at", "match_info",
+			}).AddRow(
+				int32(202), matchID, "pre_match", "Keep me", nil, true,
+				nil, now, now, nil,
+			))
+		// SoftDeleteDebate must not run when rate limit rejects the request.
+
+		h := New(&Config{
+			DB:                database.New(db),
+			DBConn:            db,
+			AIPromptGenerator: ai.NewPromptGenerator("test-key", "", nil),
+			MatchInfoLookup: func(context.Context, string) (*MatchInfo, error) {
+				return &MatchInfo{HomeTeam: "A", AwayTeam: "B", Status: "NS", Date: "2026-07-01T18:00:00Z"}, nil
+			},
+		})
+		body := fmt.Sprintf(`{"match_id":%q,"debate_type":"pre_match","force_regenerate":true}`, matchID)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/debates/generate-set", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+debateAdminTestToken(t, uid, string(database.UserRoleAdmin)))
+
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("code=%d body=%s, want 429", rec.Code, rec.Body.String())
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("db expectations (soft-delete must not run): %v", err)
+		}
+	})
 }
 
 func debateAdminTestToken(t *testing.T, userID int32, role string) string {

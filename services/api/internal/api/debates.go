@@ -1206,30 +1206,26 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if debate already exists for this match and type
+	// Check if debate already exists for this match and type.
+	// force_regenerate must not soft-delete until the replacement debate is successfully
+	// created — otherwise match-info / aggregate / AI failures permanently wipe the feed.
+	var forceReplaceIDs []int32
 	existingDebates, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
 	if err == nil {
 		for _, existing := range existingDebates {
-			if existing.DebateType == req.DebateType {
-				if !req.ForceRegenerate {
-					// Return existing debate
-					c.getDebateByID(w, r, existing.ID)
-					return
-				} else {
-					// Soft delete existing debate to regenerate
-					err := c.DB.SoftDeleteDebate(ctx, existing.ID)
-					if err != nil {
-						logErrorAndRespond500(w, "soft delete existing debate", err, errCodeSoftDelete)
-						return
-					}
-					fmt.Printf("Regenerating debate for match %s, type %s\n", req.MatchID, req.DebateType)
-				}
+			if existing.DebateType != req.DebateType {
+				continue
 			}
+			if !req.ForceRegenerate {
+				c.getDebateByID(w, r, existing.ID)
+				return
+			}
+			forceReplaceIDs = append(forceReplaceIDs, existing.ID)
 		}
 	}
 
 	// Get basic match information
-	matchInfo, err := c.getMatchInfo(ctx, req.MatchID)
+	matchInfo, err := c.lookupMatchInfo(ctx, req.MatchID)
 	if err != nil {
 		log.Printf("[debate] generate failed: match_id=%s getMatchInfo: %v", req.MatchID, err)
 		logErrorAndRespond500(w, "get match info", err, errCodeMatchInfo)
@@ -1323,6 +1319,9 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 			AiGenerated: sql.NullBool{Bool: true, Valid: true},
 		})
 		if err != nil {
+			// Drop the incomplete replacement so it cannot shadow still-live priors
+			// (GetDebatesByMatch is newest-first).
+			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 			logErrorAndRespond500(w, "create debate card", err, errCodeCreateCard)
 			return
 		}
@@ -1351,8 +1350,16 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure we have at least one card
 	if len(cardResponses) == 0 {
+		_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 		respondWithErrorCode(w, http.StatusInternalServerError, "No valid debate cards were created", errCodeNoValidCards)
 		return
+	}
+
+	// Soft-delete prior debates only after the replacement is fully written.
+	for _, id := range forceReplaceIDs {
+		if err := c.DB.SoftDeleteDebate(ctx, id); err != nil {
+			log.Printf("[debate] generate soft-delete prior debate_id=%d after regen: %v", id, err)
+		}
 	}
 
 	// Build the complete response
@@ -1377,7 +1384,7 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	log.Printf("[debate] generate success: match_id=%s type=%s debate_id=%d", req.MatchID, req.DebateType, debate.ID)
+	log.Printf("[debate] generate success: match_id=%s type=%s debate_id=%d replaced=%d", req.MatchID, req.DebateType, debate.ID, len(forceReplaceIDs))
 	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Debate generated successfully",
 		"debate":  response,
@@ -1519,7 +1526,7 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Get match info and validate
-	matchInfo, err := c.getMatchInfo(ctx, req.MatchID)
+	matchInfo, err := c.lookupMatchInfo(ctx, req.MatchID)
 	if err != nil {
 		log.Printf("[debate] generate-set failed: match_id=%s getMatchInfo: %v", req.MatchID, err)
 		gen.signal(nil, http.StatusInternalServerError, errMsgTryAgain, false, errCodeGenSetMatch)
@@ -1532,50 +1539,38 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ForceRegenerate {
-		existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
-		if err == nil {
-			for _, d := range existing {
-				if d.DebateType == req.DebateType {
-					_ = c.DB.SoftDeleteDebate(ctx, d.ID)
-				}
+	// Collect prior live debates for this match/type. Soft-delete is deferred until a
+	// replacement set is successfully persisted — otherwise force_regenerate + rate-limit
+	// / AI / aggregate failure permanently wipes the match's debates.
+	var priorOfType []database.Debates
+	existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
+	if err == nil {
+		for _, d := range existing {
+			if d.DebateType == req.DebateType {
+				priorOfType = append(priorOfType, d)
 			}
-		}
-		if c.Cache != nil {
-			_ = c.Cache.Delete(ctx, cacheKey)
 		}
 	}
 
 	// If not force_regenerate, return any existing debates for this match/type as the set (avoids unbounded growth and mixed old/new sets).
-	if !req.ForceRegenerate {
-		existing, err := c.DB.GetDebatesByMatch(ctx, req.MatchID)
-		if err == nil {
-			var ofType []database.Debates
-			for _, d := range existing {
-				if d.DebateType == req.DebateType {
-					ofType = append(ofType, d)
-				}
+	if !req.ForceRegenerate && len(priorOfType) > 0 {
+		limit := count
+		if len(priorOfType) < limit {
+			limit = len(priorOfType)
+		}
+		responses := c.buildDebateResponsesFromDB(ctx, priorOfType[:limit])
+		if len(responses) > 0 {
+			if c.Cache != nil {
+				_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
 			}
-			if len(ofType) > 0 {
-				// Return up to count; treat existing as the set so we don't generate more on every call
-				limit := count
-				if len(ofType) < limit {
-					limit = len(ofType)
-				}
-				responses := c.buildDebateResponsesFromDB(ctx, ofType[:limit])
-				if len(responses) > 0 {
-					if c.Cache != nil {
-						_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
-					}
-					gen.signal(responses, http.StatusOK, "", false, "")
-					respondWithJSON(w, http.StatusOK, GenerateDebateSetResponse{Debates: responses})
-					return
-				}
-			}
+			gen.signal(responses, http.StatusOK, "", false, "")
+			respondWithJSON(w, http.StatusOK, GenerateDebateSetResponse{Debates: responses})
+			return
 		}
 	}
 
 	// Rate limit only when we're about to call the AI (cache/DB miss). Cache hits and existing-DB returns don't consume the budget.
+	// Checked before any soft-delete so an exhausted budget cannot wipe live debates.
 	if !checkGenerateSetRateLimit(ctx, c, req.MatchID) {
 		rlMsg := "rate limit exceeded: max 3 generate-set requests per hour per match"
 		gen.signal(nil, http.StatusTooManyRequests, rlMsg, false, errCodeGenSetRateLimit)
@@ -1677,12 +1672,21 @@ func (c *Config) generateDebateSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Soft-delete prior debates only after a replacement set exists.
+	if req.ForceRegenerate {
+		for _, d := range priorOfType {
+			if err := c.DB.SoftDeleteDebate(ctx, d.ID); err != nil {
+				log.Printf("[debate] generate-set soft-delete prior debate_id=%d after regen: %v", d.ID, err)
+			}
+		}
+	}
+
 	partialSet := len(responses) < count
 	if c.Cache != nil {
 		_ = c.Cache.Set(ctx, cacheKey, responses, debateSetCacheTTL)
 	}
 	gen.signal(responses, http.StatusCreated, "", partialSet, "")
-	log.Printf("[debate] generate-set success: match_id=%s type=%s count=%d (partial=%v)", req.MatchID, req.DebateType, len(responses), partialSet)
+	log.Printf("[debate] generate-set success: match_id=%s type=%s count=%d (partial=%v replaced=%d)", req.MatchID, req.DebateType, len(responses), partialSet, len(priorOfType))
 	respondWithJSON(w, http.StatusCreated, GenerateDebateSetResponse{Debates: responses, PartialSet: partialSet})
 }
 
