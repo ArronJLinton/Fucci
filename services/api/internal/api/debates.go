@@ -1319,6 +1319,9 @@ func (c *Config) generateDebate(w http.ResponseWriter, r *http.Request) {
 			AiGenerated: sql.NullBool{Bool: true, Valid: true},
 		})
 		if err != nil {
+			// Drop the incomplete replacement so it cannot shadow still-live priors
+			// (GetDebatesByMatch is newest-first).
+			_ = c.DB.SoftDeleteDebate(ctx, debate.ID)
 			logErrorAndRespond500(w, "create debate card", err, errCodeCreateCard)
 			return
 		}
