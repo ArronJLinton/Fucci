@@ -156,11 +156,17 @@ export const setCardVote = async (
   }
 };
 
-/** GET /debates/:id/comments — list comments with subcomments, net_score, reactions */
+/** GET /debates/:id/comments — list comments with subcomments, net_score, reactions.
+ * Pass token when available so the API can return current_user_vote (OptionalAuth). */
 export const listComments = async (
   debateId: number,
+  token?: string | null,
 ): Promise<DebateComment[]> => {
-  const data = await makeApiRequest(`/debates/${debateId}/comments`, 'GET');
+  const path = `/debates/${debateId}/comments`;
+  const data =
+    token != null && token !== ''
+      ? await makeAuthRequest(token, path, 'GET')
+      : await makeApiRequest(path, 'GET');
   return Array.isArray(data) ? data : [];
 };
 

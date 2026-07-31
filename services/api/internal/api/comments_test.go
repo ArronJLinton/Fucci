@@ -7,12 +7,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -127,6 +133,166 @@ func TestListDebateComments_SuccessEmpty(t *testing.T) {
 	var out []DebateComment
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
 	assert.Empty(t, out)
+}
+
+func TestCurrentUserVotePtr(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, currentUserVotePtr(nil, 1))
+	assert.Nil(t, currentUserVotePtr(map[int32]string{}, 1))
+	got := currentUserVotePtr(map[int32]string{7: "upvote"}, 7)
+	require.NotNil(t, got)
+	assert.Equal(t, "upvote", *got)
+}
+
+func TestListDebateComments_IncludesCurrentUserVoteWhenAuthenticated(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	require.NoError(t, err)
+	defer db.Close()
+
+	userID := int32(42)
+	commentID := int32(11)
+	now := time.Unix(1700000000, 0).UTC()
+
+	mock.ExpectQuery(`-- name: CountSeededComments :one
+SELECT COUNT(*)::bigint FROM comments
+WHERE debate_id = $1 AND seeded = true AND parent_comment_id IS NULL
+`).
+		WithArgs(sql.NullInt32{Int32: 1, Valid: true}).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(3)))
+
+	mock.ExpectQuery(`-- name: GetCommentVoteNetScoresBatch :many
+SELECT comment_id,
+    (COUNT(*) FILTER (WHERE vote_type = 'upvote') - COUNT(*) FILTER (WHERE vote_type = 'downvote'))::int AS net_score
+FROM comment_votes
+WHERE comment_id = ANY($1::int[])
+GROUP BY comment_id
+`).
+		WithArgs(pq.Array([]int32{commentID})).
+		WillReturnRows(sqlmock.NewRows([]string{"comment_id", "net_score"}).AddRow(commentID, int32(3)))
+
+	mock.ExpectQuery(`-- name: GetCommentReactionsByCommentIDsBatch :many
+SELECT comment_id, emoji, COUNT(*)::int AS count
+FROM comment_reactions
+WHERE comment_id = ANY($1::int[])
+GROUP BY comment_id, emoji
+`).
+		WithArgs(pq.Array([]int32{commentID})).
+		WillReturnRows(sqlmock.NewRows([]string{"comment_id", "emoji", "count"}))
+
+	mock.ExpectQuery(`-- name: GetCommentVotesByUserForComments :many
+SELECT comment_id, vote_type
+FROM comment_votes
+WHERE comment_id = ANY($1::int[]) AND user_id = $2
+`).
+		WithArgs(pq.Array([]int32{commentID}), userID).
+		WillReturnRows(sqlmock.NewRows([]string{"comment_id", "vote_type"}).AddRow(commentID, "upvote"))
+
+	config := &Config{
+		DB: database.New(db),
+		// DBConn nil: skip pg_advisory_lock in ensureSeededComments for sqlmock.
+		CommentReader: &mockCommentReader{
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) {
+				return database.Debates{ID: id}, nil
+			},
+			getCommentsFunc: func(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error) {
+				return []database.GetCommentsRow{{
+					ID:          commentID,
+					DebateID:    sql.NullInt32{Int32: 1, Valid: true},
+					UserID:      sql.NullInt32{Int32: 9, Valid: true},
+					Content:     "great take",
+					CreatedAt:   sql.NullTime{Time: now, Valid: true},
+					DisplayName: sql.NullString{String: "Alice", Valid: true},
+				}}, nil
+			},
+		},
+	}
+	req := commentRequestWithChiParams("GET", "/debates/1/comments", nil, map[string]string{"debateId": "1"}, &userID)
+	rec := httptest.NewRecorder()
+
+	config.ListDebateComments(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var out []DebateComment
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Len(t, out, 1)
+	require.NotNil(t, out[0].CurrentUserVote)
+	assert.Equal(t, "upvote", *out[0].CurrentUserVote)
+	assert.Equal(t, int32(3), out[0].NetScore)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListDebateComments_OmitsCurrentUserVoteWhenUnauthenticated(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	require.NoError(t, err)
+	defer db.Close()
+
+	commentID := int32(11)
+	now := time.Unix(1700000000, 0).UTC()
+
+	mock.ExpectQuery(`-- name: CountSeededComments :one
+SELECT COUNT(*)::bigint FROM comments
+WHERE debate_id = $1 AND seeded = true AND parent_comment_id IS NULL
+`).
+		WithArgs(sql.NullInt32{Int32: 1, Valid: true}).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(3)))
+
+	mock.ExpectQuery(`-- name: GetCommentVoteNetScoresBatch :many
+SELECT comment_id,
+    (COUNT(*) FILTER (WHERE vote_type = 'upvote') - COUNT(*) FILTER (WHERE vote_type = 'downvote'))::int AS net_score
+FROM comment_votes
+WHERE comment_id = ANY($1::int[])
+GROUP BY comment_id
+`).
+		WithArgs(pq.Array([]int32{commentID})).
+		WillReturnRows(sqlmock.NewRows([]string{"comment_id", "net_score"}).AddRow(commentID, int32(1)))
+
+	mock.ExpectQuery(`-- name: GetCommentReactionsByCommentIDsBatch :many
+SELECT comment_id, emoji, COUNT(*)::int AS count
+FROM comment_reactions
+WHERE comment_id = ANY($1::int[])
+GROUP BY comment_id, emoji
+`).
+		WithArgs(pq.Array([]int32{commentID})).
+		WillReturnRows(sqlmock.NewRows([]string{"comment_id", "emoji", "count"}))
+
+	config := &Config{
+		DB: database.New(db),
+		CommentReader: &mockCommentReader{
+			getDebateFunc: func(ctx context.Context, id int32) (database.Debates, error) {
+				return database.Debates{ID: id}, nil
+			},
+			getCommentsFunc: func(ctx context.Context, debateID sql.NullInt32) ([]database.GetCommentsRow, error) {
+				return []database.GetCommentsRow{{
+					ID:          commentID,
+					DebateID:    sql.NullInt32{Int32: 1, Valid: true},
+					UserID:      sql.NullInt32{Int32: 9, Valid: true},
+					Content:     "great take",
+					CreatedAt:   sql.NullTime{Time: now, Valid: true},
+					DisplayName: sql.NullString{String: "Alice", Valid: true},
+				}}, nil
+			},
+		},
+	}
+	req := commentRequestWithChiParams("GET", "/debates/1/comments", nil, map[string]string{"debateId": "1"}, nil)
+	rec := httptest.NewRecorder()
+
+	config.ListDebateComments(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var out []DebateComment
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Len(t, out, 1)
+	assert.Nil(t, out[0].CurrentUserVote)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDebateCommentsRoute_UsesOptionalAuth(t *testing.T) {
+	t.Parallel()
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	src, err := os.ReadFile(filepath.Join(filepath.Dir(thisFile), "api.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(src), `debateRouter.With(auth.OptionalAuth).Get("/{debateId}/comments", c.ListDebateComments)`)
 }
 
 // ---- CreateDebateComment ----

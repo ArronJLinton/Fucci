@@ -180,7 +180,8 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 
 	var netScoreByComment map[int32]int32
 	var reactionsByComment map[int32][]ReactionCount
-	if len(commentIDs) > 0 {
+	var voteByComment map[int32]string
+	if len(commentIDs) > 0 && c.DB != nil {
 		netScoreByComment = make(map[int32]int32)
 		if batchScores, err := c.DB.GetCommentVoteNetScoresBatch(ctx, commentIDs); err == nil {
 			for _, r := range batchScores {
@@ -193,19 +194,30 @@ func (c *Config) ListDebateComments(w http.ResponseWriter, r *http.Request) {
 				reactionsByComment[r.CommentID] = append(reactionsByComment[r.CommentID], ReactionCount{Emoji: r.Emoji, Count: r.Count})
 			}
 		}
+		if userID, ok := auth.UserIDFromContext(ctx); ok && userID != 0 {
+			if batchVotes, err := c.DB.GetCommentVotesByUserForComments(ctx, database.GetCommentVotesByUserForCommentsParams{
+				Column1: commentIDs,
+				UserID:  userID,
+			}); err == nil {
+				voteByComment = make(map[int32]string, len(batchVotes))
+				for _, r := range batchVotes {
+					voteByComment[r.CommentID] = r.VoteType
+				}
+			}
+		}
 	}
 
 	// Build response: for each top-level comment, add net_score, reactions, subcomments (from preloaded maps)
 	out := make([]DebateComment, 0, len(topLevel))
 	for _, row := range topLevel {
-		comment, err := c.buildDebateCommentFromRowWithPreloaded(row, netScoreByComment[row.ID], reactionsByComment[row.ID], nil)
+		comment, err := c.buildDebateCommentFromRowWithPreloaded(row, netScoreByComment[row.ID], reactionsByComment[row.ID], currentUserVotePtr(voteByComment, row.ID))
 		if err != nil {
 			continue
 		}
 		if subs, ok := subByParent[row.ID]; ok {
 			comment.Subcomments = make([]DebateComment, 0, len(subs))
 			for _, subRow := range subs {
-				subComment, err := c.buildDebateCommentFromRowWithPreloaded(subRow, netScoreByComment[subRow.ID], reactionsByComment[subRow.ID], nil)
+				subComment, err := c.buildDebateCommentFromRowWithPreloaded(subRow, netScoreByComment[subRow.ID], reactionsByComment[subRow.ID], currentUserVotePtr(voteByComment, subRow.ID))
 				if err != nil {
 					continue
 				}
@@ -512,6 +524,18 @@ func (c *Config) RemoveCommentReaction(w http.ResponseWriter, r *http.Request) {
 		reactions = append(reactions, ReactionCount{Emoji: rr.Emoji, Count: rr.Count})
 	}
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{"reactions": reactions})
+}
+
+// currentUserVotePtr returns a pointer to the vote type for commentID when present in voteByComment.
+func currentUserVotePtr(voteByComment map[int32]string, commentID int32) *string {
+	if voteByComment == nil {
+		return nil
+	}
+	vt, ok := voteByComment[commentID]
+	if !ok {
+		return nil
+	}
+	return &vt
 }
 
 // buildDebateCommentFromRowWithPreloaded builds a DebateComment from a GetCommentsRow using
