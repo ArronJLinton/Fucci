@@ -225,14 +225,16 @@ const SingleDebateScreen = () => {
           return;
         }
       }
-      const list = await listComments(debateId);
+      // Pass token so current_user_vote is populated; without it a reload + tap
+      // can silently clear an existing server-side vote via toggle semantics.
+      const list = await listComments(debateId, token);
       setComments(list);
     } catch (_e) {
       setCommentsError('Could not load comments. Tap Retry to try again.');
     } finally {
       setCommentsLoading(false);
     }
-  }, [debate?.id]);
+  }, [debate?.id, token]);
 
   useEffect(() => {
     loadComments();
@@ -425,13 +427,15 @@ const SingleDebateScreen = () => {
     try {
       const res = await setCommentVote(token, commentId, toSend);
       if (res != null) {
+        // Trust server vote_type: same-vote toggle clears the vote server-side.
+        const appliedVote = res.vote_type ?? undefined;
         setComments(prev =>
           prev.map(top => {
             if (top.id === commentId) {
               return {
                 ...top,
                 net_score: res.net_score,
-                current_user_vote: toSend ?? undefined,
+                current_user_vote: appliedVote,
               };
             }
             if (top.subcomments) {
@@ -442,7 +446,7 @@ const SingleDebateScreen = () => {
                     ? {
                         ...sub,
                         net_score: res.net_score,
-                        current_user_vote: toSend ?? undefined,
+                        current_user_vote: appliedVote,
                       }
                     : sub,
                 ),
