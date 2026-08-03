@@ -72,6 +72,18 @@ DELETE FROM votes
 WHERE debate_card_id = $1 AND user_id = $2
   AND vote_type IN ('upvote', 'downvote') AND emoji IS NULL;
 
+-- One swipe vote per user per debate (spec 009): clear binary-card swipe votes on this debate before inserting the new choice.
+-- name: DeleteDebateSwipeVotes :exec
+DELETE FROM votes
+WHERE user_id = $1
+  AND vote_type IN ('upvote', 'downvote')
+  AND emoji IS NULL
+  AND debate_card_id IN (
+    SELECT id FROM debate_cards
+    WHERE debate_id = $2
+      AND stance IN ('agree', 'disagree')
+  );
+
 -- name: GetVoteCounts :many
 SELECT 
     debate_card_id,

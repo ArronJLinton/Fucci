@@ -254,6 +254,29 @@ func (q *Queries) DeleteDebateCard(ctx context.Context, id int32) error {
 	return err
 }
 
+const deleteDebateSwipeVotes = `-- name: DeleteDebateSwipeVotes :exec
+DELETE FROM votes
+WHERE user_id = $1
+  AND vote_type IN ('upvote', 'downvote')
+  AND emoji IS NULL
+  AND debate_card_id IN (
+    SELECT id FROM debate_cards
+    WHERE debate_id = $2
+      AND stance IN ('agree', 'disagree')
+  )
+`
+
+type DeleteDebateSwipeVotesParams struct {
+	UserID   sql.NullInt32
+	DebateID sql.NullInt32
+}
+
+// One swipe vote per user per debate (spec 009): clear binary-card swipe votes on this debate before inserting the new choice.
+func (q *Queries) DeleteDebateSwipeVotes(ctx context.Context, arg DeleteDebateSwipeVotesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteDebateSwipeVotes, arg.UserID, arg.DebateID)
+	return err
+}
+
 const deleteVote = `-- name: DeleteVote :exec
 DELETE FROM votes WHERE debate_card_id = $1 AND user_id = $2 AND vote_type = $3
 `
