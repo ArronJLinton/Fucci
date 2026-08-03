@@ -29,7 +29,7 @@ type SetCardVoteRequest struct {
 }
 
 // setCardVote handles PUT /api/debates/{debate_id}/cards/{card_id}/vote.
-// Requires auth. One vote per user per card (replaces existing). No rate limit.
+// Requires auth. One swipe vote per user per debate (replaces any prior binary-card choice). No rate limit.
 func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -95,8 +95,13 @@ func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// One vote per user per card: delete existing swipe vote then insert (atomic).
-	// Partial unique index idx_votes_swipe_one_per_user_card enforces at most one row per (card, user) when emoji IS NULL.
+	// One swipe vote per user per debate (spec 009): clear binary-card swipe votes on this
+	// debate, then insert the new choice. Card-scoped delete alone allowed agree+disagree rows.
+	// Advisory xact lock serializes concurrent yes/no votes so both cannot stick.
+	if c.DBConn == nil || c.DB == nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to save vote")
+		return
+	}
 	tx, err := c.DBConn.BeginTx(ctx, nil)
 	if err != nil {
 		log.Printf("[card_votes] BeginTx error: %v", err)
@@ -105,11 +110,21 @@ func (c *Config) setCardVote(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1, $2)`, int32(debateID), userID); err != nil {
+		log.Printf("[card_votes] advisory lock error: %v (debate_id=%d user_id=%d)", err, debateID, userID)
+		respondWithError(w, http.StatusInternalServerError, "Failed to save vote")
+		return
+	}
+
 	q := c.DB.WithTx(tx)
-	_ = q.DeleteCardSwipeVotes(ctx, database.DeleteCardSwipeVotesParams{
-		DebateCardID: sql.NullInt32{Int32: int32(cardID), Valid: true},
-		UserID:       sql.NullInt32{Int32: userID, Valid: true},
-	})
+	if err := q.DeleteDebateSwipeVotes(ctx, database.DeleteDebateSwipeVotesParams{
+		UserID:   sql.NullInt32{Int32: userID, Valid: true},
+		DebateID: sql.NullInt32{Int32: int32(debateID), Valid: true},
+	}); err != nil {
+		log.Printf("[card_votes] DeleteDebateSwipeVotes error: %v (debate_id=%d user_id=%d)", err, debateID, userID)
+		respondWithError(w, http.StatusInternalServerError, "Failed to save vote")
+		return
+	}
 
 	_, err = q.CreateVote(ctx, database.CreateVoteParams{
 		DebateCardID: sql.NullInt32{Int32: int32(cardID), Valid: true},

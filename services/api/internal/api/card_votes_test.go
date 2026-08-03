@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
 	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -252,4 +254,158 @@ func TestCardVoteCounts_JSON(t *testing.T) {
 	assert.Equal(t, c.NoCount, out.NoCount)
 	assert.Equal(t, c.TotalYes, out.TotalYes)
 	assert.Equal(t, c.TotalNo, out.TotalNo)
+}
+
+// Exact sqlc strings (must match internal/database/debates.sql.go).
+const (
+	testSQLDeleteDebateSwipeVotes = `-- name: DeleteDebateSwipeVotes :exec
+DELETE FROM votes
+WHERE user_id = $1
+  AND vote_type IN ('upvote', 'downvote')
+  AND emoji IS NULL
+  AND debate_card_id IN (
+    SELECT id FROM debate_cards
+    WHERE debate_id = $2
+      AND stance IN ('agree', 'disagree')
+  )
+`
+	testSQLCreateVote = `-- name: CreateVote :one
+INSERT INTO votes (debate_card_id, user_id, vote_type, emoji)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (debate_card_id, user_id, vote_type, emoji) 
+DO UPDATE SET emoji = $4, created_at = CURRENT_TIMESTAMP
+RETURNING id, debate_card_id, user_id, vote_type, emoji, created_at
+`
+	testSQLGetDebateCard = `-- name: GetDebateCard :one
+SELECT id, debate_id, stance, title, description, ai_generated, created_at, updated_at FROM debate_cards WHERE id = $1
+`
+	testSQLGetDebateCardsOrdered = `-- name: GetDebateCards :many
+SELECT id, debate_id, stance, title, description, ai_generated, created_at, updated_at FROM debate_cards WHERE debate_id = $1 ORDER BY stance
+`
+	testSQLCardVoteGetVoteCounts = `-- name: GetVoteCounts :many
+SELECT 
+    debate_card_id,
+    vote_type,
+    emoji,
+    COUNT(*) as count
+FROM votes 
+WHERE debate_card_id = ANY($1::int[])
+GROUP BY debate_card_id, vote_type, emoji
+`
+)
+
+func TestSetCardVote_ReplacesPriorVoteOnOtherBinaryCard(t *testing.T) {
+	// Voting NO on the disagree card must clear any prior YES on the agree card
+	// (one swipe vote per user per debate).
+	const (
+		debateID     int32 = 42
+		agreeCardID  int32 = 100
+		disagreeCard int32 = 101
+		userID       int32 = 7
+	)
+
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	require.NoError(t, err)
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`SELECT pg_advisory_xact_lock($1, $2)`).
+		WithArgs(debateID, userID).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(testSQLDeleteDebateSwipeVotes).
+		WithArgs(sql.NullInt32{Int32: userID, Valid: true}, sql.NullInt32{Int32: debateID, Valid: true}).
+		WillReturnResult(sqlmock.NewResult(0, 1)) // prior agree-card vote removed
+	ts := time.Now()
+	mock.ExpectQuery(testSQLCreateVote).
+		WithArgs(
+			sql.NullInt32{Int32: disagreeCard, Valid: true},
+			sql.NullInt32{Int32: userID, Valid: true},
+			"downvote",
+			sql.NullString{},
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "debate_card_id", "user_id", "vote_type", "emoji", "created_at"}).
+			AddRow(int64(9), int64(disagreeCard), int64(userID), "downvote", nil, ts))
+	mock.ExpectCommit()
+
+	// Analytics + counts after commit (keep path successful / deterministic).
+	mock.ExpectQuery(testSQLGetDebateCard).
+		WithArgs(disagreeCard).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "debate_id", "stance", "title", "description", "ai_generated", "created_at", "updated_at"}).
+			AddRow(disagreeCard, debateID, "disagree", "No", "d", false, ts, ts))
+	mock.ExpectQuery(testSQLGetDebateCardsOrdered).
+		WithArgs(sql.NullInt32{Int32: debateID, Valid: true}).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "debate_id", "stance", "title", "description", "ai_generated", "created_at", "updated_at"}).
+			AddRow(agreeCardID, debateID, "agree", "Yes", "y", false, ts, ts).
+			AddRow(disagreeCard, debateID, "disagree", "No", "n", false, ts, ts))
+	mock.ExpectQuery(testSQLCardVoteGetVoteCounts).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"debate_card_id", "vote_type", "emoji", "count"}).
+			AddRow(int64(disagreeCard), "downvote", nil, int64(1)))
+	mock.ExpectQuery(`-- name: GetCommentCount :one
+SELECT COUNT(*) FROM comments WHERE debate_id = $1
+`).
+		WithArgs(sql.NullInt32{Int32: debateID, Valid: true}).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	mock.ExpectQuery(`-- name: UpdateDebateAnalytics :one
+UPDATE debate_analytics 
+SET total_votes = $2, total_comments = $3, engagement_score = $4, updated_at = CURRENT_TIMESTAMP
+WHERE debate_id = $1
+RETURNING id, debate_id, total_votes, total_comments, engagement_score, created_at, updated_at
+`).
+		WithArgs(
+			sql.NullInt32{Int32: debateID, Valid: true},
+			sql.NullInt32{Int32: 1, Valid: true},
+			sql.NullInt32{Int32: 0, Valid: true},
+			sql.NullString{String: "1.00", Valid: true},
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "debate_id", "total_votes", "total_comments", "engagement_score", "created_at", "updated_at"}).
+			AddRow(int64(1), debateID, int64(1), int64(0), "1.00", ts, ts))
+	// buildCardVoteCounts re-reads cards + counts:
+	mock.ExpectQuery(testSQLGetDebateCardsOrdered).
+		WithArgs(sql.NullInt32{Int32: debateID, Valid: true}).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "debate_id", "stance", "title", "description", "ai_generated", "created_at", "updated_at"}).
+			AddRow(agreeCardID, debateID, "agree", "Yes", "y", false, ts, ts).
+			AddRow(disagreeCard, debateID, "disagree", "No", "n", false, ts, ts))
+	mock.ExpectQuery(testSQLCardVoteGetVoteCounts).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"debate_card_id", "vote_type", "emoji", "count"}).
+			AddRow(int64(disagreeCard), "downvote", nil, int64(1)))
+
+	config := &Config{
+		DB:     database.New(db),
+		DBConn: db,
+		CardVoteReader: &mockCardVoteReader{
+			getUserFunc: func(ctx context.Context, id int32) (database.Users, error) {
+				return database.Users{ID: id}, nil
+			},
+			getDebateCardFunc: func(ctx context.Context, id int32) (database.DebateCards, error) {
+				return database.DebateCards{
+					ID:       disagreeCard,
+					DebateID: sql.NullInt32{Int32: debateID, Valid: true},
+					Stance:   "disagree",
+				}, nil
+			},
+		},
+	}
+
+	uid := userID
+	req := requestWithChiParams(
+		"PUT",
+		"/debates/42/cards/101/vote",
+		SetCardVoteRequest{VoteType: "downvote"},
+		map[string]string{"debateId": "42", "cardId": "101"},
+		&uid,
+	)
+	rec := httptest.NewRecorder()
+	config.setCardVote(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteDebateSwipeVotes_SQLIsDebateScoped(t *testing.T) {
+	// Guard against regressing to card-only delete (which allows dual agree+disagree votes).
+	require.Contains(t, testSQLDeleteDebateSwipeVotes, "debate_id = $2")
+	require.Contains(t, testSQLDeleteDebateSwipeVotes, "stance IN ('agree', 'disagree')")
+	require.NotContains(t, testSQLDeleteDebateSwipeVotes, "debate_card_id = $1")
 }
