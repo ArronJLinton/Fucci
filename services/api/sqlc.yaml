@@ -7,8 +7,9 @@ sql:
   - engine: "postgresql"
     queries: "./sql/queries"
     schema:
-      # Enum DDL parseable by sqlc (016 creates the same type inside DO $$, which sqlc skips).
+      # Enum DDL parseable by sqlc (goose migrations create the same types inside DO $$, which sqlc skips).
       - "./sql/sqlc/user_role_enum.sql"
+      - "./sql/sqlc/story_enums.sql"
       - "./sql/schema"
     gen:
       go:
