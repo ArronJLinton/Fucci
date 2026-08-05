@@ -494,7 +494,7 @@ const SingleDebateScreen = () => {
 
   const handleReportComment = (commentId: number) => {
     if (!token) {
-      setAuthGatePendingAction('reply');
+      setAuthGatePendingAction('report_comment');
       return;
     }
     Alert.alert(

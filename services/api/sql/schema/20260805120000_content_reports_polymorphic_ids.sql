@@ -16,5 +16,8 @@ DROP INDEX IF EXISTS idx_content_reports_reported_user_id;
 ALTER TABLE content_reports
     DROP COLUMN IF EXISTS reported_user_id;
 
+DELETE FROM content_reports
+    WHERE reportable_id !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+
 ALTER TABLE content_reports
     ALTER COLUMN reportable_id TYPE UUID USING reportable_id::UUID;

@@ -224,7 +224,7 @@ func TestPostContentReport_DoesNotDeactivateStory(t *testing.T) {
 			createdAt,
 		))
 	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at, reported_user_id`).
-		WithArgs(reporterID, "story", storyID.String(), ownerID, "spam", sql.NullString{}).
+		WithArgs(reporterID, "story", storyID.String(), sql.NullInt32{Int32: ownerID, Valid: true}, "spam", sql.NullString{}).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at", "reported_user_id",
 		}).AddRow(
@@ -283,7 +283,7 @@ func TestPostContentReport_DebateResponseOK(t *testing.T) {
 			nil,
 		))
 	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at, reported_user_id`).
-		WithArgs(reporterID, "debate_response", strconv.FormatInt(int64(commentID), 10), authorID, "spam", sql.NullString{}).
+		WithArgs(reporterID, "debate_response", strconv.FormatInt(int64(commentID), 10), sql.NullInt32{Int32: authorID, Valid: true}, "spam", sql.NullString{}).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at", "reported_user_id",
 		}).AddRow(

@@ -8,7 +8,7 @@ import type {YouTubeShort, FanStory} from '../services/matchShortsApi';
 export type MediaType = 'photo' | 'video';
 
 /** Pending action to resume after auth (return-to-debate flow) */
-export type AuthPendingAction = 'reply' | 'vote' | 'reaction' | 'swipe';
+export type AuthPendingAction = 'reply' | 'vote' | 'reaction' | 'swipe' | 'report_comment';
 
 /** Params for returning to SingleDebate after login/signup */
 export type ReturnToDebateParams = {
