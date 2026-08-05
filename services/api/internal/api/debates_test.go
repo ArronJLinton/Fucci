@@ -969,7 +969,7 @@ WHERE user_id = $1
   AND emoji IS NULL
   AND vote_type IN ('upvote', 'downvote')`
 	testSQLGetUserForDebateAdmin = `-- name: GetUser :one
-SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE id = $1`
+SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role, apple_id, apple_refresh_token FROM users WHERE id = $1`
 	testSQLDeleteDebate = `-- name: DeleteDebate :exec
 DELETE FROM debates WHERE id = $1`
 	testSQLRestoreDebate = `-- name: RestoreDebate :exec
@@ -1301,10 +1301,10 @@ func debateAdminUserRows(userID int32, isAdmin bool, role database.UserRole) *sq
 	return sqlmock.NewRows([]string{
 		"id", "firstname", "lastname", "email", "created_at", "updated_at", "is_admin",
 		"display_name", "avatar_url", "google_id", "auth_provider", "locale", "last_login_at",
-		"is_verified", "is_active", "role",
+		"is_verified", "is_active", "role", "apple_id", "apple_refresh_token",
 	}).AddRow(
 		userID, "Debate", "Admin", "debate-admin@example.com", now, now, isAdmin,
-		nil, nil, nil, "local", nil, nil, true, true, string(role),
+		nil, nil, nil, "local", nil, nil, true, true, string(role), nil, nil,
 	)
 }
 
