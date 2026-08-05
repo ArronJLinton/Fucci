@@ -161,3 +161,8 @@ export const getFollowing = async (token: string): Promise<FollowingItem[]> => {
     return [];
   }
 };
+
+// DELETE /users/account (auth required) — permanently deletes the signed-in user
+export const deleteAccount = async (token: string): Promise<void> => {
+  await makeAuthRequest(token, '/users/account', 'DELETE');
+};

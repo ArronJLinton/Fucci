@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
+	"github.com/ArronJLinton/fucci-api/internal/database"
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 // fakeProfileUpdatePersistence records ExecUpdate and returns a canned UserResponse from LoadUserResponse.
@@ -139,5 +142,81 @@ func TestHandleUpdateProfile_AvatarURLReturns500WhenCloudinaryCloudNameUnset(t *
 	body := rec.Body.String()
 	if !strings.Contains(body, "cloud name is not configured") {
 		t.Fatalf("expected configuration error in body, got %q", body)
+	}
+}
+
+func TestHandleDeleteAccount_Unauthorized(t *testing.T) {
+	cfg := &Config{}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/users/account", nil)
+
+	cfg.handleDeleteAccount(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestHandleDeleteAccount_DBNotConfigured(t *testing.T) {
+	cfg := &Config{}
+	rec := httptest.NewRecorder()
+	req := authTestRequest(http.MethodDelete, "/users/account", nil, 42)
+
+	cfg.handleDeleteAccount(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestHandleDeleteAccount_DBError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	const userID int32 = 42
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs(userID).
+		WillReturnError(fmt.Errorf("db error"))
+
+	cfg := &Config{DB: database.New(db)}
+	rec := httptest.NewRecorder()
+	req := authTestRequest(http.MethodDelete, "/users/account", nil, userID)
+
+	cfg.handleDeleteAccount(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations: %v", err)
+	}
+}
+
+func TestHandleDeleteAccount_OK(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	const userID int32 = 42
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs(userID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	cfg := &Config{DB: database.New(db)}
+	rec := httptest.NewRecorder()
+	req := authTestRequest(http.MethodDelete, "/users/account", nil, userID)
+
+	cfg.handleDeleteAccount(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations: %v", err)
 	}
 }
