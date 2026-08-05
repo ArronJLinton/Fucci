@@ -872,6 +872,28 @@ func (c *Config) handleGetFollowing(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, GetFollowingResponse{Items: items})
 }
 
+// handleDeleteAccount permanently deletes the authenticated user's account and cascaded data.
+// DELETE /users/account
+func (c *Config) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if c.DB == nil {
+		respondWithError(w, http.StatusInternalServerError, "database not configured")
+		return
+	}
+
+	if err := c.DB.DeleteUser(r.Context(), userID); err != nil {
+		log.Printf("delete account user=%d: %v", userID, err)
+		respondWithError(w, http.StatusInternalServerError, "failed to delete account")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (c *Config) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context (set by auth middleware)
 	userID, ok := auth.UserIDFromContext(r.Context())

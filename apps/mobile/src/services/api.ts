@@ -216,6 +216,7 @@ export {
   getProfile,
   updateProfile,
   getFollowing,
+  deleteAccount,
   type RegisterRequest,
   type RegisterResponse,
   type LoginRequest,

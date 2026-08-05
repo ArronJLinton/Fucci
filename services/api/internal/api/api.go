@@ -196,6 +196,7 @@ func New(c *Config) http.Handler {
 	userRouter.Use(auth.RequireAuth)
 	userRouter.Get("/profile", c.handleGetProfile)
 	userRouter.Put("/profile", c.handleUpdateProfile)
+	userRouter.Delete("/account", c.handleDeleteAccount)
 	userRouter.Get("/me/following", c.handleGetFollowing)
 
 	// Temp route for listing all users

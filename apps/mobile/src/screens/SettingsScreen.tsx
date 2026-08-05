@@ -1,4 +1,4 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useState} from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -17,6 +18,7 @@ import {dispatchResetToMainProfileTab} from '../navigation/authNavigationActions
 import type {RootStackParamList} from '../types/navigation';
 import PushNotificationSettings from '../components/PushNotificationSettings';
 import {logoutWithPushCleanup} from '../hooks/usePushNotifications';
+import {deleteAccount, userFacingApiMessage} from '../services/api';
 
 const LIME = '#c7f349';
 const CYAN = '#22d3ee';
@@ -25,6 +27,7 @@ const CARD = '#0b1224';
 const CARD_BORDER = '#1f2937';
 const MUTED = '#64748b';
 const TEXT = '#e2e8f0';
+const DANGER = '#f87171';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -33,6 +36,7 @@ const APP_NAME = 'FUCCI';
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
   const {logout: authLogout, isLoggedIn, token} = useAuth();
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const appVersion =
     Constants.expoConfig?.version ??
@@ -53,6 +57,56 @@ export default function SettingsScreen() {
       },
     ]);
   }, [authLogout, navigation, token]);
+
+  const performDeleteAccount = useCallback(async () => {
+    if (!token || isDeletingAccount) {
+      return;
+    }
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccount(token);
+      await logoutWithPushCleanup(null, authLogout);
+      navigation.goBack();
+      dispatchResetToMainProfileTab();
+    } catch (error) {
+      Alert.alert('Could not delete account', userFacingApiMessage(error));
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }, [authLogout, isDeletingAccount, navigation, token]);
+
+  const handleDeleteAccount = useCallback(() => {
+    if (!token || isDeletingAccount) {
+      return;
+    }
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and associated data. This cannot be undone.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirm deletion',
+              'Are you sure you want to permanently delete your Fucci account?',
+              [
+                {text: 'Cancel', style: 'cancel'},
+                {
+                  text: 'Delete Account',
+                  style: 'destructive',
+                  onPress: () => {
+                    void performDeleteAccount();
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  }, [isDeletingAccount, performDeleteAccount, token]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -103,7 +157,7 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="shield-checkmark-outline"
             title="Privacy Encryption"
-            last
+            last={!isLoggedIn}
             onPress={() =>
               Alert.alert(
                 'Privacy',
@@ -111,6 +165,16 @@ export default function SettingsScreen() {
               )
             }
           />
+          {isLoggedIn ? (
+            <SettingsRow
+              icon="trash-outline"
+              title="Delete Account"
+              danger
+              last
+              onPress={handleDeleteAccount}
+              disabled={isDeletingAccount}
+            />
+          ) : null}
         </View>
 
         <PushNotificationSettings showHeader />
@@ -147,10 +211,18 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.logoutCta}
             onPress={handleLogout}
-            activeOpacity={0.9}>
+            activeOpacity={0.9}
+            disabled={isDeletingAccount}>
             <Ionicons name="log-out-outline" size={22} color="#0f172a" />
             <Text style={styles.logoutCtaText}>LOGOUT OF SESSION</Text>
           </TouchableOpacity>
+        ) : null}
+
+        {isDeletingAccount ? (
+          <View style={styles.deletingRow}>
+            <ActivityIndicator color={DANGER} />
+            <Text style={styles.deletingText}>Deleting account…</Text>
+          </View>
         ) : null}
 
         <View style={{height: 32}} />
@@ -173,19 +245,27 @@ function SettingsRow({
   title,
   onPress,
   last,
+  danger,
+  disabled,
 }: {
   icon: string;
   title: string;
   onPress: () => void;
   last?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
 }) {
+  const tint = danger ? DANGER : CYAN;
   return (
     <TouchableOpacity
-      style={[styles.row, !last && styles.rowBorder]}
+      style={[styles.row, !last && styles.rowBorder, disabled && styles.rowDisabled]}
       onPress={onPress}
-      activeOpacity={0.75}>
-      <Ionicons name={icon as any} size={20} color={CYAN} />
-      <Text style={styles.rowTitle}>{title}</Text>
+      activeOpacity={0.75}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}>
+      <Ionicons name={icon as any} size={20} color={tint} />
+      <Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>
       <Ionicons name="chevron-forward" size={18} color={MUTED} />
     </TouchableOpacity>
   );
@@ -305,6 +385,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TEXT,
   },
+  rowTitleDanger: {
+    color: DANGER,
+  },
+  rowDisabled: {
+    opacity: 0.5,
+  },
   supportTitle: {
     flex: 1,
     fontSize: 15,
@@ -333,5 +419,18 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 1.2,
     color: '#0f172a',
+  },
+  deletingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  deletingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: DANGER,
   },
 });
