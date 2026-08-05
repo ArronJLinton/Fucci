@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -165,6 +166,32 @@ func TestHandleDeleteAccount_DBNotConfigured(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestHandleDeleteAccount_DBError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	const userID int32 = 42
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs(userID).
+		WillReturnError(fmt.Errorf("db error"))
+
+	cfg := &Config{DB: database.New(db)}
+	rec := httptest.NewRecorder()
+	req := authTestRequest(http.MethodDelete, "/users/account", nil, userID)
+
+	cfg.handleDeleteAccount(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations: %v", err)
 	}
 }
 

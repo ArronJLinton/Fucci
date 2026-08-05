@@ -16,6 +16,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Fucci uses the camera so you can take a new profile photo or capture photos and videos for Match Stories.",
         "NSPhotoLibraryUsageDescription": "Fucci uses your photo library so you can choose an existing image as your profile photo or add media to Match Stories.",
+        "NSPhotoLibraryAddUsageDescription": "Fucci saves captured Match Story media to your photo library.",
+        "NSMicrophoneUsageDescription": "Fucci uses the microphone to record audio when capturing Match Story videos.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Allow Fucci to send match, news, and debate alerts you opt into."
       }
