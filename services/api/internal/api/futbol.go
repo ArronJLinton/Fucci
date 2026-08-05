@@ -71,6 +71,11 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, data)
 }
 
+// maxFixturePages is a safety cap when walking API-Football fixture pagination.
+// A single calendar day's worldwide fixtures should be well below this; exceeding
+// it is treated as an upstream anomaly rather than silently truncating.
+const maxFixturePages = 50
+
 // FetchMatchesCached returns API-Football fixtures for a date, optionally
 // filtered by league/season, going through the same Redis cache key the
 // public GET /futbol/matches handler uses (so HTTP callers, the
@@ -79,9 +84,11 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 //
 // leagueID and season are optional pointers so callers can pass either both,
 // neither, or just leagueID (season auto-resolves via ResolveAPIFootballSeason).
-// Returns the parsed GetMatchesAPIResponse even when API-Football returned an
-// empty `response` array (so callers can distinguish "no fixtures" from "API
-// down" by checking `data.Results`).
+//
+// Upstream non-2xx responses (e.g. 401 invalid key) return an error so callers
+// do not treat API outages as an empty match day. When API-Football reports
+// paging.total > 1, all pages are fetched and merged before caching.
+// An empty successful `response` array still returns nil error (true "no fixtures").
 func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, leagueID, season *int) (*GetMatchesAPIResponse, error) {
 	dateCanonical := matchDate.Format("2006-01-02")
 
@@ -132,12 +139,73 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 	if baseURL == "" {
 		baseURL = "https://v3.football.api-sports.io"
 	}
-	reqURL := fmt.Sprintf("%s/fixtures?&date=%s", baseURL, dateCanonical)
+	baseQuery := fmt.Sprintf("date=%s", dateCanonical)
 	if haveLeague {
-		reqURL = fmt.Sprintf("%s&league=%d&season=%d", reqURL, leagueIDNum, seasonNum)
-		log.Printf("URL: %s\n", reqURL)
+		baseQuery = fmt.Sprintf("%s&league=%d&season=%d", baseQuery, leagueIDNum, seasonNum)
 		log.Printf("Filtering matches by league_id: %d, season: %d\n", leagueIDNum, seasonNum)
 	}
+
+	data, err := c.fetchFixturesPage(baseURL, baseQuery, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	if data.Results == 0 || len(data.Response) == 0 {
+		log.Printf("WARNING: API returned empty response (results=%d, response items=%d), skipping cache\n", data.Results, len(data.Response))
+		log.Printf("Response data: get=%s, errors=%v\n", data.Get, data.Errors)
+		return data, nil
+	}
+
+	totalPages := data.Paging.Total
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if totalPages > maxFixturePages {
+		return nil, fmt.Errorf("football fixtures: paging.total=%d exceeds safety limit %d", totalPages, maxFixturePages)
+	}
+
+	for page := 2; page <= totalPages; page++ {
+		next, err := c.fetchFixturesPage(baseURL, baseQuery, page)
+		if err != nil {
+			// Fail closed: never cache a partial multi-page day.
+			return nil, err
+		}
+		data.Response = append(data.Response, next.Response...)
+	}
+
+	data.Results = len(data.Response)
+	data.Paging.Current = 1
+	data.Paging.Total = 1
+
+	// Pick the most conservative TTL across the fixtures in the response
+	// (live games shorten everything).
+	ttl := cache.DefaultTTL
+	for _, match := range data.Response {
+		if mt := cache.GetMatchTTL(match.Fixture.Status.Short); mt < ttl {
+			ttl = mt
+		}
+	}
+
+	if c.Cache != nil {
+		if err := c.Cache.Set(ctx, cacheKey, *data, ttl); err != nil {
+			log.Printf("Cache set error: %v\n", err)
+		} else {
+			log.Printf("Cached data with TTL: %v (results=%d)\n", ttl, data.Results)
+		}
+	}
+
+	return data, nil
+}
+
+// fetchFixturesPage loads one page of API-Football /fixtures for the given query.
+// page <= 1 omits the page parameter (API default is page 1).
+func (c *Config) fetchFixturesPage(baseURL, baseQuery string, page int) (*GetMatchesAPIResponse, error) {
+	reqURL := fmt.Sprintf("%s/fixtures?%s", baseURL, baseQuery)
+	if page > 1 {
+		reqURL = fmt.Sprintf("%s&page=%d", reqURL, page)
+	}
+	log.Printf("URL: %s\n", reqURL)
+
 	headers := map[string]string{
 		"Content-Type":    "application/json",
 		"x-apisports-key": c.FootballAPIKey,
@@ -154,33 +222,18 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 		return nil, fmt.Errorf("Failed to read response body: %w", err)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		bodyPreview := string(rawBody)
+		if len(bodyPreview) > 500 {
+			bodyPreview = bodyPreview[:500] + "..."
+		}
+		return nil, fmt.Errorf("football fixtures request: status %d: %s", resp.StatusCode, bodyPreview)
+	}
+
 	var data GetMatchesAPIResponse
 	if err := json.Unmarshal(rawBody, &data); err != nil {
 		log.Printf("Full raw response: %s\n", string(rawBody))
 		return nil, fmt.Errorf("Failed to parse response from football api service: %w", err)
-	}
-
-	if data.Results == 0 || len(data.Response) == 0 {
-		log.Printf("WARNING: API returned empty response (results=%d, response items=%d), skipping cache\n", data.Results, len(data.Response))
-		log.Printf("Response data: get=%s, errors=%v\n", data.Get, data.Errors)
-		return &data, nil
-	}
-
-	// Pick the most conservative TTL across the fixtures in the response
-	// (live games shorten everything).
-	ttl := cache.DefaultTTL
-	for _, match := range data.Response {
-		if mt := cache.GetMatchTTL(match.Fixture.Status.Short); mt < ttl {
-			ttl = mt
-		}
-	}
-
-	if c.Cache != nil {
-		if err := c.Cache.Set(ctx, cacheKey, data, ttl); err != nil {
-			log.Printf("Cache set error: %v\n", err)
-		} else {
-			log.Printf("Cached data with TTL: %v (results=%d)\n", ttl, data.Results)
-		}
 	}
 
 	return &data, nil

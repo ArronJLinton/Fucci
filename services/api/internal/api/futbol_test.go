@@ -1514,3 +1514,193 @@ func TestGetTeamSquad(t *testing.T) {
 		}
 	})
 }
+
+func fixturePageJSON(page, total, fixtureID int) string {
+	return fmt.Sprintf(`{
+		"get":"fixtures",
+		"results":1,
+		"paging":{"current":%d,"total":%d},
+		"errors":[],
+		"response":[{"fixture":{"id":%d,"status":{"short":"NS"}},"teams":{"home":{"name":"H%d"},"away":{"name":"A%d"}}}]
+	}`, page, total, fixtureID, fixtureID, fixtureID)
+}
+
+func TestFetchMatchesCached_MergesPaginatedFixtures(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.RequestURI())
+		page := r.URL.Query().Get("page")
+		w.Header().Set("Content-Type", "application/json")
+		switch page {
+		case "", "1":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(fixturePageJSON(1, 2, 101)))
+		case "2":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(fixturePageJSON(2, 2, 202)))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message":"unexpected page"}`))
+		}
+	}))
+	defer server.Close()
+
+	var cachedKeys []string
+	config := &Config{
+		FootballAPIKey:     "key",
+		APIFootballBaseURL: server.URL,
+		Cache: &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				cachedKeys = append(cachedKeys, key)
+				data, ok := value.(GetMatchesAPIResponse)
+				if !ok {
+					t.Fatalf("cache set type = %T, want GetMatchesAPIResponse", value)
+				}
+				if len(data.Response) != 2 {
+					t.Fatalf("cached fixtures = %d, want 2", len(data.Response))
+				}
+				return nil
+			},
+		},
+	}
+
+	date := time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC)
+	got, err := config.FetchMatchesCached(context.Background(), date, nil, nil)
+	if err != nil {
+		t.Fatalf("FetchMatchesCached error: %v", err)
+	}
+	if got.Results != 2 || len(got.Response) != 2 {
+		t.Fatalf("results=%d len=%d, want 2 fixtures merged", got.Results, len(got.Response))
+	}
+	if got.Response[0].Fixture.ID != 101 || got.Response[1].Fixture.ID != 202 {
+		t.Fatalf("fixture IDs = [%d %d], want [101 202]", got.Response[0].Fixture.ID, got.Response[1].Fixture.ID)
+	}
+	if len(paths) != 2 {
+		t.Fatalf("upstream calls = %d (%v), want 2", len(paths), paths)
+	}
+	if strings.Contains(paths[0], "page=") {
+		t.Fatalf("page 1 URL should omit page param, got %q", paths[0])
+	}
+	if !strings.Contains(paths[1], "page=2") {
+		t.Fatalf("page 2 URL missing page=2: %q", paths[1])
+	}
+	if len(cachedKeys) != 1 || cachedKeys[0] != "matches:date:2026-08-05" {
+		t.Fatalf("cache keys = %v, want [matches:date:2026-08-05]", cachedKeys)
+	}
+}
+
+func TestFetchMatchesCached_NonOKStatusIsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"Invalid API Key"}`))
+	}))
+	defer server.Close()
+
+	config := &Config{
+		FootballAPIKey:     "bad-key",
+		APIFootballBaseURL: server.URL,
+		Cache: &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				t.Fatalf("must not cache upstream auth failures")
+				return nil
+			},
+		},
+	}
+
+	date := time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC)
+	got, err := config.FetchMatchesCached(context.Background(), date, nil, nil)
+	if err == nil {
+		t.Fatalf("expected error for upstream 401, got data=%+v", got)
+	}
+	if !strings.Contains(err.Error(), "status 401") {
+		t.Fatalf("error = %q, want status 401", err.Error())
+	}
+
+	req := httptest.NewRequest("GET", "/matches", nil)
+	req.URL.RawQuery = "date=2026-08-05"
+	rec := httptest.NewRecorder()
+	config.getMatches(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("GET /matches code=%d, want 500 when upstream returns 401", rec.Code)
+	}
+}
+
+func TestFetchMatchesCached_EmptySuccessStillOK(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"get":"fixtures","results":0,"paging":{"current":1,"total":1},"errors":[],"response":[]}`))
+	}))
+	defer server.Close()
+
+	config := &Config{
+		FootballAPIKey:     "key",
+		APIFootballBaseURL: server.URL,
+		Cache: &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				t.Fatalf("empty success must not be cached")
+				return nil
+			},
+		},
+	}
+
+	date := time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC)
+	got, err := config.FetchMatchesCached(context.Background(), date, nil, nil)
+	if err != nil {
+		t.Fatalf("empty success should not error: %v", err)
+	}
+	if got.Results != 0 || len(got.Response) != 0 {
+		t.Fatalf("want empty fixtures, got results=%d len=%d", got.Results, len(got.Response))
+	}
+}
+
+func TestFetchMatchesCached_PageTwoFailureDoesNotCachePartial(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("page") == "2" {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte(`{"message":"upstream flake"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(fixturePageJSON(1, 2, 101)))
+	}))
+	defer server.Close()
+
+	config := &Config{
+		FootballAPIKey:     "key",
+		APIFootballBaseURL: server.URL,
+		Cache: &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
+			getFunc: func(ctx context.Context, key string, value interface{}) error {
+				return fmt.Errorf("not found")
+			},
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				t.Fatalf("must not cache partial multi-page results")
+				return nil
+			},
+		},
+	}
+
+	date := time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC)
+	_, err := config.FetchMatchesCached(context.Background(), date, nil, nil)
+	if err == nil {
+		t.Fatal("expected error when page 2 fails")
+	}
+	if !strings.Contains(err.Error(), "status 502") {
+		t.Fatalf("error = %q, want status 502", err.Error())
+	}
+}
