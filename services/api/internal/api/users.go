@@ -108,5 +108,9 @@ func (config *Config) handleListAllUsers(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Error listing users: %s", err))
 		return
 	}
-	respondWithJSON(w, http.StatusOK, users)
+	out := make([]UserResponse, 0, len(users))
+	for _, u := range users {
+		out = append(out, userResponseFromDBUser(u))
+	}
+	respondWithJSON(w, http.StatusOK, out)
 }

@@ -21,7 +21,7 @@ type CreateAppleUserParams struct {
 	Lastname          string
 	Email             string
 	AppleID           sql.NullString
-	AppleRefreshToken sql.NullString
+	AppleRefreshToken sql.NullString `json:"-"`
 }
 
 func (q *Queries) CreateAppleUser(ctx context.Context, arg CreateAppleUserParams) (Users, error) {
@@ -321,7 +321,7 @@ RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, disp
 
 type LinkAppleToExistingUserParams struct {
 	NewAppleID        string
-	AppleRefreshToken sql.NullString
+	AppleRefreshToken sql.NullString `json:"-"`
 	ID                int32
 }
 
@@ -450,7 +450,7 @@ RETURNING id, firstname, lastname, email, created_at, updated_at, is_admin, disp
 `
 
 type UpdateAppleLoginFieldsParams struct {
-	AppleRefreshToken sql.NullString
+	AppleRefreshToken sql.NullString `json:"-"`
 	ID                int32
 }
 

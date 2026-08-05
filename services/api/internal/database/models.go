@@ -441,7 +441,7 @@ type Users struct {
 	IsActive          sql.NullBool
 	Role              NullUserRole
 	AppleID           sql.NullString
-	AppleRefreshToken sql.NullString
+	AppleRefreshToken sql.NullString `json:"-"`
 }
 
 type Votes struct {
