@@ -43,7 +43,7 @@ export default function PushNotificationSettings({
           </View>
           <Text style={styles.sectionHint}>
             {isLoggedIn
-              ? 'Get World Cup updates on debates, news, and matches'
+              ? 'Get World Football updates on news, matches, and live debates'
               : 'Sign in to enable push notifications'}
           </Text>
         </>
