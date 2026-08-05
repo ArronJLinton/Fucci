@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -80,6 +81,19 @@ func matchStoryReportTestRequest(storyID uuid.UUID, userID int32) *http.Request 
 	body, _ := json.Marshal(map[string]string{
 		"reportable_type": "story",
 		"reportable_id":   storyID.String(),
+		"reason":          "spam",
+	})
+	r := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(body))
+	if userID != 0 {
+		r = r.WithContext(auth.ContextWithClaims(r.Context(), &auth.JWTClaims{UserID: userID}))
+	}
+	return r
+}
+
+func debateCommentReportTestRequest(commentID int32, userID int32) *http.Request {
+	body, _ := json.Marshal(map[string]string{
+		"reportable_type": "debate_response",
+		"reportable_id":   strconv.FormatInt(int64(commentID), 10),
 		"reason":          "spam",
 	})
 	r := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(body))
@@ -209,19 +223,20 @@ func TestPostContentReport_DoesNotDeactivateStory(t *testing.T) {
 			true,
 			createdAt,
 		))
-	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at`).
-		WithArgs(reporterID, "story", storyID, "spam", sql.NullString{}).
+	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at, reported_user_id`).
+		WithArgs(reporterID, "story", storyID.String(), ownerID, "spam", sql.NullString{}).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at",
+			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at", "reported_user_id",
 		}).AddRow(
 			reportID,
 			reporterID,
 			"story",
-			storyID,
+			storyID.String(),
 			"spam",
 			nil,
 			"pending",
 			createdAt,
+			ownerID,
 		))
 
 	rec := httptest.NewRecorder()
@@ -232,5 +247,102 @@ func TestPostContentReport_DoesNotDeactivateStory(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
 	assert.Equal(t, reportID.String(), out["id"])
 	assert.Equal(t, false, out["story_deactivated"])
+	assert.EqualValues(t, ownerID, out["reported_user_id"])
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPostContentReport_DebateResponseOK(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	cfg := &Config{DB: database.New(db)}
+	const commentID int32 = 42
+	const reporterID int32 = 99
+	const authorID int32 = 10
+	reportID := uuid.New()
+	createdAt := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`SELECT\s+c\.id, c\.debate_id, c\.parent_comment_id, c\.user_id, c\.content, c\.created_at, c\.updated_at, c\.seeded`).
+		WithArgs(commentID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "debate_id", "parent_comment_id", "user_id", "content", "created_at", "updated_at", "seeded",
+			"firstname", "lastname", "display_name", "avatar_url",
+		}).AddRow(
+			commentID,
+			1,
+			nil,
+			authorID,
+			"test comment",
+			createdAt,
+			createdAt,
+			false,
+			"Test",
+			"User",
+			nil,
+			nil,
+		))
+	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at, reported_user_id`).
+		WithArgs(reporterID, "debate_response", strconv.FormatInt(int64(commentID), 10), authorID, "spam", sql.NullString{}).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at", "reported_user_id",
+		}).AddRow(
+			reportID,
+			reporterID,
+			"debate_response",
+			strconv.FormatInt(int64(commentID), 10),
+			"spam",
+			nil,
+			"pending",
+			createdAt,
+			authorID,
+		))
+
+	rec := httptest.NewRecorder()
+	cfg.postContentReport(rec, debateCommentReportTestRequest(commentID, reporterID))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var out map[string]interface{}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	assert.Equal(t, reportID.String(), out["id"])
+	assert.Equal(t, "debate_response", out["reportable_type"])
+	assert.EqualValues(t, authorID, out["reported_user_id"])
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPostContentReport_CannotReportOwnComment(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	cfg := &Config{DB: database.New(db)}
+	const commentID int32 = 42
+	const userID int32 = 10
+	createdAt := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`SELECT\s+c\.id, c\.debate_id, c\.parent_comment_id, c\.user_id, c\.content, c\.created_at, c\.updated_at, c\.seeded`).
+		WithArgs(commentID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "debate_id", "parent_comment_id", "user_id", "content", "created_at", "updated_at", "seeded",
+			"firstname", "lastname", "display_name", "avatar_url",
+		}).AddRow(
+			commentID,
+			1,
+			nil,
+			userID,
+			"my comment",
+			createdAt,
+			createdAt,
+			false,
+			"Test",
+			"User",
+			nil,
+			nil,
+		))
+
+	rec := httptest.NewRecorder()
+	cfg.postContentReport(rec, debateCommentReportTestRequest(commentID, userID))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

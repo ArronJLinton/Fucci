@@ -44,11 +44,10 @@ export type MainTabParamList = {
     | undefined;
 };
 
-/** Root stack screens (Main = tab navigator, SignUp, ForgotPassword, …) */
+/** Root stack screens (Main = tab navigator, SignUp, Settings, …) */
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   SignUp: undefined | {returnToDebate?: ReturnToDebateParams};
-  ForgotPassword: undefined;
   Account: undefined;
   Settings: undefined;
   HomeTab: undefined;

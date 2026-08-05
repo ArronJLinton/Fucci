@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -29,9 +30,26 @@ const MUTED = '#64748b';
 const TEXT = '#e2e8f0';
 const DANGER = '#f87171';
 
+const PRIVACY_POLICY_URL = 'https://fucci-privacy-policy.vercel.app/privacy';
+const TERMS_OF_SERVICE_URL = 'https://fucci-privacy-policy.vercel.app/terms';
+const SUPPORT_URL = 'https://fucci-privacy-policy.vercel.app/support';
+
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const APP_NAME = 'FUCCI';
+
+async function openExternalUrl(url: string, label: string) {
+  try {
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert('Unable to open link', `Could not open ${label}.`);
+      return;
+    }
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Unable to open link', `Could not open ${label}.`);
+  }
+}
 
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
@@ -132,80 +150,46 @@ export default function SettingsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        <SectionHeader icon="person" label="ACCOUNT SETTINGS" />
-        <View style={styles.card}>
-          <SettingsRow
-            icon="person-outline"
-            title="Profile Identity"
-            onPress={() =>
-              Alert.alert(
-                'Profile Identity',
-                'Edit your name and avatar from the Account tab.',
-              )
-            }
-          />
-          <SettingsRow
-            icon="lock-closed-outline"
-            title="Security & Password"
-            onPress={() =>
-              Alert.alert(
-                'Security & Password',
-                'Password changes will be available in a future update.',
-              )
-            }
-          />
-          <SettingsRow
-            icon="shield-checkmark-outline"
-            title="Privacy Encryption"
-            last={!isLoggedIn}
-            onPress={() =>
-              Alert.alert(
-                'Privacy',
-                'Your data is transmitted over HTTPS. More privacy controls coming soon.',
-              )
-            }
-          />
-          {isLoggedIn ? (
-            <SettingsRow
-              icon="trash-outline"
-              title="Delete Account"
-              danger
-              last
-              onPress={handleDeleteAccount}
-              disabled={isDeletingAccount}
-            />
-          ) : null}
-        </View>
+        {isLoggedIn ? (
+          <>
+            <SectionHeader icon="person" label="ACCOUNT SETTINGS" />
+            <View style={styles.card}>
+              <SettingsRow
+                icon="trash-outline"
+                title="Delete Account"
+                danger
+                last
+                onPress={handleDeleteAccount}
+                disabled={isDeletingAccount}
+              />
+            </View>
+          </>
+        ) : null}
 
         <PushNotificationSettings showHeader />
 
         <SectionHeader icon="help-circle" label="SUPPORT" />
         <View style={styles.card}>
           <SupportRow
-            icon="book-outline"
-            title="FAQ"
-            onPress={() => Alert.alert('FAQ', 'Help center is coming soon.')}
+            icon="shield-checkmark-outline"
+            title="Privacy Policy"
+            onPress={() => void openExternalUrl(PRIVACY_POLICY_URL, 'Privacy Policy')}
           />
           <SupportRow
             icon="headset-outline"
             title="Contact Support"
-            onPress={() =>
-              Alert.alert(
-                'Contact',
-                'Support contact options will be available in a future update.',
-              )
-            }
+            onPress={() => void openExternalUrl(SUPPORT_URL, 'Contact Support')}
           />
           <SupportRow
             icon="document-text-outline"
             title="Terms of Service"
             last
             onPress={() =>
-              Alert.alert('Terms', 'Terms of service will be published here.')
+              void openExternalUrl(TERMS_OF_SERVICE_URL, 'Terms of Service')
             }
           />
         </View>
-        <Text style={styles.version}>VERSION {appVersion}-FUCCI_BETA</Text>
+        <Text style={styles.version}>VERSION {appVersion}</Text>
 
         {isLoggedIn ? (
           <TouchableOpacity
