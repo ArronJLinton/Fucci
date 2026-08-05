@@ -424,22 +424,24 @@ type UserFollows struct {
 }
 
 type Users struct {
-	ID           int32
-	Firstname    string
-	Lastname     string
-	Email        string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	IsAdmin      bool
-	DisplayName  sql.NullString
-	AvatarUrl    sql.NullString
-	GoogleID     sql.NullString
-	AuthProvider string
-	Locale       sql.NullString
-	LastLoginAt  sql.NullTime
-	IsVerified   sql.NullBool
-	IsActive     sql.NullBool
-	Role         NullUserRole
+	ID                int32
+	Firstname         string
+	Lastname          string
+	Email             string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	IsAdmin           bool
+	DisplayName       sql.NullString
+	AvatarUrl         sql.NullString
+	GoogleID          sql.NullString
+	AuthProvider      string
+	Locale            sql.NullString
+	LastLoginAt       sql.NullTime
+	IsVerified        sql.NullBool
+	IsActive          sql.NullBool
+	Role              NullUserRole
+	AppleID           sql.NullString
+	AppleRefreshToken sql.NullString
 }
 
 type Votes struct {

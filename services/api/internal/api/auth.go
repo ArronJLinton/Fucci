@@ -885,6 +885,17 @@ func (c *Config) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Best-effort Apple token revoke before hard delete (Guideline 5.1.1 / SIWA).
+	if u, err := c.DB.GetUser(r.Context(), userID); err == nil {
+		if u.AppleRefreshToken.Valid && strings.TrimSpace(u.AppleRefreshToken.String) != "" {
+			if revErr := auth.RevokeAppleToken(r.Context(), c.appleTokenConfig(), u.AppleRefreshToken.String); revErr != nil {
+				if !errors.Is(revErr, auth.ErrAppleTokenNotConfigured) {
+					log.Printf("apple revoke before delete user=%d: %v", userID, revErr)
+				}
+			}
+		}
+	}
+
 	if err := c.DB.DeleteUser(r.Context(), userID); err != nil {
 		log.Printf("delete account user=%d: %v", userID, err)
 		respondWithError(w, http.StatusInternalServerError, "failed to delete account")

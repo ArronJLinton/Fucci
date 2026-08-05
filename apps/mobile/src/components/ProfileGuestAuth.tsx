@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   launchGoogleAuthBrowserFlow,
   resolvePostGoogleAuthRoute,
 } from '../services/googleAuth';
+import {isAppleAuthAvailable, launchAppleSignIn} from '../services/appleAuth';
 import {rootNavigate} from '../navigation/rootNavigation';
 import {dispatchAfterSignInSuccess} from '../navigation/authNavigationActions';
 import type {ReturnToDebateParams} from '../types/navigation';
@@ -40,6 +41,20 @@ export default function ProfileGuestAuth({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const ok = await isAppleAuthAvailable();
+      if (!cancelled) {
+        setAppleAvailable(ok);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleEmailLogin = async () => {
     if (!email.trim() || !password) {
@@ -85,6 +100,34 @@ export default function ProfileGuestAuth({
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'Google sign-in failed. Try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleApple = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const authResult = await launchAppleSignIn();
+      if (authResult.kind === 'cancel' || authResult.kind === 'unavailable') {
+        return;
+      }
+      if (authResult.kind === 'error') {
+        setError(authResult.message);
+        return;
+      }
+      await setAuth(authResult.token, authResult.user);
+      const destination = resolvePostGoogleAuthRoute(authResult.isNew);
+      if (destination === 'CreatePlayerProfile') {
+        dispatchAfterSignInSuccess({replaceWithCreatePlayerProfile: true});
+      } else {
+        dispatchAfterSignInSuccess({returnToDebate});
+      }
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Apple sign-in failed. Try again.',
       );
     } finally {
       setBusy(false);
@@ -139,6 +182,20 @@ export default function ProfileGuestAuth({
               <ActivityIndicator color="#e2e8f0" style={styles.socialSpinner} />
             ) : null}
           </TouchableOpacity>
+
+          {appleAvailable ? (
+            <TouchableOpacity
+              style={[styles.socialBtn, busy && styles.disabled]}
+              onPress={handleApple}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Continue with Apple">
+              <View style={styles.socialInner}>
+                <Ionicons name="logo-apple" size={22} color="#f8fafc" />
+                <Text style={styles.socialLabel}>Continue with Apple</Text>
+              </View>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.orRow}>
             <View style={styles.orLine} />

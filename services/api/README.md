@@ -40,3 +40,12 @@ Set these values in `.env` (or exported env vars) before enabling Google auth en
 - `GOOGLE_OAUTH_CLIENT_SECRET` - OAuth client secret used for auth code exchange.
 - `GOOGLE_OAUTH_CALLBACK_URL` - OAuth callback URL used by `/v1/api/auth/google/start` and `/v1/api/auth/google/callback` (e.g. `http://localhost:8080/v1/api/auth/google/callback`).
 - `GOOGLE_OAUTH_REDIRECT_URIS` - Comma-separated allowlist for callback URIs (e.g. `fucci://auth,com.fucci.app:/oauth2redirect`).
+
+#### Apple Sign In Environment
+
+Native iOS Sign in with Apple (`POST /v1/api/auth/apple`):
+
+- `APPLE_CLIENT_ID` - Audience for Apple identity tokens (iOS bundle id, e.g. `com.magistridev.fucci`). **Required** to enable the endpoint.
+- `APPLE_TEAM_ID` - Apple Developer Team ID (optional; needed for auth-code exchange + token revoke).
+- `APPLE_KEY_ID` - Sign in with Apple key id (optional; same).
+- `APPLE_PRIVATE_KEY` - Contents of the `.p8` private key (optional; same). When set with Team/Key ID, authorization codes are exchanged for refresh tokens and revoked on account deletion.
