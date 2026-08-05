@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   Dimensions,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -92,13 +91,6 @@ export default function ProfileGuestAuth({
     }
   };
 
-  const handleApple = () => {
-    Alert.alert(
-      'Coming soon',
-      'Apple Sign-In is not available yet. Use Google or email to continue.',
-    );
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -148,18 +140,6 @@ export default function ProfileGuestAuth({
             ) : null}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.socialBtn, busy && styles.disabled]}
-            onPress={handleApple}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel="Continue with Apple">
-            <View style={styles.socialInner}>
-              <Ionicons name="logo-apple" size={22} color="#f8fafc" />
-              <Text style={styles.socialLabel}>Continue with Apple</Text>
-            </View>
-          </TouchableOpacity>
-
           <View style={styles.orRow}>
             <View style={styles.orLine} />
             <Text style={styles.orText}>OR</Text>
@@ -179,15 +159,7 @@ export default function ProfileGuestAuth({
             editable={!busy}
           />
 
-          <View style={styles.passwordLabelRow}>
-            <Text style={styles.fieldLabel}>Password</Text>
-            <TouchableOpacity
-              onPress={() => rootNavigate('ForgotPassword')}
-              disabled={busy}
-              hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-              <Text style={styles.forgotLink}>Forgot tactical plan?</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={[styles.fieldLabel, styles.passwordLabel]}>Password</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
@@ -387,18 +359,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 8,
   },
-  passwordLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  passwordLabel: {
     marginTop: 4,
-  },
-  forgotLink: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#67e8f9',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
   },
   input: {
     backgroundColor: '#020617',

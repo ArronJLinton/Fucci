@@ -172,11 +172,12 @@ type ContentReports struct {
 	ID             uuid.UUID
 	ReporterID     int32
 	ReportableType string
-	ReportableID   uuid.UUID
+	ReportableID   string
 	Reason         string
 	Description    sql.NullString
 	Status         string
 	CreatedAt      time.Time
+	ReportedUserID sql.NullInt32
 }
 
 type DebateAnalytics struct {

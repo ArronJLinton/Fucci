@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +66,13 @@ func nullStringPtr(ns sql.NullString) *string {
 	}
 	s := ns.String
 	return &s
+}
+
+func nullInt32OrNil(n sql.NullInt32) interface{} {
+	if !n.Valid {
+		return nil
+	}
+	return n.Int32
 }
 
 func matchStoryFromRow(row database.ListActiveMatchStoriesForTeamRow) userStoryPayload {
@@ -312,34 +320,14 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reportableType := strings.TrimSpace(req.ReportableType)
-	if reportableType != "story" {
-		respondWithError(w, http.StatusBadRequest, "reportable_type must be story")
+	if reportableType != "story" && reportableType != "debate_response" {
+		respondWithError(w, http.StatusBadRequest, "reportable_type must be story or debate_response")
 		return
 	}
 
 	reason := strings.TrimSpace(req.Reason)
 	if _, ok := allowedReportReasons[reason]; !ok {
 		respondWithError(w, http.StatusBadRequest, "invalid reason")
-		return
-	}
-
-	storyID, err := uuid.Parse(strings.TrimSpace(req.ReportableID))
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid reportable_id")
-		return
-	}
-
-	story, err := c.DB.GetMatchStoryByID(r.Context(), storyID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondWithError(w, http.StatusNotFound, "story not found")
-			return
-		}
-		respondWithError(w, http.StatusInternalServerError, "Failed to load story")
-		return
-	}
-	if !story.IsActive {
-		respondWithJSON(w, http.StatusOK, map[string]string{"status": "already_removed"})
 		return
 	}
 
@@ -351,10 +339,72 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var reportableID string
+	var reportedUserID sql.NullInt32
+
+	switch reportableType {
+	case "story":
+		storyID, err := uuid.Parse(strings.TrimSpace(req.ReportableID))
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "invalid reportable_id")
+			return
+		}
+
+		story, err := c.DB.GetMatchStoryByID(r.Context(), storyID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				respondWithError(w, http.StatusNotFound, "story not found")
+				return
+			}
+			respondWithError(w, http.StatusInternalServerError, "Failed to load story")
+			return
+		}
+		if !story.IsActive {
+			respondWithJSON(w, http.StatusOK, map[string]string{"status": "already_removed"})
+			return
+		}
+		if story.UserID == userID {
+			respondWithError(w, http.StatusBadRequest, "cannot report your own content")
+			return
+		}
+
+		reportableID = storyID.String()
+		reportedUserID = sql.NullInt32{Int32: story.UserID, Valid: true}
+
+	case "debate_response":
+		commentID, err := strconv.ParseInt(strings.TrimSpace(req.ReportableID), 10, 32)
+		if err != nil || commentID <= 0 {
+			respondWithError(w, http.StatusBadRequest, "invalid reportable_id")
+			return
+		}
+
+		comment, err := c.DB.GetComment(r.Context(), int32(commentID))
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				respondWithError(w, http.StatusNotFound, "comment not found")
+				return
+			}
+			respondWithError(w, http.StatusInternalServerError, "Failed to load comment")
+			return
+		}
+		if !comment.UserID.Valid {
+			respondWithError(w, http.StatusBadRequest, "comment has no author")
+			return
+		}
+		if comment.UserID.Int32 == userID {
+			respondWithError(w, http.StatusBadRequest, "cannot report your own content")
+			return
+		}
+
+		reportableID = strconv.FormatInt(commentID, 10)
+		reportedUserID = comment.UserID
+	}
+
 	report, err := c.DB.CreateContentReport(r.Context(), database.CreateContentReportParams{
 		ReporterID:     userID,
 		ReportableType: reportableType,
-		ReportableID:   storyID,
+		ReportableID:   reportableID,
+		ReportedUserID: reportedUserID,
 		Reason:         reason,
 		Description:    description,
 	})
@@ -366,7 +416,8 @@ func (c *Config) postContentReport(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"id":                report.ID.String(),
 		"reportable_type":   report.ReportableType,
-		"reportable_id":     report.ReportableID.String(),
+		"reportable_id":     report.ReportableID,
+		"reported_user_id":  nullInt32OrNil(report.ReportedUserID),
 		"reason":            report.Reason,
 		"status":            report.Status,
 		"story_deactivated": false,

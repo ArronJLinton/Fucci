@@ -195,19 +195,6 @@ export default function AccountScreen({
           <View style={styles.section}>
             <Text style={styles.accountHeading}>Account</Text>
 
-            <TouchableOpacity style={styles.settingsCard}>
-              <View style={styles.settingsCardIconWrap}>
-                <Ionicons name="people" size={16} color="#d9f99d" />
-              </View>
-              <View style={styles.settingsCardTextWrap}>
-                <Text style={styles.settingsCardTitle}>Following</Text>
-                <Text style={styles.settingsCardSub}>
-                  View teams and leagues you follow
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.settingsCard}
               onPress={handleOpenPlayerMode}
@@ -228,21 +215,6 @@ export default function AccountScreen({
               ) : (
                 <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
               )}
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingsCard}>
-              <View style={styles.settingsCardIconWrap}>
-                <Ionicons name="briefcase" size={16} color="#d9f99d" />
-              </View>
-              <View style={styles.settingsCardTextWrap}>
-                <Text style={styles.settingsCardTitle}>Team Manager</Text>
-                <Text style={styles.settingsCardSub}>
-                  {user?.role === 'team_manager'
-                    ? 'Manage your team tools'
-                    : 'Request team manager access'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
             </TouchableOpacity>
           </View>
         </ScrollView>

@@ -8,8 +8,6 @@ package database
 import (
 	"context"
 	"database/sql"
-
-	"github.com/google/uuid"
 )
 
 const createContentReport = `-- name: CreateContentReport :one
@@ -17,6 +15,7 @@ INSERT INTO content_reports (
     reporter_id,
     reportable_type,
     reportable_id,
+    reported_user_id,
     reason,
     description
 ) VALUES (
@@ -24,15 +23,17 @@ INSERT INTO content_reports (
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 )
-RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at
+RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at, reported_user_id
 `
 
 type CreateContentReportParams struct {
 	ReporterID     int32
 	ReportableType string
-	ReportableID   uuid.UUID
+	ReportableID   string
+	ReportedUserID sql.NullInt32
 	Reason         string
 	Description    sql.NullString
 }
@@ -42,6 +43,7 @@ func (q *Queries) CreateContentReport(ctx context.Context, arg CreateContentRepo
 		arg.ReporterID,
 		arg.ReportableType,
 		arg.ReportableID,
+		arg.ReportedUserID,
 		arg.Reason,
 		arg.Description,
 	)
@@ -55,6 +57,7 @@ func (q *Queries) CreateContentReport(ctx context.Context, arg CreateContentRepo
 		&i.Description,
 		&i.Status,
 		&i.CreatedAt,
+		&i.ReportedUserID,
 	)
 	return i, err
 }

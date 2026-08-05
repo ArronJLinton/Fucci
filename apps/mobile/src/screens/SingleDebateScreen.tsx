@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Linking,
+  Alert,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, useNavigation, RouteProp} from '@react-navigation/native';
@@ -31,7 +32,9 @@ import {
   createComment as apiCreateComment,
   setCommentVote,
   addCommentReaction,
+  userFacingApiMessage,
 } from '../services/api';
+import {reportDebateComment} from '../services/debateCommentReport';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {rootNavigate} from '../navigation/rootNavigation';
@@ -98,7 +101,7 @@ const SingleDebateScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const {match, debate} = route.params;
-  const {token, isLoggedIn} = useAuth();
+  const {token, isLoggedIn, user} = useAuth();
   const screenshotDebateSession =
     APP_STORE_SCREENSHOT_MODE && debate?.id === SCREENSHOT_MBAPPE_DEBATE_ID;
   const canParticipate = isLoggedIn || screenshotDebateSession;
@@ -489,11 +492,50 @@ const SingleDebateScreen = () => {
     }
   };
 
+  const handleReportComment = (commentId: number) => {
+    if (!token) {
+      setAuthGatePendingAction('report_comment');
+      return;
+    }
+    Alert.alert(
+      'Report comment?',
+      'Flag this comment for review by our moderation team.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await reportDebateComment(token, commentId);
+                Alert.alert(
+                  'Report submitted',
+                  'Thanks for helping keep Fucci safe.',
+                );
+              } catch (error) {
+                Alert.alert(
+                  'Could not report comment',
+                  userFacingApiMessage(error),
+                );
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
   const renderComment = (c: DebateComment, isSub?: boolean) => {
     const voteLoading = voteLoadingCommentId === c.id;
     const reactionLoading = reactionLoadingCommentId === c.id;
     const showPicker = showReactionPickerCommentId === c.id;
     const currentVote = c.current_user_vote ?? null;
+    const canReportComment =
+      isLoggedIn &&
+      !c.is_fucci_take &&
+      user?.id != null &&
+      c.user_id !== user.id;
     return (
       <View
         key={c.id}
@@ -578,6 +620,16 @@ const SingleDebateScreen = () => {
                 <Text style={styles.commentActionText}>Reply</Text>
               </TouchableOpacity>
             )}
+            {canReportComment ? (
+              <TouchableOpacity
+                onPress={() => handleReportComment(c.id)}
+                style={styles.commentActionBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Report comment">
+                <Ionicons name="flag-outline" size={14} color={MUTED} />
+                <Text style={styles.commentActionText}>Report</Text>
+              </TouchableOpacity>
+            ) : null}
             <View style={styles.reactionsRow}>
               {c.reactions?.map((r: ReactionCount, i: number) => (
                 <TouchableOpacity
