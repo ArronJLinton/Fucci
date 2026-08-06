@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Ionicons} from '@expo/vector-icons';
@@ -53,6 +53,7 @@ async function openExternalUrl(url: string, label: string) {
 
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const {logout: authLogout, isLoggedIn, token} = useAuth();
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
@@ -150,22 +151,6 @@ export default function SettingsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        {isLoggedIn ? (
-          <>
-            <SectionHeader icon="person" label="ACCOUNT SETTINGS" />
-            <View style={styles.card}>
-              <SettingsRow
-                icon="trash-outline"
-                title="Delete Account"
-                danger
-                last
-                onPress={handleDeleteAccount}
-                disabled={isDeletingAccount}
-              />
-            </View>
-          </>
-        ) : null}
-
         <PushNotificationSettings showHeader />
 
         <SectionHeader icon="help-circle" label="SUPPORT" />
@@ -193,11 +178,13 @@ export default function SettingsScreen() {
 
         {isLoggedIn ? (
           <TouchableOpacity
-            style={styles.logoutCta}
+            style={[styles.logoutCta, isDeletingAccount && styles.rowDisabled]}
             onPress={handleLogout}
-            activeOpacity={0.9}
-            disabled={isDeletingAccount}>
-            <Ionicons name="log-out-outline" size={22} color="#0f172a" />
+            activeOpacity={0.75}
+            disabled={isDeletingAccount}
+            accessibilityRole="button"
+            accessibilityLabel="Log out of session">
+            <Ionicons name="log-out-outline" size={22} color={LIME} />
             <Text style={styles.logoutCtaText}>LOGOUT OF SESSION</Text>
           </TouchableOpacity>
         ) : null}
@@ -209,8 +196,27 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
-        <View style={{height: 32}} />
+        <View style={{height: 24}} />
       </ScrollView>
+
+      {isLoggedIn ? (
+        <View
+          style={[
+            styles.deleteFooter,
+            {paddingBottom: Math.max(insets.bottom, 12) + 12},
+          ]}>
+          <TouchableOpacity
+            style={[styles.deleteCta, isDeletingAccount && styles.rowDisabled]}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.75}
+            disabled={isDeletingAccount}
+            accessibilityRole="button"
+            accessibilityLabel="Delete Account">
+            <Ionicons name="trash-outline" size={20} color={DANGER} />
+            <Text style={styles.deleteCtaText}>Delete Account</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -221,37 +227,6 @@ function SectionHeader({icon, label}: {icon: string; label: string}) {
       <Ionicons name={icon as any} size={16} color={LIME} />
       <Text style={styles.sectionHeaderText}>{label}</Text>
     </View>
-  );
-}
-
-function SettingsRow({
-  icon,
-  title,
-  onPress,
-  last,
-  danger,
-  disabled,
-}: {
-  icon: string;
-  title: string;
-  onPress: () => void;
-  last?: boolean;
-  danger?: boolean;
-  disabled?: boolean;
-}) {
-  const tint = danger ? DANGER : CYAN;
-  return (
-    <TouchableOpacity
-      style={[styles.row, !last && styles.rowBorder, disabled && styles.rowDisabled]}
-      onPress={onPress}
-      activeOpacity={0.75}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={title}>
-      <Ionicons name={icon as any} size={20} color={tint} />
-      <Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>
-      <Ionicons name="chevron-forward" size={18} color={MUTED} />
-    </TouchableOpacity>
   );
 }
 
@@ -347,12 +322,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginBottom: 20,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    gap: 12,
-  },
   supportRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -362,15 +331,6 @@ const styles = StyleSheet.create({
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(148,163,184,0.15)',
-  },
-  rowTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
-    color: TEXT,
-  },
-  rowTitleDanger: {
-    color: DANGER,
   },
   rowDisabled: {
     opacity: 0.5,
@@ -393,8 +353,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: LIME,
+    backgroundColor: CARD,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
     paddingVertical: 16,
     marginBottom: 8,
   },
@@ -402,7 +364,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1.2,
-    color: '#0f172a',
+    color: LIME,
+  },
+  deleteFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  deleteCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: CARD,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingVertical: 16,
+  },
+  deleteCtaText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: DANGER,
   },
   deletingRow: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   launchGoogleAuthBrowserFlow,
   resolvePostGoogleAuthRoute,
 } from '../services/googleAuth';
+import {isAppleAuthAvailable, launchAppleSignIn} from '../services/appleAuth';
 import {
   dispatchAfterSignInSuccess,
   dispatchResetToMainProfileTab,
@@ -63,10 +64,26 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [pending, setPending] = useState<'idle' | 'email' | 'google'>('idle');
+  const [pending, setPending] = useState<'idle' | 'email' | 'google' | 'apple'>(
+    'idle',
+  );
   const submitting = pending !== 'idle';
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const ok = await isAppleAuthAvailable();
+      if (!cancelled) {
+        setAppleAvailable(ok);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -150,6 +167,35 @@ export default function SignUpScreen() {
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : 'Google sign up failed. Try again.';
+      setError(msg);
+    } finally {
+      setPending('idle');
+    }
+  };
+
+  const handleAppleSignUp = async () => {
+    setError(null);
+    setPending('apple');
+    try {
+      const authResult = await launchAppleSignIn();
+      if (authResult.kind === 'cancel' || authResult.kind === 'unavailable') {
+        return;
+      }
+      if (authResult.kind === 'error') {
+        setError(authResult.message);
+        return;
+      }
+
+      await setAuth(authResult.token, authResult.user);
+      const destination = resolvePostGoogleAuthRoute(authResult.isNew);
+      if (destination === 'CreatePlayerProfile') {
+        dispatchAfterSignInSuccess({replaceWithCreatePlayerProfile: true});
+      } else {
+        dispatchAfterSignInSuccess({returnToDebate});
+      }
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : 'Apple sign up failed. Try again.';
       setError(msg);
     } finally {
       setPending('idle');
@@ -316,6 +362,23 @@ export default function SignUpScreen() {
               <ActivityIndicator color="#e2e8f0" style={styles.socialSpinner} />
             ) : null}
           </TouchableOpacity>
+
+          {appleAvailable ? (
+            <TouchableOpacity
+              style={[styles.socialBtn, submitting && styles.disabled]}
+              onPress={handleAppleSignUp}
+              disabled={submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Continue with Apple">
+              <View style={styles.socialInner}>
+                <Ionicons name="logo-apple" size={22} color="#f8fafc" />
+                <Text style={styles.socialLabel}>Continue with Apple</Text>
+              </View>
+              {pending === 'apple' ? (
+                <ActivityIndicator color="#e2e8f0" style={styles.socialSpinner} />
+              ) : null}
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity
             style={styles.footerRow}

@@ -4713,6 +4713,11 @@ expect@^29.0.0, expect@^29.7.0:
     jest-message-util "^29.7.0"
     jest-util "^29.7.0"
 
+expo-apple-authentication@~8.0.8:
+  version "8.0.8"
+  resolved "https://registry.yarnpkg.com/expo-apple-authentication/-/expo-apple-authentication-8.0.8.tgz#4982c99743ebf45bc961c5008927839aa1022310"
+  integrity sha512-TwCHWXYR1kS0zaeV7QZKLWYluxsvqL31LFJubzK30njZqeWoWO89HZ8nZVaeXbFV1LrArKsze4BmMb+94wS0AQ==
+
 expo-application@~7.0.8:
   version "7.0.8"
   resolved "https://registry.yarnpkg.com/expo-application/-/expo-application-7.0.8.tgz#320af0d6c39b331456d3bc833b25763c702d23db"
@@ -4750,7 +4755,7 @@ expo-camera@~17.0.10:
   dependencies:
     invariant "^2.2.4"
 
-expo-constants@~18.0.11, expo-constants@~18.0.12, expo-constants@~18.0.13:
+expo-constants@18.0.13, expo-constants@~18.0.11, expo-constants@~18.0.12, expo-constants@~18.0.13:
   version "18.0.13"
   resolved "https://registry.yarnpkg.com/expo-constants/-/expo-constants-18.0.13.tgz#0117f1f3d43be7b645192c0f4f431fb4efc4803d"
   integrity sha512-FnZn12E1dRYKDHlAdIyNFhBurKTS3F9CrfrBDJI5m3D7U17KBHMQ6JEfYlSj7LG7t+Ulr+IKaj58L1k5gBwTcQ==

@@ -20,8 +20,8 @@ import (
 
 // Regexes match sqlc-generated queries used by googleAuthFromCode (substring match).
 var (
-	rxSQLGoogleGetByGoogleID   = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE google_id = \$1::varchar\(255\)`
-	rxSQLGoogleGetByEmailLower = `SELECT id, firstname, lastname, email, created_at, updated_at, is_admin, display_name, avatar_url, google_id, auth_provider, locale, last_login_at, is_verified, is_active, role FROM users WHERE email = \$1 LIMIT 1`
+	rxSQLGoogleGetByGoogleID   = `FROM users WHERE google_id = \$1::varchar\(255\)`
+	rxSQLGoogleGetByEmailLower = `FROM users WHERE email = \$1 LIMIT 1`
 	rxSQLGoogleCreateUser      = `INSERT INTO users \(firstname, lastname, email, google_id, auth_provider, avatar_url, locale, is_admin, is_active, is_verified, last_login_at\)`
 	rxSQLGoogleUpdateLogin     = `avatar_url = CASE WHEN \$1::text <> '' THEN \$1 ELSE avatar_url END`
 	rxSQLGoogleLink            = `COALESCE\(NULLIF\(google_id::text, ''\), \$1::text\)::varchar\(255\)`
@@ -30,7 +30,7 @@ var (
 var sqlGoogleAuthUserColumns = []string{
 	"id", "firstname", "lastname", "email", "created_at", "updated_at", "is_admin",
 	"display_name", "avatar_url", "google_id", "auth_provider", "locale", "last_login_at",
-	"is_verified", "is_active", "role",
+	"is_verified", "is_active", "role", "apple_id", "apple_refresh_token",
 }
 
 func sqlMockGoogleUserFullRow(id int32, firstname, lastname, email, avatarURL, googleSub, authProv string, ts time.Time) *sqlmock.Rows {
@@ -45,6 +45,8 @@ func sqlMockGoogleUserFullRow(id int32, firstname, lastname, email, avatarURL, g
 		sql.NullBool{Bool: true, Valid: true},
 		sql.NullBool{Bool: true, Valid: true},
 		sql.NullString{String: "fan", Valid: true},
+		sql.NullString{},
+		sql.NullString{},
 	)
 }
 
@@ -60,6 +62,8 @@ func sqlMockGoogleUserInactiveRow(id int32, firstname, lastname, email, avatarUR
 		sql.NullBool{Bool: true, Valid: true},
 		sql.NullBool{Bool: false, Valid: true},
 		sql.NullString{String: "fan", Valid: true},
+		sql.NullString{},
+		sql.NullString{},
 	)
 }
 
@@ -643,6 +647,7 @@ func TestHandleGoogleAuth_EmailPasswordAccountReturns409(t *testing.T) {
 			sql.NullBool{Bool: true, Valid: true},
 			sql.NullBool{Bool: true, Valid: true},
 			sql.NullString{String: "fan", Valid: true},
+			sql.NullString{}, sql.NullString{},
 		))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
@@ -835,6 +840,7 @@ func TestHandleGoogleAuth_EmailFallbackUpdateFailureReturns500(t *testing.T) {
 			sql.NullString{}, sql.NullTime{},
 			sql.NullBool{}, sql.NullBool{},
 			sql.NullString{String: "fan", Valid: true},
+			sql.NullString{}, sql.NullString{},
 		))
 	mock.ExpectQuery(rxSQLGoogleLink).
 		WithArgs("sub-fallback", "https://cdn.example/new-avatar.jpg", int32(77)).
@@ -896,6 +902,7 @@ func TestHandleGoogleAuth_EmailMatchedDifferentGoogleIDReturns409(t *testing.T) 
 			sql.NullString{}, sql.NullTime{},
 			sql.NullBool{}, sql.NullBool{},
 			sql.NullString{String: "fan", Valid: true},
+			sql.NullString{}, sql.NullString{},
 		))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}
@@ -957,6 +964,7 @@ func TestHandleGoogleAuth_EmailFallbackNonGoogleProviderReturns409(t *testing.T)
 			sql.NullString{}, sql.NullTime{},
 			sql.NullBool{}, sql.NullBool{},
 			sql.NullString{String: "fan", Valid: true},
+			sql.NullString{}, sql.NullString{},
 		))
 
 	body := map[string]string{"code": "auth-code", "redirect_uri": "fucci://auth"}

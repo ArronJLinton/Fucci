@@ -80,6 +80,11 @@ type GoogleVerifier interface {
 	VerifyIDToken(ctx context.Context, token string) (auth.GoogleIDTokenClaims, error)
 }
 
+// AppleIdentityTokenVerifier verifies Sign in with Apple identity tokens.
+type AppleIdentityTokenVerifier interface {
+	VerifyIdentityToken(ctx context.Context, identityToken string) (auth.AppleIDTokenClaims, error)
+}
+
 // InitJWT initializes JWT authentication with the provided secret
 func InitJWT(secret string) error {
 	return auth.InitJWTAuth(secret)
@@ -104,6 +109,12 @@ type Config struct {
 	CloudinaryAPIKey              string
 	CloudinaryAPISecret           string
 	CloudinaryUploadPreset        string
+	// AppleClientID is the native Sign in with Apple audience (iOS bundle id).
+	AppleClientID string
+	// Optional SIWA key material for authorization-code exchange and token revoke on account delete.
+	AppleTeamID     string
+	AppleKeyID      string
+	ApplePrivateKey string
 	Cache                         cache.CacheInterface
 	APIFootballBaseURL            string
 	NewsBaseURL                   string // optional; when set, news client uses this (e.g. for tests)
@@ -117,6 +128,11 @@ type Config struct {
 	// Initialized once via googleVerifierOnce to avoid new http.Client allocations per request.
 	lazyGoogleVerifier GoogleVerifier
 	googleVerifierOnce sync.Once
+
+	// AppleVerifier optional override for unit tests; nil => lazyAppleVerifier from AppleClientID.
+	AppleVerifier     AppleIdentityTokenVerifier
+	lazyAppleVerifier AppleIdentityTokenVerifier
+	appleVerifierOnce sync.Once
 
 	// Optional test doubles; when set, handlers use them instead of DB for the corresponding reads.
 	CardVoteReader  CardVoteReader
@@ -190,6 +206,7 @@ func New(c *Config) http.Handler {
 	authRouter.Get("/google/start", c.handleGoogleOAuthStart)
 	authRouter.Get("/google/callback", c.handleGoogleOAuthCallback)
 	authRouter.Post("/google/exchange", c.handleGoogleOAuthExchange)
+	authRouter.Post("/apple", c.handleAppleAuth)
 
 	// User routes (authentication required)
 	userRouter := chi.NewRouter()

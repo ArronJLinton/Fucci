@@ -16,6 +16,12 @@ type Config struct {
 	// GOOGLE_OAUTH_ALLOW_DEV_RETURN_URLS allows exp:// and http(s):// localhost/private-LAN return URLs for /auth/google/start.
 	// When unset, this is true for ENVIRONMENT development|dev|local and false otherwise (set ENVIRONMENT=production when deploying).
 	GOOGLE_OAUTH_ALLOW_DEV_RETURN_URLS bool
+	// APPLE_CLIENT_ID is the Sign in with Apple audience (iOS bundle id, e.g. com.magistridev.fucci).
+	APPLE_CLIENT_ID string
+	// Optional SIWA .p8 key material for auth-code exchange and token revoke on account delete.
+	APPLE_TEAM_ID     string
+	APPLE_KEY_ID      string
+	APPLE_PRIVATE_KEY string
 	CLOUDINARY_CLOUD_NAME              string
 	CLOUDINARY_API_KEY                 string
 	CLOUDINARY_API_SECRET              string

@@ -20,3 +20,5 @@ sql:
         overrides:
           - db_type: "auth_provider_type"
             go_type: "string"
+          - column: "users.apple_refresh_token"
+            go_struct_tag: 'json:"-"'

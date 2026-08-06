@@ -13,6 +13,7 @@
       "requireFullScreen": true,
       "bundleIdentifier": "com.magistridev.fucci",
       "buildNumber": "6",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Fucci uses the camera so you can take a new profile photo or capture photos and videos for Match Stories.",
         "NSPhotoLibraryUsageDescription": "Fucci uses your photo library so you can choose an existing image as your profile photo or add media to Match Stories.",
@@ -49,6 +50,7 @@
           "imageWidth": 1284
         }
       ],
+      "expo-apple-authentication",
       [
         "expo-camera",
         {
