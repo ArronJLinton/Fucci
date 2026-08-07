@@ -14,10 +14,12 @@ import (
 var jwtSecret []byte
 
 type JWTClaims struct {
-	UserID    int32  `json:"user_id"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	ExpiresAt int64  `json:"exp"`
+	UserID int32  `json:"user_id"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
+	// Expiration must live only on RegisteredClaims. A parallel `ExpiresAt int64`
+	// tagged `json:"exp"` shadows RegisteredClaims during decode, leaves
+	// RegisteredClaims.ExpiresAt nil, and makes jwt/v5 skip expiry checks.
 	jwt.RegisteredClaims
 }
 
@@ -32,12 +34,14 @@ func InitJWTAuth(secret string) error {
 
 // GenerateToken generates a JWT token for a user
 func GenerateToken(userID int32, email, role string, expiration time.Duration) (string, error) {
+	if expiration <= 0 {
+		return "", errors.New("token expiration must be positive")
+	}
 	now := time.Now()
 	claims := &JWTClaims{
-		UserID:    userID,
-		Email:     email,
-		Role:      role,
-		ExpiresAt: now.Add(expiration).Unix(),
+		UserID: userID,
+		Email:  email,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(expiration)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -51,12 +55,18 @@ func GenerateToken(userID int32, email, role string, expiration time.Duration) (
 
 // ValidateToken validates a JWT token and returns the claims
 func ValidateToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return jwtSecret, nil
-	})
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&JWTClaims{},
+		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return jwtSecret, nil
+		},
+		jwt.WithValidMethods([]string{"HS256"}),
+		jwt.WithExpirationRequired(),
+	)
 
 	if err != nil {
 		return nil, err
