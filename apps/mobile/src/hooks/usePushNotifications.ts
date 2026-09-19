@@ -18,6 +18,35 @@ import {
   waitForRootNavigationReady,
 } from '../navigation/navigatePushTarget';
 
+export async function consumePushNotificationResponse(
+  response: Notifications.NotificationResponse,
+  token: string | null,
+): Promise<void> {
+  try {
+    await waitForRootNavigationReady();
+    const raw = response.notification.request.content.data;
+    const data = normalizePushNotificationData(
+      raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {},
+    );
+    const context = await prefetchPushContext(data, {
+      token,
+      queryClient,
+    });
+    const target = resolvePushNavigation(data, context);
+    if (target) {
+      navigatePushTarget(target);
+    }
+  } catch (e) {
+    console.warn('[push] deep link failed', e);
+  } finally {
+    try {
+      await Notifications.clearLastNotificationResponseAsync();
+    } catch (e) {
+      console.warn('[push] failed to clear handled notification response', e);
+    }
+  }
+}
+
 /**
  * Completes pending opt-in after login, refreshes token when opted in, handles notification taps.
  */
@@ -65,23 +94,7 @@ export function usePushNotifications(): void {
 
       void (async () => {
         try {
-          await waitForRootNavigationReady();
-          const raw = response.notification.request.content.data;
-          const data = normalizePushNotificationData(
-            raw && typeof raw === 'object'
-              ? (raw as Record<string, unknown>)
-              : {},
-          );
-          const context = await prefetchPushContext(data, {
-            token,
-            queryClient,
-          });
-          const target = resolvePushNavigation(data, context);
-          if (target) {
-            navigatePushTarget(target);
-          }
-        } catch (e) {
-          console.warn('[push] deep link failed', e);
+          await consumePushNotificationResponse(response, token);
         } finally {
           handlingRef.current = false;
         }
