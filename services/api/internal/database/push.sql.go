@@ -58,6 +58,22 @@ func (q *Queries) DeleteOldestPushDeviceForUser(ctx context.Context, userID int3
 	return err
 }
 
+const deletePushSendLedger = `-- name: DeletePushSendLedger :exec
+DELETE FROM push_send_ledger
+WHERE user_id = $1 AND campaign_key = $2 AND local_date = $3
+`
+
+type DeletePushSendLedgerParams struct {
+	UserID      int32
+	CampaignKey string
+	LocalDate   time.Time
+}
+
+func (q *Queries) DeletePushSendLedger(ctx context.Context, arg DeletePushSendLedgerParams) error {
+	_, err := q.db.ExecContext(ctx, deletePushSendLedger, arg.UserID, arg.CampaignKey, arg.LocalDate)
+	return err
+}
+
 const deletePushDeviceForUser = `-- name: DeletePushDeviceForUser :exec
 DELETE FROM push_devices
 WHERE id = $1 AND user_id = $2
