@@ -52,6 +52,12 @@ func (f *fakePushStore) TryInsertPushSendLedger(ctx context.Context, arg databas
 	return database.PushSendLedger{ID: 1, UserID: arg.UserID, CampaignKey: arg.CampaignKey, LocalDate: arg.LocalDate}, nil
 }
 
+func (f *fakePushStore) DeletePushSendLedger(ctx context.Context, arg database.DeletePushSendLedgerParams) error {
+	key := arg.CampaignKey + "|" + arg.LocalDate.Format("2006-01-02")
+	delete(f.ledgerKeys, key)
+	return nil
+}
+
 func (f *fakePushStore) InsertPushDeliveryLog(ctx context.Context, arg database.InsertPushDeliveryLogParams) (database.PushDeliveryLog, error) {
 	row := database.PushDeliveryLog{
 		ID:           int32(len(f.deliveryLog) + 1),

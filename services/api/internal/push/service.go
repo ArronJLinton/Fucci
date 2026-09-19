@@ -15,6 +15,7 @@ type Store interface {
 	ListEnabledPushDevicesForUser(ctx context.Context, userID int32) ([]database.PushDevices, error)
 	GetPushPreferences(ctx context.Context, userID int32) (database.PushPreferences, error)
 	TryInsertPushSendLedger(ctx context.Context, arg database.TryInsertPushSendLedgerParams) (database.PushSendLedger, error)
+	DeletePushSendLedger(ctx context.Context, arg database.DeletePushSendLedgerParams) error
 	InsertPushDeliveryLog(ctx context.Context, arg database.InsertPushDeliveryLogParams) (database.PushDeliveryLog, error)
 	DisablePushDevice(ctx context.Context, id int32) error
 }
@@ -117,9 +118,13 @@ func (s *Service) SendToUser(ctx context.Context, req SendRequest) error {
 
 	results, err := s.Sender.Send(ctx, messages)
 	if err != nil {
+		if !req.SkipDedupe {
+			s.releasePushSendLedger(ctx, req, localDate, "send error")
+		}
 		return err
 	}
 
+	delivered := false
 	for i, res := range results {
 		var deviceID sql.NullInt32
 		if i < len(devices) {
@@ -135,6 +140,8 @@ func (s *Service) SendToUser(ctx context.Context, req SendRequest) error {
 			if res.Error != "" {
 				errMsg = sql.NullString{String: res.Error, Valid: true}
 			}
+		} else {
+			delivered = true
 		}
 		var ticket sql.NullString
 		if res.TicketID != "" {
@@ -150,7 +157,25 @@ func (s *Service) SendToUser(ctx context.Context, req SendRequest) error {
 			ErrorMessage: errMsg,
 		})
 	}
+	if !delivered {
+		if !req.SkipDedupe {
+			s.releasePushSendLedger(ctx, req, localDate, "all tickets failed")
+		}
+		return fmt.Errorf("expo push accepted request but all tickets failed")
+	}
 	return nil
+}
+
+func (s *Service) releasePushSendLedger(ctx context.Context, req SendRequest, localDate time.Time, reason string) {
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := s.Store.DeletePushSendLedger(releaseCtx, database.DeletePushSendLedgerParams{
+		UserID:      req.UserID,
+		CampaignKey: req.CampaignKey,
+		LocalDate:   localDate,
+	}); err != nil {
+		log.Printf("[push] SendToUser user=%d campaign=%s: release ledger after %s: %v", req.UserID, req.CampaignKey, reason, err)
+	}
 }
 
 func (s *Service) logSkipped(ctx context.Context, req SendRequest, deviceID sql.NullInt32, status, msg string) {
