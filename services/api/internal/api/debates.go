@@ -729,6 +729,10 @@ func (f *generateSetRateLimitFallback) allow(matchID string) bool {
 func (c *Config) createDebate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	if !c.requireDebateAdmin(w, r) {
+		return
+	}
+
 	var req CreateDebateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
@@ -996,6 +1000,10 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 
 func (c *Config) createDebateCard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	if !c.requireDebateAdmin(w, r) {
+		return
+	}
 
 	var req CreateDebateCardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
