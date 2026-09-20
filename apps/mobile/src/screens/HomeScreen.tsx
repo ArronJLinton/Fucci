@@ -23,7 +23,7 @@ import {resolveHomeScreenDefaultLeague} from '../services/matchesDefaultLeague';
 import {WORLD_CUP_ONLY_MODE} from '../config/featureFlags';
 import {matchesForLocalDateQueryKey} from '../queries/keys';
 import type {Match} from '../types/match';
-import {hasLiveMatchInList} from '../utils/matchStatus';
+import {getMatchRefetchInterval} from '../utils/matchStatus';
 import {
   APP_STORE_SCREENSHOT_MODE,
   fetchScreenshotMatchday,
@@ -134,8 +134,11 @@ const DateTabScreen: React.FC<DateTabScreenProps> = ({
     refetchInterval: query =>
       APP_STORE_SCREENSHOT_MODE
         ? false
-        : isTodayTab && isSelected && hasLiveMatchInList(query.state.data ?? [])
-          ? MATCHES_LIVE_REFETCH_MS
+        : isTodayTab && isSelected
+          ? getMatchRefetchInterval(
+              query.state.data ?? [],
+              MATCHES_LIVE_REFETCH_MS,
+            )
           : false,
   });
 
