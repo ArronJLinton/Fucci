@@ -130,8 +130,14 @@ export function promptModerationActions(opts: {
   targetUserId: number;
   reportableType: ReportableType;
   reportableId: string;
+  /** Fired after a successful report when `onReported` is not set. */
   onReportedOrBlocked?: () => void;
+  onReported?: () => void;
+  /** Fired after a successful block when set; otherwise `onReportedOrBlocked`. */
+  onBlocked?: () => void;
 }): void {
+  const afterReport = opts.onReported ?? opts.onReportedOrBlocked;
+  const afterBlock = opts.onBlocked ?? opts.onReportedOrBlocked;
   Alert.alert('Safety options', 'Help keep Fucci free of abuse.', [
     {
       text: 'Report content',
@@ -140,7 +146,7 @@ export function promptModerationActions(opts: {
           token: opts.token,
           reportableType: opts.reportableType,
           reportableId: opts.reportableId,
-          onSuccess: opts.onReportedOrBlocked,
+          onSuccess: afterReport,
         }),
     },
     {
@@ -151,7 +157,7 @@ export function promptModerationActions(opts: {
           reportableType: 'avatar',
           reportableId: String(opts.targetUserId),
           title: 'Report avatar',
-          onSuccess: opts.onReportedOrBlocked,
+          onSuccess: afterReport,
         }),
     },
     {
@@ -163,7 +169,7 @@ export function promptModerationActions(opts: {
           blockedUserId: opts.targetUserId,
           reportableType: opts.reportableType,
           reportableId: opts.reportableId,
-          onSuccess: opts.onReportedOrBlocked,
+          onSuccess: afterBlock,
         }),
     },
     {text: 'Cancel', style: 'cancel'},

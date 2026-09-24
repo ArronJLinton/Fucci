@@ -211,7 +211,7 @@ export default function MatchTeamShortsScreen() {
         targetUserId: story.user_id,
         reportableType: 'story',
         reportableId: story.id,
-        onReportedOrBlocked: () => {
+        onReported: () => {
           setRemovedFanIds(prev => new Set(prev).add(story.id));
           if (params.matchId != null) {
             void queryClient.invalidateQueries({
@@ -219,9 +219,25 @@ export default function MatchTeamShortsScreen() {
             });
           }
         },
+        onBlocked: () => {
+          const authorStoryIds = (params.userStories ?? [])
+            .filter(item => item.user_id === story.user_id)
+            .map(item => item.id);
+          setRemovedFanIds(prev => {
+            const next = new Set(prev);
+            authorStoryIds.forEach(id => next.add(id));
+            next.add(story.id);
+            return next;
+          });
+          if (params.matchId != null) {
+            void queryClient.invalidateQueries({
+              queryKey: matchShortsQueryKey(params.matchId, user?.id),
+            });
+          }
+        },
       });
     },
-    [params.matchId, queryClient, token],
+    [params.matchId, params.userStories, queryClient, token, user?.id],
   );
 
   const onDeleteStory = useCallback(

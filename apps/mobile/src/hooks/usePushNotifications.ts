@@ -22,7 +22,7 @@ import {
  * Completes pending opt-in after login, refreshes token when opted in, handles notification taps.
  */
 export function usePushNotifications(): void {
-  const {token, isLoggedIn, isReady} = useAuth();
+  const {token, isLoggedIn, isReady, user} = useAuth();
   const registeredRef = useRef(false);
   const handledNotificationIdRef = useRef<string | null>(null);
   const handlingRef = useRef(false);
@@ -74,6 +74,7 @@ export function usePushNotifications(): void {
           );
           const context = await prefetchPushContext(data, {
             token,
+            viewerId: user?.id,
             queryClient,
           });
           const target = resolvePushNavigation(data, context);
@@ -97,7 +98,7 @@ export function usePushNotifications(): void {
     });
 
     return () => sub.remove();
-  }, [token]);
+  }, [token, user?.id]);
 
   useEffect(() => {
     const onAppState = (state: AppStateStatus) => {

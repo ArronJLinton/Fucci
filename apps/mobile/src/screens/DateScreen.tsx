@@ -11,6 +11,7 @@ import {
   type ImageStyle,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
+import {useAuth} from '../context/AuthContext';
 import {useQuery} from '@tanstack/react-query';
 import type {Match} from '../types/match';
 import type {NavigationProp} from '../types/navigation';
@@ -241,12 +242,13 @@ const MatchCard: React.FC<{match: Match; featuredLayout: boolean}> = ({
   featuredLayout,
 }) => {
   const navigation = useNavigation<NavigationProp>();
+  const {token, user} = useAuth();
   const isMountedRef = useRef(true);
   const matchId = match.fixture.id;
 
   const {data: matchShortsData} = useQuery({
-    queryKey: matchShortsQueryKey(matchId),
-    queryFn: () => fetchMatchShorts(matchId),
+    queryKey: matchShortsQueryKey(matchId, user?.id),
+    queryFn: () => fetchMatchShorts(matchId, token),
     staleTime: MATCH_SHORTS_STALE_MS,
   });
 

@@ -3,8 +3,17 @@ import {makeApiRequest} from './api';
 /** Aligned with server Redis TTL (`internal/cache.YouTubeShortsTTL` = 24h). */
 export const MATCH_SHORTS_STALE_MS = 24 * 60 * 60 * 1000;
 
-export const matchShortsQueryKey = (matchId: number) =>
-  ['matchShorts', matchId] as const;
+/**
+ * Anonymous and signed-in viewers must not share a cache entry.
+ * The shorts payload is filtered by the viewer's blocks, and the TTL is 24h.
+ */
+export const matchShortsQueryKey = (
+  matchId: number,
+  viewerId?: number | null,
+) =>
+  viewerId != null && viewerId > 0
+    ? (['matchShorts', matchId, viewerId] as const)
+    : (['matchShorts', matchId] as const);
 
 export type YouTubeShort = {
   video_id: string;
@@ -59,8 +68,18 @@ export type MatchShortsResponse = {
   };
 };
 
-export function fetchMatchShorts(matchId: number): Promise<MatchShortsResponse> {
-  return makeApiRequest(`/matches/${matchId}/stories/shorts`, 'GET');
+export function fetchMatchShorts(
+  matchId: number,
+  token?: string | null,
+): Promise<MatchShortsResponse> {
+  const auth = token?.trim();
+  if (!auth) {
+    return makeApiRequest(`/matches/${matchId}/stories/shorts`, 'GET');
+  }
+  // OptionalAuth on the server hides stories from users this viewer has blocked.
+  return makeApiRequest(`/matches/${matchId}/stories/shorts`, 'GET', {
+    headers: {Authorization: `Bearer ${auth}`},
+  });
 }
 
 export function hasTeamShorts(

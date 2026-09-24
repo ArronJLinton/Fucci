@@ -19,7 +19,11 @@ import {Ionicons} from '@expo/vector-icons';
 import {useQuery} from '@tanstack/react-query';
 import type {RootStackParamList, AuthPendingAction} from '../types/navigation';
 import type {DebateComment, DebateCard, ReactionCount} from '../types/debate';
-import {fetchDebateById, setCardVote} from '../services/debate';
+import {
+  fetchDebateById,
+  omitBlockedAuthorComments,
+  setCardVote,
+} from '../services/debate';
 import {
   APP_STORE_SCREENSHOT_MODE,
   getScreenshotDebateById,
@@ -226,14 +230,14 @@ const SingleDebateScreen = () => {
           return;
         }
       }
-      const list = await listComments(debateId);
+      const list = await listComments(debateId, token);
       setComments(list);
     } catch (_e) {
       setCommentsError('Could not load comments. Tap Retry to try again.');
     } finally {
       setCommentsLoading(false);
     }
-  }, [debate?.id]);
+  }, [debate?.id, token]);
 
   useEffect(() => {
     loadComments();
@@ -503,8 +507,7 @@ const SingleDebateScreen = () => {
       targetUserId: comment.user_id,
       reportableType: 'debate_response',
       reportableId: String(comment.id),
-      onReportedOrBlocked: () => {
-        // Hide from local thread immediately
+      onReported: () => {
         setComments(prev =>
           prev
             .filter(c => c.id !== comment.id)
@@ -515,6 +518,9 @@ const SingleDebateScreen = () => {
               ),
             })),
         );
+      },
+      onBlocked: () => {
+        setComments(prev => omitBlockedAuthorComments(prev, comment.user_id));
       },
     });
   };
