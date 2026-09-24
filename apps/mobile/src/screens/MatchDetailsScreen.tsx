@@ -29,6 +29,7 @@ import DebateScreen from './DebateScreen';
 import {TableScreen} from './TableScreen';
 import {generateDebateSet} from '../services/api';
 import {MatchDetailsScrollProvider} from '../context/MatchDetailsScrollContext';
+import {useAuth} from '../context/AuthContext';
 import {
   MATCH_CENTER_BG,
   MATCH_CENTER_BLACK,
@@ -123,9 +124,10 @@ const MatchDetailsScreen = () => {
   const isMountedRef = useRef(true);
 
   const matchId = match.fixture.id;
+  const {token, user} = useAuth();
   const {data: matchShortsData} = useQuery({
-    queryKey: matchShortsQueryKey(matchId),
-    queryFn: () => fetchMatchShorts(matchId),
+    queryKey: matchShortsQueryKey(matchId, user?.id),
+    queryFn: () => fetchMatchShorts(matchId, token),
     staleTime: MATCH_SHORTS_STALE_MS,
   });
 

@@ -22,6 +22,18 @@ describe('matchShortsApi', () => {
     it('keys by match fixture id', () => {
       expect(matchShortsQueryKey(1489391)).toEqual(['matchShorts', 1489391]);
     });
+
+    it('separates signed-in viewers from the anonymous cache', () => {
+      expect(matchShortsQueryKey(1489391, 42)).toEqual([
+        'matchShorts',
+        1489391,
+        42,
+      ]);
+      expect(matchShortsQueryKey(1489391, null)).toEqual([
+        'matchShorts',
+        1489391,
+      ]);
+    });
   });
 
   describe('parseYouTubeDurationSeconds', () => {
@@ -222,6 +234,20 @@ describe('matchShortsApi', () => {
       );
       expect(res.match_id).toBe('1489391');
       expect(res.teams.home.lookup_key).toBe('united states');
+    });
+
+    it('sends the viewer token so blocked fan stories can be filtered', async () => {
+      const makeApiRequest = jest.spyOn(api, 'makeApiRequest').mockResolvedValue({
+        match_id: '1',
+        teams: {home: {lookup_key: 'a', has_shorts: false, shorts: []}, away: {lookup_key: 'b', has_shorts: false, shorts: []}},
+      });
+
+      await fetchMatchShorts(1, 'session-token');
+      expect(makeApiRequest).toHaveBeenCalledWith(
+        '/matches/1/stories/shorts',
+        'GET',
+        {headers: {Authorization: 'Bearer session-token'}},
+      );
     });
   });
 

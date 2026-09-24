@@ -156,11 +156,35 @@ export const setCardVote = async (
   }
 };
 
-/** GET /debates/:id/comments — list comments with subcomments, net_score, reactions */
+/**
+ * Drop a blocked author's comments. A blocked top-level comment takes its
+ * replies with it, matching GET /debates/:id/comments once the viewer is known.
+ */
+export function omitBlockedAuthorComments(
+  comments: DebateComment[],
+  blockedUserId: number,
+): DebateComment[] {
+  return comments
+    .filter(comment => comment.user_id !== blockedUserId)
+    .map(comment => ({
+      ...comment,
+      subcomments: (comment.subcomments ?? []).filter(
+        sub => sub.user_id !== blockedUserId,
+      ),
+    }));
+}
+
+/** GET /debates/:id/comments — list comments with subcomments, net_score, reactions.
+ * Pass `token` when signed in so the server omits authors the viewer has blocked.
+ */
 export const listComments = async (
   debateId: number,
+  token?: string | null,
 ): Promise<DebateComment[]> => {
-  const data = await makeApiRequest(`/debates/${debateId}/comments`, 'GET');
+  const auth = token?.trim();
+  const data = await makeApiRequest(`/debates/${debateId}/comments`, 'GET', {
+    headers: auth ? {Authorization: `Bearer ${auth}`} : undefined,
+  });
   return Array.isArray(data) ? data : [];
 };
 

@@ -105,10 +105,15 @@ export async function resolveMatchForPush(
 async function prefetchMatchShorts(
   queryClient: QueryClient,
   matchId: number,
+  opts?: {token?: string | null; viewerId?: number | null},
 ): Promise<void> {
+  const viewerId =
+    opts?.viewerId != null && opts.viewerId > 0 ? opts.viewerId : undefined;
+  const token = opts?.token?.trim();
   await queryClient.prefetchQuery({
-    queryKey: matchShortsQueryKey(matchId),
-    queryFn: () => fetchMatchShorts(matchId),
+    queryKey: matchShortsQueryKey(matchId, viewerId),
+    queryFn: () =>
+      token ? fetchMatchShorts(matchId, token) : fetchMatchShorts(matchId),
     staleTime: MATCH_SHORTS_STALE_MS,
     gcTime: MATCH_SHORTS_STALE_MS,
   });
@@ -117,7 +122,7 @@ async function prefetchMatchShorts(
 /** Warm debate/match data before navigating from a push tap. */
 export async function prefetchPushContext(
   data: PushNotificationData,
-  opts: {token?: string | null; queryClient: QueryClient},
+  opts: {token?: string | null; viewerId?: number | null; queryClient: QueryClient},
 ): Promise<PushPrefetchContext> {
   const params = data.params ?? {};
   const route = data.route ?? data.type;
@@ -149,7 +154,10 @@ export async function prefetchPushContext(
       context.match = await resolveMatchForPush(opts.queryClient, matchId, {
         statusShort: 'FT',
       });
-      void prefetchMatchShorts(opts.queryClient, matchId);
+      void prefetchMatchShorts(opts.queryClient, matchId, {
+        token: opts.token,
+        viewerId: opts.viewerId,
+      });
     }
     return context;
   }
@@ -160,7 +168,7 @@ export async function prefetchPushContext(
 /** Parse raw Expo data, prefetch, and resolve a navigation target. */
 export async function resolvePushNavigationFromRaw(
   raw: Record<string, unknown>,
-  opts: {token?: string | null; queryClient: QueryClient},
+  opts: {token?: string | null; viewerId?: number | null; queryClient: QueryClient},
 ) {
   const data = normalizePushNotificationData(raw);
   const context = await prefetchPushContext(data, opts);
