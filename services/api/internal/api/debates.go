@@ -729,6 +729,11 @@ func (f *generateSetRateLimitFallback) allow(matchID string) bool {
 func (c *Config) createDebate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Manual create writes straight into the public debate feed. Same admin gate as hard-delete.
+	if !c.requireDebateAdmin(w, r) {
+		return
+	}
+
 	var req CreateDebateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithErrorCode(w, http.StatusBadRequest, "Invalid request body", errCodeDebateInvalidBody)
@@ -996,6 +1001,11 @@ func (c *Config) getDebatesByMatch(w http.ResponseWriter, r *http.Request) {
 
 func (c *Config) createDebateCard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Cards are what make a manual debate eligible for the public feed.
+	if !c.requireDebateAdmin(w, r) {
+		return
+	}
 
 	var req CreateDebateCardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
