@@ -1121,6 +1121,8 @@ func TestDebateAdminRoutesRequireAuthentication(t *testing.T) {
 	}{
 		{name: "hard delete", method: http.MethodDelete, path: "/debates/7/hard"},
 		{name: "restore", method: http.MethodPost, path: "/debates/7/restore"},
+		{name: "manual create", method: http.MethodPost, path: "/debates"},
+		{name: "manual card", method: http.MethodPost, path: "/debates/cards"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
@@ -1143,6 +1145,8 @@ func TestDebateAdminRoutesRejectNonAdmins(t *testing.T) {
 	}{
 		{name: "hard delete", method: http.MethodDelete, path: "/debates/7/hard"},
 		{name: "restore", method: http.MethodPost, path: "/debates/7/restore"},
+		{name: "manual create", method: http.MethodPost, path: "/debates"},
+		{name: "manual card", method: http.MethodPost, path: "/debates/cards"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
