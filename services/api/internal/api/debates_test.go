@@ -732,6 +732,43 @@ func TestGetDebatesFeed_NewListError(t *testing.T) {
 	}
 }
 
+func TestFixtureScoreline_PenaltyShootoutDoesNotReplaceGoalScore(t *testing.T) {
+	// 90 minutes 1-1, extra time still 1-1. A 5-4 shootout must not become the scoreline.
+	etHome, etAway := 1, 1
+	home, away := fixtureScoreline("PEN", 1, 1, 1, 1, 0, 1, &etHome, &etAway)
+	if home != 1 || away != 1 {
+		t.Fatalf("PEN scoreline = %d-%d, want 1-1", home, away)
+	}
+}
+
+func TestFixtureScoreline_ExtraTimeGoalReplacesFulltime(t *testing.T) {
+	etHome, etAway := 2, 1
+	home, away := fixtureScoreline("AET", 2, 1, 1, 1, 0, 0, &etHome, &etAway)
+	if home != 2 || away != 1 {
+		t.Fatalf("AET scoreline = %d-%d, want 2-1", home, away)
+	}
+}
+
+func TestFixtureScoreline_FulltimeAndLiveAndHalftime(t *testing.T) {
+	home, away := fixtureScoreline("FT", 3, 0, 3, 0, 1, 0, nil, nil)
+	if home != 3 || away != 0 {
+		t.Fatalf("FT scoreline = %d-%d, want 3-0", home, away)
+	}
+	home, away = fixtureScoreline("2H", 2, 2, 0, 0, 1, 0, nil, nil)
+	if home != 2 || away != 2 {
+		t.Fatalf("2H scoreline = %d-%d, want 2-2", home, away)
+	}
+	home, away = fixtureScoreline("HT", 0, 1, 0, 0, 0, 1, nil, nil)
+	if home != 0 || away != 1 {
+		t.Fatalf("HT scoreline = %d-%d, want 0-1", home, away)
+	}
+	// Live shootout still shows the goal score, not a partial penalty tally.
+	home, away = fixtureScoreline("P", 1, 1, 1, 1, 0, 0, nil, nil)
+	if home != 1 || away != 1 {
+		t.Fatalf("P scoreline = %d-%d, want 1-1", home, away)
+	}
+}
+
 func TestTeamsFromMatchInfoJSON_ValidNullRawMessage(t *testing.T) {
 	mi := MatchInfo{
 		HomeTeam: "North FC", AwayTeam: "South United",
