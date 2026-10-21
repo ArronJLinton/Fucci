@@ -1870,6 +1870,25 @@ func (c *Config) getDebateByID(w http.ResponseWriter, r *http.Request, debateID 
 	respondWithJSON(w, http.StatusOK, response)
 }
 
+// fixtureScoreline is the goal scoreline for debate cards and the post-match prompt.
+// API-Football score.extratime is the score after extra time. score.penalty is only
+// the shootout and is intentionally not an input.
+func fixtureScoreline(status string, goalsHome, goalsAway, fulltimeHome, fulltimeAway, halftimeHome, halftimeAway int, extratimeHome, extratimeAway *int) (int, int) {
+	var home, away int
+	switch status {
+	case "FT", "AET", "PEN":
+		home, away = fulltimeHome, fulltimeAway
+	case "HT":
+		home, away = halftimeHome, halftimeAway
+	default:
+		home, away = goalsHome, goalsAway
+	}
+	if extratimeHome != nil && extratimeAway != nil {
+		home, away = *extratimeHome, *extratimeAway
+	}
+	return home, away
+}
+
 // getMatchInfo gets basic match information
 func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, error) {
 	// Use configurable base URL with fallback
@@ -1960,29 +1979,20 @@ func (c *Config) getMatchInfo(ctx context.Context, matchID string) (*MatchInfo, 
 
 	match := matchResponse.Response[0]
 
-	// Determine final score based on match status
-	var homeScore, awayScore int
-	switch match.Fixture.Status.Short {
-	case "FT", "AET", "PEN":
-		homeScore = match.Score.Fulltime.Home
-		awayScore = match.Score.Fulltime.Away
-	case "HT":
-		homeScore = match.Score.Halftime.Home
-		awayScore = match.Score.Halftime.Away
-	default:
-		homeScore = match.Goals.Home
-		awayScore = match.Goals.Away
-	}
-
-	// Handle extra time and penalties
-	if match.Score.Extratime.Home != nil && match.Score.Extratime.Away != nil {
-		homeScore = *match.Score.Extratime.Home
-		awayScore = *match.Score.Extratime.Away
-	}
-	if match.Score.Penalty.Home != nil && match.Score.Penalty.Away != nil {
-		homeScore = *match.Score.Penalty.Home
-		awayScore = *match.Score.Penalty.Away
-	}
+	// score.penalty is the shootout tally (5-4), not goals. Debate cards and the
+	// post-match prompt both persist HomeScore, so a cup tie must keep the goal
+	// scoreline (goals / fulltime / extratime).
+	homeScore, awayScore := fixtureScoreline(
+		match.Fixture.Status.Short,
+		match.Goals.Home,
+		match.Goals.Away,
+		match.Score.Fulltime.Home,
+		match.Score.Fulltime.Away,
+		match.Score.Halftime.Home,
+		match.Score.Halftime.Away,
+		match.Score.Extratime.Home,
+		match.Score.Extratime.Away,
+	)
 
 	return &MatchInfo{
 		HomeTeam:        match.Teams.Home.Name,
