@@ -213,4 +213,17 @@ describe('fetchMatchesForLocalDate (TZ=America/New_York)', () => {
     expect(call).toBe(2);
     expect((result ?? []).map(m => m.fixture.id)).toEqual([99]);
   });
+
+  it('sends league_id=0 for International Competitions instead of an unfiltered date fetch', async () => {
+    makeApiRequest.mockResolvedValue({response: []});
+
+    await fetchMatchesForLocalDate(new Date(2026, 9, 28), 0);
+
+    expect(makeApiRequest.mock.calls.length).toBeGreaterThan(0);
+    for (const call of makeApiRequest.mock.calls) {
+      const endpoint = call[0] as string;
+      expect(endpoint).toContain('league_id=0');
+      expect(endpoint).not.toMatch(/\/futbol\/matches\?date=\d{4}-\d{2}-\d{2}$/);
+    }
+  });
 });

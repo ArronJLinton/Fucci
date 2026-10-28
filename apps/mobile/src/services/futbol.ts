@@ -58,7 +58,9 @@ const fetchMatchesByUtcDate = async (
 ): Promise<Match[] | null> => {
   try {
     let endpoint = `/futbol/matches?date=${dateStr}`;
-    if (leagueId) {
+    // 0 is the International Competitions strip. A truthy check drops it and
+    // the API then returns every fixture on that UTC date.
+    if (leagueId !== undefined && leagueId !== null) {
       endpoint += `&league_id=${leagueId}`;
     }
     if (season !== undefined) {

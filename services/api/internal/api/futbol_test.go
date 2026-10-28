@@ -1514,3 +1514,95 @@ func TestGetTeamSquad(t *testing.T) {
 		}
 	})
 }
+
+func TestGetMatchesLeagueZeroAggregatesInternationalCompetitions(t *testing.T) {
+	const failLeague = LeagueWCQCAF // 34
+
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.RequestURI())
+		q := r.URL.Query()
+		league := q.Get("league")
+		w.Header().Set("Content-Type", "application/json")
+		if league == fmt.Sprintf("%d", failLeague) {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte(`not-json`))
+			return
+		}
+		body := `{"get":"fixtures","results":0,"response":[]}`
+		switch league {
+		case fmt.Sprintf("%d", LeagueWorldCup):
+			body = `{"get":"fixtures","results":1,"response":[{"fixture":{"id":501,"date":"2026-10-28T18:00:00Z","status":{"short":"NS"}},"teams":{"home":{"name":"H"},"away":{"name":"A"}}}]}`
+		case fmt.Sprintf("%d", LeagueFriendlies):
+			// Same id as a later competition would duplicate; earlier kickoff must sort first.
+			body = `{"get":"fixtures","results":2,"response":[{"fixture":{"id":502,"date":"2026-10-28T12:00:00Z","status":{"short":"FT"}},"teams":{"home":{"name":"H"},"away":{"name":"A"}}},{"fixture":{"id":501,"date":"2026-10-28T18:00:00Z","status":{"short":"NS"}},"teams":{"home":{"name":"H"},"away":{"name":"A"}}}]}`
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	var setKeys []string
+	config := &Config{
+		Cache: &MockCache{
+			existsFunc: func(ctx context.Context, key string) (bool, error) { return false, nil },
+			getFunc:    func(ctx context.Context, key string, value interface{}) error { return fmt.Errorf("miss") },
+			setFunc: func(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+				setKeys = append(setKeys, key)
+				return nil
+			},
+		},
+		FootballAPIKey:     "key",
+		APIFootballBaseURL: srv.URL,
+	}
+
+	req := httptest.NewRequest("GET", "/matches", nil)
+	req.URL.RawQuery = "date=2026-10-28&league_id=0"
+	rec := httptest.NewRecorder()
+	config.getMatches(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload GetMatchesAPIResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode: %v body=%s", err, rec.Body.String())
+	}
+	if payload.Results != 2 || len(payload.Response) != 2 {
+		t.Fatalf("results=%d len=%d, want 2 merged fixtures", payload.Results, len(payload.Response))
+	}
+	if payload.Response[0].Fixture.ID != 502 || payload.Response[1].Fixture.ID != 501 {
+		t.Fatalf("fixture order = %d,%d want 502 then 501", payload.Response[0].Fixture.ID, payload.Response[1].Fixture.ID)
+	}
+
+	wantLeagues := InternationalLeagueIDs()
+	if len(paths) != len(wantLeagues) {
+		t.Fatalf("upstream calls = %d (%v), want one per international league %v", len(paths), paths, wantLeagues)
+	}
+	seen := map[string]int{}
+	for _, p := range paths {
+		u, err := url.Parse(p)
+		if err != nil {
+			t.Fatalf("parse %s: %v", p, err)
+		}
+		if !strings.Contains(p, "date=2026-10-28") || !strings.Contains(p, "season=2026") {
+			t.Fatalf("upstream URL missing date/season: %s", p)
+		}
+		seen[u.Query().Get("league")]++
+	}
+	for _, id := range wantLeagues {
+		key := fmt.Sprintf("%d", id)
+		if seen[key] != 1 {
+			t.Fatalf("league %s called %d times; paths=%v", key, seen[key], paths)
+		}
+	}
+	foundAggregate := false
+	for _, key := range setKeys {
+		if key == "matches:league:0:date:2026-10-28:season:2026" {
+			foundAggregate = true
+		}
+	}
+	if !foundAggregate {
+		t.Fatalf("aggregate cache key missing; set keys=%v", setKeys)
+	}
+}

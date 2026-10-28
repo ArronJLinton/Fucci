@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -84,6 +85,13 @@ func (c *Config) getMatches(w http.ResponseWriter, r *http.Request) {
 // down" by checking `data.Results`).
 func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, leagueID, season *int) (*GetMatchesAPIResponse, error) {
 	dateCanonical := matchDate.Format("2006-01-02")
+
+	// League id 0 is the mobile "International Competitions" strip, not "every
+	// fixture on this date". API-Football has no league 0; aggregate the known
+	// international competitions instead of calling /fixtures?date= with no league.
+	if leagueID != nil && *leagueID == 0 {
+		return c.fetchInternationalCompetitionMatches(ctx, matchDate, season)
+	}
 
 	var cacheKey string
 	var leagueIDNum, seasonNum int
@@ -184,6 +192,101 @@ func (c *Config) FetchMatchesCached(ctx context.Context, matchDate time.Time, le
 	}
 
 	return &data, nil
+}
+
+// fetchInternationalCompetitionMatches loads the competitions behind league id 0.
+// Each competition uses the shared per-league cache. One upstream failure does not
+// drop fixtures that were loaded from the others; the call fails only when every
+// competition fails.
+func internationalMatchesCacheKey(matchDate time.Time, season *int) string {
+	dateCanonical := matchDate.Format("2006-01-02")
+	seasonNum := matchDate.Year()
+	if season != nil {
+		seasonNum = *season
+	}
+	return fmt.Sprintf("matches:league:0:date:%s:season:%d", dateCanonical, seasonNum)
+}
+
+func (c *Config) fetchInternationalCompetitionMatches(ctx context.Context, matchDate time.Time, season *int) (*GetMatchesAPIResponse, error) {
+	cacheKey := internationalMatchesCacheKey(matchDate, season)
+	if c.Cache != nil {
+		exists, err := c.Cache.Exists(ctx, cacheKey)
+		if err != nil {
+			log.Printf("international fixtures cache check error: %v", err)
+		} else if exists {
+			var cached GetMatchesAPIResponse
+			if err := c.Cache.Get(ctx, cacheKey, &cached); err == nil && cached.Get == "fixtures" {
+				return &cached, nil
+			}
+		}
+	}
+
+	ids := InternationalLeagueIDs()
+	merged := &GetMatchesAPIResponse{Get: "fixtures"}
+	seen := make(map[int]struct{})
+	var firstErr error
+	successes := 0
+
+	for _, id := range ids {
+		lid := id
+		data, err := c.FetchMatchesCached(ctx, matchDate, &lid, season)
+		if err != nil {
+			log.Printf("international fixtures league=%d date=%s: %v", id, matchDate.Format("2006-01-02"), err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		successes++
+		if data == nil {
+			continue
+		}
+		for _, match := range data.Response {
+			if _, ok := seen[match.Fixture.ID]; ok {
+				continue
+			}
+			seen[match.Fixture.ID] = struct{}{}
+			merged.Response = append(merged.Response, match)
+		}
+	}
+
+	if successes == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+
+	sort.Slice(merged.Response, func(i, j int) bool {
+		di := merged.Response[i].Fixture.Date
+		dj := merged.Response[j].Fixture.Date
+		if !di.Equal(dj) {
+			return di.Before(dj)
+		}
+		return merged.Response[i].Fixture.ID < merged.Response[j].Fixture.ID
+	})
+	merged.Results = len(merged.Response)
+	merged.Paging.Current = 1
+	merged.Paging.Total = 1
+	if merged.Response == nil {
+		// Keep JSON `response` as [] rather than null when no competition has fixtures.
+		var empty GetMatchesAPIResponse
+		_ = json.Unmarshal([]byte(`{"response":[]}`), &empty)
+		merged.Response = empty.Response
+	}
+
+	// Cache the merged list, including an empty day, so the strip does not
+	// fan out to every international league on each open. Skip the write when
+	// every competition failed so a blip is not stored as "no matches".
+	if c.Cache != nil && successes > 0 {
+		ttl := cache.DefaultTTL
+		for _, match := range merged.Response {
+			if mt := cache.GetMatchTTL(match.Fixture.Status.Short); mt < ttl {
+				ttl = mt
+			}
+		}
+		if err := c.Cache.Set(ctx, cacheKey, merged, ttl); err != nil {
+			log.Printf("international fixtures cache set error: %v", err)
+		}
+	}
+	return merged, nil
 }
 
 func (c *Config) getMatch(w http.ResponseWriter, r *http.Request) {
