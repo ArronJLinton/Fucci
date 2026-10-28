@@ -26,15 +26,18 @@ const (
 	LeagueWCQOFC      = 37
 )
 
-var internationalFootballLeagueIDs = map[int]struct{}{
-	LeagueWorldCup:    {},
-	LeagueFriendlies:  {},
-	LeagueWCQUEFA:     {},
-	LeagueWCQCONMEBOL: {},
-	LeagueWCQCAF:      {},
-	LeagueWCQAFC:      {},
-	LeagueWCQCONCACAF: {},
-	LeagueWCQOFC:      {},
+// internationalFootballLeagueIDs is the API-Football set behind the mobile
+// "International Competitions" strip (league id 0). Order is stable so merged
+// responses do not depend on map iteration.
+var internationalFootballLeagueIDs = []int{
+	LeagueWorldCup,
+	LeagueFriendlies,
+	LeagueWCQCONMEBOL,
+	LeagueWCQUEFA,
+	LeagueWCQCAF,
+	LeagueWCQAFC,
+	LeagueWCQCONCACAF,
+	LeagueWCQOFC,
 }
 
 // Club leagues whose API-Football `season` is the calendar year of the fixture
@@ -46,8 +49,20 @@ var calendarYearClubLeagueIDs = map[int]struct{}{
 // IsInternationalFootballLeague is true for World Cup, WCQ confederations, and international friendlies.
 // Domestic and club competitions (EPL, UCL, etc.) use the August–July season year rule instead.
 func IsInternationalFootballLeague(leagueID int) bool {
-	_, ok := internationalFootballLeagueIDs[leagueID]
-	return ok
+	for _, id := range internationalFootballLeagueIDs {
+		if id == leagueID {
+			return true
+		}
+	}
+	return false
+}
+
+// InternationalLeagueIDs returns a copy of the competitions aggregated when
+// clients request league id 0 (the International Competitions strip).
+func InternationalLeagueIDs() []int {
+	out := make([]int, len(internationalFootballLeagueIDs))
+	copy(out, internationalFootballLeagueIDs)
+	return out
 }
 
 // usesCalendarYearSeason is true when API-Football expects season = fixture calendar year.
@@ -60,9 +75,9 @@ func usesCalendarYearSeason(leagueID int) bool {
 }
 
 // ResolveAPIFootballSeason returns the `season` query parameter for API-Football fixtures.
-// - UEFA Champions League and most domestic club leagues: European-style season starting year
-//   (Aug–Dec → year; Jan–Jul → year−1).
-// - International tournaments and calendar-year club leagues (e.g. MLS): calendar year of the fixture date.
+//   - UEFA Champions League and most domestic club leagues: European-style season starting year
+//     (Aug–Dec → year; Jan–Jul → year−1).
+//   - International tournaments and calendar-year club leagues (e.g. MLS): calendar year of the fixture date.
 func ResolveAPIFootballSeason(leagueID int, matchDate time.Time) int {
 	y, m, _ := matchDate.Date()
 	if usesCalendarYearSeason(leagueID) {
