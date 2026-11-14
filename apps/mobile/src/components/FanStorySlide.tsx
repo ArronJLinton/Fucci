@@ -103,14 +103,16 @@ export default function FanStorySlide({
         </View>
       ) : null}
       {onDelete ? (
-        <Pressable
-          style={styles.actionBtn}
-          onPress={() => onDelete(story)}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Delete story">
-          <Ionicons name="trash-outline" size={22} color="#fff" />
-        </Pressable>
+        <View style={styles.actionStack}>
+          <Pressable
+            style={styles.actionBtn}
+            onPress={() => onDelete(story)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Delete story">
+            <Ionicons name="trash-outline" size={22} color="#fff" />
+          </Pressable>
+        </View>
       ) : (
         <View style={styles.actionStack}>
           {onReport ? (

@@ -39,11 +39,13 @@ export function ComparePlayerSearchModal({
 }: Props) {
   const {token} = useAuth();
   const [query, setQuery] = useState('');
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<number>>(new Set());
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return players.filter(p => {
       if (excludeIds?.has(p.id)) return false;
+      if (p.userId != null && blockedUserIds.has(p.userId)) return false;
       if (!q) return true;
       return (
         p.displayName.toLowerCase().includes(q) ||
@@ -51,7 +53,7 @@ export function ComparePlayerSearchModal({
         p.countryLabel.toLowerCase().includes(q)
       );
     });
-  }, [players, query, excludeIds]);
+  }, [players, query, excludeIds, blockedUserIds]);
 
   const onReportPlayer = (item: ComparePlayerSnapshot) => {
     if (!token || item.userId == null) {
@@ -82,6 +84,9 @@ export function ComparePlayerSearchModal({
       blockedUserId: item.userId,
       reportableType: 'player_profile',
       reportableId: String(item.userId),
+      onSuccess: () => {
+        setBlockedUserIds(prev => new Set(prev).add(item.userId!));
+      },
     });
   };
 

@@ -517,6 +517,22 @@ const SingleDebateScreen = () => {
     });
   };
 
+  const handleReportCommentAvatar = (comment: {
+    id: number;
+    user_id: number;
+  }) => {
+    if (!token) {
+      setAuthGatePendingAction('report_comment');
+      return;
+    }
+    promptReportContent({
+      token,
+      reportableType: 'avatar',
+      reportableId: String(comment.user_id),
+      title: 'Report avatar',
+    });
+  };
+
   const handleBlockCommentAuthor = (comment: {
     id: number;
     user_id: number;
@@ -649,6 +665,14 @@ const SingleDebateScreen = () => {
                   accessibilityLabel="Report comment">
                   <Ionicons name="flag-outline" size={14} color={MUTED} />
                   <Text style={styles.commentActionText}>Report</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleReportCommentAvatar(c)}
+                  style={styles.commentActionBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report avatar">
+                  <Ionicons name="image-outline" size={14} color={MUTED} />
+                  <Text style={styles.commentActionText}>Report avatar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleBlockCommentAuthor(c)}

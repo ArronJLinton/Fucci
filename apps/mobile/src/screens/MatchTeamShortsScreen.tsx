@@ -212,6 +212,21 @@ export default function MatchTeamShortsScreen() {
     [params.matchId, queryClient],
   );
 
+  const hideStoriesByUserAndRefresh = useCallback(
+    (userId: number) => {
+      const storyIds = (params.userStories ?? [])
+        .filter(story => story.user_id === userId)
+        .map(story => story.id);
+      setRemovedFanIds(prev => new Set([...prev, ...storyIds]));
+      if (params.matchId != null) {
+        void queryClient.invalidateQueries({
+          queryKey: matchShortsQueryKey(params.matchId),
+        });
+      }
+    },
+    [params.matchId, params.userStories, queryClient],
+  );
+
   const onReportStory = useCallback(
     (story: FanStory) => {
       if (!token) {
@@ -239,10 +254,10 @@ export default function MatchTeamShortsScreen() {
         blockedUserId: story.user_id,
         reportableType: 'story',
         reportableId: story.id,
-        onSuccess: () => hideStoryAndRefresh(story),
+        onSuccess: () => hideStoriesByUserAndRefresh(story.user_id),
       });
     },
-    [hideStoryAndRefresh, token],
+    [hideStoriesByUserAndRefresh, token],
   );
 
   const onDeleteStory = useCallback(

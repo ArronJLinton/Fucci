@@ -883,11 +883,13 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		avatar = strings.TrimSpace(*req.AvatarURL)
 	}
 	if len(texts) > 0 || avatar != "" {
-		reportType := "user"
-		if avatar != "" {
-			reportType = "avatar"
+		reportableID := strconv.FormatInt(int64(userID), 10)
+		if len(texts) > 0 {
+			c.softFlagUGC(r.Context(), userID, "user", reportableID, texts, "", "")
 		}
-		c.softFlagUGC(r.Context(), userID, reportType, strconv.FormatInt(int64(userID), 10), texts, avatar, "photo")
+		if avatar != "" {
+			c.softFlagUGC(r.Context(), userID, "avatar", reportableID, nil, avatar, "photo")
+		}
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
