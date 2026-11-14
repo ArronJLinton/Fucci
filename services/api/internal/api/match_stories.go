@@ -223,19 +223,26 @@ func (c *Config) postMatchStory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	mediaURL := strings.TrimSpace(req.MediaURL)
 	row, err := c.DB.CreateMatchStory(r.Context(), database.CreateMatchStoryParams{
 		UserID:        userID,
 		ScopeType:     database.StoryScopeTypeMatch,
 		ScopeID:       strings.TrimSpace(req.ScopeID),
 		TeamLookupKey: strings.TrimSpace(req.TeamLookupKey),
 		ContentType:   database.StoryContentType(contentType),
-		MediaUrl:      strings.TrimSpace(req.MediaURL),
+		MediaUrl:      mediaURL,
 		Caption:       caption,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create story")
 		return
 	}
+
+	var texts []string
+	if caption.Valid {
+		texts = append(texts, caption.String)
+	}
+	c.softFlagUGC(r.Context(), userID, "story", row.ID.String(), texts, mediaURL, contentType)
 
 	respondWithJSON(w, http.StatusCreated, matchStoryFromRecord(row))
 }

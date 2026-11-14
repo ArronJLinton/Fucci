@@ -166,13 +166,15 @@ type Config struct {
 	PushService     *push.Service // optional override for unit tests
 
 	// Moderation / Guideline 1.2 (optional SMTP; logs when unset).
-	SMTPHost               string
-	SMTPPort               string
-	SMTPUsername           string
-	SMTPPassword           string
-	SMTPFrom               string
-	ModerationNotifyEmail  string
-	ModerationNotifier     *moderation.Notifier // optional test override
+	SMTPHost              string
+	SMTPPort              string
+	SMTPUsername          string
+	SMTPPassword          string
+	SMTPFrom              string
+	ModerationNotifyEmail string
+	ModerationNotifier    *moderation.Notifier // optional test override
+	// ContentChecker optional AI soft-flag moderator; nil => built from OpenAIKey in New().
+	ContentChecker moderation.ContentChecker
 }
 
 // newsXAPIKey is the key passed to the Open Web Ninja news HTTP client. When trimmed NewsAPIKey
@@ -196,6 +198,9 @@ func New(c *Config) http.Handler {
 	// Initialize AI prompt generator if OpenAI key is provided
 	if c.OpenAIKey != "" {
 		c.AIPromptGenerator = ai.NewPromptGenerator(c.OpenAIKey, c.OpenAIBaseURL, c.Cache)
+		if c.ContentChecker == nil {
+			c.ContentChecker = moderation.NewOpenAIModerator(c.OpenAIKey, c.OpenAIBaseURL)
+		}
 	}
 
 	// Initialize services
