@@ -397,6 +397,76 @@ func TestDeleteUserBlock_OK(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+type stubContentChecker struct {
+	result moderation.ContentCheckResult
+	err    error
+	calls  int
+}
+
+func (s *stubContentChecker) Check(ctx context.Context, input moderation.ContentCheckInput) (moderation.ContentCheckResult, error) {
+	s.calls++
+	return s.result, s.err
+}
+
+func TestSoftFlagUGC_CreatesReportAndNotifies(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	checker := &stubContentChecker{
+		result: moderation.ContentCheckResult{
+			Flagged:    true,
+			Categories: []string{"hate"},
+			Model:      "omni-moderation-latest",
+		},
+	}
+	cfg := &Config{
+		DB:                 database.New(db),
+		ContentChecker:     checker,
+		SystemUserEmail:    "contact@magistri.dev",
+		ModerationNotifier: &moderation.Notifier{},
+	}
+	const authorID int32 = 42
+	const systemID int32 = 1
+	reportID := uuid.New()
+	createdAt := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`SELECT .+ FROM users WHERE email`).
+		WithArgs("contact@magistri.dev").
+		WillReturnRows(systemUserMockRows(systemID, "contact@magistri.dev"))
+	mock.ExpectQuery(`(?s)-- name: CreateContentReport :one\s+INSERT INTO content_reports .*RETURNING id, reporter_id, reportable_type, reportable_id, reason, description, status, created_at, reported_user_id`).
+		WithArgs(
+			systemID,
+			"debate_response",
+			"99",
+			sql.NullInt32{Int32: authorID, Valid: true},
+			"inappropriate_content",
+			sqlmock.AnyArg(),
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "reporter_id", "reportable_type", "reportable_id", "reason", "description", "status", "created_at", "reported_user_id",
+		}).AddRow(
+			reportID, systemID, "debate_response", "99", "inappropriate_content",
+			"AI soft-flag", "pending", createdAt, authorID,
+		))
+
+	cfg.softFlagUGC(context.Background(), authorID, "debate_response", "99", []string{"bad text"}, "", "")
+	assert.Equal(t, 1, checker.calls)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSoftFlagUGC_NotFlaggedNoReport(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	checker := &stubContentChecker{result: moderation.ContentCheckResult{Flagged: false}}
+	cfg := &Config{DB: database.New(db), ContentChecker: checker}
+	cfg.softFlagUGC(context.Background(), 7, "debate_response", "1", []string{"hello"}, "", "")
+	assert.Equal(t, 1, checker.calls)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestClampModerationDescription(t *testing.T) {
 	t.Parallel()
 	got, err := clampModerationDescription("  hello  ")

@@ -17,6 +17,7 @@ type Props = {
   onFinished: () => void;
   onPlaybackStart?: () => void;
   onReport?: (story: FanStory) => void;
+  onBlock?: (story: FanStory) => void;
   onDelete?: (story: FanStory) => void;
 };
 
@@ -26,6 +27,7 @@ export default function FanStorySlide({
   onFinished,
   onPlaybackStart,
   onReport,
+  onBlock,
   onDelete,
 }: Props) {
   const finishedRef = useRef(onFinished);
@@ -109,16 +111,30 @@ export default function FanStorySlide({
           accessibilityLabel="Delete story">
           <Ionicons name="trash-outline" size={22} color="#fff" />
         </Pressable>
-      ) : onReport ? (
-        <Pressable
-          style={styles.actionBtn}
-          onPress={() => onReport(story)}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Report story">
-          <Ionicons name="flag-outline" size={22} color="#fff" />
-        </Pressable>
-      ) : null}
+      ) : (
+        <View style={styles.actionStack}>
+          {onReport ? (
+            <Pressable
+              style={styles.actionBtn}
+              onPress={() => onReport(story)}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Report story">
+              <Ionicons name="flag-outline" size={22} color="#fff" />
+            </Pressable>
+          ) : null}
+          {onBlock ? (
+            <Pressable
+              style={styles.actionBtn}
+              onPress={() => onBlock(story)}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Block user">
+              <Ionicons name="hand-left-outline" size={22} color="#fff" />
+            </Pressable>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
@@ -137,16 +153,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  actionBtn: {
+  actionStack: {
     position: 'absolute',
     right: 16,
     bottom: 120,
+    gap: 10,
+    zIndex: 6,
+  },
+  actionBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 6,
   },
 });

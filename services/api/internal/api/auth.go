@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/mail"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -865,6 +866,28 @@ func (c *Config) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "failed to fetch updated user")
 		return
+	}
+
+	var texts []string
+	if req.Firstname != nil {
+		texts = append(texts, *req.Firstname)
+	}
+	if req.Lastname != nil {
+		texts = append(texts, *req.Lastname)
+	}
+	if req.DisplayName != nil {
+		texts = append(texts, *req.DisplayName)
+	}
+	avatar := ""
+	if req.AvatarURL != nil {
+		avatar = strings.TrimSpace(*req.AvatarURL)
+	}
+	if len(texts) > 0 || avatar != "" {
+		reportType := "user"
+		if avatar != "" {
+			reportType = "avatar"
+		}
+		c.softFlagUGC(r.Context(), userID, reportType, strconv.FormatInt(int64(userID), 10), texts, avatar, "photo")
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)

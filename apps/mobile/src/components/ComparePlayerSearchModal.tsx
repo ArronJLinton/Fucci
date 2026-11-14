@@ -15,7 +15,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import type {ComparePlayerSnapshot} from '../types/comparePlayer';
 import {useAuth} from '../context/AuthContext';
-import {promptModerationActions} from '../services/moderation';
+import {promptBlockUser, promptReportContent} from '../services/moderation';
 
 type Props = {
   visible: boolean;
@@ -53,7 +53,7 @@ export function ComparePlayerSearchModal({
     });
   }, [players, query, excludeIds]);
 
-  const onLongPressPlayer = (item: ComparePlayerSnapshot) => {
+  const onReportPlayer = (item: ComparePlayerSnapshot) => {
     if (!token || item.userId == null) {
       Alert.alert(
         'Unavailable',
@@ -61,9 +61,25 @@ export function ComparePlayerSearchModal({
       );
       return;
     }
-    promptModerationActions({
+    promptReportContent({
       token,
-      targetUserId: item.userId,
+      reportableType: 'player_profile',
+      reportableId: String(item.userId),
+      title: 'Report player profile',
+    });
+  };
+
+  const onBlockPlayer = (item: ComparePlayerSnapshot) => {
+    if (!token || item.userId == null) {
+      Alert.alert(
+        'Unavailable',
+        'Sign in to report or block this player profile.',
+      );
+      return;
+    }
+    promptBlockUser({
+      token,
+      blockedUserId: item.userId,
       reportableType: 'player_profile',
       reportableId: String(item.userId),
     });
@@ -104,7 +120,7 @@ export function ComparePlayerSearchModal({
             />
           </View>
           <Text style={styles.hint}>
-            Long-press a player to report their profile or block them.
+            Use Report or Block on a player row, or tap the row to select them.
           </Text>
 
           <FlatList
@@ -122,27 +138,40 @@ export function ComparePlayerSearchModal({
               </Text>
             }
             renderItem={({item}) => (
-              <TouchableOpacity
-                style={styles.row}
-                onPress={() => {
-                  onSelect(item);
-                  setQuery('');
-                  onClose();
-                }}
-                onLongPress={() => onLongPressPlayer(item)}
-                delayLongPress={350}
-                activeOpacity={0.7}>
-                <View style={styles.rowAvatar}>
-                  <Ionicons name="person" size={22} color="#64748b" />
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={styles.rowName}>{item.displayName}</Text>
-                  <Text style={styles.rowMeta}>
-                    {item.team} · {item.positionAbbrev}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#475569" />
-              </TouchableOpacity>
+              <View style={styles.row}>
+                <TouchableOpacity
+                  style={styles.rowMain}
+                  onPress={() => {
+                    onSelect(item);
+                    setQuery('');
+                    onClose();
+                  }}
+                  activeOpacity={0.7}>
+                  <View style={styles.rowAvatar}>
+                    <Ionicons name="person" size={22} color="#64748b" />
+                  </View>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowName}>{item.displayName}</Text>
+                    <Text style={styles.rowMeta}>
+                      {item.team} · {item.positionAbbrev}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.moderationBtn}
+                  onPress={() => onReportPlayer(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report player profile">
+                  <Ionicons name="flag-outline" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.moderationBtn}
+                  onPress={() => onBlockPlayer(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Block user">
+                  <Ionicons name="hand-left-outline" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
             )}
           />
         </KeyboardAvoidingView>
@@ -204,6 +233,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#1e293b',
+    gap: 4,
+  },
+  rowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  moderationBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowAvatar: {
     width: 44,

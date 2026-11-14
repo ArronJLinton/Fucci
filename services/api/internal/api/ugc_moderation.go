@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ArronJLinton/fucci-api/internal/auth"
+	"github.com/ArronJLinton/fucci-api/internal/database"
 	"github.com/ArronJLinton/fucci-api/internal/moderation"
 	"github.com/google/uuid"
 )
@@ -146,6 +147,81 @@ func (c *Config) moderationNotifier() *moderation.Notifier {
 			To:       to,
 		},
 	}
+}
+
+func (c *Config) contentChecker() moderation.ContentChecker {
+	if c == nil {
+		return nil
+	}
+	return c.ContentChecker
+}
+
+// softFlagUGC runs a synchronous AI moderation check after content is published.
+// If flagged, it creates a pending content_report (system reporter) and emails moderation.
+// Failures of the AI service are logged and ignored so publishing is not blocked.
+func (c *Config) softFlagUGC(
+	ctx context.Context,
+	authorID int32,
+	reportableType, reportableID string,
+	texts []string,
+	mediaURL, mediaKind string,
+) {
+	checker := c.contentChecker()
+	if checker == nil || c.DB == nil {
+		return
+	}
+
+	input := moderation.ContentCheckInput{Texts: texts}
+	if preview := moderation.MediaPreviewURL(mediaURL, mediaKind); preview != "" {
+		input.ImageURLs = []string{preview}
+	}
+
+	result, err := checker.Check(ctx, input)
+	if err != nil {
+		log.Printf("[moderation] AI check failed type=%s id=%s: %v", reportableType, reportableID, err)
+		return
+	}
+	if !result.Flagged {
+		return
+	}
+
+	systemID, err := c.getSystemUserID(ctx)
+	if err != nil || systemID == 0 {
+		log.Printf("[moderation] AI soft-flag skipped; system user unavailable: %v", err)
+		return
+	}
+
+	desc := moderation.FormatAIFlagDescription(result)
+	report, err := c.DB.CreateContentReport(ctx, database.CreateContentReportParams{
+		ReporterID:     systemID,
+		ReportableType: reportableType,
+		ReportableID:   reportableID,
+		ReportedUserID: sql.NullInt32{Int32: authorID, Valid: authorID != 0},
+		Reason:         "inappropriate_content",
+		Description:    sql.NullString{String: desc, Valid: true},
+	})
+	if err != nil {
+		log.Printf("[moderation] AI soft-flag report create failed type=%s id=%s: %v", reportableType, reportableID, err)
+		return
+	}
+
+	reported := authorID
+	var reportedPtr *int32
+	if authorID != 0 {
+		reportedPtr = &reported
+	}
+	c.enqueueModerationNotify(moderation.ReportEmailPayload{
+		ReportID:       report.ID.String(),
+		ReporterID:     systemID,
+		ReportedUserID: reportedPtr,
+		ReportableType: reportableType,
+		ReportableID:   reportableID,
+		Reason:         "inappropriate_content",
+		Description:    desc,
+		Source:         "ai_soft_flag",
+	})
+	log.Printf("[moderation] AI soft-flag queued report_id=%s type=%s id=%s cats=%v",
+		report.ID.String(), reportableType, reportableID, result.Categories)
 }
 
 func (c *Config) recordTermsAcceptance(ctx context.Context, userID int32) {

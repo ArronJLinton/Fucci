@@ -433,6 +433,9 @@ func (c *Config) postPlayerProfile(w http.ResponseWriter, r *http.Request) {
 		}
 		careerTeams = append(careerTeams, PlayerProfileCareerTeamDTO{ID: row.ID, TeamName: row.TeamName, StartYear: row.StartYear, EndYear: endYear})
 	}
+	if club.Valid {
+		c.softFlagUGC(ctx, userID, "player_profile", strconv.FormatInt(int64(userID), 10), []string{club.String}, "", "")
+	}
 	respondWithJSON(w, http.StatusOK, profileToResponse(profile, traits, careerTeams))
 }
 
@@ -543,6 +546,9 @@ func (c *Config) putPlayerProfile(w http.ResponseWriter, r *http.Request) {
 			endYear = &row.EndYear.Int32
 		}
 		careerTeams = append(careerTeams, PlayerProfileCareerTeamDTO{ID: row.ID, TeamName: row.TeamName, StartYear: row.StartYear, EndYear: endYear})
+	}
+	if club.Valid {
+		c.softFlagUGC(ctx, userID, "player_profile", strconv.FormatInt(int64(userID), 10), []string{club.String}, "", "")
 	}
 	respondWithJSON(w, http.StatusOK, profileToResponse(updated, traits, careerTeams))
 }

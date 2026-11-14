@@ -33,7 +33,7 @@ import {
   type StorySlide,
 } from '../services/matchShortsApi';
 import {deleteMatchStory} from '../services/matchStoryApi';
-import {promptModerationActions} from '../services/moderation';
+import {promptBlockUser, promptReportContent} from '../services/moderation';
 import type {RootStackParamList} from '../types/navigation';
 
 const SHORT_RING_AMBER = '#F5A623';
@@ -200,28 +200,49 @@ export default function MatchTeamShortsScreen() {
     });
   }, [isLoggedIn, navigation, params.matchId, params.teamDisplayName, params.teamLookupKey]);
 
+  const hideStoryAndRefresh = useCallback(
+    (story: FanStory) => {
+      setRemovedFanIds(prev => new Set(prev).add(story.id));
+      if (params.matchId != null) {
+        void queryClient.invalidateQueries({
+          queryKey: matchShortsQueryKey(params.matchId),
+        });
+      }
+    },
+    [params.matchId, queryClient],
+  );
+
   const onReportStory = useCallback(
     (story: FanStory) => {
       if (!token) {
         Alert.alert('Sign in required', 'Please sign in to report a story.');
         return;
       }
-      promptModerationActions({
+      promptReportContent({
         token,
-        targetUserId: story.user_id,
         reportableType: 'story',
         reportableId: story.id,
-        onReportedOrBlocked: () => {
-          setRemovedFanIds(prev => new Set(prev).add(story.id));
-          if (params.matchId != null) {
-            void queryClient.invalidateQueries({
-              queryKey: matchShortsQueryKey(params.matchId),
-            });
-          }
-        },
+        onSuccess: () => hideStoryAndRefresh(story),
       });
     },
-    [params.matchId, queryClient, token],
+    [hideStoryAndRefresh, token],
+  );
+
+  const onBlockStoryUser = useCallback(
+    (story: FanStory) => {
+      if (!token) {
+        Alert.alert('Sign in required', 'Please sign in to block a user.');
+        return;
+      }
+      promptBlockUser({
+        token,
+        blockedUserId: story.user_id,
+        reportableType: 'story',
+        reportableId: story.id,
+        onSuccess: () => hideStoryAndRefresh(story),
+      });
+    },
+    [hideStoryAndRefresh, token],
   );
 
   const onDeleteStory = useCallback(
@@ -316,6 +337,11 @@ export default function MatchTeamShortsScreen() {
                   }
                   onReport={
                     user?.id === slide.story.user_id ? undefined : onReportStory
+                  }
+                  onBlock={
+                    user?.id === slide.story.user_id
+                      ? undefined
+                      : onBlockStoryUser
                   }
                   onDelete={
                     user?.id === slide.story.user_id ? onDeleteStory : undefined

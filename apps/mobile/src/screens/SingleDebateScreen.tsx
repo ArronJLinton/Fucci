@@ -32,7 +32,7 @@ import {
   setCommentVote,
   addCommentReaction,
 } from '../services/api';
-import {promptModerationActions} from '../services/moderation';
+import {promptBlockUser, promptReportContent} from '../services/moderation';
 import {useAuth} from '../context/AuthContext';
 import {rootNavigateToProfileAuth} from '../navigation/authNavigationActions';
 import {rootNavigate} from '../navigation/rootNavigation';
@@ -490,6 +490,17 @@ const SingleDebateScreen = () => {
     }
   };
 
+  const hideCommentLocally = (commentId: number) => {
+    setComments(prev =>
+      prev
+        .filter(c => c.id !== commentId)
+        .map(c => ({
+          ...c,
+          subcomments: (c.subcomments ?? []).filter(s => s.id !== commentId),
+        })),
+    );
+  };
+
   const handleReportComment = (comment: {
     id: number;
     user_id: number;
@@ -498,20 +509,36 @@ const SingleDebateScreen = () => {
       setAuthGatePendingAction('report_comment');
       return;
     }
-    promptModerationActions({
+    promptReportContent({
       token,
-      targetUserId: comment.user_id,
       reportableType: 'debate_response',
       reportableId: String(comment.id),
-      onReportedOrBlocked: () => {
-        // Hide from local thread immediately
+      onSuccess: () => hideCommentLocally(comment.id),
+    });
+  };
+
+  const handleBlockCommentAuthor = (comment: {
+    id: number;
+    user_id: number;
+  }) => {
+    if (!token) {
+      setAuthGatePendingAction('report_comment');
+      return;
+    }
+    promptBlockUser({
+      token,
+      blockedUserId: comment.user_id,
+      reportableType: 'debate_response',
+      reportableId: String(comment.id),
+      onSuccess: () => {
+        // Remove this author's comments from the local thread immediately.
         setComments(prev =>
           prev
-            .filter(c => c.id !== comment.id)
+            .filter(c => c.user_id !== comment.user_id)
             .map(c => ({
               ...c,
               subcomments: (c.subcomments ?? []).filter(
-                s => s.id !== comment.id,
+                s => s.user_id !== comment.user_id,
               ),
             })),
         );
@@ -614,14 +641,24 @@ const SingleDebateScreen = () => {
               </TouchableOpacity>
             )}
             {canReportComment ? (
-              <TouchableOpacity
-                onPress={() => handleReportComment(c)}
-                style={styles.commentActionBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Report comment">
-                <Ionicons name="flag-outline" size={14} color={MUTED} />
-                <Text style={styles.commentActionText}>Report</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  onPress={() => handleReportComment(c)}
+                  style={styles.commentActionBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report comment">
+                  <Ionicons name="flag-outline" size={14} color={MUTED} />
+                  <Text style={styles.commentActionText}>Report</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleBlockCommentAuthor(c)}
+                  style={styles.commentActionBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Block user">
+                  <Ionicons name="hand-left-outline" size={14} color={MUTED} />
+                  <Text style={styles.commentActionText}>Block</Text>
+                </TouchableOpacity>
+              </>
             ) : null}
             <View style={styles.reactionsRow}>
               {c.reactions?.map((r: ReactionCount, i: number) => (

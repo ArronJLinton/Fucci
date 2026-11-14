@@ -343,8 +343,10 @@ func (c *Config) CreateDebateComment(w http.ResponseWriter, r *http.Request) {
 		respondWithJSON(w, http.StatusCreated, map[string]interface{}{
 			"id": comment.ID, "debate_id": debateID, "content": content,
 		})
+		c.softFlagUGC(ctx, userID, "debate_response", strconv.FormatInt(int64(comment.ID), 10), []string{content}, "", "")
 		return
 	}
+	c.softFlagUGC(ctx, userID, "debate_response", strconv.FormatInt(int64(comment.ID), 10), []string{content}, "", "")
 	respondWithJSON(w, http.StatusCreated, out)
 }
 
