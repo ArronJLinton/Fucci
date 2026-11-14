@@ -162,4 +162,19 @@ CI/CD pipelines for:
 
 ## License
 
-[Add your license information here]
+Copyright (c) 2026 Arron [add your legal name or company entity]. All rights reserved.
+
+This software and associated documentation files (the "Software") are
+proprietary and confidential. No part of the Software may be copied,
+modified, merged, published, distributed, sublicensed, sold, or used to
+create derivative works, in whole or in part, without the prior written
+permission of the copyright holder.
+
+Viewing the source code, where made available, does not grant any license
+or right to use it.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
